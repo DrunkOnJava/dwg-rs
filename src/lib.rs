@@ -86,6 +86,7 @@ pub mod metadata;
 pub mod object;
 pub mod object_type;
 pub mod objects;
+pub mod r2007;
 pub mod reader;
 pub mod reed_solomon;
 pub mod section;
