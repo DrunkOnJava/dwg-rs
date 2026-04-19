@@ -76,6 +76,7 @@ pub mod common_entity;
 pub mod crc;
 pub mod entities;
 pub mod error;
+pub mod file_writer;
 pub mod handle_map;
 pub mod header;
 pub mod header_vars;
@@ -89,6 +90,7 @@ pub mod reader;
 pub mod reed_solomon;
 pub mod section;
 pub mod section_map;
+pub mod section_writer;
 pub mod tables;
 pub mod version;
 
