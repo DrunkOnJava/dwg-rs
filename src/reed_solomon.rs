@@ -176,7 +176,6 @@ pub fn verify(codeword: &mut [u8]) -> Result<()> {
     let n = roots.len();
     let mut mat = vec![vec![0u8; n + 1]; n];
     for (i, row) in mat.iter_mut().enumerate().take(n) {
-        let alpha_i = exp[(i + 1) % 255];
         for (j, &pos) in roots.iter().enumerate() {
             let alpha_pos = exp[(pos) % 255];
             // α^((i+1)·pos) with i+1 from syndrome index, pos from root index.

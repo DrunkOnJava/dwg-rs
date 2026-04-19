@@ -46,7 +46,7 @@
 //! ```
 
 use crate::bitcursor::BitCursor;
-use crate::entities::{Point3D, Vec3D, read_bd3};
+use crate::entities::{Vec3D, read_bd3};
 use crate::error::Result;
 use crate::tables::read_tv;
 use crate::version::Version;
