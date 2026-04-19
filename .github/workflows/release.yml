@@ -6,6 +6,9 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write  # needed to create the GitHub Release
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -21,6 +24,25 @@ jobs:
       - name: cargo publish --dry-run
         run: cargo +stable publish --dry-run --all-features
 
+  sbom:
+    name: Generate SBOM
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable toolchain
+        run: rustup update stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+      - name: Generate CycloneDX SBOM
+        run: cargo cyclonedx --format json --output-pattern bom
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dwg-rs-sbom
+          path: "**/bom.json"
+
   binaries:
     name: Build binaries — ${{ matrix.target }}
     needs: verify
@@ -29,6 +51,9 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             archive: tar.gz
           - target: x86_64-apple-darwin
@@ -43,6 +68,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          mkdir -p .cargo
+          printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"\n' >> .cargo/config.toml
       - name: Install toolchain for ${{ matrix.target }}
         run: |
           rustup update stable
@@ -76,3 +108,50 @@ jobs:
         with:
           name: dwg-rs-${{ matrix.target }}
           path: dwg-rs-*.*
+
+  github-release:
+    name: Attach to GitHub Release
+    needs: [verify, sbom, binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Flatten for release upload
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "bom.json" \) -exec cp {} release-assets/ \;
+          ls -la release-assets/
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+          draft: true  # manual publish — do not auto-publish the release page
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+
+  # Gated step for the actual crates.io publish. Requires a `crates-io`
+  # environment configured on the repo with:
+  #   - manual reviewer approval
+  #   - `CARGO_REGISTRY_TOKEN` secret containing a scoped crates.io token
+  # Without that environment, this job will not run even on tag push —
+  # which is the point. `cargo publish` is irrevocable.
+  publish-crates-io:
+    name: Publish to crates.io (manual approval required)
+    needs: [verify, sbom, binaries]
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, 'alpha') && !contains(github.ref, 'beta') && !contains(github.ref, 'rc')
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stable toolchain
+        run: rustup update stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --all-features

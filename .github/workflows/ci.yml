@@ -83,8 +83,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
-      - name: cargo deny check
-        run: cargo deny check
+      - name: cargo deny check all
+        run: cargo deny check advisories bans licenses sources
 
   msrv:
     name: Verify MSRV (1.85)
