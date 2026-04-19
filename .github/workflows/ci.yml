@@ -98,3 +98,37 @@ jobs:
           key: msrv
       - name: cargo check --all-features
         run: cargo +1.85 check --all-features
+
+  pii-guard:
+    name: PII guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for PII-shaped leak patterns
+        run: |
+          set -e
+          echo "Scanning repo for patterns that must never be committed..."
+          # Each regex catches a *class* of PII without spelling out
+          # any specific sensitive value. Broad by design — belt-and-
+          # suspenders over local hygiene.
+          PATTERNS=(
+            # Absolute home paths (macOS, Linux, Windows).
+            '/Users/[a-z][a-z0-9._-]+/'
+            '/home/[a-z][a-z0-9._-]+/'
+            'C:\\Users\\[a-z][a-z0-9._-]+\\'
+            # Autodesk build-server paths baked into released DLLs.
+            'F:\\Ship\\[0-9]{4}_'
+            # Employee OneDrive authoring paths.
+            'OneDrive - Autodesk\\[^\\]*\\'
+          )
+          failed=0
+          for p in "${PATTERNS[@]}"; do
+            if git grep -I -n -P "$p" -- ':!.github/workflows/' 2>/dev/null; then
+              echo "::error::PII-shaped pattern matched: $p"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          echo "PII guard: clean."

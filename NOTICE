@@ -1,0 +1,87 @@
+dwg-rs — clean-room Apache-2 Rust reader for Autodesk DWG files
+Copyright 2026 Griffin Long
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+==============================================================================
+Trademark and attribution notices
+==============================================================================
+
+"Autodesk", "AutoCAD", and "DWG" are trademarks of Autodesk, Inc.
+This project is not affiliated with, endorsed by, or sponsored by
+Autodesk. All references to "Autodesk", "AutoCAD", and "DWG" in
+this project's source, tests, documentation, and output are
+nominative fair use — they identify the file format this reader
+parses, and no more.
+
+This project neither uses nor distributes any Autodesk source code,
+object code, proprietary SDK components (RealDWG, ObjectARX), or
+header files. It does NOT depend on, link against, or embed any
+code from the Open Design Alliance's Drawings SDK (formerly DWGdirect
+/ Teigha). All file-format observations documented here were
+obtained by inspecting the bytes of DWG files produced by publicly
+available CAD software using only public specifications (the
+reference "Open Design Specification for .dwg files" published by
+the Open Design Alliance, available at
+https://www.opendesign.com/files/guestdownloads/OpenDesign_Specification_for_.dwg_files.pdf)
+and standard Rust crates.
+
+==============================================================================
+Interoperability basis
+==============================================================================
+
+Reverse engineering for the sole purpose of achieving interoperability
+between independently-developed software and the Autodesk DWG file
+format is recognised as lawful fair use under:
+
+  * United States — Sega Enterprises v. Accolade, 977 F.2d 1510
+    (9th Cir. 1992); Sony Computer Entertainment v. Connectix, 203
+    F.3d 596 (9th Cir. 2000).
+  * European Union — Article 6 of Directive 2009/24/EC (Software
+    Directive).
+  * Australia — Copyright Act 1968, Section 47D.
+
+File formats themselves are not copyrightable subject matter (Baker
+v. Selden, 101 U.S. 99 (1879); Lotus Development v. Borland, 516
+U.S. 233 (1996)). The DWG file format has been publicly documented
+by the Open Design Alliance since 1998 and is implemented by many
+independent parties; its specification is an established industry
+reference.
+
+No access-control or rights-management technology has been
+circumvented by this project. The R2004+ "Sec_Mask" XOR scheme and
+checksum-like transforms are obfuscation, not encryption, and carry
+no DMCA §1201 implications (17 U.S.C. §1201(f) interoperability
+exemption also applies in any case).
+
+==============================================================================
+Third-party dependencies (runtime)
+==============================================================================
+
+  thiserror — MIT OR Apache-2.0
+
+See the dependency's own license for full terms. The single runtime
+dependency is permissively licensed and compatible with Apache-2.0
+redistribution.
+
+==============================================================================
+Format-specification attribution
+==============================================================================
+
+The primary public reference used during this project's development
+is the "Open Design Specification for .dwg files" published by the
+Open Design Alliance. This project does NOT derive from or link
+against the ODA's implementing code (Drawings SDK / Teigha) — only
+from their published public specification document. All decoder
+logic here is independently implemented in clean-room Rust.
+
+==============================================================================
+Test-corpus attribution
+==============================================================================
+
+Any DWG files used for integration testing are either (a) generated
+by this project from synthetic minimal inputs, or (b) obtained from
+public sample-file distributions where license terms permit
+redistribution for interoperability verification. The project does
+not vendor or redistribute any Autodesk-owned sample files; those
+must be fetched by contributors from their original source.
