@@ -73,7 +73,7 @@ pub fn read_table_entry_header(
 
 /// Shared TV reader used by every table-entry module. Version-aware:
 /// R2007+ uses UTF-16LE, earlier versions use 8-bit ASCII/MBCS.
-pub(super) fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
+pub(crate) fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
     let len = c.read_bs_u()? as usize;
     if len == 0 {
         return Ok(String::new());

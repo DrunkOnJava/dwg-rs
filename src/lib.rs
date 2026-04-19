@@ -83,6 +83,7 @@ pub mod lz77_encode;
 pub mod metadata;
 pub mod object;
 pub mod object_type;
+pub mod objects;
 pub mod reader;
 pub mod reed_solomon;
 pub mod section;
