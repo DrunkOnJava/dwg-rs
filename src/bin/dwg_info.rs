@@ -30,6 +30,15 @@ struct Args {
     /// For R2004+ files, verify the decrypted header CRC-32.
     #[arg(long)]
     crc: bool,
+
+    /// Extract a named section's decompressed bytes and write them to
+    /// the file at --out. Example: --extract AcDb:Preview --out preview.bin
+    #[arg(long, value_name = "NAME")]
+    extract: Option<String>,
+
+    /// Destination path for --extract.
+    #[arg(long, value_name = "PATH")]
+    out: Option<PathBuf>,
 }
 
 #[derive(Serialize)]
@@ -68,6 +77,28 @@ struct R2004HeaderReport {
 
 fn run(args: Args) -> anyhow::Result<()> {
     let file = DwgFile::open(&args.path)?;
+
+    if let Some(section_name) = &args.extract {
+        let out_path = args
+            .out
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("--extract requires --out <PATH>"))?;
+        let bytes = file
+            .read_section(section_name)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "cannot extract: file is not R2004-family or section {section_name:?} absent"
+                )
+            })??;
+        std::fs::write(out_path, &bytes)?;
+        eprintln!(
+            "wrote {} bytes from section {:?} to {}",
+            bytes.len(),
+            section_name,
+            out_path.display()
+        );
+        return Ok(());
+    }
     let sections: Vec<_> = file
         .sections()
         .iter()

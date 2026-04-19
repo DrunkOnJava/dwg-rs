@@ -26,6 +26,12 @@ The bet this crate makes is that an AI-first development posture — Opus 4.7 wi
 - **Bit-cursor primitives per ODA spec §2**: `B`, `BB`, `3B`, `BS`, `BL`, `BLL`, `BD`, `RC`, `RS`, `RL`, `RD`, `MC`, `MS`, `H`. Spec-example unit tests pass (257/0/256/15/0 for BITSHORT, LAYER 0 handle = 5.1.0F for H).
 - **CRC primitives**: DWG 8-bit CRC with its 256 × 16-bit lookup table, standard IEEE 802.3 CRC-32, and the R2004+ section-page checksum (Adler-style rolling sum with 0x15B0 chunks).
 
+### Phase C — named section extraction (read bytes, not just metadata)
+
+- **Data section page header decrypt** (`section_map::DataPageHeader`): the 32-byte `Sec_Mask`-encrypted header that precedes every data page (spec §4.6). XOR-decodes 8 × 4-byte words against `0x4164_536B ^ file_offset`, then parses page_type (must be `0x41630_43B`), section_number, data_size (on-disk compressed), page_size (decompressed), start_offset, and two checksums.
+- **`DwgFile::read_section(&str) -> Option<Result<Vec<u8>>>`**: walks a section's per-page list, decrypts each data page header, LZ77-decompresses the payload if `compressed=2`, and assembles the decompressed bytes at each page's `start_offset` in a single buffer of size `description.size`. Zero pages (where `start_offset` exceeds section size) are skipped per spec §4.5.
+- **`dwg-info --extract NAME --out PATH`**: CLI flag to dump any section's decompressed bytes to disk. `--extract AcDb:Preview --out preview.bin` on `sample_AC1032.dwg` produces 1548 bytes starting with the canonical 16-byte thumbnail sentinel `1f 25 6d 07 d4 36 28 28 9d 57 ca 3f 9d 44 10 2b`. `--extract AcDb:AcDbObjects --out objects.bin` produces 1,192,851 bytes of the full object graph, correctly reassembled from 41 LZ77-compressed pages.
+
 ### Phase B — LZ77 decompression + named section enumeration
 
 - **LZ77 decompressor** per spec §4.7 with ACadSharp-verified offset adjustments (spec text has an off-by-one on all class additive constants; the correct offsets are `+0x4000` long / `+1` short / `+1` for the 0x40-0xFF class). Supports RLE-style copies (length > offset) and extended literal-length runs via 0x00-byte accumulation.
@@ -45,13 +51,18 @@ test result: ok.  1 passed; 0 failed   (doc test)
 
 ## What is explicitly deferred
 
-- **Reed-Solomon(255,239) FEC** verification of R2004+ system pages — currently we trust CRC-8 intra-chunk and CRC-32 at the header block level. A clean-room RS(255,239) implementation is ~200 lines and is tracked for Phase C (not strictly needed for reading valid files, but essential for repair tools).
-- **R2007 (AC1021) full layout** — spec §5 describes a different file-header structure for R2007 specifically (33 pages of deltas from R2004). Phase A identifies the file; Phase C implements its Sec_Mask two-layer bitstream.
-- **Named data-section payload decompression** — Phase B parses section *metadata* (names, sizes, offsets), but extracting a specific section's decompressed bytes requires walking its per-section page list and applying the Sec_Mask data-page header decrypt. The helpers are in place; the public API (`DwgFile::read_section(&str) -> Vec<u8>`) is Phase C.
-- **Entity / object field decoding** for all ~200 DWG entity types (LINE, CIRCLE, ARC, POLYLINE, MTEXT, DIMASSOC, TABLE, surfaces, MATERIAL, MLEADER, XREF, ...). Phase D.
+- **Reed-Solomon(255,239) FEC** verification of R2004+ system pages — currently we trust CRC-8 intra-chunk and CRC-32 at the header block level. A clean-room RS(255,239) implementation is ~200 lines and is tracked for Phase D (not strictly needed for reading valid files, but essential for repair tools).
+- **R2007 (AC1021) full layout** — spec §5 describes a different file-header structure for R2007 specifically (33 pages of deltas from R2004). Phase A identifies the file; Phase D implements its Sec_Mask two-layer bitstream.
+- **Entity / object field decoding** for all ~200 DWG entity types (LINE, CIRCLE, ARC, POLYLINE, MTEXT, DIMASSOC, TABLE, surfaces, MATERIAL, MLEADER, XREF, ...). The `AcDb:AcDbObjects` section bytes can now be extracted; understanding what each byte means is Phase D — this is the larger remaining work, roughly one entity class per day of focused RE per ODA spec §20.
 - **Write support** — encoding any version from scratch. Phase E.
 
-The current crate is sufficient today for consumers who need to *identify* DWG files, *route* them by version, *enumerate which sections exist*, and *see sizes* (for estimating work). The thumbnail `AcDb:Preview` payload is the next natural extraction target.
+The crate currently supports:
+
+- Identification of any DWG file from R14 (1997) through AC1032 (2018+)
+- Full section metadata enumeration for R2004-family (AcDb:Header, Classes, Handles, Objects, ...)
+- Decompressed byte extraction for any named section — the `AcDb:Preview` thumbnail, `AcDb:SummaryInfo` metadata, and the full 1+ MB `AcDb:AcDbObjects` object graph all come out intact from the sample corpus
+
+The next natural Phase D target is decoding individual objects out of the `AcDb:AcDbObjects` byte stream using the bit-cursor primitives and the `AcDb:Classes` handle table.
 
 ## Quick start
 

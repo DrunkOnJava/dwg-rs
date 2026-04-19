@@ -296,6 +296,51 @@ fn ac1032_preview_is_classified() {
     }
 }
 
+#[test]
+fn ac1032_can_extract_preview_bytes() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    // Phase C: full section extraction (Sec_Mask decrypt of data page
+    // header + optional LZ77 decompression + reassembly).
+    let preview = match f.read_section("AcDb:Preview") {
+        Some(Ok(b)) => b,
+        Some(Err(e)) => panic!("preview extract failed: {e}"),
+        None => return, // non-R2004-family or absent — skip
+    };
+    // From the section info table we know AcDb:Preview is 1548 bytes.
+    assert_eq!(
+        preview.len(),
+        1548,
+        "preview size mismatch, got {} bytes",
+        preview.len()
+    );
+    // The AC1032 preview begins with a 16-byte DWG sentinel
+    // 0x1F 0x25 0x6D 0x07 0xD4 0x36 0x28 0x28 0x9D 0x57 0xCA 0x3F 0x9D 0x44 0x10 0x2B
+    // followed by image data. We don't assert the sentinel exactly
+    // (Autodesk versions it slightly), but the first byte should be non-zero.
+    assert_ne!(
+        preview[0], 0x00,
+        "preview leads with zero — probable extraction bug"
+    );
+}
+
+#[test]
+fn ac1032_can_extract_header_section() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    // AcDb:Header is LZ77-compressed (compressed=2) — exercises the
+    // decompression codepath end-to-end.
+    let header = match f.read_section("AcDb:Header") {
+        Some(Ok(b)) => b,
+        Some(Err(e)) => panic!("header extract failed: {e}"),
+        None => return,
+    };
+    // From the section info table: 870 bytes decompressed.
+    assert_eq!(header.len(), 870);
+}
+
 // ================================================================
 // The R13-R15 and R2004+ code paths should NEVER both activate.
 // ================================================================

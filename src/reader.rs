@@ -152,9 +152,34 @@ impl DwgFile {
     }
 
     /// Parsed common header for R2007 files — a minimal parse because
-    /// spec §5 full layout is deferred to Phase B.
+    /// spec §5 full layout is deferred to Phase C.
     pub fn r2007_common(&self) -> Option<&CommonHeader> {
         self.r2007_common.as_ref()
+    }
+
+    /// Read the decompressed bytes of a named section.
+    ///
+    /// Walks the R2004-family page map + section info to locate the
+    /// section by name, then decrypts each data page header, optionally
+    /// LZ77-decompresses the payload, and assembles the full content in
+    /// page `start_offset` order.
+    ///
+    /// Returns `None` if this is not an R2004-family file or the section
+    /// name is not present; otherwise returns the decompressed bytes
+    /// (or an error if a decrypt / decompress step fails).
+    pub fn read_section(&self, name: &str) -> Option<Result<Vec<u8>>> {
+        let header = self.r2004.as_ref()?;
+        Some(self.read_section_r2004(header, name))
+    }
+
+    fn read_section_r2004(&self, header: &R2004Header, name: &str) -> Result<Vec<u8>> {
+        let page_map = section_map::parse_page_map(&self.bytes, header)?;
+        let descriptions = section_map::parse_section_info(&self.bytes, header, &page_map)?;
+        let desc = descriptions
+            .iter()
+            .find(|d| d.name == name)
+            .ok_or_else(|| Error::SectionMap(format!("section {name:?} not found")))?;
+        section_map::read_section_payload(&self.bytes, &page_map, desc)
     }
 
     /// Raw file bytes (useful for downstream tools that want to feed into
