@@ -16,36 +16,42 @@ AutoCAD is Autodesk's $2B-a-year product and `.dwg` is its native file format. E
 
 The bet this crate makes is that an AI-first development posture — Opus 4.7 with a 1M-token context window iteratively reading the 279-page ODA spec and cross-referencing the nineteen reference DWG files shipped under `samples/` — closes the remaining delta faster than a GPL-chained solo maintainer ever could.
 
-## What works today (Phase A)
+## What works today (Phase A + Phase B)
+
+### Phase A — identification + header parsing
 
 - **Seven production format versions identified**: R14 (AC1014, 1997), 2000 (AC1015, 1999), 2004 (AC1018, 2003), 2007 (AC1021, 2006), 2010 (AC1024, 2009), 2013 (AC1027, 2012), 2018 (AC1032, 2017+).
 - **R13-R15 simple-header path**: magic verification, codepage, image seeker, section-locator enumeration with all 9-byte records and family-seeded CRC-8.
 - **R2004+ encrypted-header path**: plaintext 0x80 bytes parsed, the 0x6C encrypted block decrypted with the published 108-byte XOR magic sequence (derived from Microsoft's `rand()` LCG seeded at 1), decrypted CRC-32 verified per spec §4.1, Section Page Map address + Section Map ID extracted.
 - **Bit-cursor primitives per ODA spec §2**: `B`, `BB`, `3B`, `BS`, `BL`, `BLL`, `BD`, `RC`, `RS`, `RL`, `RD`, `MC`, `MS`, `H`. Spec-example unit tests pass (257/0/256/15/0 for BITSHORT, LAYER 0 handle = 5.1.0F for H).
 - **CRC primitives**: DWG 8-bit CRC with its 256 × 16-bit lookup table, standard IEEE 802.3 CRC-32, and the R2004+ section-page checksum (Adler-style rolling sum with 0x15B0 chunks).
-- **Sniff-time section enumeration** for R2004+: the Section Page Map bounds, Summary Info pointer, VBA Project pointer, Preview pointer, and a probe of the first data page at 0x100 (which decrypts with `Sec_Mask = 0x4164536B ^ offset`).
-- **Two CLIs**: `dwg-info` (human + JSON metadata report) and `dwg-corpus` (sweep a directory, print one line per file).
 
-Running the integration test suite against the shipped 19-file corpus gives all-green today:
+### Phase B — LZ77 decompression + named section enumeration
+
+- **LZ77 decompressor** per spec §4.7 with ACadSharp-verified offset adjustments (spec text has an off-by-one on all class additive constants; the correct offsets are `+0x4000` long / `+1` short / `+1` for the 0x40-0xFF class). Supports RLE-style copies (length > offset) and extended literal-length runs via 0x00-byte accumulation.
+- **Section Page Map decoder** (§4.4): reads the compressed global page map and emits a `Vec<SectionPage>` with computed absolute file offsets. Pages numbered consecutively as the spec promises — sample_AC1032.dwg produces pages 1 through 56 with no gaps.
+- **Section Info (Section Map) decoder** (§4.5): walks the page map to find the section-map page, decompresses it, and parses the 14-description table: `AcDb:Header` (870 B), `AcDb:AuxHeader` (129 B), `AcDb:Classes` (6296 B), `AcDb:Handles` (2642 B), `AcDb:Template` (6 B), `AcDb:ObjFreeSpace` (89 B), `AcDb:AcDbObjects` (1192851 B), `AcDb:RevHistory` (16 B), `AcDb:SummaryInfo` (76 B), `AcDb:Preview` (1548 B), `AcDb:AppInfo` (718 B), `AcDb:AppInfoHistory` (1478 B), `AcDb:AcDsPrototype_1b` (46208 B).
+- **Unified section list** exposed via `DwgFile::sections()` — Phase A stubs are replaced automatically when Phase B succeeds, with a silent fallback to the stub path for files whose page map doesn't parse cleanly.
+- **Two CLIs**: `dwg-info` (human + JSON metadata report; now shows 13 named sections for R2004/2010/2013/2018 files) and `dwg-corpus` (sweep a directory, print one line per file).
+
+Running the test suite against the shipped 19-file corpus:
 
 ```text
 $ cargo test --release
-    Finished `release` profile [optimized] target(s)
-     Running unittests src/lib.rs
-test result: ok.     (bit cursor + CRC + cipher + version unit tests)
-     Running tests/samples.rs
-test result: ok.     (R14, 2000, 2004, 2007, 2010, 2013, 2018 corpus checks)
+test result: ok. 41 passed; 0 failed   (unit tests in 9 modules)
+test result: ok. 18 passed; 0 failed   (integration tests)
+test result: ok.  1 passed; 0 failed   (doc test)
 ```
 
 ## What is explicitly deferred
 
-- **LZ77 decompression** of R2004+ section payloads — the spec §4.7 grammar is straightforward (~100 lines), but until it lands here the reader reports page bounds without expanded contents. Phase B.
-- **Reed-Solomon(255,239) FEC** verification of R2004+ system pages — we trust CRC-8 intra-chunk and spot-check CRC-32 at the block level. A clean-room RS(255,239) implementation is ~200 lines and is tracked as Phase B.
-- **`Sec_Mask` two-layer bitstream** for R2007+ entity streams. Phase B.
-- **Entity / object field decoding** for all ~200 DWG entity types (LINE, CIRCLE, ARC, POLYLINE, MTEXT, DIMASSOC, TABLE, surfaces, MATERIAL, MLEADER, XREF, ...). Phase C.
-- **Write support** — encoding any version from scratch. Phase D.
+- **Reed-Solomon(255,239) FEC** verification of R2004+ system pages — currently we trust CRC-8 intra-chunk and CRC-32 at the header block level. A clean-room RS(255,239) implementation is ~200 lines and is tracked for Phase C (not strictly needed for reading valid files, but essential for repair tools).
+- **R2007 (AC1021) full layout** — spec §5 describes a different file-header structure for R2007 specifically (33 pages of deltas from R2004). Phase A identifies the file; Phase C implements its Sec_Mask two-layer bitstream.
+- **Named data-section payload decompression** — Phase B parses section *metadata* (names, sizes, offsets), but extracting a specific section's decompressed bytes requires walking its per-section page list and applying the Sec_Mask data-page header decrypt. The helpers are in place; the public API (`DwgFile::read_section(&str) -> Vec<u8>`) is Phase C.
+- **Entity / object field decoding** for all ~200 DWG entity types (LINE, CIRCLE, ARC, POLYLINE, MTEXT, DIMASSOC, TABLE, surfaces, MATERIAL, MLEADER, XREF, ...). Phase D.
+- **Write support** — encoding any version from scratch. Phase E.
 
-The current crate is sufficient today for consumers who need to *identify* DWG files, *route* them by version, *extract* the thumbnail preview for UI use, and enumerate *which* sections exist — the "metadata triage" layer every CAD pipeline has to build first anyway.
+The current crate is sufficient today for consumers who need to *identify* DWG files, *route* them by version, *enumerate which sections exist*, and *see sizes* (for estimating work). The thumbnail `AcDb:Preview` payload is the next natural extraction target.
 
 ## Quick start
 

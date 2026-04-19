@@ -242,6 +242,61 @@ fn every_file_reports_some_sections() {
 }
 
 // ================================================================
+// Phase B: named-section enumeration via LZ77 + Section Map walk
+// ================================================================
+
+#[test]
+fn ac1032_enumerates_named_sections() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let names: Vec<&str> = f.sections().iter().map(|s| s.name.as_str()).collect();
+    // After Phase B wiring we expect the canonical AcDb: names.
+    let must_have = [
+        "AcDb:Header",
+        "AcDb:Classes",
+        "AcDb:Handles",
+        "AcDb:AcDbObjects",
+    ];
+    for expected in must_have {
+        assert!(
+            names.iter().any(|n| *n == expected),
+            "expected section {:?} not found. Got: {:?}",
+            expected,
+            names
+        );
+    }
+}
+
+#[test]
+fn ac1032_sections_have_nonzero_sizes() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    // The critical named sections (AcDb:Header, AcDb:AcDbObjects) must
+    // have real size data from the section-info table, not a stub 0.
+    for name in ["AcDb:Header", "AcDb:AcDbObjects"] {
+        let Some(s) = f.section_by_name(name) else {
+            panic!("section {name:?} missing from enumeration");
+        };
+        assert!(
+            s.size > 0,
+            "section {name:?} reports size=0, Phase B not wired?"
+        );
+    }
+}
+
+#[test]
+fn ac1032_preview_is_classified() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    if let Some(preview) = f.section_of_kind(SectionKind::Preview) {
+        assert_eq!(preview.name, "AcDb:Preview");
+    }
+}
+
+// ================================================================
 // The R13-R15 and R2004+ code paths should NEVER both activate.
 // ================================================================
 

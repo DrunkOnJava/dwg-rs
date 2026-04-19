@@ -73,8 +73,10 @@ pub mod cipher;
 pub mod crc;
 pub mod error;
 pub mod header;
+pub mod lz77;
 pub mod reader;
 pub mod section;
+pub mod section_map;
 pub mod version;
 
 pub use bitcursor::BitCursor;
