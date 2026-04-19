@@ -7,9 +7,13 @@ use std::env;
 fn main() -> anyhow::Result<()> {
     let path = env::args().nth(1).expect("usage: probe_objects <file.dwg>");
     let f = DwgFile::open(&path)?;
-    let objects = f
-        .objects()
-        .ok_or_else(|| anyhow::anyhow!("no object stream (not R2004-family?)"))??;
+    // Prefer handle-map-driven iteration (complete); fall back to first-object.
+    let objects = match f.all_objects() {
+        Some(Ok(v)) => v,
+        _ => f
+            .objects()
+            .ok_or_else(|| anyhow::anyhow!("no object stream (not R2004-family?)"))??,
+    };
     println!("parsed {} objects", objects.len());
     let mut hist: BTreeMap<String, usize> = BTreeMap::new();
     let mut entity_count = 0usize;
