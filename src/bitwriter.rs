@@ -83,7 +83,7 @@ impl BitWriter {
         self.write_bits(v as u64, 2);
     }
 
-    /// 3B per spec §2.1 (as interpreted by [`BitCursor::read_3b`]).
+    /// 3B per spec §2.1 (as interpreted by [`crate::bitcursor::BitCursor::read_3b`]).
     ///
     /// The reader accumulates bits MSB-first, shifting into a `u8`,
     /// stopping early on a 0-bit or after 3 bits. That produces a

@@ -9,7 +9,7 @@
 //!
 //! | Entity         | Module            | Spec section |
 //! |----------------|-------------------|--------------|
-//! | LINE           | [`line`]          | §19.4.20     |
+//! | LINE           | [`self::line`]    | §19.4.20     |
 //! | POINT          | [`point`]         | §19.4.27     |
 //! | CIRCLE         | [`circle`]        | §19.4.8      |
 //! | ARC            | [`arc`]           | §19.4.2      |
@@ -29,7 +29,7 @@
 //! - [`Point3D`]: 3-element f64 coordinate triple.
 //! - [`Vec3D`]: 3D direction vector (same shape as `Point3D`, distinct
 //!   semantically).
-//! - [`Extrusion`]: the "extrusion / normal vector" shortcut of
+//! - [`read_be`]: the "extrusion / normal vector" shortcut of
 //!   spec §2.11 (BE). Either defaults to `(0,0,1)` or reads 3 BDs.
 
 use crate::bitcursor::BitCursor;

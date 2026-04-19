@@ -259,7 +259,7 @@ impl DwgFile {
 
     /// Read + parse the `AcDb:Header` variable table (~200 system
     /// vars). Only the raw bit-stream is captured; targeted
-    /// accessors on [`HeaderVars`] can extract individual variables.
+    /// accessors on [`crate::header_vars::HeaderVars`] can extract individual variables.
     pub fn header_vars(&self) -> Option<Result<crate::header_vars::HeaderVars>> {
         let version = self.version;
         Some(

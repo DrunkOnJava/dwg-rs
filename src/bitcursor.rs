@@ -8,22 +8,22 @@
 //!
 //! # Coverage
 //!
-//! | Spec | Method          | Semantics |
-//! |------|-----------------|-----------|
-//! | §2.0 | [`read_b`]      | single bit → bool |
-//! | §2.0 | [`read_bb`]     | two-bit code 0..3 |
-//! | §2.1 | [`read_3b`]     | 1-3 bits, variable-length 0..7 |
-//! | §2.2 | [`read_bs`]     | bitshort: 00=16-bit / 01=8-bit / 10=0 / 11=256 |
-//! | §2.3 | [`read_bl`]     | bitlong: 00=32-bit / 01=8-bit / 10=0 / 11=reserved |
-//! | §2.4 | [`read_bll`]    | bitlonglong: 3-bit length + that many LE bytes |
-//! | §2.5 | [`read_bd`]     | bitdouble: 00=f64 / 01=1.0 / 10=0.0 / 11=reserved |
-//! | §2   | [`read_rc`]     | raw u8 (byte-aligned) |
-//! | §2   | [`read_rs`]     | raw u16 LE |
-//! | §2   | [`read_rl`]     | raw u32 LE |
-//! | §2   | [`read_rd`]     | raw f64 LE |
-//! | §2.6 | [`read_mc`]     | modular char, signed (0x40 negation flag) |
-//! | §2.7 | [`read_ms`]     | modular short, unsigned |
-//! | §2.13| [`read_handle`] | handle reference (CODE.COUNTER.bytes) |
+//! | Spec | Method                 | Semantics |
+//! |------|------------------------|-----------|
+//! | §2.0 | [`BitCursor::read_b`]      | single bit → bool |
+//! | §2.0 | [`BitCursor::read_bb`]     | two-bit code 0..3 |
+//! | §2.1 | [`BitCursor::read_3b`]     | 1-3 bits, variable-length 0..7 |
+//! | §2.2 | [`BitCursor::read_bs`]     | bitshort: 00=16-bit / 01=8-bit / 10=0 / 11=256 |
+//! | §2.3 | [`BitCursor::read_bl`]     | bitlong: 00=32-bit / 01=8-bit / 10=0 / 11=reserved |
+//! | §2.4 | [`BitCursor::read_bll`]    | bitlonglong: 3-bit length + that many LE bytes |
+//! | §2.5 | [`BitCursor::read_bd`]     | bitdouble: 00=f64 / 01=1.0 / 10=0.0 / 11=reserved |
+//! | §2   | [`BitCursor::read_rc`]     | raw u8 (byte-aligned) |
+//! | §2   | [`BitCursor::read_rs`]     | raw u16 LE |
+//! | §2   | [`BitCursor::read_rl`]     | raw u32 LE |
+//! | §2   | [`BitCursor::read_rd`]     | raw f64 LE |
+//! | §2.6 | [`BitCursor::read_mc`]     | modular char, signed (0x40 negation flag) |
+//! | §2.7 | [`BitCursor::read_ms`]     | modular short, unsigned |
+//! | §2.13| [`BitCursor::read_handle`] | handle reference (CODE.COUNTER.bytes) |
 //!
 //! Individual bit reads advance within a byte; `align_to_byte()` drops the
 //! remaining bits in the current byte (used between CRC-aligned objects, per
