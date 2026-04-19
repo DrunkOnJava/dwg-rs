@@ -87,6 +87,7 @@ pub mod reader;
 pub mod reed_solomon;
 pub mod section;
 pub mod section_map;
+pub mod tables;
 pub mod version;
 
 pub use bitcursor::BitCursor;
