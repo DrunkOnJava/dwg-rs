@@ -74,6 +74,8 @@ pub mod crc;
 pub mod error;
 pub mod header;
 pub mod lz77;
+pub mod metadata;
+pub mod object_type;
 pub mod reader;
 pub mod section;
 pub mod section_map;
@@ -81,6 +83,8 @@ pub mod version;
 
 pub use bitcursor::BitCursor;
 pub use error::{Error, Result};
+pub use metadata::{AppInfo, FileDepList, FileDependency, Preview, SummaryInfo};
+pub use object_type::ObjectType;
 pub use reader::DwgFile;
 pub use section::{Section, SectionKind};
 pub use version::Version;

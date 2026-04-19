@@ -187,6 +187,41 @@ impl DwgFile {
     pub fn raw_bytes(&self) -> &[u8] {
         &self.bytes
     }
+
+    /// Read + parse `AcDb:SummaryInfo` into a structured [`crate::metadata::SummaryInfo`].
+    pub fn summary_info(&self) -> Option<Result<crate::metadata::SummaryInfo>> {
+        Some(
+            self.read_section("AcDb:SummaryInfo")?
+                .and_then(|bytes| crate::metadata::SummaryInfo::parse(&bytes)),
+        )
+    }
+
+    /// Read + parse `AcDb:AppInfo` into a structured [`crate::metadata::AppInfo`].
+    pub fn app_info(&self) -> Option<Result<crate::metadata::AppInfo>> {
+        Some(
+            self.read_section("AcDb:AppInfo")?
+                .and_then(|bytes| crate::metadata::AppInfo::parse(&bytes)),
+        )
+    }
+
+    /// Read + parse `AcDb:Preview` into a structured [`crate::metadata::Preview`]
+    /// (with a separable BMP / WMF extract).
+    pub fn preview(&self) -> Option<Result<crate::metadata::Preview>> {
+        Some(
+            self.read_section("AcDb:Preview")?
+                .and_then(|bytes| crate::metadata::Preview::parse(&bytes)),
+        )
+    }
+
+    /// Read + parse `AcDb:FileDepList` into a structured
+    /// [`crate::metadata::FileDepList`] listing external font / image /
+    /// XREF references.
+    pub fn file_dep_list(&self) -> Option<Result<crate::metadata::FileDepList>> {
+        Some(
+            self.read_section("AcDb:FileDepList")?
+                .and_then(|bytes| crate::metadata::FileDepList::parse(&bytes)),
+        )
+    }
 }
 
 /// Walk the R2004+ Section Page Map → Section Info chain and emit a
