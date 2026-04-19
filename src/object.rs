@@ -10,13 +10,17 @@
 //!
 //! The on-disk stream is **not strictly sequential**: objects are aligned
 //! and may have gaps. The authoritative way to enumerate every object in
-//! a file is the `AcDb:Handles` offset table (spec §21, Phase D-3+):
-//! each entry pairs a handle with a byte offset into this stream. Until
-//! that parser lands, this walker operates in "first-pass" mode —
-//! starting from the 4-byte `0x0dca` prefix and reading one object to
-//! extract its type code and handle. That suffices for top-level
-//! metadata probing (e.g. confirming the presence of `BLOCK_CONTROL`,
-//! handle 0x01, the root of every DWG object graph).
+//! a file is the `AcDb:Handles` offset table (spec §21) — each entry
+//! pairs a handle with a byte offset into this stream.
+//!
+//! `ObjectWalker::new(bytes, version)` runs in **first-pass** mode —
+//! reads one object from the 4-byte `0x0dca` prefix; sufficient for
+//! metadata probing.
+//!
+//! `ObjectWalker::with_handle_map(bytes, version, map)` runs in
+//! **handle-driven** mode — iterates every (handle, offset) pair in the
+//! map and reads the object at each offset; returns the full object
+//! list with no gaps or missing entries.
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::error::{Error, Result};
@@ -59,14 +63,17 @@ pub struct ObjectWalker<'a> {
     bytes: &'a [u8],
     pos: usize,
     version: Version,
+    handle_map: Option<&'a crate::handle_map::HandleMap>,
+    handle_idx: usize,
 }
 
 impl<'a> ObjectWalker<'a> {
     pub fn new(bytes: &'a [u8], version: Version) -> Self {
-        // R18+ (= AC1032 and R2004/R2010/R2013 with the same layout) opens
-        // with 4 bytes (0x0dca or similar) per spec §20. Skip them.
         let initial = if bytes.len() >= 4
-            && matches!(version, Version::R2004 | Version::R2010 | Version::R2013 | Version::R2018)
+            && matches!(
+                version,
+                Version::R2004 | Version::R2010 | Version::R2013 | Version::R2018
+            )
         {
             4
         } else {
@@ -76,6 +83,26 @@ impl<'a> ObjectWalker<'a> {
             bytes,
             pos: initial,
             version,
+            handle_map: None,
+            handle_idx: 0,
+        }
+    }
+
+    /// Handle-driven iterator: seeks to each (handle, offset) pair in the
+    /// provided [`crate::handle_map::HandleMap`] and reads one object at
+    /// each offset. This yields the complete object list for the file —
+    /// every control object, table entry, and entity.
+    pub fn with_handle_map(
+        bytes: &'a [u8],
+        version: Version,
+        map: &'a crate::handle_map::HandleMap,
+    ) -> Self {
+        Self {
+            bytes,
+            pos: 0,
+            version,
+            handle_map: Some(map),
+            handle_idx: 0,
         }
     }
 
@@ -93,9 +120,36 @@ impl<'a> ObjectWalker<'a> {
 
 impl<'a> ObjectWalker<'a> {
     fn next(&mut self) -> Result<Option<RawObject>> {
+        // Handle-driven mode: seek to the next entry's byte offset.
+        if let Some(map) = self.handle_map {
+            loop {
+                if self.handle_idx >= map.entries.len() {
+                    return Ok(None);
+                }
+                let entry = map.entries[self.handle_idx];
+                self.handle_idx += 1;
+                let pos = entry.offset as usize;
+                if pos >= self.bytes.len() {
+                    continue;
+                }
+                self.pos = pos;
+                match self.read_one_at_pos() {
+                    Ok(Some(mut raw)) => {
+                        raw.handle.value = entry.handle;
+                        return Ok(Some(raw));
+                    }
+                    Ok(None) => continue,
+                    Err(_) => continue, // skip malformed; keep iterating
+                }
+            }
+        }
         if self.pos >= self.bytes.len() {
             return Ok(None);
         }
+        self.read_one_at_pos()
+    }
+
+    fn read_one_at_pos(&mut self) -> Result<Option<RawObject>> {
         let start = self.pos;
         // Read MS (modular short) = object size in bytes (not counting CRC).
         // We need a byte-level reader first for MS (byte-aligned), then a

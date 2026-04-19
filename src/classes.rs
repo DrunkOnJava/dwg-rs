@@ -29,7 +29,7 @@
 //! object types against this table when walking the object stream.
 
 use crate::bitcursor::BitCursor;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::version::Version;
 
 /// One custom class definition.

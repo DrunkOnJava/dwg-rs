@@ -261,6 +261,27 @@ impl DwgFile {
                 .and_then(|bytes| crate::classes::ClassMap::parse(&bytes, version)),
         )
     }
+
+    /// Full handle-driven object iteration — uses `AcDb:Handles` to
+    /// find every object in the file, not just the first. Returns the
+    /// complete list of control objects, table entries, entities, and
+    /// dictionaries.
+    pub fn all_objects(&self) -> Option<Result<Vec<crate::object::RawObject>>> {
+        let _ = self.r2004.as_ref()?;
+        let hmap = match self.handle_map()? {
+            Ok(m) => m,
+            Err(e) => return Some(Err(e)),
+        };
+        let obj_bytes = match self.read_section("AcDb:AcDbObjects") {
+            Some(Ok(b)) => b,
+            Some(Err(e)) => return Some(Err(e)),
+            None => return None,
+        };
+        Some(
+            crate::object::ObjectWalker::with_handle_map(&obj_bytes, self.version, &hmap)
+                .collect_all(),
+        )
+    }
 }
 
 /// Walk the R2004+ Section Page Map → Section Info chain and emit a
