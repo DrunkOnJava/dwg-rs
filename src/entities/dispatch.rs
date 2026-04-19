@@ -1,0 +1,445 @@
+//! End-to-end entity dispatcher — converts a [`RawObject`] from the
+//! object stream into a typed [`DecodedEntity`] by:
+//!
+//! 1. Positioning a [`BitCursor`] past the object header (the preamble
+//!    consumed by [`crate::object::ObjectWalker`] — type code, object-
+//!    size-in-bits for R2000, handle).
+//! 2. Consuming the common entity preamble (spec §19.4.1).
+//! 3. Invoking the type-specific decoder.
+//!
+//! # What this dispatcher does NOT do
+//!
+//! - Non-entity objects (DICTIONARY, XRECORD, `*_CONTROL`, symbol-table
+//!   entries, or any `Custom(N)` type resolved through the class map)
+//!   are returned as [`DecodedEntity::Unhandled`] with their raw type
+//!   code. Downstream callers can run [`crate::tables`] or
+//!   [`crate::objects`] decoders on them as needed.
+//! - Decoder errors (partial field, truncated stream, version mismatch)
+//!   are captured in [`DecodedEntity::Error`] — the dispatcher does not
+//!   abort the whole walk on one bad entity.
+//!
+//! # Honest scope
+//!
+//! "Decoded" here means the entity's type-specific payload is parsed
+//! into a Rust struct with named fields. It does NOT mean 100% of
+//! every field is surfaced — HATCH, MLEADER, VIEWPORT, and the
+//! DIMENSION family expose the geometric + styling fields a viewer
+//! or round-trip tool would need, but skip deeply nested sub-records
+//! like HATCH boundary path trees (these remain in the raw bytes).
+
+use crate::bitcursor::BitCursor;
+use crate::entities::{
+    arc, attdef, attrib, block, circle, dimension, ellipse, endblk, hatch, image, insert, leader,
+    line, lwpolyline, mleader, mtext, point, polyline, ray, solid, spline, text, three_d_face,
+    trace, vertex, viewport, xline,
+};
+use crate::error::{Error, Result};
+use crate::object::RawObject;
+use crate::object_type::ObjectType;
+use crate::version::Version;
+
+/// A decoded entity — one variant per type this crate knows how to decode.
+///
+/// Non-entity objects + unknown type codes land in [`DecodedEntity::Unhandled`].
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum DecodedEntity {
+    Line(line::Line),
+    Point(point::Point),
+    Circle(circle::Circle),
+    Arc(arc::Arc),
+    Ellipse(ellipse::Ellipse),
+    Ray(ray::Ray),
+    XLine(xline::XLine),
+    Solid(solid::Solid),
+    Trace(trace::Trace),
+    ThreeDFace(three_d_face::ThreeDFace),
+    Spline(spline::Spline),
+    Text(text::Text),
+    MText(mtext::MText),
+    Attrib(attrib::Attrib),
+    AttDef(attdef::AttDef),
+    Insert(insert::Insert),
+    Block(block::Block),
+    EndBlk(endblk::EndBlk),
+    Vertex(vertex::Vertex),
+    Polyline(polyline::Polyline),
+    LwPolyline(lwpolyline::LwPolyline),
+    Dimension(dimension::Dimension),
+    Leader(leader::Leader),
+    Image(image::Image),
+    Hatch(hatch::Hatch),
+    MLeader(mleader::MLeader),
+    Viewport(viewport::Viewport),
+    /// Object type this dispatcher doesn't decode (control objects,
+    /// table entries, unknown custom classes). The raw bytes remain
+    /// accessible on the originating [`RawObject`].
+    Unhandled {
+        type_code: u16,
+        kind: ObjectType,
+    },
+    /// Decoder returned an error on this specific object. Walk
+    /// continues; the caller decides whether to fail loudly.
+    Error {
+        type_code: u16,
+        kind: ObjectType,
+        message: String,
+    },
+}
+
+impl DecodedEntity {
+    /// The object type code this decoded entity corresponds to.
+    pub fn type_code(&self) -> u16 {
+        match self {
+            Self::Line(_) => OBJECT_TYPE_LINE,
+            Self::Point(_) => OBJECT_TYPE_POINT,
+            Self::Circle(_) => OBJECT_TYPE_CIRCLE,
+            Self::Arc(_) => OBJECT_TYPE_ARC,
+            Self::Ellipse(_) => OBJECT_TYPE_ELLIPSE,
+            Self::Ray(_) => OBJECT_TYPE_RAY,
+            Self::XLine(_) => OBJECT_TYPE_XLINE,
+            Self::Solid(_) => OBJECT_TYPE_SOLID,
+            Self::Trace(_) => OBJECT_TYPE_TRACE,
+            Self::ThreeDFace(_) => OBJECT_TYPE_3DFACE,
+            Self::Spline(_) => OBJECT_TYPE_SPLINE,
+            Self::Text(_) => OBJECT_TYPE_TEXT,
+            Self::MText(_) => OBJECT_TYPE_MTEXT,
+            Self::Attrib(_) => OBJECT_TYPE_ATTRIB,
+            Self::AttDef(_) => OBJECT_TYPE_ATTDEF,
+            Self::Insert(_) => OBJECT_TYPE_INSERT,
+            Self::Block(_) => OBJECT_TYPE_BLOCK,
+            Self::EndBlk(_) => OBJECT_TYPE_ENDBLK,
+            Self::Vertex(_) => OBJECT_TYPE_VERTEX_2D,
+            Self::Polyline(_) => OBJECT_TYPE_POLYLINE_2D,
+            Self::LwPolyline(_) => OBJECT_TYPE_LWPOLYLINE,
+            Self::Dimension(_) => OBJECT_TYPE_DIMENSION_LINEAR,
+            Self::Leader(_) => OBJECT_TYPE_LEADER,
+            Self::Image(_) => OBJECT_TYPE_IMAGE,
+            Self::Hatch(_) => OBJECT_TYPE_HATCH,
+            Self::MLeader(_) => OBJECT_TYPE_MLEADER,
+            Self::Viewport(_) => OBJECT_TYPE_VIEWPORT,
+            Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
+        }
+    }
+
+    /// Did this variant come back as a fully-typed, successfully
+    /// parsed entity?
+    pub fn is_decoded(&self) -> bool {
+        !matches!(self, Self::Unhandled { .. } | Self::Error { .. })
+    }
+}
+
+// Object type codes per spec §5 Table 4 — "Object type codes, BS".
+// These are the fixed type codes (< 500) the dispatcher recognizes.
+const OBJECT_TYPE_TEXT: u16 = 1;
+const OBJECT_TYPE_ATTRIB: u16 = 2;
+const OBJECT_TYPE_ATTDEF: u16 = 3;
+const OBJECT_TYPE_BLOCK: u16 = 4;
+const OBJECT_TYPE_ENDBLK: u16 = 5;
+const OBJECT_TYPE_INSERT: u16 = 7;
+const OBJECT_TYPE_POLYLINE_2D: u16 = 15;
+const OBJECT_TYPE_VERTEX_2D: u16 = 10;
+const OBJECT_TYPE_LINE: u16 = 19;
+const OBJECT_TYPE_DIMENSION_LINEAR: u16 = 22;
+const OBJECT_TYPE_POINT: u16 = 27;
+const OBJECT_TYPE_3DFACE: u16 = 32;
+const OBJECT_TYPE_SOLID: u16 = 31;
+const OBJECT_TYPE_TRACE: u16 = 30;
+const OBJECT_TYPE_SHAPE: u16 = 33;
+const OBJECT_TYPE_VIEWPORT: u16 = 34;
+const OBJECT_TYPE_ELLIPSE: u16 = 35;
+const OBJECT_TYPE_SPLINE: u16 = 36;
+const OBJECT_TYPE_RAY: u16 = 40;
+const OBJECT_TYPE_XLINE: u16 = 41;
+const OBJECT_TYPE_MTEXT: u16 = 44;
+const OBJECT_TYPE_LEADER: u16 = 45;
+const OBJECT_TYPE_CIRCLE: u16 = 17;
+const OBJECT_TYPE_ARC: u16 = 18;
+const OBJECT_TYPE_HATCH: u16 = 78;
+const OBJECT_TYPE_LWPOLYLINE: u16 = 77;
+const OBJECT_TYPE_IMAGE: u16 = 101;
+const OBJECT_TYPE_MLEADER: u16 = 493; // Custom class — varies, dispatch-only
+
+/// Decode a [`RawObject`] to a typed [`DecodedEntity`].
+///
+/// This positions a fresh [`BitCursor`] on the raw payload bytes,
+/// skips the object header (type code, R2000 size-in-bits, handle),
+/// consumes the common entity preamble, then dispatches on type code
+/// to the matching per-entity decoder.
+///
+/// On decoder error, returns [`DecodedEntity::Error`] rather than
+/// propagating — the dispatcher intentionally does not abort a walk
+/// on a single bad entity.
+pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
+    let type_code = raw.type_code;
+    let kind = raw.kind;
+
+    // Short-circuit for unmistakably non-entity types.
+    if !raw.is_entity() {
+        return DecodedEntity::Unhandled { type_code, kind };
+    }
+
+    match position_cursor_at_entity_body(raw, version) {
+        Ok(mut cursor) => dispatch(&mut cursor, type_code, kind, version),
+        Err(e) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message: format!("failed to position cursor: {e}"),
+        },
+    }
+}
+
+/// Replay the object-header reads so the cursor lands just past the
+/// handle, at the start of the common entity preamble. Mirrors the
+/// logic in [`crate::object::ObjectWalker::read_one_at_pos`] for the
+/// payload-level fields only (the MS header is already stripped by
+/// the walker).
+fn position_cursor_at_entity_body<'a>(
+    raw: &'a RawObject,
+    version: Version,
+) -> Result<BitCursor<'a>> {
+    let mut cursor = BitCursor::new(&raw.raw);
+
+    if version.is_r2010_plus() {
+        // MC — handle-stream-size-in-bits; byte-aligned, throwaway.
+        read_mc_unsigned(&mut cursor)?;
+    }
+
+    // Type code encoding depends on version. The walker already parsed
+    // this; we need to re-consume exactly the same number of bits.
+    crate::object::read_object_type(&mut cursor, version)?;
+
+    if matches!(version, Version::R2000) {
+        // R2000 only — 32-bit object-size-in-bits field.
+        cursor.read_rl()?;
+    }
+
+    // Handle (4 bits code + 4 bits counter + counter bytes).
+    let _ = cursor.read_handle()?;
+
+    Ok(cursor)
+}
+
+/// Exact inverse of `object::read_mc_unsigned` — duplicated rather
+/// than imported because the walker's version is private to that
+/// module. Consumes a byte-aligned modular char as unsigned.
+fn read_mc_unsigned(cursor: &mut BitCursor<'_>) -> Result<u64> {
+    let mut value: u64 = 0;
+    let mut shift: u32 = 0;
+    for _ in 0..10 {
+        let b = cursor.read_rc()? as u64;
+        value |= (b & 0x7F) << shift;
+        if b & 0x80 == 0 {
+            return Ok(value);
+        }
+        shift += 7;
+        if shift >= 64 {
+            break;
+        }
+    }
+    Err(Error::SectionMap("MC length exceeded 10 bytes".into()))
+}
+
+fn dispatch(
+    cursor: &mut BitCursor<'_>,
+    type_code: u16,
+    kind: ObjectType,
+    version: Version,
+) -> DecodedEntity {
+    // Step through the common entity preamble first (§19.4.1).
+    if let Err(e) = crate::common_entity::read_common_entity_data(cursor, version) {
+        return DecodedEntity::Error {
+            type_code,
+            kind,
+            message: format!("common entity preamble: {e}"),
+        };
+    }
+
+    // Dispatch on fixed type code.
+    let result: std::result::Result<DecodedEntity, String> = match type_code {
+        OBJECT_TYPE_LINE => line::decode(cursor)
+            .map(DecodedEntity::Line)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_POINT => point::decode(cursor)
+            .map(DecodedEntity::Point)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_CIRCLE => circle::decode(cursor)
+            .map(DecodedEntity::Circle)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_ARC => arc::decode(cursor)
+            .map(DecodedEntity::Arc)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_ELLIPSE => ellipse::decode(cursor)
+            .map(DecodedEntity::Ellipse)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_RAY => ray::decode(cursor)
+            .map(DecodedEntity::Ray)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_XLINE => xline::decode(cursor)
+            .map(DecodedEntity::XLine)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_SOLID => solid::decode(cursor)
+            .map(DecodedEntity::Solid)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_TRACE => trace::decode(cursor)
+            .map(DecodedEntity::Trace)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_3DFACE => three_d_face::decode(cursor)
+            .map(DecodedEntity::ThreeDFace)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_SPLINE => spline::decode(cursor, version)
+            .map(DecodedEntity::Spline)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_TEXT => text::decode(cursor, version)
+            .map(DecodedEntity::Text)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_MTEXT => mtext::decode(cursor, version)
+            .map(DecodedEntity::MText)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_ATTRIB => attrib::decode(cursor, version)
+            .map(DecodedEntity::Attrib)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_ATTDEF => attdef::decode(cursor, version)
+            .map(DecodedEntity::AttDef)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_INSERT => insert::decode(cursor)
+            .map(DecodedEntity::Insert)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_BLOCK => block::decode(cursor, version)
+            .map(DecodedEntity::Block)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_ENDBLK => endblk::decode(cursor)
+            .map(DecodedEntity::EndBlk)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_VERTEX_2D => vertex::decode(cursor, version)
+            .map(DecodedEntity::Vertex)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_POLYLINE_2D => polyline::decode(cursor)
+            .map(DecodedEntity::Polyline)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_LWPOLYLINE => lwpolyline::decode(cursor)
+            .map(DecodedEntity::LwPolyline)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_LEADER => leader::decode(cursor)
+            .map(DecodedEntity::Leader)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_IMAGE => image::decode(cursor, version)
+            .map(DecodedEntity::Image)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_HATCH => hatch::decode(cursor, version)
+            .map(DecodedEntity::Hatch)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_VIEWPORT => viewport::decode(cursor)
+            .map(DecodedEntity::Viewport)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_SHAPE => return DecodedEntity::Unhandled { type_code, kind },
+        21..=27 => {
+            // DIMENSION family: 21=Ordinate, 22=Linear, 23=Aligned,
+            // 24=Angular3Pt, 25=Angular2Line, 26=Radius, 27=Diameter.
+            match dimension::DimensionKind::from_object_type_code(type_code) {
+                Some(dk) => dimension::decode(cursor, version, dk)
+                    .map(DecodedEntity::Dimension)
+                    .map_err(|e| e.to_string()),
+                None => return DecodedEntity::Unhandled { type_code, kind },
+            }
+        }
+        _ => return DecodedEntity::Unhandled { type_code, kind },
+    };
+
+    match result {
+        Ok(entity) => entity,
+        Err(message) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message,
+        },
+    }
+}
+
+/// Summary of a dispatch run — honest bookkeeping for the README +
+/// CLI tools, so callers can report "decoded N / skipped M / errored K"
+/// instead of pretending every object succeeded.
+#[derive(Debug, Default, Clone)]
+pub struct DispatchSummary {
+    pub decoded: usize,
+    pub unhandled: usize,
+    pub errored: usize,
+    pub errors: Vec<(u16, String)>,
+}
+
+impl DispatchSummary {
+    pub fn record(&mut self, decoded: &DecodedEntity) {
+        match decoded {
+            DecodedEntity::Unhandled { .. } => self.unhandled += 1,
+            DecodedEntity::Error {
+                type_code, message, ..
+            } => {
+                self.errored += 1;
+                self.errors.push((*type_code, message.clone()));
+            }
+            _ => self.decoded += 1,
+        }
+    }
+
+    pub fn total(&self) -> usize {
+        self.decoded + self.unhandled + self.errored
+    }
+
+    pub fn decoded_ratio(&self) -> f64 {
+        let total = self.total();
+        if total == 0 {
+            0.0
+        } else {
+            self.decoded as f64 / total as f64
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unhandled_for_non_entity_type() {
+        let raw = RawObject {
+            stream_offset: 0,
+            size_bytes: 0,
+            type_code: 42,
+            kind: ObjectType::Dictionary, // non-entity
+            handle: crate::bitcursor::Handle {
+                code: 0,
+                counter: 0,
+                value: 0,
+            },
+            raw: Vec::new(),
+        };
+        let decoded = decode_from_raw(&raw, Version::R2018);
+        assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
+        assert!(!decoded.is_decoded());
+    }
+
+    #[test]
+    fn summary_ratio_zero_on_empty() {
+        let s = DispatchSummary::default();
+        assert_eq!(s.decoded_ratio(), 0.0);
+        assert_eq!(s.total(), 0);
+    }
+
+    #[test]
+    fn summary_tracks_counts() {
+        let mut s = DispatchSummary::default();
+        s.record(&DecodedEntity::Unhandled {
+            type_code: 100,
+            kind: ObjectType::Dictionary,
+        });
+        s.record(&DecodedEntity::Error {
+            type_code: 19,
+            kind: ObjectType::Line,
+            message: "test".into(),
+        });
+        assert_eq!(s.decoded, 0);
+        assert_eq!(s.unhandled, 1);
+        assert_eq!(s.errored, 1);
+        assert_eq!(s.total(), 2);
+    }
+}

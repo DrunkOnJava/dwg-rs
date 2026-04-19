@@ -1,0 +1,21 @@
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+# Uncomment and populate the platform(s) you have enrolled before flipping the
+# repo to public. Each line is one supported tier; an empty file means "no
+# sponsor button."
+
+github: DrunkOnJava
+
+# Additional platforms — enable if/when configured:
+# patreon:
+# open_collective:
+# ko_fi:
+# tidelift:
+# community_bridge:
+# liberapay:
+# issuehunt:
+# otechie:
+# lfx_crowdfunding:
+# polar:
+# buy_me_a_coffee:
+# thanks_dev:
+# custom: ["https://example.com/sponsor"]

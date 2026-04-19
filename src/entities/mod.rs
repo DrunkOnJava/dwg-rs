@@ -41,6 +41,7 @@ pub mod attrib;
 pub mod block;
 pub mod circle;
 pub mod dimension;
+pub mod dispatch;
 pub mod ellipse;
 pub mod endblk;
 pub mod hatch;
@@ -62,6 +63,8 @@ pub mod trace;
 pub mod vertex;
 pub mod viewport;
 pub mod xline;
+
+pub use dispatch::{DecodedEntity, DispatchSummary, decode_from_raw};
 
 /// A 2D point: (x, y) in WCS (World Coordinate System).
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

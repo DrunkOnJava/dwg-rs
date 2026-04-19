@@ -1,304 +1,252 @@
 # dwg-rs
 
-> **Clean-room, Apache-2.0 Rust reader for Autodesk DWG files (R13 → R2018 / AC1032).**
-> No Autodesk SDK. No ODA SDK. No GPL-3 dependency. The first open-source DWG library with no strings attached.
+> **Clean-room, Apache-2.0 Rust foundation for Autodesk DWG files (R13 → R2018 / AC1032).**
+> No Autodesk SDK. No ODA SDK. No GPL-3 dependency. The first permissively-licensed DWG codebase with none of those strings attached.
 
 [![CI](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/dwg.svg)](https://crates.io/crates/dwg)
 [![Documentation](https://docs.rs/dwg/badge.svg)](https://docs.rs/dwg)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust MSRV](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
-[![Tests](https://img.shields.io/badge/tests-193%20passing-brightgreen.svg)](#verification)
 
 ---
 
-## Table of contents
+## ⚠ Pre-alpha status — read this first
 
-- [Why this exists](#why-this-exists)
-- [Status](#status)
-- [Install](#install)
-- [Quick start — library](#quick-start--library)
-- [Quick start — CLI](#quick-start--cli)
-- [Feature coverage](#feature-coverage)
-- [Architecture](#architecture)
-- [Verification](#verification)
-- [Safety](#safety)
-- [MSRV policy](#msrv-policy)
-- [Related projects](#related-projects)
-- [FAQ](#faq)
-- [Contributing](#contributing)
-- [Legal posture](#legal-posture)
-- [License](#license)
+This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
----
+Empirical entity-decode coverage as measured by
+[`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
+19-file `nextgis/dwg_samples` corpus + a 1 MB AC1032 file:
 
-## Why this exists
+| Version | Files tested | Entities attempted | Decoded | Errored | Success rate |
+|---------|--------------|--------------------|---------|---------|--------------|
+| R14 / R2000 / R2007 | 7 | 0 | 0 | 0 | not supported (no handle-map for this layout yet) |
+| R2004 (AC1018)      | 3 | 7 per file | 0 | 7 | **0 %** |
+| R2010 (AC1024)      | 3 | 7 per file | 3 | 4 | **43 %** |
+| R2013 (AC1027)      | 3 | 6–7 per file | 6–7 | 0–1 | **85–100 %** |
+| R2018 (AC1032)      | 1 | 304 attempted (of 745 objects; 441 are non-entity controls/dictionaries) | 66 | 238 | **22 %** |
+| **Aggregate** | **19** | **335 entities attempted** | **94** | **254** | **27 %** |
 
-For the past ~28 years, the DWG format has been a moat. Autodesk never published a spec. The Open Design Alliance's SDK requires a paid license and introduces GPL-adjacent constraints. LibreDWG is GPL-3, which is incompatible with most commercial code.
+Per-entity-type error concentration in the R2018 sample (where most real data is):
 
-`dwg-rs` is the first open-source, Apache-2.0, clean-room DWG reader — a permissively-licensed foundation for CAD interoperability tooling without paying tolls or pulling GPL-3 into your dependency graph.
+| Type code | DXF name | Occurrences as error |
+|-----------|----------|-----------------------|
+| 19 | `LINE` | 82 |
+| 44 | `MTEXT` | 33 |
+| ... | (long tail) | 123 |
 
-This crate was implemented exclusively against the Open Design Alliance's *Open Design Specification for .dwg files* (v5.4.1), a freely-redistributable document separate from ODA's SDK license. No Autodesk source, no ODA SDK source, and no LibreDWG source was consulted.
+**Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
+are verified against hand-crafted synthetic input (193 unit + proptest + sample tests pass)
+but fail on real-world files because the common-entity preamble, extended-data loop, and
+handle-stream layout in production DWG files has version-specific deviations this
+crate doesn't yet fully model. This is the gap between "decoder functions exist" and
+"decoders work end-to-end." Closing it is the 0.2.0 milestone.
 
-## Status
+## What *does* work today
 
-Pre-1.0, but feature-complete for read operations across every shipping DWG version from 1997 (R14) to 2024+. Partial write-path scaffolding is in place.
+The container layer is rock-solid and passes 193 tests:
 
-| Area | State |
-|------|-------|
-| Read — R14 / R2000 / R2004 / R2010 / R2013 / R2018 | ✓ Shipping |
-| Read — R2007 Sec_Mask two-layer obfuscation | ⟳ Layer 1 done, Layer 2 scaffolded |
-| Entity decoders (27 types) | ✓ Shipping |
-| Symbol-table entry decoders (9 tables) | ✓ Shipping |
-| Control objects (DICTIONARY, XRECORD, `*_CONTROL`) | ✓ Shipping |
-| Reed-Solomon(255,239) FEC recovery | ✓ Shipping |
-| Write — bit-writer + LZ77 encoder + section framer | ✓ Shipping (literal-only LZ77) |
-| Write — full `DwgFile::to_bytes()` pipeline | ⟳ Stages 2–5 scaffolded |
+- Version identification across AC1014 (R14, 1997) → AC1032 (2018, 2024+)
+- R13–R15 simple file header + R2004+ XOR-encrypted header
+- Section Page Map + Section Info parsing
+- LZ77 decompression (ACadSharp-verified +1 offset dialect)
+- Sec_Mask layer-1 un-masking for every R2004-family version
+- `DwgFile::read_section(name)` — decompressed bytes for any named section
+- CRC-8 + CRC-32 verification
+- Reed-Solomon(255,239) FEC decoder over GF(256) (defensive path)
+- Metadata parsers: `SummaryInfo`, `AppInfo` (R18 ANSI + R21+ UTF-16 auto-detected),
+  `Preview` (BMP, WMF, modern PNG code-6 fallback), `FileDepList`
+- Handle map parser, class map parser, header-variable bit-stream extraction
+- Object-stream walker: `all_objects()` returns `Vec<RawObject>` with type codes,
+  handles, and raw payload bytes — this part works on R2018 (745 objects enumerated
+  cleanly from the sample) and gives you enough to build your own per-version entity
+  dispatcher if you need one sooner than 0.2.0 ships
+- Partial write path: bit-writer + LZ77 literal-only encoder + per-section framer
+  with Sec_Mask and CRC; the file-level `WriterScaffold` scaffold is stage 1 of 5
 
-See the [CHANGELOG](CHANGELOG.md) for release notes and the [ARCHITECTURE](ARCHITECTURE.md) document for design deep-dive.
+### Hard-no list — what dwg-rs does NOT do today
+
+- End-to-end entity decoding on most real R2004-family files (see coverage table above).
+- R14 / R2000 object-stream walking (different layout from R2004-family; not yet implemented).
+- R2007 section payloads (layer-1 Sec_Mask shipped, layer-2 bit-rotation scaffolded only).
+- Full HATCH boundary path tree, full MLEADER leader-line list, full 75-field DIMSTYLE.
+- `DwgFile::to_bytes()` — scaffolded, stages 2–5 (page-map + section-info + system-page + file-open-header rebuild) are a future release.
 
 ## Install
 
-From source:
-
 ```bash
+# From git (currently the only distribution):
 git clone https://github.com/DrunkOnJava/dwg-rs
 cd dwg-rs
 cargo build --release
 ```
 
-From crates.io (after 0.1.0 publish):
+The 0.1.0-alpha.1 crate has not been published to crates.io yet, and won't be until
+the entity-decoder coverage hits a responsible baseline.
 
-```bash
-cargo add dwg
-```
-
-As a CLI:
-
-```bash
-cargo install --git https://github.com/DrunkOnJava/dwg-rs
-# installs: dwg-info, dwg-corpus, dwg-dump, dwg-convert
-```
-
-## Quick start — library
+## Use the parts that work
 
 ```rust
 use dwg::DwgFile;
 
 fn main() -> dwg::Result<()> {
     let file = DwgFile::open("drawing.dwg")?;
-
     println!("version: {}", file.version());
     println!("sections: {}", file.sections().len());
 
-    // Walk every drawing object by handle.
-    if let Some(Ok(objects)) = file.all_objects() {
-        for obj in objects.iter().filter(|o| o.is_entity()) {
-            println!("  handle 0x{:X} → {:?}", obj.handle.value, obj.kind);
-        }
+    // Decompressed bytes for any named section — this is fully reliable.
+    if let Some(Ok(bytes)) = file.read_section("AcDb:Preview") {
+        println!("preview section: {} bytes", bytes.len());
     }
 
-    // Read structured metadata.
+    // Structured metadata — works on every corpus file we've tested.
     if let Some(Ok(summary)) = file.summary_info() {
         println!("title:  {}", summary.title);
         println!("author: {}", summary.author);
+    }
+
+    // Handle-indexed object walk — works on R2004+ but skips R14/R2000/R2007.
+    if let Some(Ok(objects)) = file.all_objects() {
+        println!("raw objects: {}", objects.len());
+    }
+
+    // End-to-end entity decode — alpha quality; check the returned
+    // DispatchSummary's decoded_ratio() for honest per-file coverage
+    // before relying on the output.
+    if let Some(Ok((entities, summary))) = file.decoded_entities() {
+        println!(
+            "entities: {} decoded / {} skipped / {} errored ({:.1}% decoded)",
+            summary.decoded,
+            summary.unhandled,
+            summary.errored,
+            summary.decoded_ratio() * 100.0
+        );
     }
 
     Ok(())
 }
 ```
 
-More examples live in [`examples/`](./examples/):
+Other examples live in [`examples/`](./examples/):
 
-- [`basic_open.rs`](./examples/basic_open.rs) — open + print version + section list
-- [`walk_entities.rs`](./examples/walk_entities.rs) — histogram of entity types
-- [`extract_preview.rs`](./examples/extract_preview.rs) — pull the embedded thumbnail to disk
-- [`dump_metadata.rs`](./examples/dump_metadata.rs) — print summary info, app info, dependencies
+- [`basic_open.rs`](./examples/basic_open.rs)
+- [`walk_entities.rs`](./examples/walk_entities.rs)
+- [`extract_preview.rs`](./examples/extract_preview.rs)
+- [`dump_metadata.rs`](./examples/dump_metadata.rs)
+- [`coverage_report.rs`](./examples/coverage_report.rs) — run this against your own files to see how much of your data dwg-rs can actually parse today
 
-Run any of them with:
-
-```bash
-cargo run --release --example basic_open -- path/to/drawing.dwg
-```
-
-## Quick start — CLI
-
-Four binaries ship with the crate:
+## CLI tools
 
 ```bash
-# One-line summary of a file's version, size, and sections
-dwg-info drawing.dwg
-
-# Sweep a directory of .dwg files and report which ones open cleanly
-dwg-corpus /path/to/corpus/
-
-# Full hierarchical dump — sections, classes, metadata, handles, objects
-dwg-dump drawing.dwg
-
-# Extract a single section's decompressed bytes to disk
-dwg-convert --extract AcDb:Preview -o preview.bmp drawing.dwg
-
-# Verify every section in a file decompresses cleanly
-dwg-convert --verify drawing.dwg
+dwg-info drawing.dwg                                        # version + section list
+dwg-corpus /path/to/corpus/                                 # sweep a directory
+dwg-dump drawing.dwg                                        # hierarchical dump
+dwg-convert --extract AcDb:Preview -o preview.bmp x.dwg     # decompressed section
+dwg-convert --verify drawing.dwg                            # all-sections decompress check
 ```
-
-## Feature coverage
-
-### Entity decoders (spec §19.4)
-
-| Family | Types covered |
-|--------|----------------|
-| Lines & curves | LINE, POINT, CIRCLE, ARC, ELLIPSE, RAY, XLINE, SPLINE (fit + control), LWPOLYLINE, POLYLINE + VERTEX |
-| Faces & solids | SOLID, 3DFACE, TRACE |
-| Text | TEXT, MTEXT, ATTRIB, ATTDEF |
-| Blocks | INSERT, BLOCK, ENDBLK |
-| Dimensions | DIMENSION (Ordinate, Linear, Aligned, Angular-3Pt, Angular-2Line, Radius, Diameter) |
-| Advanced | LEADER, MLEADER, IMAGE, HATCH, VIEWPORT |
-
-### Symbol tables (spec §19.5)
-
-LAYER, LTYPE, STYLE, VIEW, UCS, VPORT, APPID, DIMSTYLE, BLOCK_RECORD.
-
-### Control objects
-
-DICTIONARY (with `.get()` lookup), XRECORD, and the shared `*_CONTROL` shape for LAYER_CONTROL, STYLE_CONTROL, LTYPE_CONTROL, BLOCK_CONTROL, VIEW_CONTROL, UCS_CONTROL, VPORT_CONTROL, APPID_CONTROL, DIMSTYLE_CONTROL.
-
-### Metadata sections
-
-AcDb:SummaryInfo (title / author / keywords / comments), AcDb:AppInfo (writing application + version, R18 ANSI + R21+ UTF-16 auto-detected), AcDb:Preview (BMP, WMF, and modern AutoCAD's undocumented PNG code-6), AcDb:FileDepList (fonts, XRefs, images, external references).
 
 ## Architecture
 
-```
- ┌────────────── DwgFile::open(path) ──────────────┐
- │  .version()  .sections()  .summary_info()       │  <- public API
- │  .handle_map()  .class_map()  .all_objects()    │
- └────────────┬────────────────────────────────────┘
-              │
-  ┌───────────┼─────────────────────────────────┐
-  │           │                                 │
-  ▼           ▼                                 ▼
-┌────────┐ ┌──────────────┐         ┌────────────────────┐
-│ reader │ │ section_map  │         │  entities/*        │
-│ header │ │ section_     │         │  tables/*          │
-│ cipher │ │  _writer     │         │  objects/*         │
-│ crc    │ └──────┬───────┘         └────────┬───────────┘
-└────┬───┘        │                          │
-     │         ┌──▼───┐              ┌───────▼────────┐
-     │         │ lz77 │              │ common_entity  │
-     │         │  _en │              │ bitcursor /    │
-     │         │ code │              │ bitwriter      │
-     │         └──────┘              └────────────────┘
-     │
-     ▼
-  reed_solomon (defensive recovery)
-  r2007 (Sec_Mask layer 1 + 2 scaffold)
-```
+See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the design deep-dive — format primer,
+module responsibilities, the four-phase read pipeline, Sec_Mask explanation, and
+the LZ77 spec-errata corrections.
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for a full technical deep dive — format primer, module responsibilities, the four-phase read pipeline, Sec_Mask explanation, and the LZ77 spec-errata corrections.
+Quick layer overview:
+
+```
+  DwgFile::open ─────────────────────────────────────────┐
+         │                                               │
+         ▼                                               ▼
+   header + section_map                      (R2004+ only) handle_map
+         │                                               │
+         ▼                                               ▼
+   read_section("AcDb:*")                       all_objects()  ──► [shipping]
+         │                                               │
+         ▼                                               ▼
+   metadata::* (SummaryInfo,                   decoded_entities() ──► [alpha]
+   AppInfo, Preview, FileDepList)                       │
+                                                        ▼
+                                         dispatch on type_code → entities::*
+                                                        │
+                                                        ▼
+                                                  per-entity struct
+```
 
 ## Verification
 
 ```text
 $ cargo test --release
-running 156 tests                                 (unit)
-test result: ok. 156 passed; 0 failed
-
-running 5 tests                                   (cross-corpus integration)
-test result: ok. 5 passed; 0 failed
-
-running 9 tests                                   (proptest round-trips)
-test result: ok. 9 passed; 0 failed
-
-running 22 tests                                  (per-sample assertions)
-test result: ok. 22 passed; 0 failed
-
-running 1 test                                    (doctest)
-test result: ok. 1 passed; 0 failed
-
-Total: 193 tests, 0 failures.
+156 unit tests    + 5 corpus + 9 proptest + 22 samples + 1 doctest = 193 tests, 0 failures
+$ cargo clippy --all-targets --all-features -- -D warnings       # clean
+$ cargo fmt --all -- --check                                      # clean
+$ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features   # clean
+$ cargo deny check                                                # no advisories, no disallowed licenses
 ```
 
-Each pull request runs on CI against:
-
-- `stable` and MSRV (1.85) toolchains
-- Linux, macOS, Windows (`ubuntu-latest`, `macos-latest`, `windows-latest`)
-- `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `cargo doc`, `cargo deny check`
-
-See [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) for the workflow spec.
+Tests exercise the container layer end-to-end across all 19 corpus files and verify
+bit-level round-trip properties for every primitive. They do **not** verify that every
+entity decoder succeeds on every real-world drawing — that's what the 22 % / 43 % /
+85 % coverage numbers above measure. Both classes of testing are needed.
 
 ## Safety
 
-```rust
-#![deny(unsafe_code)]
-```
-
-The entire crate is safe Rust. There is no `unsafe` anywhere — Reed-Solomon, LZ77, GF(256), bit-cursor, and bit-writer are all implemented without raw pointers or undefined-behavior primitives.
-
-Malformed-input posture:
-
-- Every parser returns `Result<T, Error>` — no panics on adversarial input.
-- Defensive caps bound runaway allocations (1M-entry dictionaries, 16 MB XRECORDs, 1M-vertex splines).
-- Decompression-bomb mitigation: callers should pass `expected_size` to `lz77::decompress` when known.
-
-See [SECURITY.md](./SECURITY.md) for the full threat model and private vulnerability reporting.
+The whole crate is `#![deny(unsafe_code)]`. Reed-Solomon, LZ77, GF(256), bit-cursor,
+and bit-writer are all safe Rust. Every parser returns `Result<T, Error>`. Defensive
+caps bound runaway allocations (1 M dictionary entries, 16 MB XRECORDs, 1 M spline
+control points). See [`SECURITY.md`](./SECURITY.md) for threat model + private
+reporting.
 
 ## MSRV policy
 
-- **Minimum supported Rust version: 1.85** (for `edition = "2024"`).
-- MSRV bumps are minor-version events and announced in the [CHANGELOG](./CHANGELOG.md).
-- CI verifies MSRV on every PR — a patch that raises it will be caught before merge.
+Rust 1.85 (for `edition = "2024"`). MSRV bumps are minor-version events announced in
+the [CHANGELOG](./CHANGELOG.md). CI verifies MSRV on every PR.
 
 ## Related projects
 
 | Project | Language | License | Notes |
 |---------|----------|---------|-------|
-| [ACadSharp](https://github.com/DomCR/ACadSharp) | C# | MIT | Permissive reference; `dwg-rs` cross-checked LZ77 offsets against it |
-| [LibreDWG](https://www.gnu.org/software/libredwg/) | C | **GPL-3** | Mature but copyleft; not consulted in the clean-room build of this crate |
-| [dxf-rs](https://github.com/ixmilia/dxf-rs) | Rust | MIT | Handles DXF (the text companion format), not DWG |
-| [ezdxf](https://ezdxf.readthedocs.io/) | Python | MIT | DXF-only |
-| [Teigha / ODA SDK](https://www.opendesign.com/) | C++ | Commercial | Proprietary; requires membership + license fee |
+| [ACadSharp](https://github.com/DomCR/ACadSharp) | C# | MIT | Permissive reference — `dwg-rs` cross-checked LZ77 offset errata against it (not its source, just the algorithm in comments) |
+| [LibreDWG](https://www.gnu.org/software/libredwg/) | C | **GPL-3** | Mature but copyleft; not consulted at any point during this crate's build |
+| [Teigha / ODA SDK](https://www.opendesign.com/) | C++ | Commercial | Proprietary; paid membership required |
+| [dxf-rs](https://github.com/ixmilia/dxf-rs) | Rust | MIT | DXF (text companion format) only |
 
-## FAQ
+## Why this exists
 
-**Why not just use LibreDWG?**
-LibreDWG is GPL-3. If you're building proprietary software or distributing an Apache-2-licensed product, LibreDWG either forces you to relicense or it's legally off-limits. `dwg-rs` is Apache-2, no copyleft.
+For ~28 years the DWG format has been a moat. Autodesk never published a spec. The ODA's SDK requires membership and introduces licensing constraints. LibreDWG is GPL-3, which disqualifies it from most commercial stacks.
 
-**Is this affiliated with Autodesk or the ODA?**
-No. This is an independent clean-room implementation against a publicly-redistributable specification, protected by the 17 U.S.C. § 1201(f) interoperability exception and the 2006 *Autodesk v. ODA* settlement.
-
-**Can it write DWG files?**
-Partially. The inverse of the read path — bit-writer, LZ77 encoder (literal-only, correctness-first), per-section framer with Sec_Mask + CRC, and the `WriterScaffold` facade — all ship today. The final stage that rewrites the file-open header and the page-map / section-info system pages is scaffolded (see [`file_writer.rs`](./src/file_writer.rs)) and tracked in the CHANGELOG as the next release's primary feature.
-
-**Is R2007 supported?**
-Partially. R2007 uses a two-layer Sec_Mask obfuscation (spec §5) that no other version in the R2004 family uses. Layer 1 (byte-level XOR) is implemented; layer 2 (bit-level 7-byte window rotation with cumulative bookkeeping) is scaffolded but not wired into the reader yet. R14, R2000, R2004, R2010, R2013, R2018 are fully supported.
-
-**How big are the sample files in the test corpus?**
-The 19 sample files under `samples/` in the development tree are sourced from the public `nextgis/dwg_samples` repository. They are deliberately **not** included in the published crate — `tests/corpus_roundtrip.rs` skips gracefully when they are absent so this crate remains usable as a pure dependency.
+`dwg-rs` is the first open-source, Apache-2.0, clean-room foundation — a permissive-licensed base for CAD interoperability tooling. It is **not** a finished product. It is a foundation other people can build on without paying tolls or pulling GPL-3 into their dependency graph.
 
 ## Contributing
 
-Issues and pull requests are welcome. Before you submit:
+The project needs help, in rough order of impact:
 
-- Read [ARCHITECTURE.md](./ARCHITECTURE.md) to understand the module boundaries.
-- Run `cargo fmt --all`, `cargo clippy -D warnings`, and `cargo test` locally.
-- Cite the ODA spec section for any new decoder you add.
-- For PRs touching the decoder path: confirm in the PR body that you have **not** consulted Autodesk's, ODA's, or LibreDWG's source code. This is the clean-room requirement.
+1. **Per-version entity preamble fixes** — figuring out why LINE and MTEXT fail on R2004/R2010/R2018 real files. This is the single biggest gap between "4 % aggregate" and "shipping."
+2. **R14 / R2000 object-stream walker** — completely different layout from R2004-family.
+3. **R2007 Sec_Mask layer-2 bookkeeping** — spec §5.2.
+4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.
+5. **Write-path stages 2–5** — page-map / section-info / system-page / file-open-header rebuild.
+
+Before submitting a PR:
+
+- Run `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
+- Cite the ODA spec section for any new decoder behavior.
+- **Clean-room declaration**: confirm in the PR body that you have not consulted Autodesk SDK source, ODA SDK source, or LibreDWG (GPL-3) source for the contribution. The PR template has a checkbox for this.
 - Follow the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) code of conduct.
 
-Security vulnerabilities: do **not** open a public issue. Report privately via [GitHub Security Advisories](https://github.com/DrunkOnJava/dwg-rs/security/advisories/new) — see [SECURITY.md](./SECURITY.md).
+Security vulnerabilities: report privately via [GitHub Security Advisories](https://github.com/DrunkOnJava/dwg-rs/security/advisories/new) — see [SECURITY.md](./SECURITY.md).
 
 ## Legal posture
 
-DWG is a trademark of Autodesk, Inc. This crate is not affiliated with, authorized by, or endorsed by Autodesk. It is a clean-room third-party implementation made for interoperability purposes, protected by:
+DWG is a trademark of Autodesk, Inc. This crate is not affiliated with, authorized by, or endorsed by Autodesk. It is a clean-room third-party implementation for interoperability, protected by:
 
-- **17 U.S.C. § 1201(f)** — the Digital Millennium Copyright Act's reverse-engineering-for-interoperability exception.
-- **Autodesk, Inc. v. Open Design Alliance**, N.D. Cal. 2006 (settled) — which explicitly permits third-party DWG implementations.
+- **17 U.S.C. § 1201(f)** — the DMCA reverse-engineering-for-interoperability exception.
+- **Autodesk, Inc. v. Open Design Alliance**, N.D. Cal. 2006 (settled) — explicitly permits third-party DWG implementations.
 
-The authoritative reference is the Open Design Alliance's *Open Design Specification for .dwg files* (v5.4.1), a freely-redistributable document.
+The authoritative reference is the ODA's freely-redistributable *Open Design Specification for .dwg files* (v5.4.1) — a document distinct from ODA's SDK license.
+
+No Autodesk SDK, no ODA SDK, and no LibreDWG source was consulted at any point.
 
 ## License
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE) for the full text.
-
-Contributions are accepted under the same terms per the standard Apache-2 inbound = outbound convention.
+Apache-2.0. See [LICENSE](./LICENSE). Contributions land under the same terms per the standard inbound = outbound convention.

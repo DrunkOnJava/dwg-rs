@@ -288,6 +288,37 @@ impl DwgFile {
                 .collect_all(),
         )
     }
+
+    /// End-to-end entity decode: walk every object via the handle map,
+    /// then dispatch each one through the per-type decoder. Returns the
+    /// list of [`crate::entities::DecodedEntity`] plus a
+    /// [`crate::entities::DispatchSummary`] counting how many succeeded,
+    /// were skipped (non-entity or unknown type), or errored.
+    ///
+    /// This is the method to call if you want "actual entities" out of a
+    /// DWG file. [`DwgFile::all_objects`] is the lower-level primitive
+    /// that returns raw type-coded blobs.
+    pub fn decoded_entities(
+        &self,
+    ) -> Option<
+        Result<(
+            Vec<crate::entities::DecodedEntity>,
+            crate::entities::DispatchSummary,
+        )>,
+    > {
+        let raws = match self.all_objects()? {
+            Ok(r) => r,
+            Err(e) => return Some(Err(e)),
+        };
+        let mut out = Vec::with_capacity(raws.len());
+        let mut summary = crate::entities::DispatchSummary::default();
+        for raw in &raws {
+            let decoded = crate::entities::decode_from_raw(raw, self.version);
+            summary.record(&decoded);
+            out.push(decoded);
+        }
+        Some(Ok((out, summary)))
+    }
 }
 
 /// Walk the R2004+ Section Page Map → Section Info chain and emit a

@@ -263,7 +263,7 @@ fn read_mc_unsigned(r: &mut BitCursor<'_>) -> Result<u64> {
 ///   01 → next byte + 0x1F0    (0x1F0..=0x2EF)
 ///   10 → next 2 bytes (raw short, LE)
 ///   11 → same as 10 (spec says this should never occur)
-fn read_object_type(c: &mut BitCursor<'_>, version: Version) -> Result<u16> {
+pub(crate) fn read_object_type(c: &mut BitCursor<'_>, version: Version) -> Result<u16> {
     if version.is_r2010_plus() {
         let tag = c.read_bb()?;
         match tag {

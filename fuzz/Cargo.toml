@@ -1,0 +1,56 @@
+[package]
+name = "dwg-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+dwg = { path = ".." }
+
+[[bin]]
+name = "lz77_decompress"
+path = "fuzz_targets/lz77_decompress.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bitcursor_primitives"
+path = "fuzz_targets/bitcursor_primitives.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dwg_file_open"
+path = "fuzz_targets/dwg_file_open.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "section_map"
+path = "fuzz_targets/section_map.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "object_walker"
+path = "fuzz_targets/object_walker.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1
+
+# Faster fuzz builds — default is full release.
+[profile.fuzz]
+inherits = "release"
+debug-assertions = true
+overflow-checks = true

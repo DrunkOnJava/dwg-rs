@@ -71,7 +71,12 @@ impl ClassMap {
             return Ok(Self::default());
         }
         // Skip 16-byte sentinel + 4-byte size-in-bits header.
-        let size_in_bits = u32::from_le_bytes(bytes[16..20].try_into().unwrap()) as usize;
+        // The length pre-check above guarantees bytes[16..20] is 4 bytes.
+        let size_in_bits = u32::from_le_bytes(
+            bytes[16..20]
+                .try_into()
+                .expect("slice 16..20 is length 4 by length pre-check"),
+        ) as usize;
         let max_class_number_pos = 20;
         if max_class_number_pos + 4 > bytes.len() {
             return Ok(Self::default());
@@ -79,7 +84,7 @@ impl ClassMap {
         let max_class_number = u32::from_le_bytes(
             bytes[max_class_number_pos..max_class_number_pos + 4]
                 .try_into()
-                .unwrap(),
+                .expect("4-byte slice guaranteed by length pre-check above"),
         );
         // Bit-level parsing starts at byte 24.
         let bit_start = 24;
