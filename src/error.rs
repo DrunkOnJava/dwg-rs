@@ -45,4 +45,20 @@ pub enum Error {
 
     #[error("Invalid UTF-8 in text field: {0}")]
     Utf8(#[from] std::string::FromUtf8Error),
+
+    #[error("LZ77 stream truncated (spec §4.7)")]
+    Lz77Truncated,
+
+    #[error("LZ77 back-reference points before start of output (spec §4.7)")]
+    Lz77InvalidOffset,
+
+    #[error("LZ77 reserved opcode 0x{opcode:02X} at input position {pos} (spec §4.7: 0x00-0x0F not used), output len = {out_len}")]
+    Lz77InvalidOpcode {
+        opcode: u8,
+        pos: usize,
+        out_len: usize,
+    },
+
+    #[error("Section map parse failed: {0}")]
+    SectionMap(String),
 }

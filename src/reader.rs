@@ -9,6 +9,7 @@ use crate::crc;
 use crate::error::{Error, Result};
 use crate::header::{CommonHeader, R13R15Header, R2004Header};
 use crate::section::{Section, SectionKind};
+use crate::section_map;
 use crate::version::Version;
 use byteorder::{ByteOrder, LittleEndian};
 use std::fs;
@@ -164,19 +165,76 @@ impl DwgFile {
 }
 
 /// Walk the R2004+ Section Page Map → Section Info chain and emit a
-/// `Section` list.
+/// `Section` list with real named entries.
 ///
-/// This does *not* decompress the page map. Instead, it treats the map as
-/// an opaque payload located at the file address given in the decrypted
-/// header. For Phase A, we enumerate the *page-map bounding box* (start
-/// offset + size) as a single `SystemSection`, plus report the named data
-/// sections that the header directly reveals (summary info + VBA project).
-///
-/// Full walk of the section name list requires LZ77 decompression, which
-/// is Phase B. The contract is that once we implement that, this function
-/// replaces its stub output with the complete named list — no callers need
-/// to change.
+/// Phase B: LZ77 + page-map parse + section-info parse produce the complete
+/// AcDb:Header / AcDb:Classes / AcDb:Handles / AcDb:AcDbObjects / etc list.
+/// If the parse fails for any reason (e.g. corrupt file, format ahead of
+/// this implementation), we fall back to the Phase A stub enumeration so
+/// the file still opens with partial metadata.
 fn extract_r2004_sections(bytes: &[u8], header: &R2004Header) -> Result<Vec<Section>> {
+    // Try the full Section Map walk first.
+    if let Ok(full) = extract_r2004_sections_full(bytes, header) {
+        if !full.is_empty() {
+            return Ok(full);
+        }
+    }
+    // Fall back to stub enumeration.
+    extract_r2004_sections_stub(bytes, header)
+}
+
+/// Phase B: full named-section enumeration via LZ77-decompressed page map
+/// and section info.
+fn extract_r2004_sections_full(
+    bytes: &[u8],
+    header: &R2004Header,
+) -> Result<Vec<Section>> {
+    let page_map = section_map::parse_page_map(bytes, header)?;
+    let descriptions = section_map::parse_section_info(bytes, header, &page_map)?;
+
+    // Build a lookup from page number to file offset.
+    let mut page_offset: std::collections::HashMap<i32, u64> =
+        std::collections::HashMap::with_capacity(page_map.len());
+    for p in &page_map {
+        if !p.is_gap {
+            page_offset.insert(p.number, p.file_offset);
+        }
+    }
+
+    let mut out = Vec::with_capacity(descriptions.len());
+    for d in descriptions {
+        // For the section's "primary" on-disk address we use the first
+        // page's file offset. Callers that want to walk the per-section
+        // page list can expose that via a dedicated API; for the top-level
+        // `Section` we report the first-page offset.
+        let first_offset = d
+            .pages
+            .first()
+            .and_then(|p| page_offset.get(&(p.page_number as i32)))
+            .copied()
+            .unwrap_or(0);
+        // Filter out the unnamed "Empty section" (spec §4.5 first entry).
+        if d.name.is_empty() {
+            continue;
+        }
+        out.push(Section {
+            name: d.name.clone(),
+            kind: SectionKind::from_r2004_name(&d.name),
+            offset: first_offset,
+            size: d.size,
+            compressed: d.compressed == 2,
+            encrypted: d.encrypted == 1,
+        });
+    }
+    Ok(out)
+}
+
+/// Phase A fallback: peek what the raw file header reveals, probe the
+/// first page at 0x100 for a known page-type tag.
+fn extract_r2004_sections_stub(
+    bytes: &[u8],
+    header: &R2004Header,
+) -> Result<Vec<Section>> {
     let mut out = Vec::new();
 
     // 1. Section Page Map — lives at header.section_page_map_addr + 0x100.
