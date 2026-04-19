@@ -36,16 +36,23 @@ use crate::bitcursor::BitCursor;
 use crate::error::Result;
 
 pub mod arc;
+pub mod attdef;
+pub mod attrib;
+pub mod block;
 pub mod circle;
 pub mod ellipse;
+pub mod endblk;
 pub mod insert;
 pub mod line;
 pub mod lwpolyline;
+pub mod mtext;
 pub mod point;
+pub mod polyline;
 pub mod ray;
 pub mod solid;
 pub mod text;
 pub mod three_d_face;
+pub mod vertex;
 pub mod viewport;
 pub mod xline;
 
