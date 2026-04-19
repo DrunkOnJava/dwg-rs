@@ -222,6 +222,26 @@ impl DwgFile {
                 .and_then(|bytes| crate::metadata::FileDepList::parse(&bytes)),
         )
     }
+
+    /// Walk the `AcDb:AcDbObjects` stream and return every object as a
+    /// [`crate::object::RawObject`] (typed + handled, bytes preserved).
+    ///
+    /// This does NOT decode entity-specific fields; callers that want
+    /// `Entity::Line { start, end, ... }` pass each `RawObject.raw` to
+    /// a per-type decoder. The walker is version-aware and handles the
+    /// R2010+ object-type encoding and the pre-section RL prefix.
+    pub fn objects(&self) -> Option<Result<Vec<crate::object::RawObject>>> {
+        let _ = self.r2004.as_ref()?;
+        let bytes = match self.read_section("AcDb:AcDbObjects") {
+            Some(Ok(b)) => b,
+            Some(Err(e)) => return Some(Err(e)),
+            None => return None,
+        };
+        Some(
+            crate::object::ObjectWalker::new(&bytes, self.version)
+                .collect_all(),
+        )
+    }
 }
 
 /// Walk the R2004+ Section Page Map → Section Info chain and emit a
