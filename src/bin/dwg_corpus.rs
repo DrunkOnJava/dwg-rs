@@ -8,7 +8,11 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[derive(Parser, Debug)]
-#[command(name = "dwg-corpus", about = "Sweep a directory of .dwg files", version)]
+#[command(
+    name = "dwg-corpus",
+    about = "Sweep a directory of .dwg files",
+    version
+)]
 struct Args {
     /// Directory to scan (recursively). If a single .dwg file is passed,
     /// it's treated as a one-element corpus.
@@ -34,8 +38,8 @@ fn main() -> ExitCode {
     let mut ok = 0usize;
     let mut failed = 0usize;
     println!(
-        "{:<48} {:<10} {:>10} {:>6}  {}",
-        "file", "version", "size", "secs", "maint"
+        "{:<48} {:<10} {:>10} {:>6}  maint",
+        "file", "version", "size", "secs"
     );
     for f in &files {
         match DwgFile::open(f) {
@@ -48,9 +52,7 @@ fn main() -> ExitCode {
                     .unwrap_or(0);
                 println!(
                     "{:<48} {:<10} {:>10} {:>6}  {}",
-                    f.file_name()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("?"),
+                    f.file_name().and_then(|s| s.to_str()).unwrap_or("?"),
                     d.version().release(),
                     d.file_size(),
                     d.sections().len(),

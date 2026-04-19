@@ -55,9 +55,23 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let p = decode(&mut c).unwrap();
-        assert_eq!(p.position, Point3D { x: 1.25, y: 2.5, z: 3.75 });
+        assert_eq!(
+            p.position,
+            Point3D {
+                x: 1.25,
+                y: 2.5,
+                z: 3.75
+            }
+        );
         assert_eq!(p.thickness, 0.0);
-        assert_eq!(p.extrusion, Vec3D { x: 0.0, y: 0.0, z: 1.0 });
+        assert_eq!(
+            p.extrusion,
+            Vec3D {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0
+            }
+        );
         assert_eq!(p.x_axis_angle, 0.0);
     }
 }

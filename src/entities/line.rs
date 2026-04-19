@@ -54,8 +54,16 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Line> {
     let thickness = read_bt(c)?;
     let extrusion = read_be(c)?;
     Ok(Line {
-        start: Point3D { x: sx, y: sy, z: sz },
-        end: Point3D { x: ex, y: ey, z: ez },
+        start: Point3D {
+            x: sx,
+            y: sy,
+            z: sz,
+        },
+        end: Point3D {
+            x: ex,
+            y: ey,
+            z: ez,
+        },
         thickness,
         extrusion,
         is_2d: zflag,
@@ -81,10 +89,31 @@ mod tests {
         let mut c = BitCursor::new(&bytes);
         let l = decode(&mut c).unwrap();
         assert!(l.is_2d);
-        assert_eq!(l.start, Point3D { x: 1.0, y: 2.0, z: 0.0 });
-        assert_eq!(l.end, Point3D { x: 6.0, y: 5.0, z: 0.0 });
+        assert_eq!(
+            l.start,
+            Point3D {
+                x: 1.0,
+                y: 2.0,
+                z: 0.0
+            }
+        );
+        assert_eq!(
+            l.end,
+            Point3D {
+                x: 6.0,
+                y: 5.0,
+                z: 0.0
+            }
+        );
         assert_eq!(l.thickness, 0.0);
-        assert_eq!(l.extrusion, Vec3D { x: 0.0, y: 0.0, z: 1.0 });
+        assert_eq!(
+            l.extrusion,
+            Vec3D {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0
+            }
+        );
     }
 
     #[test]
@@ -107,8 +136,22 @@ mod tests {
         let mut c = BitCursor::new(&bytes);
         let l = decode(&mut c).unwrap();
         assert!(!l.is_2d);
-        assert_eq!(l.start, Point3D { x: 1.0, y: 3.0, z: 5.0 });
-        assert_eq!(l.end, Point3D { x: 3.0, y: 7.0, z: 11.0 });
+        assert_eq!(
+            l.start,
+            Point3D {
+                x: 1.0,
+                y: 3.0,
+                z: 5.0
+            }
+        );
+        assert_eq!(
+            l.end,
+            Point3D {
+                x: 3.0,
+                y: 7.0,
+                z: 11.0
+            }
+        );
         assert_eq!(l.thickness, 2.5);
     }
 }

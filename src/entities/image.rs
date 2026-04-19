@@ -87,9 +87,18 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Image> {
     }
     let clip_boundary = match clip_boundary_type {
         1 => {
-            let c1 = Point2D { x: c.read_rd()?, y: c.read_rd()? };
-            let c2 = Point2D { x: c.read_rd()?, y: c.read_rd()? };
-            ClipBoundary::Rectangle { lower_left: c1, upper_right: c2 }
+            let c1 = Point2D {
+                x: c.read_rd()?,
+                y: c.read_rd()?,
+            };
+            let c2 = Point2D {
+                x: c.read_rd()?,
+                y: c.read_rd()?,
+            };
+            ClipBoundary::Rectangle {
+                lower_left: c1,
+                upper_right: c2,
+            }
         }
         2 => {
             let mut pts = Vec::with_capacity(num_clip_verts);
@@ -131,21 +140,38 @@ mod tests {
     fn roundtrip_image_with_rect_clip() {
         let mut w = BitWriter::new();
         w.write_bl(0);
-        w.write_bd(10.0); w.write_bd(20.0); w.write_bd(0.0);
-        w.write_bd(1.0); w.write_bd(0.0); w.write_bd(0.0);
-        w.write_bd(0.0); w.write_bd(1.0); w.write_bd(0.0);
-        w.write_rd(1920.0); w.write_rd(1080.0);
+        w.write_bd(10.0);
+        w.write_bd(20.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_rd(1920.0);
+        w.write_rd(1080.0);
         w.write_bs(0x07); // show + show-not-aligned + clip
         w.write_b(true); // clipping
-        w.write_rc(50); w.write_rc(50); w.write_rc(0);
+        w.write_rc(50);
+        w.write_rc(50);
+        w.write_rc(0);
         w.write_bs(1); // rectangle
         w.write_bl(2); // num verts
-        w.write_rd(0.0); w.write_rd(0.0);
-        w.write_rd(1920.0); w.write_rd(1080.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(1920.0);
+        w.write_rd(1080.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c, Version::R2000).unwrap();
-        assert_eq!(i.image_size, Point2D { x: 1920.0, y: 1080.0 });
+        assert_eq!(
+            i.image_size,
+            Point2D {
+                x: 1920.0,
+                y: 1080.0
+            }
+        );
         assert!(matches!(i.clip_boundary, ClipBoundary::Rectangle { .. }));
     }
 
@@ -153,17 +179,27 @@ mod tests {
     fn roundtrip_image_with_poly_clip() {
         let mut w = BitWriter::new();
         w.write_bl(0);
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0);
-        w.write_bd(1.0); w.write_bd(0.0); w.write_bd(0.0);
-        w.write_bd(0.0); w.write_bd(1.0); w.write_bd(0.0);
-        w.write_rd(100.0); w.write_rd(100.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_rd(100.0);
+        w.write_rd(100.0);
         w.write_bs(0x01);
         w.write_b(true);
-        w.write_rc(50); w.write_rc(50); w.write_rc(0);
+        w.write_rc(50);
+        w.write_rc(50);
+        w.write_rc(0);
         w.write_bs(2); // polygon
         w.write_bl(3);
         for (x, y) in [(0.0f64, 0.0), (100.0, 0.0), (50.0, 100.0)] {
-            w.write_rd(x); w.write_rd(y);
+            w.write_rd(x);
+            w.write_rd(y);
         }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

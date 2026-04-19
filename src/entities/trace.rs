@@ -30,10 +30,14 @@ mod tests {
         let mut w = BitWriter::new();
         w.write_b(true); // default thickness
         w.write_bd(0.0); // elevation
-        w.write_rd(0.0); w.write_rd(0.0);
-        w.write_rd(1.0); w.write_rd(0.0);
-        w.write_rd(0.0); w.write_rd(1.0);
-        w.write_rd(1.0); w.write_rd(1.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(1.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(1.0);
+        w.write_rd(1.0);
+        w.write_rd(1.0);
         w.write_b(true); // default ext
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

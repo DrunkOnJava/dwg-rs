@@ -88,22 +88,39 @@ mod tests {
         w.write_bs(0); // straight path
         w.write_bl(3);
         for (x, y, z) in [(0.0f64, 0.0, 0.0), (5.0, 5.0, 0.0), (10.0, 5.0, 0.0)] {
-            w.write_bd(x); w.write_bd(y); w.write_bd(z);
+            w.write_bd(x);
+            w.write_bd(y);
+            w.write_bd(z);
         }
         // end projection
-        w.write_bd(10.0); w.write_bd(5.0); w.write_bd(0.0);
+        w.write_bd(10.0);
+        w.write_bd(5.0);
+        w.write_bd(0.0);
         // extrusion
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
         // horiz direction
-        w.write_bd(1.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         // offset
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let l = decode(&mut c).unwrap();
         assert_eq!(l.annot_type, 0);
         assert_eq!(l.path_type, 0);
         assert_eq!(l.points.len(), 3);
-        assert_eq!(l.end_projection, Point3D { x: 10.0, y: 5.0, z: 0.0 });
+        assert_eq!(
+            l.end_projection,
+            Point3D {
+                x: 10.0,
+                y: 5.0,
+                z: 0.0
+            }
+        );
     }
 }

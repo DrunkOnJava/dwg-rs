@@ -39,8 +39,12 @@ mod tests {
         let mut w = BitWriter::new();
         let s = b"ACAD";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
-        w.write_b(false); w.write_bs(0); w.write_b(false);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
         w.write_rc(0x00);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

@@ -40,19 +40,43 @@ mod tests {
         let mut w = BitWriter::new();
         let s = b"Front";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
-        w.write_b(false); w.write_bs(0); w.write_b(false);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
         // Origin (0,0,0)
-        for _ in 0..3 { w.write_bd(0.0); }
+        for _ in 0..3 {
+            w.write_bd(0.0);
+        }
         // X axis (1,0,0)
-        w.write_bd(1.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         // Y axis (0,0,1) — makes Z "down" in the local frame
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let u = decode(&mut c, Version::R2000).unwrap();
         assert_eq!(u.header.name, "Front");
-        assert_eq!(u.x_axis, Point3D { x: 1.0, y: 0.0, z: 0.0 });
-        assert_eq!(u.y_axis, Point3D { x: 0.0, y: 0.0, z: 1.0 });
+        assert_eq!(
+            u.x_axis,
+            Point3D {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0
+            }
+        );
+        assert_eq!(
+            u.y_axis,
+            Point3D {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0
+            }
+        );
     }
 }

@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use dwg-rs in academic or archival work, please cite it using this metadata."
+title: "dwg-rs: Clean-room Rust reader for Autodesk DWG files"
+type: software
+version: 0.1.0
+date-released: "2026-04-19"
+license: Apache-2.0
+repository-code: "https://github.com/DrunkOnJava/dwg-rs"
+url: "https://github.com/DrunkOnJava/dwg-rs"
+abstract: >-
+  dwg-rs is an Apache-2-licensed Rust library and CLI for reading
+  Autodesk DWG files (R13 through R2018 / AC1032) without any
+  dependency on Autodesk's or the Open Design Alliance's SDKs, and
+  without incorporating GPL-3 code from LibreDWG. It is the first
+  clean-room, permissively-licensed DWG reader and provides a stable
+  foundation for open-source CAD interoperability tooling.
+keywords:
+  - dwg
+  - autocad
+  - cad
+  - file-format
+  - parser
+  - rust
+  - interoperability
+  - reverse-engineering
+authors:
+  - family-names: Radcliffe
+    given-names: Griffin
+    alias: DrunkOnJava

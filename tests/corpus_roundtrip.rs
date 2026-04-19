@@ -49,9 +49,7 @@ fn every_sample_opens() {
         return;
     }
     for p in &samples {
-        let f = DwgFile::open(p).unwrap_or_else(|e| {
-            panic!("open failed for {}: {e}", p.display())
-        });
+        let f = DwgFile::open(p).unwrap_or_else(|e| panic!("open failed for {}: {e}", p.display()));
         let _ = f.version();
     }
 }
@@ -61,11 +59,7 @@ fn every_sample_has_sections() {
     for p in list_dwg_samples() {
         let f = DwgFile::open(&p).unwrap();
         let sections = f.sections();
-        assert!(
-            !sections.is_empty(),
-            "{} has no sections",
-            p.display()
-        );
+        assert!(!sections.is_empty(), "{} has no sections", p.display());
     }
 }
 
@@ -119,9 +113,7 @@ fn r2004plus_samples_have_handles() {
             continue;
         }
         if let Some(res) = f.handle_map() {
-            let hmap = res.unwrap_or_else(|e| {
-                panic!("handle_map failed for {}: {e}", p.display())
-            });
+            let hmap = res.unwrap_or_else(|e| panic!("handle_map failed for {}: {e}", p.display()));
             assert!(
                 !hmap.entries.is_empty(),
                 "{} has empty handle map",

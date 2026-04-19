@@ -132,11 +132,17 @@ mod tests {
     fn roundtrip_mtext_r2000() {
         let mut w = BitWriter::new();
         // insertion point
-        w.write_bd(10.0); w.write_bd(20.0); w.write_bd(0.0);
+        w.write_bd(10.0);
+        w.write_bd(20.0);
+        w.write_bd(0.0);
         // extrusion
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
         // x axis direction
-        w.write_bd(1.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         w.write_bd(100.0); // rect width
         w.write_bd(2.5); // text height
         w.write_bs(1); // attachment
@@ -155,7 +161,14 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let m = decode(&mut c, Version::R2000).unwrap();
-        assert_eq!(m.insertion_point, Point3D { x: 10.0, y: 20.0, z: 0.0 });
+        assert_eq!(
+            m.insertion_point,
+            Point3D {
+                x: 10.0,
+                y: 20.0,
+                z: 0.0
+            }
+        );
         assert_eq!(m.rect_width, 100.0);
         assert_eq!(m.text, "Hi\\PEveryone");
         assert_eq!(m.attachment_point, 1);

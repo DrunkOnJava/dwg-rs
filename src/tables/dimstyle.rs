@@ -84,11 +84,17 @@ mod tests {
         let mut w = BitWriter::new();
         let s = b"Standard";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
-        w.write_b(false); w.write_bs(0); w.write_b(false);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
         w.write_bs_u(0); // empty dimpost
         w.write_bs_u(0); // empty dimapost
-        for v in [1.0, 0.18, 0.0625, 0.38, 0.18, 0.0, 0.0, 0.0, 0.0, 0.18, 0.09] {
+        for v in [
+            1.0, 0.18, 0.0625, 0.38, 0.18, 0.0, 0.0, 0.0, 0.0, 0.18, 0.09,
+        ] {
             w.write_bd(v);
         }
         let bytes = w.into_bytes();

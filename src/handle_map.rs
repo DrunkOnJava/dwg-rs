@@ -166,12 +166,13 @@ mod tests {
         //
         // -50 fits in one signed MC terminating byte:
         //   byte: cont=0, negate=1, data = 50 & 0x3F = 0x32   → 0x72
-        let mut payload = Vec::new();
-        payload.push(0x01); // h_delta = +1
-        payload.push(0xE4); // o_delta byte 0 (continues)
-        payload.push(0x00); // o_delta byte 1 (terminates, value = 100)
-        payload.push(0x01); // h_delta = +1
-        payload.push(0x72); // o_delta = -50
+        let payload: Vec<u8> = vec![
+            0x01, // h_delta = +1
+            0xE4, // o_delta byte 0 (continues)
+            0x00, // o_delta byte 1 (terminates, value = 100)
+            0x01, // h_delta = +1
+            0x72, // o_delta = -50
+        ];
         let mut data = Vec::new();
         data.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
         data.extend_from_slice(&payload);
@@ -179,7 +180,19 @@ mod tests {
         data.extend_from_slice(&[0x00, 0x00]); // terminator section
         let map = HandleMap::parse(&data).unwrap();
         assert_eq!(map.entries.len(), 2);
-        assert_eq!(map.entries[0], HandleEntry { handle: 1, offset: 100 });
-        assert_eq!(map.entries[1], HandleEntry { handle: 2, offset: 50 });
+        assert_eq!(
+            map.entries[0],
+            HandleEntry {
+                handle: 1,
+                offset: 100
+            }
+        );
+        assert_eq!(
+            map.entries[1],
+            HandleEntry {
+                handle: 2,
+                offset: 50
+            }
+        );
     }
 }

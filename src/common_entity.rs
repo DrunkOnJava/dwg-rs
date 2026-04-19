@@ -133,7 +133,10 @@ pub struct CommonEntityData {
 ///
 /// This is version-aware: fields added in R2004 / R2007 / R2010 are
 /// read only for versions that include them.
-pub fn read_common_entity_data(c: &mut BitCursor<'_>, version: Version) -> Result<CommonEntityData> {
+pub fn read_common_entity_data(
+    c: &mut BitCursor<'_>,
+    version: Version,
+) -> Result<CommonEntityData> {
     // -- Extended data loop --------------------------------------------------
     // Stream of <BS size, H appid, RC*size app-payload>. Loop
     // terminates when size == 0.

@@ -52,8 +52,16 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Insert> {
             let s = c.read_bd()?;
             Point3D { x: s, y: s, z: s }
         }
-        0b10 => Point3D { x: 1.0, y: 1.0, z: 1.0 },
-        _ => Point3D { x: 1.0, y: 1.0, z: 1.0 },
+        0b10 => Point3D {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+        _ => Point3D {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
     };
     let rotation = c.read_bd()?;
     let extrusion = read_be(c)?;
@@ -85,8 +93,22 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c).unwrap();
-        assert_eq!(i.insertion_point, Point3D { x: 5.0, y: 10.0, z: 0.0 });
-        assert_eq!(i.scale, Point3D { x: 1.0, y: 1.0, z: 1.0 });
+        assert_eq!(
+            i.insertion_point,
+            Point3D {
+                x: 5.0,
+                y: 10.0,
+                z: 0.0
+            }
+        );
+        assert_eq!(
+            i.scale,
+            Point3D {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0
+            }
+        );
         assert!(!i.has_attribs);
     }
 
@@ -106,7 +128,14 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c).unwrap();
-        assert_eq!(i.scale, Point3D { x: 2.0, y: 3.0, z: 4.0 });
+        assert_eq!(
+            i.scale,
+            Point3D {
+                x: 2.0,
+                y: 3.0,
+                z: 4.0
+            }
+        );
         assert!((i.rotation - std::f64::consts::FRAC_PI_4).abs() < 1e-12);
     }
 }

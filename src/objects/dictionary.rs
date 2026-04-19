@@ -111,12 +111,16 @@ mod tests {
         // entry 1: "ACAD_LAYOUT" → handle
         let key1 = b"ACAD_LAYOUT";
         w.write_bs_u(key1.len() as u16);
-        for b in key1 { w.write_rc(*b); }
+        for b in key1 {
+            w.write_rc(*b);
+        }
         w.write_handle(3, 0x1A);
         // entry 2: "ACAD_MATERIAL" → handle
         let key2 = b"ACAD_MATERIAL";
         w.write_bs_u(key2.len() as u16);
-        for b in key2 { w.write_rc(*b); }
+        for b in key2 {
+            w.write_rc(*b);
+        }
         w.write_handle(3, 0x2B);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

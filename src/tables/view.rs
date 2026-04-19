@@ -60,18 +60,27 @@ mod tests {
         // Header
         let s = b"SW-Iso";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
-        w.write_b(false); w.write_bs(0); w.write_b(false);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
         // View body
         w.write_bd(10.0);
         w.write_bd(20.0);
-        w.write_bd(5.0); w.write_bd(5.0);
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0); // target
-        w.write_bd(-1.0); w.write_bd(-1.0); w.write_bd(1.0); // view dir
+        w.write_bd(5.0);
+        w.write_bd(5.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // target
+        w.write_bd(-1.0);
+        w.write_bd(-1.0);
+        w.write_bd(1.0); // view dir
         w.write_bd(0.0); // twist
         w.write_bd(50.0); // lens
-        w.write_bd(0.0);  // front
-        w.write_bd(0.0);  // back
+        w.write_bd(0.0); // front
+        w.write_bd(0.0); // back
         w.write_rc(0x04); // render mode
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

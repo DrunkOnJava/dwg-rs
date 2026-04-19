@@ -76,15 +76,24 @@ mod tests {
         let mut w = BitWriter::new();
         let s = b"*Model_Space";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
-        w.write_b(false); w.write_bs(0); w.write_b(false);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
         // 5 flag bits — all false
-        w.write_b(false); w.write_b(false); w.write_b(false);
-        w.write_b(false); w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
         // R2004+: num_owned_objects
         w.write_bl(42);
         // base point at origin
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         // empty xref path
         w.write_bs_u(0);
         let bytes = w.into_bytes();

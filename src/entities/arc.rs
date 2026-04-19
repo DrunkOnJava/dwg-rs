@@ -37,7 +37,11 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Arc> {
     let start_angle = c.read_bd()?;
     let end_angle = c.read_bd()?;
     Ok(Arc {
-        center: Point3D { x: cx, y: cy, z: cz },
+        center: Point3D {
+            x: cx,
+            y: cy,
+            z: cz,
+        },
         radius,
         thickness,
         extrusion,

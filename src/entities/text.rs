@@ -122,9 +122,8 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if units.last() == Some(&0) {
             units.pop();
         }
-        String::from_utf16(&units).map_err(|_| {
-            Error::SectionMap("TEXT string is not valid UTF-16".into())
-        })
+        String::from_utf16(&units)
+            .map_err(|_| Error::SectionMap("TEXT string is not valid UTF-16".into()))
     } else {
         let mut bytes = Vec::with_capacity(len);
         for _ in 0..len {
@@ -175,8 +174,10 @@ mod tests {
         // Set flags 0x01 | 0x02 | 0x04 | 0x08 | 0x10 | 0x20 = 0x3F
         w.write_rc(0x3F);
         w.write_rd(1.0); // elevation
-        w.write_rd(10.0); w.write_rd(20.0); // insertion
-        w.write_rd(11.0); w.write_rd(21.0); // alignment
+        w.write_rd(10.0);
+        w.write_rd(20.0); // insertion
+        w.write_rd(11.0);
+        w.write_rd(21.0); // alignment
         w.write_b(true); // ext default
         w.write_b(true); // thickness default
         w.write_bd(0.15); // oblique
@@ -184,7 +185,8 @@ mod tests {
         w.write_bd(2.5); // height
         w.write_bd(0.9); // width_factor
         w.write_bs_u(2);
-        w.write_rc(b'H'); w.write_rc(b'i');
+        w.write_rc(b'H');
+        w.write_rc(b'i');
         w.write_bs(1); // generation
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

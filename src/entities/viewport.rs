@@ -68,7 +68,14 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let v = decode(&mut c).unwrap();
-        assert_eq!(v.center, Point3D { x: 100.0, y: 200.0, z: 0.0 });
+        assert_eq!(
+            v.center,
+            Point3D {
+                x: 100.0,
+                y: 200.0,
+                z: 0.0
+            }
+        );
         assert_eq!(v.width, 50.0);
         assert_eq!(v.height, 25.0);
     }

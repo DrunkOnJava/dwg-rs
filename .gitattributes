@@ -1,0 +1,18 @@
+# Normalize line endings across platforms
+* text=auto eol=lf
+
+# Rust source is always LF
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Treat DWG corpus as binary — no diff attempts
+*.dwg binary
+
+# Don't include these in the crates.io package
+Cargo.lock export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+.github/ export-ignore

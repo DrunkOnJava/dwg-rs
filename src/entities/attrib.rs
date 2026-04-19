@@ -85,9 +85,8 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if units.last() == Some(&0) {
             units.pop();
         }
-        String::from_utf16(&units).map_err(|_| {
-            Error::SectionMap("ATTRIB tag is not valid UTF-16".into())
-        })
+        String::from_utf16(&units)
+            .map_err(|_| Error::SectionMap("ATTRIB tag is not valid UTF-16".into()))
     } else {
         let mut bytes = Vec::with_capacity(len);
         for _ in 0..len {
@@ -110,16 +109,22 @@ mod tests {
         let mut w = BitWriter::new();
         // minimal TEXT payload
         w.write_rc(0x00);
-        w.write_rd(0.0); w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
         w.write_b(true); // ext default
         w.write_b(true); // thickness default
         w.write_bd(2.5);
         w.write_bs_u(3); // "ABC"
-        w.write_rc(b'A'); w.write_rc(b'B'); w.write_rc(b'C');
+        w.write_rc(b'A');
+        w.write_rc(b'B');
+        w.write_rc(b'C');
         // attrib-specific
         w.write_bs_u(5); // tag "PRICE"
-        w.write_rc(b'P'); w.write_rc(b'R'); w.write_rc(b'I');
-        w.write_rc(b'C'); w.write_rc(b'E');
+        w.write_rc(b'P');
+        w.write_rc(b'R');
+        w.write_rc(b'I');
+        w.write_rc(b'C');
+        w.write_rc(b'E');
         w.write_bs(0); // field_length
         w.write_rc(0x03); // invisible + constant
         let bytes = w.into_bytes();

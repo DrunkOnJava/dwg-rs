@@ -83,13 +83,11 @@ fn run(args: Args) -> anyhow::Result<()> {
             .out
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("--extract requires --out <PATH>"))?;
-        let bytes = file
-            .read_section(section_name)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "cannot extract: file is not R2004-family or section {section_name:?} absent"
-                )
-            })??;
+        let bytes = file.read_section(section_name).ok_or_else(|| {
+            anyhow::anyhow!(
+                "cannot extract: file is not R2004-family or section {section_name:?} absent"
+            )
+        })??;
         std::fs::write(out_path, &bytes)?;
         eprintln!(
             "wrote {} bytes from section {:?} to {}",
@@ -121,7 +119,9 @@ fn run(args: Args) -> anyhow::Result<()> {
             None
         };
         Some(R2004HeaderReport {
-            file_id: String::from_utf8_lossy(&h.file_id).trim_end_matches('\0').to_owned(),
+            file_id: String::from_utf8_lossy(&h.file_id)
+                .trim_end_matches('\0')
+                .to_owned(),
             security_flags: h.security_flags,
             section_page_map_addr: h.section_page_map_addr,
             section_page_amount: h.section_page_amount,
@@ -196,7 +196,7 @@ fn print_human(r: &Report) {
         };
         println!(
             "  {:<28} {:<12} {:>10} {:>10}  {}",
-            truncate(&s.name, 28),
+            truncate(s.name, 28),
             s.kind,
             s.offset,
             s.size,

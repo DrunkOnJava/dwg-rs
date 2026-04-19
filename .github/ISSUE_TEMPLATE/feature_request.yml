@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a new decoder, API surface, or format feature.
+title: "[feat] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: please check the deferred-work table in README.md
+        and the CHANGELOG to see if this is already on the roadmap.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Entity decoder (new entity type)
+        - Symbol table / control object
+        - Write path (encoder / DwgFile::to_bytes)
+        - R2007 Sec_Mask integration
+        - API ergonomics
+        - Documentation
+        - CLI tool
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem does this solve? What are you trying to accomplish with `dwg-rs`?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Rough sketch of the API or implementation. Reference to the ODA spec section if applicable.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, existing crates, or workarounds.
