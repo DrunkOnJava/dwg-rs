@@ -70,8 +70,10 @@
 
 pub mod bitcursor;
 pub mod cipher;
+pub mod classes;
 pub mod crc;
 pub mod error;
+pub mod handle_map;
 pub mod header;
 pub mod lz77;
 pub mod metadata;
@@ -83,7 +85,9 @@ pub mod section_map;
 pub mod version;
 
 pub use bitcursor::BitCursor;
+pub use classes::{ClassDef, ClassMap};
 pub use error::{Error, Result};
+pub use handle_map::{HandleEntry, HandleMap};
 pub use metadata::{AppInfo, FileDepList, FileDependency, Preview, SummaryInfo};
 pub use object::{ObjectWalker, RawObject};
 pub use object_type::ObjectType;

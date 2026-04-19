@@ -242,6 +242,25 @@ impl DwgFile {
                 .collect_all(),
         )
     }
+
+    /// Read + parse the `AcDb:Handles` object map into a
+    /// [`crate::handle_map::HandleMap`] for random-access object lookup
+    /// by handle.
+    pub fn handle_map(&self) -> Option<Result<crate::handle_map::HandleMap>> {
+        Some(
+            self.read_section("AcDb:Handles")?
+                .and_then(|bytes| crate::handle_map::HandleMap::parse(&bytes)),
+        )
+    }
+
+    /// Read + parse the `AcDb:Classes` custom class table.
+    pub fn class_map(&self) -> Option<Result<crate::classes::ClassMap>> {
+        let version = self.version;
+        Some(
+            self.read_section("AcDb:Classes")?
+                .and_then(|bytes| crate::classes::ClassMap::parse(&bytes, version)),
+        )
+    }
 }
 
 /// Walk the R2004+ Section Page Map → Section Info chain and emit a

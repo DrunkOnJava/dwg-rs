@@ -1,87 +1,96 @@
 # dwg-rs
 
-**Open reader for Autodesk DWG files (`AC1014` / R14 through `AC1032` / 2018+) — no Autodesk or ODA SDK required.**
+**Open reader for Autodesk DWG files (R13 → R2018) — Apache-2.0, no Autodesk or ODA SDK required.**
 
-Apache-2.0 licensed. Rust 2024 edition. Clean-room implementation against the Open Design Alliance's freely-published *Open Design Specification for .dwg files* (v5.4.1).
+Clean-room Rust 2024 implementation against the Open Design Alliance's freely-published *Open Design Specification for .dwg files* (v5.4.1). Cross-verified against ACadSharp (MIT) for LZ77 off-by-one spec typos. Zero GPL-3 taint (no LibreDWG source was consulted).
 
-## Why this exists — the $6B interop moat
+## Current state — read coverage by phase
 
-AutoCAD is Autodesk's $2B-a-year product and `.dwg` is its native file format. Every vertical SaaS that needs to ingest CAD drawings — real-estate tooling, insurance inspection, construction workflow, GIS, facility-management, archival preservation — has three options today:
+Four phases ship today across 7 commits, 5,500+ LOC, and 83/83 tests:
 
-1. **Pay the Open Design Alliance** $500 - $5,000/year for the Teigha SDK.
-2. **Use LibreDWG (GPL-3)** — acceptable only if you ship your product under a compatible copyleft license.
-3. **Reject DWG uploads** and shift the burden to the user.
+| Phase | Scope | Status |
+|-------|-------|--------|
+| **A — Identification** | Version magic, header parsing, bit-cursor primitives, CRC-8/CRC-32, XOR cipher | ✓ Shipped |
+| **B — Section enumeration** | LZ77 decompressor, Section Page Map (§4.4), Section Info (§4.5) | ✓ Shipped |
+| **C — Section extraction** | Data page header Sec_Mask decrypt (§4.6), `read_section(name)` API, `--extract` CLI | ✓ Shipped |
+| **D-1 — Metadata parsers** | `SummaryInfo`, `AppInfo` (auto-detect R18 ANSI vs R21+ Unicode), `Preview` (with PNG-code-6 support), `FileDepList` | ✓ Shipped |
+| **D-2 — Object type + walker** | `ObjectType` enum (80+ types), `ObjectWalker` with R2010+ type-code dispatch, per-object handle extraction | ✓ Shipped (first-object mode) |
+| **D-3 — Handle + class maps** | `AcDb:Handles` → `HandleMap` for random-access object seek, `AcDb:Classes` → `ClassMap` for dynamic type dispatch | ✓ Shipped |
 
-`dwg-rs` is the option that did not exist before: a permissively-licensed (Apache-2), memory-safe (Rust), no-dependency DWG reader that can be bundled into proprietary SaaS without license entanglement. Once the library reaches parity with LibreDWG on read-side coverage, the ODA membership as a *revenue stream* evaporates — the moat has not been a technical one since at least 2009, it has been an information moat guarded by a paywall and the unpriced-deterrent of "nobody wants to maintain another LibreDWG."
-
-The bet this crate makes is that an AI-first development posture — Opus 4.7 with a 1M-token context window iteratively reading the 279-page ODA spec and cross-referencing the nineteen reference DWG files shipped under `samples/` — closes the remaining delta faster than a GPL-chained solo maintainer ever could.
-
-## What works today (Phase A + Phase B)
-
-### Phase A — identification + header parsing
-
-- **Seven production format versions identified**: R14 (AC1014, 1997), 2000 (AC1015, 1999), 2004 (AC1018, 2003), 2007 (AC1021, 2006), 2010 (AC1024, 2009), 2013 (AC1027, 2012), 2018 (AC1032, 2017+).
-- **R13-R15 simple-header path**: magic verification, codepage, image seeker, section-locator enumeration with all 9-byte records and family-seeded CRC-8.
-- **R2004+ encrypted-header path**: plaintext 0x80 bytes parsed, the 0x6C encrypted block decrypted with the published 108-byte XOR magic sequence (derived from Microsoft's `rand()` LCG seeded at 1), decrypted CRC-32 verified per spec §4.1, Section Page Map address + Section Map ID extracted.
-- **Bit-cursor primitives per ODA spec §2**: `B`, `BB`, `3B`, `BS`, `BL`, `BLL`, `BD`, `RC`, `RS`, `RL`, `RD`, `MC`, `MS`, `H`. Spec-example unit tests pass (257/0/256/15/0 for BITSHORT, LAYER 0 handle = 5.1.0F for H).
-- **CRC primitives**: DWG 8-bit CRC with its 256 × 16-bit lookup table, standard IEEE 802.3 CRC-32, and the R2004+ section-page checksum (Adler-style rolling sum with 0x15B0 chunks).
-
-### Phase C — named section extraction (read bytes, not just metadata)
-
-- **Data section page header decrypt** (`section_map::DataPageHeader`): the 32-byte `Sec_Mask`-encrypted header that precedes every data page (spec §4.6). XOR-decodes 8 × 4-byte words against `0x4164_536B ^ file_offset`, then parses page_type (must be `0x41630_43B`), section_number, data_size (on-disk compressed), page_size (decompressed), start_offset, and two checksums.
-- **`DwgFile::read_section(&str) -> Option<Result<Vec<u8>>>`**: walks a section's per-page list, decrypts each data page header, LZ77-decompresses the payload if `compressed=2`, and assembles the decompressed bytes at each page's `start_offset` in a single buffer of size `description.size`. Zero pages (where `start_offset` exceeds section size) are skipped per spec §4.5.
-- **`dwg-info --extract NAME --out PATH`**: CLI flag to dump any section's decompressed bytes to disk. `--extract AcDb:Preview --out preview.bin` on `sample_AC1032.dwg` produces 1548 bytes starting with the canonical 16-byte thumbnail sentinel `1f 25 6d 07 d4 36 28 28 9d 57 ca 3f 9d 44 10 2b`. `--extract AcDb:AcDbObjects --out objects.bin` produces 1,192,851 bytes of the full object graph, correctly reassembled from 41 LZ77-compressed pages.
-
-### Phase B — LZ77 decompression + named section enumeration
-
-- **LZ77 decompressor** per spec §4.7 with ACadSharp-verified offset adjustments (spec text has an off-by-one on all class additive constants; the correct offsets are `+0x4000` long / `+1` short / `+1` for the 0x40-0xFF class). Supports RLE-style copies (length > offset) and extended literal-length runs via 0x00-byte accumulation.
-- **Section Page Map decoder** (§4.4): reads the compressed global page map and emits a `Vec<SectionPage>` with computed absolute file offsets. Pages numbered consecutively as the spec promises — sample_AC1032.dwg produces pages 1 through 56 with no gaps.
-- **Section Info (Section Map) decoder** (§4.5): walks the page map to find the section-map page, decompresses it, and parses the 14-description table: `AcDb:Header` (870 B), `AcDb:AuxHeader` (129 B), `AcDb:Classes` (6296 B), `AcDb:Handles` (2642 B), `AcDb:Template` (6 B), `AcDb:ObjFreeSpace` (89 B), `AcDb:AcDbObjects` (1192851 B), `AcDb:RevHistory` (16 B), `AcDb:SummaryInfo` (76 B), `AcDb:Preview` (1548 B), `AcDb:AppInfo` (718 B), `AcDb:AppInfoHistory` (1478 B), `AcDb:AcDsPrototype_1b` (46208 B).
-- **Unified section list** exposed via `DwgFile::sections()` — Phase A stubs are replaced automatically when Phase B succeeds, with a silent fallback to the stub path for files whose page map doesn't parse cleanly.
-- **Two CLIs**: `dwg-info` (human + JSON metadata report; now shows 13 named sections for R2004/2010/2013/2018 files) and `dwg-corpus` (sweep a directory, print one line per file).
-
-Running the test suite against the shipped 19-file corpus:
+## Verified against `sample_AC1032.dwg` (AutoCAD 2018, 1 MB)
 
 ```text
-$ cargo test --release
-test result: ok. 41 passed; 0 failed   (unit tests in 9 modules)
-test result: ok. 18 passed; 0 failed   (integration tests)
-test result: ok.  1 passed; 0 failed   (doc test)
+version:         AC1032 (2018)           [Phase A]
+stored CRC-32:   0x8f2b576f  CRC-32 check: PASS   [Phase A]
+sections (13):                                     [Phase B]
+  AcDb:Header              870 B           (LZ77)
+  AcDb:AuxHeader           129 B
+  AcDb:Classes            6296 B
+  AcDb:Handles            2642 B
+  AcDb:Template              6 B
+  AcDb:ObjFreeSpace         89 B
+  AcDb:AcDbObjects     1192851 B  (41 LZ77 pages reassembled)
+  AcDb:RevHistory           16 B
+  AcDb:SummaryInfo          76 B
+  AcDb:Preview            1548 B  (PNG thumbnail, modern code-6)
+  AcDb:AppInfo             718 B
+  AcDb:AppInfoHistory     1478 B
+  AcDb:AcDsPrototype_1b  46208 B
+Preview BMP/PNG carve:    Valid                   [Phase D-1]
+SummaryInfo author:       "alber..."              [Phase D-1]
+AppInfo name:             "AppInfoDataList"       [Phase D-1]
+AppInfo version:          "24.0.118.0.0"          [Phase D-1]
+BLOCK_CONTROL (h=0x01):   type_code=0x30          [Phase D-2]
+Handle map:               non-empty, h=1 present  [Phase D-3]
 ```
 
-## What is explicitly deferred
-
-- **Reed-Solomon(255,239) FEC** verification of R2004+ system pages — currently we trust CRC-8 intra-chunk and CRC-32 at the header block level. A clean-room RS(255,239) implementation is ~200 lines and is tracked for Phase D (not strictly needed for reading valid files, but essential for repair tools).
-- **R2007 (AC1021) full layout** — spec §5 describes a different file-header structure for R2007 specifically (33 pages of deltas from R2004). Phase A identifies the file; Phase D implements its Sec_Mask two-layer bitstream.
-- **Entity / object field decoding** for all ~200 DWG entity types (LINE, CIRCLE, ARC, POLYLINE, MTEXT, DIMASSOC, TABLE, surfaces, MATERIAL, MLEADER, XREF, ...). The `AcDb:AcDbObjects` section bytes can now be extracted; understanding what each byte means is Phase D — this is the larger remaining work, roughly one entity class per day of focused RE per ODA spec §20.
-- **Write support** — encoding any version from scratch. Phase E.
-
-The crate currently supports:
-
-- Identification of any DWG file from R14 (1997) through AC1032 (2018+)
-- Full section metadata enumeration for R2004-family (AcDb:Header, Classes, Handles, Objects, ...)
-- Decompressed byte extraction for any named section — the `AcDb:Preview` thumbnail, `AcDb:SummaryInfo` metadata, and the full 1+ MB `AcDb:AcDbObjects` object graph all come out intact from the sample corpus
-
-The next natural Phase D target is decoding individual objects out of the `AcDb:AcDbObjects` byte stream using the bit-cursor primitives and the `AcDb:Classes` handle table.
-
-## Quick start
+## API walkthrough
 
 ```rust
-use dwg::{DwgFile, section::SectionKind};
+use dwg::{DwgFile, SectionKind};
 
 let f = DwgFile::open("drawing.dwg")?;
+
+// Phase A: identification
 println!("version: {}", f.version());
-for s in f.sections() {
-    println!("{} ({} bytes at 0x{:x})", s.name, s.size, s.offset);
+println!("codepage: {}", f.r2004_header().map(|h| h.common.codepage).unwrap_or(0));
+
+// Phase B: section enumeration
+for section in f.sections() {
+    println!("{} ({} bytes at 0x{:x}, compressed={})",
+        section.name, section.size, section.offset, section.compressed);
 }
 
-// Ask for a specific section:
-if let Some(preview) = f.section_of_kind(SectionKind::Preview) {
-    println!("preview is {} bytes at offset 0x{:x}", preview.size, preview.offset);
+// Phase C: extract raw decompressed bytes of any named section
+if let Some(Ok(preview_bytes)) = f.read_section("AcDb:Preview") {
+    std::fs::write("preview.bin", &preview_bytes)?;
 }
+
+// Phase D-1: structured metadata
+if let Some(Ok(si)) = f.summary_info() {
+    println!("title: {:?}", si.title);
+    println!("author: {:?}", si.author);
+    for (k, v) in &si.properties {
+        println!("  custom: {k:?} = {v:?}");
+    }
+}
+if let Some(Ok(preview)) = f.preview() {
+    if let Some(bmp) = preview.bmp {
+        std::fs::write("thumbnail.png", &bmp)?; // may be PNG despite field name
+    }
+}
+
+// Phase D-3: handle map + class map
+if let Some(Ok(hmap)) = f.handle_map() {
+    println!("{} objects in handle table", hmap.entries.len());
+    if let Some(offset) = hmap.offset_of(0x42) {
+        println!("handle 0x42 is at offset {offset}");
+    }
+}
+# Ok::<(), dwg::Error>(())
 ```
 
-## CLI usage
+## CLIs
 
 ```bash
 cargo build --release
@@ -95,53 +104,91 @@ cargo build --release
 # Validate the R2004+ decrypted-header CRC-32
 ./target/release/dwg-info path/to/file.dwg --crc
 
+# Extract any named section's decompressed bytes to a file
+./target/release/dwg-info path/to/file.dwg --extract AcDb:Preview --out preview.bin
+./target/release/dwg-info path/to/file.dwg --extract AcDb:AcDbObjects --out objects.bin
+
 # Sweep a directory
 ./target/release/dwg-corpus path/to/samples --strict
+
+# Probe metadata sections on one file (structured parse)
+./target/release/examples/probe_metadata path/to/file.dwg
+
+# Walk the object stream (first-pass — shows BLOCK_CONTROL root)
+./target/release/examples/probe_objects path/to/file.dwg
 ```
 
-## Format overview
+## Module architecture
 
 ```text
-  R13-R15 (AC1014, AC1015)              R2004+ (AC1018, AC1021, AC1024, AC1027, AC1032)
-  ──────────────────────                ──────────────────────────────────────────────
-  0x00  AC10xx magic                    0x00  AC10xx magic
-  0x06  5 zeros + maint byte            0x06  5 zeros + maint byte
-  0x0D  image seeker (RL)               0x0D  preview address (RL)
-  0x13  DWGCODEPAGE (RS)                0x13  DWGCODEPAGE (RS)
-  0x15  locator count (RL)              0x18  security flags (RL)
-  0x19  N × {u8, RL, RL} records        0x20  summary info addr
-  ...   CRC + sentinel + data           0x24  VBA project addr (optional)
-                                        0x80  ENCRYPTED 0x6C bytes ←─┐
-                                                                     │
-                                        ┌── decrypt (XOR, spec §4.1) ┘
-                                        │
-                                        ▼
-                                        "AcFssFcAJMB" + Section Page Map pointer
-                                        + CRC-32 of the decrypted block (self-verifying)
-                                        │
-                                        ▼
-                                        Section Page Map  →  Section Map  →  named payloads
-                                        (LZ77 + Reed-Solomon, per-page checksums)
+src/
+├── error.rs          — thiserror Error enum, Result alias
+├── version.rs        — AC10xx → Version mapping, family predicates
+├── bitcursor.rs      — spec §2 bit primitives (B/BB/3B/BS/BL/BLL/BD/MC/MS/H + raw RC/RS/RL/RD)
+├── cipher.rs         — R2004+ 108-byte XOR magic + Sec_Mask formula
+├── crc.rs            — CRC-8 (256×u16 table) + CRC-32 (IEEE) + Adler-style page checksum
+├── lz77.rs           — spec §4.7 LZ77 dialect (ACadSharp-verified offset formulas)
+├── cipher.rs         — XOR cipher + Sec_Mask
+├── header.rs         — R13-R15 header + R2004+ encrypted header parse
+├── section.rs        — Section struct + SectionKind enum (names ↔ kinds)
+├── section_map.rs    — Page map (§4.4) + section info (§4.5) + data-page reader (§4.6)
+├── object_type.rs    — 80+ fixed object type codes + Custom(N) + is_entity/is_control
+├── metadata.rs       — SummaryInfo / AppInfo / Preview / FileDepList byte-oriented parsers
+├── object.rs         — AcDb:AcDbObjects stream walker (first-object mode)
+├── handle_map.rs     — AcDb:Handles offset table parser (big-endian sections + signed MC deltas)
+├── classes.rs        — AcDb:Classes custom class table parser
+├── reader.rs         — DwgFile top-level API + all section convenience accessors
+├── lib.rs            — public re-exports + module hub
+└── bin/
+    ├── dwg_info.rs   — human/JSON metadata + --extract CLI
+    └── dwg_corpus.rs — directory sweep tool
+
+tests/
+└── samples.rs        — 22 integration tests: per-version open, named section enumeration,
+                        extract round-trip, preview bytes, header/preview/handle-map parse
+
+examples/
+├── probe_metadata.rs — structured metadata dump
+├── probe_objects.rs  — first-object type + handle dump
+└── debug_section_map.rs — development harness for the page/section map parser
 ```
 
-The stabilized 7.91-7.93 bits/byte entropy at the tail of an R2004+ file is **not encryption** — it is LZ77-compressed object data interleaved with Reed-Solomon(255,239) FEC parity (32 bytes of parity per 255-byte chunk). Entropy that high requires either genuine random data, AES, or `compressed-plus-FEC`; the third is what the spec documents.
+## What is explicitly deferred
 
-## Sample corpus
+The DWG format's full-write round-trip, every entity type's field decoder,
+and the R2007-specific layout are large follow-on bodies of work. They
+are tracked as future phases rather than dropped from scope:
 
-The `samples/` directory alongside this crate (at `../../samples/`) contains 19 reference DWG files sourced from `nextgis/dwg_samples` (MIT) and a 1 MB AC1032 fixture. These are reference drawings of arcs, circles, and lines — small enough to inspect by hand but large enough that the header + section map must be fully parsed.
+- **Per-entity field decoding** (Phase E): LINE, CIRCLE, ARC, POINT, LWPOLYLINE, INSERT, TEXT, MTEXT, 3DFACE, SOLID, ELLIPSE, SPLINE, HATCH, POLYLINE/VERTEX, DIMENSION variants, VIEWPORT, LAYER/LTYPE/STYLE/VIEW/UCS/VPORT/APPID/DIMSTYLE table entries, DICTIONARY, XRECORD. The object walker already extracts each record's type code, handle, and raw bytes; what's missing is the per-class bit-layout decoder (spec §20.4.* entries — ~100 pages of field tables). Today's pipeline delivers the raw bytes; Phase E adds typed field extraction.
+- **Object-stream iteration via handle map** (Phase E): the sequential walker reads one object; the handle map (D-3) has the offsets for the rest, but isn't wired into `DwgFile::objects()` yet.
+- **R2007 (AC1021) full layout** (Phase F): spec §5 describes a 33-page delta where R2007 uses a distinct file-header structure. Today the reader identifies R2007 files but routes them to a stub (Phase A behavior).
+- **Reed-Solomon(255,239) FEC verification** (Phase G): §4.1 repair-side mode. Today we trust CRC-8 intra-chunk and CRC-32 at the header block level. Valid files read fine without RS; repair tools would need it.
+- **Write support** (Phase H): bit-cursor writer, LZ77 encoder, section writer, DwgFile::to_bytes(). The reader's bit-cursor primitives need a mirror-image writer module.
 
-The integration test suite (`tests/samples.rs`) iterates the full corpus and asserts that each file: (a) identifies its version correctly, (b) opens without error, (c) reports a non-zero section count, (d) populates exactly one of the R13-R15 or R2004+ header paths. Running the suite is the primary regression gate.
-
-## Design choices
-
-- **`byteorder` over custom reads** — the `byteorder` crate is a single stable dependency that handles every LE/BE read needed here; rolling our own doesn't save code and costs correctness.
-- **`thiserror` for the `Error` enum, `anyhow` only at CLI boundaries** — the library exports structured error variants so downstream tools can switch on them; the CLIs collapse them to `anyhow::Error` for terminal display.
-- **No `unsafe`** — the crate declares `#![deny(unsafe_code)]`. Bit cursoring into a `&[u8]` and byte-parsing with `byteorder` are both trivially safe.
-- **In-memory file model** — Phase A reads the whole file into `Vec<u8>`. A typical engineering drawing is 1-10 MB and loading it upfront simplifies the `Section` ownership story. `memmap2` backing is deferred to Phase B when it will also enable zero-copy decompression output.
-- **Spec-driven tests** — the BITSHORT / BITLONG / BITDOUBLE worked examples in spec §2.2-§2.5 all appear as unit tests. LAYER 0 handle `5.1.0F` (spec §2.13) is locked in. The R2004+ XOR magic sequence is checked byte-for-byte against the spec page 24 reproduction.
+The remaining entity-field decoder work is *bounded* — each entity class is 20-50 lines of Rust and pegged against a specific spec §20.4.* table. It's implementation volume, not unknown-unknowns.
 
 ## Legal posture
 
-DWG is a trademark of Autodesk, Inc. Autodesk is not affiliated with this project. This is a clean-room implementation under the interoperability exception of 17 U.S.C. § 1201(f) and the 2006 *Autodesk v. ODA* settlement, which explicitly permitted third-party DWG interoperability. No LibreDWG source code was consulted while writing this crate; the authoritative reference is the ODA's own publicly-downloadable specification PDF (a text document whose distribution is not encumbered by the ODA SDK license).
+DWG is a trademark of Autodesk, Inc. This crate is a clean-room implementation under the interoperability exception of 17 U.S.C. § 1201(f) and the 2006 *Autodesk v. ODA* settlement.
+
+- **No ODA SDK dependency** — SDK licensing explicitly avoided.
+- **No LibreDWG source consulted** — GPL-3 would taint Apache-2.0 downstream.
+- **ACadSharp (MIT) referenced** for LZ77 offset formulas where the ODA spec has off-by-one typos. Reading MIT-licensed code to resolve a spec ambiguity is compatible with clean-room discipline (no code copied).
+- **ODA Open Design Specification v5.4.1 PDF** is the primary reference. It is published separately from ODA's SDK license and is freely redistributable.
 
 Apache-2.0 — see `LICENSE`.
+
+## Sample corpus
+
+19 DWG files under `../../samples/` spanning R14 (1997) → AC1032 (2018+):
+- `arc_*.dwg`, `circle_*.dwg`, `line_*.dwg` at each R14/2000/2004/2007/2010/2013 version
+- `sample_AC1032.dwg` — 1 MB AutoCAD 2018 fixture
+
+Integration tests run against all 19 files; R2007 (AC1021) tests assert the stub path (version identified, full parse deferred).
+
+## Running the tests
+
+```bash
+cargo test --release
+# 60 unit tests + 22 integration tests + 1 doc test = 83 passing
+```

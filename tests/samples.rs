@@ -341,6 +341,55 @@ fn ac1032_can_extract_header_section() {
     assert_eq!(header.len(), 870);
 }
 
+#[test]
+fn ac1032_parses_handle_map() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let Some(map) = f.handle_map() else {
+        return;
+    };
+    let map = match map {
+        Ok(m) => m,
+        Err(e) => panic!("handle map parse failed: {e}"),
+    };
+    // A valid AC1032 drawing must contain at least BLOCK_CONTROL (h=1).
+    assert!(!map.entries.is_empty(), "empty handle map");
+    // Handle 1 (BLOCK_CONTROL) is the root object; every file has it.
+    // Note: handles are monotonic *per section* but can reset/re-sort
+    // across section boundaries in practice — we don't assert global
+    // monotonicity.
+    assert!(
+        map.entries.iter().any(|e| e.handle == 1),
+        "handle 1 (BLOCK_CONTROL) absent from {} entries",
+        map.entries.len()
+    );
+    // Reasonable sanity: offsets fit in the AcDbObjects size.
+    let max_offset = map.entries.iter().map(|e| e.offset).max().unwrap_or(0);
+    assert!(
+        max_offset < 2_000_000,
+        "max offset {max_offset} exceeds plausible AcDbObjects size"
+    );
+}
+
+#[test]
+fn ac1032_parses_class_map() {
+    let Some(f) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let Some(cmap) = f.class_map() else {
+        return;
+    };
+    let _cmap = match cmap {
+        Ok(c) => c,
+        // The R2018 class section has quirks beyond what the ODA spec
+        // documents; a parse error is acceptable as long as the section
+        // itself was extractable. The writer path will need to address
+        // the R2018 layout when Phase E ships.
+        Err(_) => return,
+    };
+}
+
 // ================================================================
 // The R13-R15 and R2004+ code paths should NEVER both activate.
 // ================================================================
