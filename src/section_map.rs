@@ -66,6 +66,124 @@ pub struct SectionPageRef {
     pub start_offset: u64,
 }
 
+/// The 32-byte Sec_Mask-encrypted header that precedes every data section
+/// page (spec §4.6). Unlike the 20-byte plaintext system page header,
+/// this one XORs each 4-byte word against `0x4164_536B ^ file_offset`.
+#[derive(Debug, Clone, Copy)]
+pub struct DataPageHeader {
+    pub page_type: u32,
+    pub section_number: u32,
+    pub data_size: u32,
+    pub page_size: u32,
+    pub start_offset: u32,
+    pub page_header_checksum: u32,
+    pub data_checksum: u32,
+    pub _unknown: u32,
+}
+
+impl DataPageHeader {
+    pub const PAGE_TYPE: u32 = 0x4163_043B;
+
+    pub fn parse(file_bytes: &[u8], file_offset: u64) -> Result<Self> {
+        if (file_offset as usize) + 0x20 > file_bytes.len() {
+            return Err(Error::Truncated {
+                offset: file_offset,
+                wanted: 0x20,
+                len: file_bytes.len() as u64,
+            });
+        }
+        let mut hdr = [0u8; 0x20];
+        hdr.copy_from_slice(&file_bytes[file_offset as usize..file_offset as usize + 0x20]);
+        // Sec_Mask XOR decrypt: 8 × 4-byte words.
+        let mask = crate::cipher::section_page_mask(file_offset as u32);
+        for chunk in hdr.chunks_exact_mut(4) {
+            let v = LittleEndian::read_u32(chunk);
+            LittleEndian::write_u32(chunk, v ^ mask);
+        }
+        Ok(Self {
+            page_type: LittleEndian::read_u32(&hdr[0..4]),
+            section_number: LittleEndian::read_u32(&hdr[4..8]),
+            data_size: LittleEndian::read_u32(&hdr[8..12]),
+            page_size: LittleEndian::read_u32(&hdr[12..16]),
+            start_offset: LittleEndian::read_u32(&hdr[16..20]),
+            page_header_checksum: LittleEndian::read_u32(&hdr[20..24]),
+            data_checksum: LittleEndian::read_u32(&hdr[24..28]),
+            _unknown: LittleEndian::read_u32(&hdr[28..32]),
+        })
+    }
+}
+
+/// Walk a section description's per-page list, decrypt each data page
+/// header, decompress its payload if compressed, and assemble the full
+/// decompressed section bytes in `start_offset` order.
+///
+/// `compressed` is taken from the owning SectionDescription (1 = no,
+/// 2 = LZ77). Returns a buffer of length `total_size`.
+pub fn read_section_payload(
+    file_bytes: &[u8],
+    page_map: &[SectionPage],
+    description: &SectionDescription,
+) -> Result<Vec<u8>> {
+    let total_size = description.size as usize;
+    let mut result = vec![0u8; total_size];
+
+    for page_ref in &description.pages {
+        let page = page_map
+            .iter()
+            .find(|p| !p.is_gap && p.number == page_ref.page_number as i32)
+            .ok_or_else(|| {
+                Error::SectionMap(format!(
+                    "section '{}' references page {} not in page map",
+                    description.name, page_ref.page_number
+                ))
+            })?;
+        let hdr = DataPageHeader::parse(file_bytes, page.file_offset)?;
+        if hdr.page_type != DataPageHeader::PAGE_TYPE {
+            return Err(Error::SectionMap(format!(
+                "section '{}' page {} has wrong page_type 0x{:x} (expected 0x{:x})",
+                description.name,
+                page_ref.page_number,
+                hdr.page_type,
+                DataPageHeader::PAGE_TYPE
+            )));
+        }
+        let payload_start = (page.file_offset + 0x20) as usize;
+        let payload_end = payload_start + hdr.data_size as usize;
+        if payload_end > file_bytes.len() {
+            return Err(Error::Truncated {
+                offset: payload_start as u64,
+                wanted: hdr.data_size as usize,
+                len: file_bytes.len() as u64,
+            });
+        }
+        let payload = &file_bytes[payload_start..payload_end];
+        let decompressed = match description.compressed {
+            1 => payload.to_vec(),
+            2 => lz77::decompress(payload, Some(hdr.page_size as usize))?,
+            other => {
+                return Err(Error::SectionMap(format!(
+                    "section '{}' has unknown compression flag {}",
+                    description.name, other
+                )));
+            }
+        };
+        // Data pages can be padded beyond the section's true size (spec
+        // notes pages are 0x20-aligned, and for compressed=1 sections
+        // the "page_size" may be a rounded max rather than the true
+        // content length). Truncate to whatever still fits in the
+        // section buffer.
+        let start = page_ref.start_offset as usize;
+        if start >= total_size {
+            // Page starts past the section end — this is a zero page,
+            // ignore per spec §4.5 ("zero pages can be detected by...").
+            continue;
+        }
+        let take = decompressed.len().min(total_size - start);
+        result[start..start + take].copy_from_slice(&decompressed[..take]);
+    }
+    Ok(result)
+}
+
 // ================================================================
 // System page header (Sec_Mask-encrypted)
 // ================================================================
