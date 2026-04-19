@@ -262,6 +262,17 @@ impl DwgFile {
         )
     }
 
+    /// Read + parse the `AcDb:Header` variable table (~200 system
+    /// vars). Only the raw bit-stream is captured; targeted
+    /// accessors on [`HeaderVars`] can extract individual variables.
+    pub fn header_vars(&self) -> Option<Result<crate::header_vars::HeaderVars>> {
+        let version = self.version;
+        Some(
+            self.read_section("AcDb:Header")?
+                .and_then(|bytes| crate::header_vars::HeaderVars::parse(&bytes, version)),
+        )
+    }
+
     /// Full handle-driven object iteration — uses `AcDb:Handles` to
     /// find every object in the file, not just the first. Returns the
     /// complete list of control objects, table entries, entities, and
