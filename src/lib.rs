@@ -69,6 +69,7 @@
 #![warn(missing_debug_implementations)]
 
 pub mod bitcursor;
+pub mod bitwriter;
 pub mod cipher;
 pub mod classes;
 pub mod crc;
@@ -76,10 +77,12 @@ pub mod error;
 pub mod handle_map;
 pub mod header;
 pub mod lz77;
+pub mod lz77_encode;
 pub mod metadata;
 pub mod object;
 pub mod object_type;
 pub mod reader;
+pub mod reed_solomon;
 pub mod section;
 pub mod section_map;
 pub mod version;
