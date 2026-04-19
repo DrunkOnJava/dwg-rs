@@ -59,6 +59,9 @@ pub enum Error {
         out_len: usize,
     },
 
+    #[error("LZ77 literal-only encoder cannot emit {0} bytes (valid: 0 or >=4, gap at 1..=3)")]
+    Lz77UnencodableLength(usize),
+
     #[error("Section map parse failed: {0}")]
     SectionMap(String),
 }
