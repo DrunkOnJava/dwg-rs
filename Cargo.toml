@@ -1,0 +1,35 @@
+[package]
+name = "dwg"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Open reader for Autodesk DWG files (R13 through 2018/AC1032). Clean-room implementation against the Open Design Alliance specification. No Autodesk or ODA SDK dependency."
+authors = ["Griffin Long <151978260+DrunkOnJava@users.noreply.github.com>"]
+repository = "https://github.com/DrunkOnJava/dwg-rs"
+keywords = ["dwg", "autocad", "cad", "autodesk", "file-format"]
+categories = ["parser-implementations", "filesystem"]
+
+[dependencies]
+thiserror = "1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+byteorder = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "dwg-info"
+path = "src/bin/dwg_info.rs"
+
+[[bin]]
+name = "dwg-corpus"
+path = "src/bin/dwg_corpus.rs"
+
+[lib]
+name = "dwg"
+path = "src/lib.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
