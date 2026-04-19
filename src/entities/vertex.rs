@@ -78,14 +78,23 @@ mod tests {
     fn roundtrip_simple_vertex_r2000() {
         let mut w = BitWriter::new();
         w.write_rc(0x00); // no flags
-        w.write_bd(1.0); w.write_bd(2.0); w.write_bd(3.0);
+        w.write_bd(1.0);
+        w.write_bd(2.0);
+        w.write_bd(3.0);
         w.write_bd(0.0); // start width
         w.write_bd(0.0); // end width
         w.write_bd(0.0); // bulge
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let v = decode(&mut c, Version::R2000).unwrap();
-        assert_eq!(v.location, Point3D { x: 1.0, y: 2.0, z: 3.0 });
+        assert_eq!(
+            v.location,
+            Point3D {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0
+            }
+        );
         assert!(v.vertex_id.is_none());
         assert!(v.tangent_direction.is_none());
     }
@@ -94,7 +103,9 @@ mod tests {
     fn roundtrip_vertex_with_tangent_r2018() {
         let mut w = BitWriter::new();
         w.write_rc(0x02); // tangent present
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         w.write_bd(1.0); // start width
         w.write_bd(2.0); // end width
         w.write_bd(0.5); // bulge

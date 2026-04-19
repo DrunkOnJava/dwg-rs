@@ -76,8 +76,11 @@ impl ClassMap {
         if max_class_number_pos + 4 > bytes.len() {
             return Ok(Self::default());
         }
-        let max_class_number =
-            u32::from_le_bytes(bytes[max_class_number_pos..max_class_number_pos + 4].try_into().unwrap());
+        let max_class_number = u32::from_le_bytes(
+            bytes[max_class_number_pos..max_class_number_pos + 4]
+                .try_into()
+                .unwrap(),
+        );
         // Bit-level parsing starts at byte 24.
         let bit_start = 24;
         if bit_start >= bytes.len() {

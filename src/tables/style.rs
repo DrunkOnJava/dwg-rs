@@ -65,8 +65,12 @@ mod tests {
         let mut w = BitWriter::new();
         let s = b"Standard";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
-        w.write_b(false); w.write_bs(0); w.write_b(false);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
         w.write_bs(0); // flags
         w.write_bd(0.0); // prompt for height
         w.write_bd(1.0); // width factor
@@ -75,7 +79,9 @@ mod tests {
         w.write_bd(2.5);
         let font = b"arial.ttf";
         w.write_bs_u(font.len() as u16);
-        for b in font { w.write_rc(*b); }
+        for b in font {
+            w.write_rc(*b);
+        }
         w.write_bs_u(0); // no bigfont
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

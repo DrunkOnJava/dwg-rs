@@ -156,11 +156,15 @@ mod tests {
     fn roundtrip_solid_fill_hatch_r2000() {
         let mut w = BitWriter::new();
         // R2000 has no gradient block
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(1.0); // extrusion
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0); // extrusion
         w.write_bd(0.0); // elevation
         let s = b"SOLID";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
+        for b in s {
+            w.write_rc(*b);
+        }
         w.write_b(true); // solid fill
         w.write_b(false); // not associative
         w.write_bl(1); // 1 path (not decoded here)
@@ -182,15 +186,20 @@ mod tests {
         // R2004 (R2004+ for gradient header, but not UTF-16 strings).
         let mut w = BitWriter::new();
         w.write_bl(0); // not a gradient
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(1.0); // extrusion
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0); // extrusion
         w.write_bd(0.0); // elevation
         let s = b"ANSI31";
         w.write_bs_u(s.len() as u16);
-        for b in s { w.write_rc(*b); }
+        for b in s {
+            w.write_rc(*b);
+        }
         w.write_b(false); // not solid
         w.write_b(false); // not associative
         w.write_bl(1); // 1 path
-        w.write_bs(0); w.write_bs(1);
+        w.write_bs(0);
+        w.write_bs(1);
         w.write_bd(0.0); // rotation
         w.write_bd(1.0); // scale
         w.write_b(false); // not doubled

@@ -90,7 +90,7 @@ pub fn build_section(
     //  6   | data_checksum
     //  7   | unknown (ODA writes 0x80)
     let total_len = HEADER_SIZE + compressed_size as usize;
-    let page_size = ((total_len + 31) / 32 * 32) as u32;
+    let page_size = (total_len.div_ceil(32) * 32) as u32;
 
     let page_checksum = compute_checksum(&compressed, 0);
     let data_checksum = compute_checksum(decompressed, 0);
@@ -180,7 +180,7 @@ mod tests {
         // the literal page_type tag.
         let data = b"ABCDEFGH";
         let s = build_section(data, 1, 0x1000).unwrap();
-        let mut header_copy: [u8; HEADER_SIZE] = s.bytes[..32].try_into().unwrap();
+        let header_copy: [u8; HEADER_SIZE] = s.bytes[..32].try_into().unwrap();
         let mask = section_page_mask(0x1000);
         // Undo the mask on the first word.
         let word0 = u32::from_le_bytes(header_copy[..4].try_into().unwrap());
@@ -191,7 +191,6 @@ mod tests {
         // The padded length past the header should equal compressed_size.
         let word2 = u32::from_le_bytes(header_copy[8..12].try_into().unwrap());
         assert_eq!(word2 ^ mask, s.compressed_size);
-        header_copy[0] ^= 0; // silence unused-mut
     }
 
     #[test]

@@ -134,11 +134,7 @@ pub fn read_be(c: &mut BitCursor<'_>) -> Result<Vec3D> {
 /// Read a BT (BitThickness) per spec §2.12 — defaults to 0.0 if the
 /// one-bit flag is set; otherwise reads a BD.
 pub fn read_bt(c: &mut BitCursor<'_>) -> Result<f64> {
-    if c.read_b()? {
-        Ok(0.0)
-    } else {
-        c.read_bd()
-    }
+    if c.read_b()? { Ok(0.0) } else { c.read_bd() }
 }
 
 #[cfg(test)]
@@ -153,7 +149,14 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let e = read_be(&mut c).unwrap();
-        assert_eq!(e, Vec3D { x: 0.0, y: 0.0, z: 1.0 });
+        assert_eq!(
+            e,
+            Vec3D {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0
+            }
+        );
     }
 
     #[test]
@@ -166,7 +169,14 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let e = read_be(&mut c).unwrap();
-        assert_eq!(e, Vec3D { x: 1.5, y: 2.5, z: 3.5 });
+        assert_eq!(
+            e,
+            Vec3D {
+                x: 1.5,
+                y: 2.5,
+                z: 3.5
+            }
+        );
     }
 
     #[test]

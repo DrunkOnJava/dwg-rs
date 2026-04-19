@@ -157,12 +157,12 @@ impl BitWriter {
         let len = if v == 0 {
             0
         } else {
-            ((64 - v.leading_zeros()) as usize + 7) / 8
+            ((64 - v.leading_zeros()) as usize).div_ceil(8)
         };
         debug_assert!(len <= 7);
         self.write_3b(len as u8);
         for i in 0..len {
-            self.write_bits(((v >> (i * 8)) & 0xFF) as u64, 8);
+            self.write_bits((v >> (i * 8)) & 0xFF, 8);
         }
     }
 
@@ -213,7 +213,11 @@ impl BitWriter {
         // Emit 7 bits per continuation byte; final byte carries 6 data bits +
         // negate flag (bit 6) + cont=0.
         if abs < 0x40 {
-            let b = if negate { 0x40 | (abs as u8) } else { abs as u8 };
+            let b = if negate {
+                0x40 | (abs as u8)
+            } else {
+                abs as u8
+            };
             self.write_rc(b);
             return Ok(());
         }
@@ -279,13 +283,13 @@ impl BitWriter {
         let counter = if value == 0 {
             0
         } else {
-            ((64 - value.leading_zeros()) as usize + 7) / 8
+            ((64 - value.leading_zeros()) as usize).div_ceil(8)
         };
         debug_assert!(counter <= 0x0F);
         self.write_bits(code as u64, 4);
         self.write_bits(counter as u64, 4);
         for i in (0..counter).rev() {
-            self.write_bits(((value >> (i * 8)) & 0xFF) as u64, 8);
+            self.write_bits((value >> (i * 8)) & 0xFF, 8);
         }
     }
 }
@@ -336,7 +340,7 @@ mod tests {
 
     #[test]
     fn roundtrip_bd_specials() {
-        for v in [0.0f64, 1.0, 2.5, -3.14159, 1e100, -1e-100] {
+        for v in [0.0f64, 1.0, 2.5, -42.125, 1e100, -1e-100] {
             let mut w = BitWriter::new();
             w.write_bd(v);
             let bytes = w.into_bytes();

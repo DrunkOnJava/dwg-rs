@@ -36,6 +36,10 @@ fn gf_tables() -> ([u8; 256], [u8; 256]) {
     let mut exp = [0u8; 256];
     let mut log = [0u8; 256];
     let mut x: u16 = 1;
+    // Iterating by index is intentional — we write to two disjoint
+    // arrays on each step (exp[i] and log[x]), which enumerate() over
+    // either array can't express.
+    #[allow(clippy::needless_range_loop)]
     for i in 0..255 {
         exp[i] = x as u8;
         log[x as usize] = i as u8;
@@ -200,8 +204,8 @@ pub fn verify(codeword: &mut [u8]) -> Result<()> {
             mat.swap(col, pivot);
         }
         let inv = gf_inv(mat[col][col], &exp, &log);
-        for j in col..=n {
-            mat[col][j] = gf_mul(mat[col][j], inv, &exp, &log);
+        for cell in &mut mat[col][col..=n] {
+            *cell = gf_mul(*cell, inv, &exp, &log);
         }
         for row_idx in 0..n {
             if row_idx == col {
@@ -211,6 +215,10 @@ pub fn verify(codeword: &mut [u8]) -> Result<()> {
             if factor == 0 {
                 continue;
             }
+            // Read pivot row, write into this row — two disjoint rows, so
+            // we can't express this with iter_mut on a single row without
+            // split_at_mut gymnastics.
+            #[allow(clippy::needless_range_loop)]
             for j in col..=n {
                 let sub = gf_mul(factor, mat[col][j], &exp, &log);
                 mat[row_idx][j] ^= sub;

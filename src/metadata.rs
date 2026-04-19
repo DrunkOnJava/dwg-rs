@@ -174,7 +174,11 @@ impl AppInfo {
         Ok(AppInfo {
             name,
             product_xml: String::new(),
-            version: if app_version.is_empty() { version } else { app_version },
+            version: if app_version.is_empty() {
+                version
+            } else {
+                app_version
+            },
             comment,
             product,
         })
@@ -298,8 +302,10 @@ fn carve_image_magic(bytes: &[u8]) -> Option<Vec<u8>> {
     }
     let start = start?;
     // Truncate before the end sentinel if present.
-    let end_sentinel_start =
-        bytes.windows(16).rposition(|w| w == Preview::END_SENTINEL).unwrap_or(bytes.len());
+    let end_sentinel_start = bytes
+        .windows(16)
+        .rposition(|w| w == Preview::END_SENTINEL)
+        .unwrap_or(bytes.len());
     let end = end_sentinel_start.max(start);
     Some(bytes[start..end].to_vec())
 }
@@ -439,7 +445,11 @@ impl<'a> ByteCursor<'a> {
         self.need(len)?;
         // `len` bytes include the trailing NUL; drop it if present.
         let end = self.pos + len;
-        let text_end = if self.bytes[end - 1] == 0 { end - 1 } else { end };
+        let text_end = if self.bytes[end - 1] == 0 {
+            end - 1
+        } else {
+            end
+        };
         let s = String::from_utf8_lossy(&self.bytes[self.pos..text_end]).into_owned();
         self.pos = end;
         Ok(s)

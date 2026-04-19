@@ -439,14 +439,14 @@ mod tests {
     #[test]
     fn spec_2_2_bitshort_example() {
         let stream = pack_bits(&[
-            (0b00, 2),          // tag 00 → 16-bit LE
-            (0b0000_0001, 8),   // LSB
-            (0b0000_0001, 8),   // MSB → 257
-            (0b10, 2),          // → 0
-            (0b11, 2),          // → 256
-            (0b01, 2),          // tag 01 → 8-bit
-            (0b0000_1111, 8),   // = 15
-            (0b10, 2),          // → 0
+            (0b00, 2),        // tag 00 → 16-bit LE
+            (0b0000_0001, 8), // LSB
+            (0b0000_0001, 8), // MSB → 257
+            (0b10, 2),        // → 0
+            (0b11, 2),        // → 256
+            (0b01, 2),        // tag 01 → 8-bit
+            (0b0000_1111, 8), // = 15
+            (0b10, 2),        // → 0
         ]);
         let mut c = BitCursor::new(&stream);
         assert_eq!(c.read_bs().unwrap(), 257);
@@ -462,15 +462,15 @@ mod tests {
     #[test]
     fn spec_2_3_bitlong_example() {
         let stream = pack_bits(&[
-            (0b00, 2),          // tag 00 → 32-bit LE
-            (0x01, 8),          // byte 0 (LSB)
-            (0x01, 8),          // byte 1
-            (0x00, 8),          // byte 2
-            (0x00, 8),          // byte 3 (MSB) → 257
-            (0b10, 2),          // → 0
-            (0b01, 2),          // tag 01 → 8-bit
-            (0b0000_1111, 8),   // = 15
-            (0b10, 2),          // → 0
+            (0b00, 2),        // tag 00 → 32-bit LE
+            (0x01, 8),        // byte 0 (LSB)
+            (0x01, 8),        // byte 1
+            (0x00, 8),        // byte 2
+            (0x00, 8),        // byte 3 (MSB) → 257
+            (0b10, 2),        // → 0
+            (0b01, 2),        // tag 01 → 8-bit
+            (0b0000_1111, 8), // = 15
+            (0b10, 2),        // → 0
         ]);
         let mut c = BitCursor::new(&stream);
         assert_eq!(c.read_bl().unwrap(), 257);
@@ -560,10 +560,7 @@ mod tests {
         let bytes = [0xFF];
         let mut c = BitCursor::new(&bytes);
         let _ = c.read_bits(8).unwrap();
-        assert!(matches!(
-            c.read_b(),
-            Err(Error::BitsExhausted { .. })
-        ));
+        assert!(matches!(c.read_b(), Err(Error::BitsExhausted { .. })));
     }
 
     // §2.13 — Handle reference

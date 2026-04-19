@@ -95,20 +95,15 @@ pub fn decompress(input: &[u8], expected_size: Option<usize>) -> Result<Vec<u8>>
             0x40..=0xFF => {
                 let cb = (((op1 & 0xF0) >> 4) - 1) as usize;
                 let op2 = r.read()?;
-                let off = (((op2 as usize) << 2)
-                    | (((op1 & 0x0C) >> 2) as usize))
-                    + 1;
+                let off = (((op2 as usize) << 2) | (((op1 & 0x0C) >> 2) as usize)) + 1;
                 let lit = op1 & 0x03;
                 (cb, off, lit)
             }
         };
 
         // Resolve literal count: 0 means "next bytes are a literal length".
-        let lit_count = if lit_count_opt == 0 {
-            match read_literal_length_or_peek_opcode(&mut r)? {
-                Some(n) => n,
-                None => 0,
-            }
+        let lit_count: usize = if lit_count_opt == 0 {
+            read_literal_length_or_peek_opcode(&mut r)?.unwrap_or_default()
         } else {
             lit_count_opt as usize
         };
@@ -178,7 +173,11 @@ impl<'a> Lz77Reader<'a> {
 /// value directly; otherwise accumulate 0xFF per subsequent 0x00 byte
 /// and terminate on the first non-zero byte (adding `valid_bits`).
 /// Always add 2 at the end.
-fn read_compressed_bytes_extended(op1: u8, valid_bits: u8, r: &mut Lz77Reader<'_>) -> Result<usize> {
+fn read_compressed_bytes_extended(
+    op1: u8,
+    valid_bits: u8,
+    r: &mut Lz77Reader<'_>,
+) -> Result<usize> {
     let mut cb = (op1 & valid_bits) as usize;
     if cb == 0 {
         loop {
@@ -334,8 +333,8 @@ mod tests {
         stream.push(0x11);
         let out = decompress(&stream, None).unwrap();
         assert_eq!(out.len(), N);
-        for i in 0..N {
-            assert_eq!(out[i], (i & 0xFF) as u8);
+        for (i, &b) in out.iter().enumerate() {
+            assert_eq!(b, (i & 0xFF) as u8);
         }
     }
 
@@ -382,12 +381,6 @@ mod tests {
     fn reserved_opcode_errors() {
         let stream = [0x01, b'A', b'B', b'C', b'D', 0x05];
         let e = decompress(&stream, None).unwrap_err();
-        assert!(matches!(
-            e,
-            Error::Lz77InvalidOpcode {
-                opcode: 0x05,
-                ..
-            }
-        ));
+        assert!(matches!(e, Error::Lz77InvalidOpcode { opcode: 0x05, .. }));
     }
 }

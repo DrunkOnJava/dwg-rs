@@ -110,10 +110,7 @@ impl Version {
     /// R2007's file header is laid out differently. R2010, R2013, R2018
     /// revert to the R2004 structure with incremental additions.
     pub fn is_r2004_family(self) -> bool {
-        matches!(
-            self,
-            Self::R2004 | Self::R2010 | Self::R2013 | Self::R2018
-        )
+        matches!(self, Self::R2004 | Self::R2010 | Self::R2013 | Self::R2018)
     }
 
     /// True for R2007 specifically — format has its own parsing rules in

@@ -1,4 +1,45 @@
-/target
+# Cargo build artifacts
+/target/
 **/*.rs.bk
-Cargo.lock
+
+# Cargo.lock is committed for reproducibility — this is a binary-producing
+# crate so the pinned dependency graph matters for releases.
+
+# Editor / IDE
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
+
+# OS
+*.pid
+*.log
+
+# Coverage
+/coverage/
+*.profraw
+*.profdata
+lcov.info
+tarpaulin-report.html
+
+# Profiling
+flamegraph.svg
+perf.data
+perf.data.old
+
+# Proptest regression seeds (commit after narrowing to verify shrinking)
+# Comment the next line out to keep reproducible counter-examples.
+proptest-regressions/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local test fixtures (kept outside repo to respect licensing)
+/samples/local/
+/tests/fixtures/local/

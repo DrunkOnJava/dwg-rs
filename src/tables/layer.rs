@@ -50,7 +50,12 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Layer> {
     let flags = c.read_bs()?;
     let plot_flag = if matches!(
         version,
-        Version::R2000 | Version::R2004 | Version::R2007 | Version::R2010 | Version::R2013 | Version::R2018
+        Version::R2000
+            | Version::R2004
+            | Version::R2007
+            | Version::R2010
+            | Version::R2013
+            | Version::R2018
     ) {
         c.read_b()?
     } else {

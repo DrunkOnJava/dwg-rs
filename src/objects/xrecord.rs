@@ -67,7 +67,9 @@ mod tests {
         let mut w = BitWriter::new();
         let payload: [u8; 5] = [1, 2, 3, 4, 5];
         w.write_bl(payload.len() as i32);
-        for b in &payload { w.write_rc(*b); }
+        for b in &payload {
+            w.write_rc(*b);
+        }
         w.write_bs(0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

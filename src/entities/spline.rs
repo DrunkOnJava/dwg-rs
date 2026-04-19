@@ -174,12 +174,22 @@ mod tests {
         w.write_bl(2); // scenario = fit
         w.write_bd(3.0); // degree
         w.write_bd(0.01); // tolerance
-        w.write_bd(1.0); w.write_bd(0.0); w.write_bd(0.0); // begin_tangent
-        w.write_bd(0.0); w.write_bd(1.0); w.write_bd(0.0); // end_tangent
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // begin_tangent
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0); // end_tangent
         w.write_bl(3); // 3 fit points
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0);
-        w.write_bd(1.0); w.write_bd(1.0); w.write_bd(0.0);
-        w.write_bd(2.0); w.write_bd(0.0); w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(2.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let s = decode(&mut c, Version::R2000).unwrap();
@@ -205,7 +215,9 @@ mod tests {
         }
         w.write_bl(3); // 3 control points
         for (x, y, z) in [(0.0, 0.0, 0.0), (1.0, 2.0, 0.0), (2.0, 0.0, 0.0)] {
-            w.write_bd(x); w.write_bd(y); w.write_bd(z);
+            w.write_bd(x);
+            w.write_bd(y);
+            w.write_bd(z);
         }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

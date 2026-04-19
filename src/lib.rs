@@ -1,47 +1,8 @@
-//! dwg-rs · Open reader for Autodesk DWG files (R13 → AC1032 / 2018+)
+//! dwg-rs · Apache-2 Rust reader for Autodesk DWG files (R13 → R2018 / AC1032).
 //!
-//! Clean-room Rust implementation against the Open Design Alliance specification
-//! v5.4.1 (`OpenDesign_Specification_for_.dwg_files.pdf`), which is a publicly
-//! redistributable document. No ODA SDK, no Autodesk SDK, no GPL code — safe for
-//! Apache-2 consumers.
-//!
-//! # What this crate reads today (Phase A)
-//!
-//! - **Version identification** across AC1014 (R14) → AC1032 (2018/2024/2025+),
-//!   seven production formats spanning ~28 years of AutoCAD releases.
-//! - **File header** for R13-R15 (AC1014, AC1015): raw bytes, image-data offset,
-//!   codepage, section-locator count and records.
-//! - **R2004+ header** (AC1018 → AC1032): XOR-decrypted 0x6C-byte payload,
-//!   decompressed section-map + page-map structure.
-//! - **Section enumeration**: named sections (AcDb:Header, AcDb:Classes,
-//!   AcDb:Handles, AcDb:Objects, AcDb:SummaryInfo, AcDb:Preview, ...).
-//! - **Bit-cursor primitives** per spec §2: B, BB, 3B, BS, BL, BLL, BD, MC, MS,
-//!   RC, RS, RL, RD, H, TV.
-//! - **CRC-8** (16-bit output, spec §2.14.1) and **CRC-32** (R2004+ system
-//!   sections).
-//!
-//! # What is explicitly deferred
-//!
-//! - **Entity & object decoding** (Phase B) — requires per-class field layouts
-//!   across R2000 / R2004 / R2007 / R2010 / R2013 / R2018 deltas, plus the
-//!   R2007 `Sec_Mask` 2-layer bitstream.
-//! - **Reed-Solomon(255,239) decode** — needed to *verify* R2004+ system
-//!   sections. The reader currently trusts CRC-8 on intra-section chunks,
-//!   which is sufficient for extraction.
-//! - **Write support** — encoding is Phase C.
-//! - **LZ77-style decompression** for section data — Phase B.
-//!
-//! # Version code → AutoCAD release
-//!
-//! | Magic    | Release          | Year | Notes                   |
-//! |----------|------------------|------|-------------------------|
-//! | `AC1014` | R14              | 1997 | Simple header           |
-//! | `AC1015` | 2000/2000i/2002  | 1999 | R13-R15 header family   |
-//! | `AC1018` | 2004/2005/2006   | 2003 | XOR-encrypted + RS FEC  |
-//! | `AC1021` | 2007/2008/2009   | 2006 | Sec_Mask bitstream      |
-//! | `AC1024` | 2010/2011/2012   | 2009 | Additive entity types   |
-//! | `AC1027` | 2013 → 2017      | 2012 | Five-release run        |
-//! | `AC1032` | 2018 → 2025+     | 2017 | Nine-year-and-counting  |
+//! Clean-room implementation against the Open Design Alliance's freely-
+//! redistributable *Open Design Specification for .dwg files* (v5.4.1). No
+//! Autodesk SDK, no ODA SDK, no GPL-3 dependency.
 //!
 //! # Quick start
 //!
@@ -56,14 +17,62 @@
 //! # Ok::<(), dwg::Error>(())
 //! ```
 //!
+//! # Version coverage
+//!
+//! | Magic    | Release          | Year | Coverage             |
+//! |----------|------------------|------|----------------------|
+//! | `AC1014` | R14              | 1997 | Full                 |
+//! | `AC1015` | 2000 / 2000i / 2002 | 1999 | Full               |
+//! | `AC1018` | 2004 / 2005 / 2006  | 2003 | Full               |
+//! | `AC1021` | 2007 / 2008 / 2009  | 2006 | Partial (Sec_Mask)  |
+//! | `AC1024` | 2010 / 2011 / 2012  | 2009 | Full               |
+//! | `AC1027` | 2013 → 2017         | 2012 | Full               |
+//! | `AC1032` | 2018 → 2025+        | 2017 | Full               |
+//!
+//! # Module map
+//!
+//! - [`bitcursor`] / [`bitwriter`] — bit-level primitives (spec §2)
+//! - [`cipher`] — R2004+ XOR magic-sequence + Sec_Mask page masking
+//! - [`crc`] — CRC-8 (spec §2.14.1) and CRC-32 (IEEE)
+//! - [`lz77`] / [`lz77_encode`] — LZ77 de/compression (spec §4.7)
+//! - [`reed_solomon`] — (255,239) FEC over GF(256), defensive-only
+//! - [`header`] / [`header_vars`] — file-open header + `AcDb:Header` parse
+//! - [`section`] / [`section_map`] / [`section_writer`] — page + section layer
+//! - [`handle_map`] / [`classes`] — object-stream cross-ref tables
+//! - [`metadata`] — SummaryInfo / AppInfo / Preview / FileDepList
+//! - [`object`] / [`object_type`] / [`common_entity`] — object-stream walker
+//! - [`entities`] — per-entity decoders (LINE, CIRCLE, TEXT, MTEXT, INSERT,
+//!   DIMENSION family, HATCH, MLEADER, VIEWPORT, ...)
+//! - [`tables`] — symbol-table entries (LAYER, LTYPE, STYLE, VIEW, UCS,
+//!   VPORT, APPID, DIMSTYLE, BLOCK_RECORD)
+//! - [`objects`] — DICTIONARY / XRECORD / `*_CONTROL`
+//! - [`r2007`] — R2007-specific Sec_Mask two-layer obfuscation (layer 1 done)
+//! - [`file_writer`] — scaffolded inverse of [`reader::DwgFile`]
+//!
+//! See [`ARCHITECTURE.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/ARCHITECTURE.md)
+//! for the full design document.
+//!
+//! # Safety
+//!
+//! The entire crate is `#![deny(unsafe_code)]`. All parsing returns
+//! `Result<T, Error>` — no panics on malformed input. Defensive caps
+//! bound runaway allocations from adversarial files. See
+//! [`SECURITY.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/SECURITY.md)
+//! for the threat model and private vulnerability reporting.
+//!
 //! # Legal posture
 //!
-//! DWG is a trademark of Autodesk, Inc. This crate is a clean-room
-//! implementation under the interoperability exception of 17 U.S.C.
-//! § 1201(f) and the 2006 *Autodesk v. ODA* settlement, which explicitly
-//! permits third-party DWG interop. No ODA SDK or LibreDWG source was
-//! consulted; the authoritative reference is the ODA's own freely-published
-//! specification PDF, which is provided separately from ODA's SDK license.
+//! DWG is a trademark of Autodesk, Inc. This crate is not affiliated with,
+//! authorized by, or endorsed by Autodesk. It is a clean-room third-party
+//! implementation created for interoperability purposes, protected by
+//! 17 U.S.C. § 1201(f) (DMCA interoperability exception) and the 2006
+//! *Autodesk, Inc. v. Open Design Alliance* settlement, which explicitly
+//! permits third-party DWG implementations.
+//!
+//! No Autodesk SDK source, no ODA SDK source, and no LibreDWG (GPL-3) source
+//! was consulted at any point. The authoritative reference is the ODA's
+//! freely-redistributable *Open Design Specification for .dwg files*
+//! (v5.4.1), a document available separately from ODA's SDK license.
 
 #![deny(unsafe_code)]
 #![warn(missing_debug_implementations)]

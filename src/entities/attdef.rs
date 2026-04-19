@@ -68,9 +68,8 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if units.last() == Some(&0) {
             units.pop();
         }
-        String::from_utf16(&units).map_err(|_| {
-            Error::SectionMap("ATTDEF tag/prompt is not valid UTF-16".into())
-        })
+        String::from_utf16(&units)
+            .map_err(|_| Error::SectionMap("ATTDEF tag/prompt is not valid UTF-16".into()))
     } else {
         let mut bytes = Vec::with_capacity(len);
         for _ in 0..len {
@@ -93,8 +92,10 @@ mod tests {
         let mut w = BitWriter::new();
         // TEXT preamble — minimal
         w.write_rc(0x00);
-        w.write_rd(0.0); w.write_rd(0.0);
-        w.write_b(true); w.write_b(true);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_b(true);
+        w.write_b(true);
         w.write_bd(2.5);
         w.write_bs_u(0); // empty default text
         // ATTDEF extras

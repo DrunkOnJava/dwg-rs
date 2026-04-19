@@ -200,7 +200,10 @@ fn all_corpus_files_open() {
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("dwg"))
         .collect();
     if entries.is_empty() {
-        eprintln!("skipping corpus sweep: no .dwg files under {}", dir.display());
+        eprintln!(
+            "skipping corpus sweep: no .dwg files under {}",
+            dir.display()
+        );
         return;
     }
     let mut failures = Vec::new();
@@ -260,7 +263,7 @@ fn ac1032_enumerates_named_sections() {
     ];
     for expected in must_have {
         assert!(
-            names.iter().any(|n| *n == expected),
+            names.contains(&expected),
             "expected section {:?} not found. Got: {:?}",
             expected,
             names

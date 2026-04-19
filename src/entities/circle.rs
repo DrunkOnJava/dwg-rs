@@ -31,7 +31,11 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Circle> {
     let thickness = read_bt(c)?;
     let extrusion = read_be(c)?;
     Ok(Circle {
-        center: Point3D { x: cx, y: cy, z: cz },
+        center: Point3D {
+            x: cx,
+            y: cy,
+            z: cz,
+        },
         radius,
         thickness,
         extrusion,
@@ -55,7 +59,14 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let circ = decode(&mut c).unwrap();
-        assert_eq!(circ.center, Point3D { x: 10.0, y: 20.0, z: 0.0 });
+        assert_eq!(
+            circ.center,
+            Point3D {
+                x: 10.0,
+                y: 20.0,
+                z: 0.0
+            }
+        );
         assert_eq!(circ.radius, 5.0);
         assert_eq!(circ.thickness, 0.0);
         assert_eq!(circ.extrusion.z, 1.0);

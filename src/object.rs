@@ -73,8 +73,7 @@ impl<'a> ObjectWalker<'a> {
             && matches!(
                 version,
                 Version::R2004 | Version::R2010 | Version::R2013 | Version::R2018
-            )
-        {
+            ) {
             4
         } else {
             0

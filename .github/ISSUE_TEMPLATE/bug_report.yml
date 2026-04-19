@@ -1,0 +1,89 @@
+name: Bug report
+description: A decoded field is wrong, or the reader panics / errors on a valid DWG file.
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please do not attach proprietary DWG files
+        (anything a client or employer owns). A minimal synthetic or
+        publicly-redistributable reproducer is preferred.
+
+  - type: input
+    id: version
+    attributes:
+      label: dwg-rs version
+      description: "Output of `cargo pkgid dwg` or the crate version from Cargo.toml"
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: rustc
+    attributes:
+      label: rustc version
+      description: "Output of `rustc --version`"
+      placeholder: "rustc 1.85.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dwg_version
+    attributes:
+      label: DWG file version (if known)
+      options:
+        - "AC1014 (R14)"
+        - "AC1015 (R2000/2002)"
+        - "AC1018 (R2004/2006)"
+        - "AC1021 (R2007/2009)"
+        - "AC1024 (R2010/2012)"
+        - "AC1027 (R2013/2017)"
+        - "AC1032 (R2018+)"
+        - Unknown
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Reproducer
+      description: |
+        Minimal Rust code that triggers the issue. Include the DWG file
+        if it's publicly redistributable (e.g. from the ODA open sample
+        set or an open-source CAD tool's test suite).
+      render: rust
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include error messages, panics, or incorrect output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Backtrace, profiler output, or anything else.

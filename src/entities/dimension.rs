@@ -212,11 +212,7 @@ pub struct DiameterDimension {
 
 /// Decode a complete dimension of `kind` (caller already consumed
 /// the common entity preamble).
-pub fn decode(
-    c: &mut BitCursor<'_>,
-    version: Version,
-    kind: DimensionKind,
-) -> Result<Dimension> {
+pub fn decode(c: &mut BitCursor<'_>, version: Version, kind: DimensionKind) -> Result<Dimension> {
     let common = read_common(c, version)?;
     Ok(match kind {
         DimensionKind::Ordinate => {
@@ -343,14 +339,19 @@ mod tests {
         if version.is_r2010_plus() {
             w.write_rc(0);
         }
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(1.0); // extrusion
-        w.write_rd(5.0); w.write_rd(5.0); // text midpoint
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0); // extrusion
+        w.write_rd(5.0);
+        w.write_rd(5.0); // text midpoint
         w.write_bd(0.0); // elevation
         w.write_rc(0x00); // flags
         w.write_bs_u(0); // empty user text
         w.write_bd(0.0); // text rotation
         w.write_bd(0.0); // horiz dir
-        w.write_bd(1.0); w.write_bd(1.0); w.write_bd(1.0); // ins scale
+        w.write_bd(1.0);
+        w.write_bd(1.0);
+        w.write_bd(1.0); // ins scale
         w.write_bd(0.0); // ins rotation
         w.write_bs(0); // attachment
         w.write_bs(0); // line-spacing style
@@ -361,16 +362,23 @@ mod tests {
             w.write_b(false); // flip 1
             w.write_b(false); // flip 2
         }
-        w.write_rd(0.0); w.write_rd(0.0); // def point 12
+        w.write_rd(0.0);
+        w.write_rd(0.0); // def point 12
     }
 
     #[test]
     fn roundtrip_linear_dim_r2000() {
         let mut w = BitWriter::new();
         write_common(&mut w, Version::R2000);
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0); // pt13
-        w.write_bd(10.0); w.write_bd(0.0); w.write_bd(0.0); // pt14
-        w.write_bd(5.0); w.write_bd(2.0); w.write_bd(0.0); // pt10
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // pt13
+        w.write_bd(10.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // pt14
+        w.write_bd(5.0);
+        w.write_bd(2.0);
+        w.write_bd(0.0); // pt10
         w.write_bd(0.0); // ext rotation
         w.write_bd(0.0); // dim rotation
         let bytes = w.into_bytes();
@@ -389,8 +397,12 @@ mod tests {
     fn roundtrip_radius_dim_r2000() {
         let mut w = BitWriter::new();
         write_common(&mut w, Version::R2000);
-        w.write_bd(0.0); w.write_bd(0.0); w.write_bd(0.0); // pt10 (center)
-        w.write_bd(5.0); w.write_bd(0.0); w.write_bd(0.0); // pt15 (chord)
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // pt10 (center)
+        w.write_bd(5.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // pt15 (chord)
         w.write_bd(2.5); // leader length
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
@@ -417,4 +429,3 @@ mod tests {
         assert_eq!(DimensionKind::from_object_type_code(0x04), None);
     }
 }
-

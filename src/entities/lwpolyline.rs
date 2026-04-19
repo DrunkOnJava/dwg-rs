@@ -116,9 +116,9 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
         || num_ids > 10_000_000
         || num_widths > 10_000_000
     {
-        return Err(crate::error::Error::SectionMap(
-            format!("LWPOLYLINE has implausible counts (p={num_points}, b={num_bulges}, i={num_ids}, w={num_widths})"),
-        ));
+        return Err(crate::error::Error::SectionMap(format!(
+            "LWPOLYLINE has implausible counts (p={num_points}, b={num_bulges}, i={num_ids}, w={num_widths})"
+        )));
     }
 
     let mut vertices = Vec::with_capacity(num_points);

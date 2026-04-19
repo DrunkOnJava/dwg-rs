@@ -76,10 +76,7 @@ fn main() -> ExitCode {
         println!();
         println!("=== sections ({}) ===", f.sections().len());
         for s in f.sections() {
-            println!(
-                "  {:<32} {:>10} bytes at 0x{:x}",
-                s.name, s.size, s.offset
-            );
+            println!("  {:<32} {:>10} bytes at 0x{:x}", s.name, s.size, s.offset);
         }
     }
 

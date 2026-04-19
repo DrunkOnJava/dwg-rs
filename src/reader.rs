@@ -85,9 +85,7 @@ impl DwgFile {
             // image seeker if present.
             let common = CommonHeader::parse(&bytes)?;
             let mut sections = Vec::new();
-            if common.image_seeker != 0
-                && (common.image_seeker as u64) < bytes.len() as u64
-            {
+            if common.image_seeker != 0 && (common.image_seeker as u64) < bytes.len() as u64 {
                 sections.push(Section {
                     name: "AcDb:Preview".to_string(),
                     kind: SectionKind::Preview,
@@ -237,10 +235,7 @@ impl DwgFile {
             Some(Err(e)) => return Some(Err(e)),
             None => return None,
         };
-        Some(
-            crate::object::ObjectWalker::new(&bytes, self.version)
-                .collect_all(),
-        )
+        Some(crate::object::ObjectWalker::new(&bytes, self.version).collect_all())
     }
 
     /// Read + parse the `AcDb:Handles` object map into a
@@ -316,10 +311,7 @@ fn extract_r2004_sections(bytes: &[u8], header: &R2004Header) -> Result<Vec<Sect
 
 /// Phase B: full named-section enumeration via LZ77-decompressed page map
 /// and section info.
-fn extract_r2004_sections_full(
-    bytes: &[u8],
-    header: &R2004Header,
-) -> Result<Vec<Section>> {
+fn extract_r2004_sections_full(bytes: &[u8], header: &R2004Header) -> Result<Vec<Section>> {
     let page_map = section_map::parse_page_map(bytes, header)?;
     let descriptions = section_map::parse_section_info(bytes, header, &page_map)?;
 
@@ -362,10 +354,7 @@ fn extract_r2004_sections_full(
 
 /// Phase A fallback: peek what the raw file header reveals, probe the
 /// first page at 0x100 for a known page-type tag.
-fn extract_r2004_sections_stub(
-    bytes: &[u8],
-    header: &R2004Header,
-) -> Result<Vec<Section>> {
+fn extract_r2004_sections_stub(bytes: &[u8], header: &R2004Header) -> Result<Vec<Section>> {
     let mut out = Vec::new();
 
     // 1. Section Page Map — lives at header.section_page_map_addr + 0x100.
@@ -405,9 +394,7 @@ fn extract_r2004_sections_stub(
     }
 
     // 4. Preview — taken from the *plaintext* header byte 0x0D (image_seeker).
-    if header.common.image_seeker != 0
-        && (header.common.image_seeker as u64) < bytes.len() as u64
-    {
+    if header.common.image_seeker != 0 && (header.common.image_seeker as u64) < bytes.len() as u64 {
         out.push(Section {
             name: "AcDb:Preview".to_string(),
             kind: SectionKind::Preview,
@@ -419,9 +406,7 @@ fn extract_r2004_sections_stub(
     }
 
     // 5. Second header copy — end-of-file redundant header, diagnostic only.
-    if header.second_header_addr != 0
-        && header.second_header_addr < bytes.len() as u64
-    {
+    if header.second_header_addr != 0 && header.second_header_addr < bytes.len() as u64 {
         out.push(Section {
             name: "SecondHeader".to_string(),
             kind: SectionKind::SystemSection,

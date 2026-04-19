@@ -37,7 +37,9 @@ pub enum Error {
     #[error("Section locator malformed: {0}")]
     SectionLocator(String),
 
-    #[error("Reserved bit pattern \"{pattern}\" encountered in {code_type} (spec says \"not used\")")]
+    #[error(
+        "Reserved bit pattern \"{pattern}\" encountered in {code_type} (spec says \"not used\")"
+    )]
     ReservedBitPattern {
         code_type: &'static str,
         pattern: &'static str,
@@ -52,7 +54,9 @@ pub enum Error {
     #[error("LZ77 back-reference points before start of output (spec §4.7)")]
     Lz77InvalidOffset,
 
-    #[error("LZ77 reserved opcode 0x{opcode:02X} at input position {pos} (spec §4.7: 0x00-0x0F not used), output len = {out_len}")]
+    #[error(
+        "LZ77 reserved opcode 0x{opcode:02X} at input position {pos} (spec §4.7: 0x00-0x0F not used), output len = {out_len}"
+    )]
     Lz77InvalidOpcode {
         opcode: u8,
         pos: usize,

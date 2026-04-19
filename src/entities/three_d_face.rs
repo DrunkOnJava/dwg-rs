@@ -33,18 +33,30 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<ThreeDFace> {
     let c1x = c.read_rd()?;
     let c1y = c.read_rd()?;
     let c1z = if z_is_zero { 0.0 } else { c.read_rd()? };
-    let c1 = Point3D { x: c1x, y: c1y, z: c1z };
+    let c1 = Point3D {
+        x: c1x,
+        y: c1y,
+        z: c1z,
+    };
     let c2 = {
         let dx = c.read_bd()?;
         let dy = c.read_bd()?;
         let dz = if z_is_zero { 0.0 } else { c.read_bd()? };
-        Point3D { x: c1.x + dx, y: c1.y + dy, z: c1.z + dz }
+        Point3D {
+            x: c1.x + dx,
+            y: c1.y + dy,
+            z: c1.z + dz,
+        }
     };
     let c3 = {
         let dx = c.read_bd()?;
         let dy = c.read_bd()?;
         let dz = if z_is_zero { 0.0 } else { c.read_bd()? };
-        Point3D { x: c2.x + dx, y: c2.y + dy, z: c2.z + dz }
+        Point3D {
+            x: c2.x + dx,
+            y: c2.y + dy,
+            z: c2.z + dz,
+        }
     };
     // Per spec, when hasNoFlagInd==true there are only 3 corners and no invisible mask.
     let (c4, invisible, is_triangle) = if has_no_flag {
@@ -53,7 +65,11 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<ThreeDFace> {
         let dx = c.read_bd()?;
         let dy = c.read_bd()?;
         let dz = if z_is_zero { 0.0 } else { c.read_bd()? };
-        let c4 = Point3D { x: c3.x + dx, y: c3.y + dy, z: c3.z + dz };
+        let c4 = Point3D {
+            x: c3.x + dx,
+            y: c3.y + dy,
+            z: c3.z + dz,
+        };
         let mask = c.read_bs_u()?;
         (c4, mask, false)
     };
@@ -87,9 +103,30 @@ mod tests {
         let mut c = BitCursor::new(&bytes);
         let f = decode(&mut c).unwrap();
         assert!(f.is_triangle);
-        assert_eq!(f.corners[0], Point3D { x: 0.0, y: 0.0, z: 0.0 });
-        assert_eq!(f.corners[1], Point3D { x: 1.0, y: 0.0, z: 0.0 });
-        assert_eq!(f.corners[2], Point3D { x: 1.0, y: 1.0, z: 0.0 });
+        assert_eq!(
+            f.corners[0],
+            Point3D {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0
+            }
+        );
+        assert_eq!(
+            f.corners[1],
+            Point3D {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0
+            }
+        );
+        assert_eq!(
+            f.corners[2],
+            Point3D {
+                x: 1.0,
+                y: 1.0,
+                z: 0.0
+            }
+        );
         assert_eq!(f.corners[3], f.corners[2]); // triangle
     }
 
@@ -98,16 +135,27 @@ mod tests {
         let mut w = BitWriter::new();
         w.write_b(false); // has all 4 corners
         w.write_b(true); // z_is_zero
-        w.write_rd(0.0); w.write_rd(0.0);
-        w.write_bd(1.0); w.write_bd(0.0);
-        w.write_bd(0.0); w.write_bd(1.0);
-        w.write_bd(-1.0); w.write_bd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(-1.0);
+        w.write_bd(0.0);
         w.write_bs_u(0b0101); // edges 0 and 2 invisible
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let f = decode(&mut c).unwrap();
         assert!(!f.is_triangle);
         assert_eq!(f.invisible_edges, 0b0101);
-        assert_eq!(f.corners[3], Point3D { x: 0.0, y: 1.0, z: 0.0 });
+        assert_eq!(
+            f.corners[3],
+            Point3D {
+                x: 0.0,
+                y: 1.0,
+                z: 0.0
+            }
+        );
     }
 }

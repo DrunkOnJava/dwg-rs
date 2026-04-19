@@ -64,8 +64,8 @@ fn main() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             p if !p.starts_with("--") => {
-                if input.is_some() {
-                    eprintln!("multiple inputs not supported; got {} and {}", input.unwrap(), p);
+                if let Some(prev) = &input {
+                    eprintln!("multiple inputs not supported; got {} and {}", prev, p);
                     return ExitCode::FAILURE;
                 }
                 input = Some(p.to_string());
