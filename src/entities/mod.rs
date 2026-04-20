@@ -15,6 +15,9 @@
 //! | ARC            | [`arc`]           | §19.4.2      |
 //! | ELLIPSE        | [`ellipse`]       | §19.4.17     |
 //! | LWPOLYLINE     | [`lwpolyline`]    | §19.4.25     |
+//! | MESH           | [`mesh`]          | §19.4.66     |
+//! | POLYFACE_MESH  | [`polyface_mesh`] | §19.4.29     |
+//! | POLYGON_MESH   | [`polygon_mesh`]  | §19.4.30     |
 //! | TEXT           | [`text`]          | §19.4.46     |
 //! | INSERT         | [`insert`]        | §19.4.34     |
 //! | RAY            | [`ray`]           | §19.4.48     |
@@ -60,11 +63,14 @@ pub mod light;
 pub mod line;
 pub mod lofted_surface;
 pub mod lwpolyline;
+pub mod mesh;
 pub mod mleader;
 pub mod modeler;
 pub mod mtext;
 pub mod ole2_frame;
 pub mod point;
+pub mod polyface_mesh;
+pub mod polygon_mesh;
 pub mod polyline;
 pub mod ray;
 pub mod region;

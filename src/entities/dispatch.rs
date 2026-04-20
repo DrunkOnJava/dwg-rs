@@ -30,9 +30,10 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::{
     arc, attdef, attrib, block, camera, circle, dimension, ellipse, endblk, extruded_surface,
-    geodata, hatch, helix, image, insert, leader, light, line, lofted_surface, lwpolyline, mleader,
-    mtext, ole2_frame, point, polyline, ray, revolved_surface, solid, spline, sun, swept_surface,
-    text, three_d_face, tolerance, trace, underlay, vertex, viewport, wipeout, xline,
+    geodata, hatch, helix, image, insert, leader, light, line, lofted_surface, lwpolyline, mesh,
+    mleader, mtext, ole2_frame, point, polyface_mesh, polygon_mesh, polyline, ray,
+    revolved_surface, solid, spline, sun, swept_surface, text, three_d_face, tolerance, trace,
+    underlay, vertex, viewport, wipeout, xline,
 };
 use crate::error::{Error, Result};
 use crate::object::RawObject;
@@ -66,6 +67,9 @@ pub enum DecodedEntity {
     Vertex(vertex::Vertex),
     Polyline(polyline::Polyline),
     LwPolyline(lwpolyline::LwPolyline),
+    Mesh(mesh::Mesh),
+    PolyfaceMesh(polyface_mesh::PolyfaceMesh),
+    PolygonMesh(polygon_mesh::PolygonMesh),
     Dimension(dimension::Dimension),
     Leader(leader::Leader),
     Image(image::Image),
@@ -138,6 +142,12 @@ impl DecodedEntity {
             Self::Vertex(_) => OBJECT_TYPE_VERTEX_2D,
             Self::Polyline(_) => OBJECT_TYPE_POLYLINE_2D,
             Self::LwPolyline(_) => OBJECT_TYPE_LWPOLYLINE,
+            // MESH (subdivision) is a custom class — code varies per
+            // file via AcDb:Classes. Return 0 so callers consult the
+            // class map.
+            Self::Mesh(_) => 0,
+            Self::PolyfaceMesh(_) => OBJECT_TYPE_POLYLINE_PFACE,
+            Self::PolygonMesh(_) => OBJECT_TYPE_POLYLINE_MESH,
             Self::Dimension(_) => OBJECT_TYPE_DIMENSION_LINEAR_SENTINEL,
             Self::Leader(_) => OBJECT_TYPE_LEADER,
             // IMAGE is a custom class; there is no fixed code. Return 0
@@ -200,6 +210,12 @@ const OBJECT_TYPE_ENDBLK: u16 = 0x05; // 5
 const OBJECT_TYPE_INSERT: u16 = 0x07; // 7
 const OBJECT_TYPE_VERTEX_2D: u16 = 0x0A; // 10
 const OBJECT_TYPE_POLYLINE_2D: u16 = 0x0F; // 15
+// Legacy mesh entities — POLYFACE_MESH (face-list) + POLYGON_MESH (M×N grid).
+// Vertex data for both lives in a handle chain of VERTEX_PFACE /
+// VERTEX_MESH sub-entities — the headers decoded here carry only the
+// counts + handle-chain endpoints.
+const OBJECT_TYPE_POLYLINE_PFACE: u16 = 0x1D; // 29 — POLYFACE_MESH
+const OBJECT_TYPE_POLYLINE_MESH: u16 = 0x1E; // 30 — POLYGON_MESH
 const OBJECT_TYPE_ARC: u16 = 0x11; // 17 (spec says ARC, was incorrectly CIRCLE)
 const OBJECT_TYPE_CIRCLE: u16 = 0x12; // 18 (spec says CIRCLE, was incorrectly ARC)
 const OBJECT_TYPE_LINE: u16 = 0x13; // 19
@@ -323,6 +339,12 @@ pub fn decode_from_raw_with_class_map(
         }
         "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor)
             .map(DecodedEntity::Wipeout)
+            .map_err(|e| e.to_string()),
+        // MESH (subdivision surface) — R2010+ custom class §19.4.66.
+        // Class name varies slightly across AutoCAD versions; all three
+        // observed names dispatch to the same decoder.
+        "MESH" | "ACDBSUBDMESH" | "ACDBMESH" => mesh::decode(&mut cursor, version)
+            .map(DecodedEntity::Mesh)
             .map_err(|e| e.to_string()),
         _ => {
             return DecodedEntity::Unhandled {
@@ -564,6 +586,12 @@ fn dispatch(
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_LWPOLYLINE => lwpolyline::decode(cursor)
             .map(DecodedEntity::LwPolyline)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_POLYLINE_PFACE => polyface_mesh::decode(cursor)
+            .map(DecodedEntity::PolyfaceMesh)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_POLYLINE_MESH => polygon_mesh::decode(cursor)
+            .map(DecodedEntity::PolygonMesh)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_LEADER => leader::decode(cursor)
             .map(DecodedEntity::Leader)
