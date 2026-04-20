@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn roundtrip_empty_extension() {
-        let mut w = BitWriter::new();
+        let w = BitWriter::new();
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let ext = decode(&mut c, Version::R2000, 0).unwrap();
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn rejects_excessive_entry_count() {
-        let mut w = BitWriter::new();
+        let w = BitWriter::new();
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let err = decode(&mut c, Version::R2000, MAX_CLASS_MAP_EXTENSIONS + 1).unwrap_err();

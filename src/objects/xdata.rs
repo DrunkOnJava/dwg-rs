@@ -129,7 +129,7 @@ fn decode_item(c: &mut BitCursor<'_>, version: Version, code: u16) -> Result<XDa
                 point: Point3D { x, y, z },
             })
         }
-        1020..=1029 | 1030..=1039 | 1040..=1042 => {
+        1020..=1042 => {
             let value = c.read_bd()?;
             Ok(XDataItem::Real { code, value })
         }
@@ -206,7 +206,10 @@ mod tests {
         assert_eq!(x.items.len(), 7);
         assert!(matches!(&x.items[0], XDataItem::String { value, .. } if value == "hello"));
         assert!(matches!(&x.items[1], XDataItem::Short { value: 42, .. }));
-        assert!(matches!(&x.items[2], XDataItem::Long { value: 100_000, .. }));
+        assert!(matches!(
+            &x.items[2],
+            XDataItem::Long { value: 100_000, .. }
+        ));
         assert!(
             matches!(&x.items[3], XDataItem::Real { value, .. } if (*value - 2.5).abs() < 1e-9)
         );
