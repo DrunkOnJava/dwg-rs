@@ -245,6 +245,90 @@ pub fn verify(codeword: &mut [u8]) -> Result<()> {
     }
 }
 
+// ================================================================
+// L4-57 / #279 — R21+ RS-FEC stream (multi-codeword) decode
+// ================================================================
+
+/// Verify every 255-byte codeword in a block of concatenated codewords.
+///
+/// R2004+ section payloads that carry Reed-Solomon FEC are stored as
+/// N×255 bytes (N ≥ 1). This helper walks the block codeword-by-codeword
+/// and calls [`verify`] on each; short-circuits on the first un-
+/// correctable failure.
+///
+/// # Errors
+/// - [`Error::SectionMap`] if `block.len()` is not a multiple of
+///   [`CODEWORD_BYTES`] (ODA §4.1 requires the block length be an
+///   integer multiple of 255 with the final chunk zero-padded).
+/// - Whatever [`verify`] surfaces on the first un-correctable codeword.
+///
+/// On `Ok`, the block is correction-applied in place: each corrupted
+/// byte has been XOR'd with the computed error magnitude.
+pub fn verify_stream(block: &mut [u8]) -> Result<()> {
+    if block.len() % CODEWORD_BYTES != 0 {
+        return Err(Error::SectionMap(format!(
+            "Reed-Solomon stream must be a multiple of {CODEWORD_BYTES} bytes, got {}",
+            block.len()
+        )));
+    }
+    for chunk in block.chunks_exact_mut(CODEWORD_BYTES) {
+        verify(chunk)?;
+    }
+    Ok(())
+}
+
+/// Decode a systematic-RS stream into the message bytes.
+///
+/// Each 255-byte codeword carries 239 message bytes followed by 16
+/// parity bytes. This helper calls [`verify_stream`] to correct
+/// in-place, then concatenates the message portions into
+/// `message_out` (extending it in place — does not clear).
+///
+/// If `message_len` is Some, the output is truncated to that many
+/// bytes. Use this when the caller knows the original message length
+/// (e.g. from the surrounding section-page header) — the final
+/// codeword's zero padding is stripped via the truncation rather
+/// than heuristically. If `message_len` is None, every message
+/// portion is appended verbatim including any trailing zero padding.
+///
+/// # Errors
+/// Same as [`verify_stream`]. Additionally, an explicit `message_len`
+/// that exceeds the total message capacity (`N * MESSAGE_BYTES`)
+/// returns [`Error::SectionMap`].
+pub fn decode_stream(
+    block: &mut [u8],
+    message_out: &mut Vec<u8>,
+    message_len: Option<usize>,
+) -> Result<()> {
+    verify_stream(block)?;
+    let codeword_count = block.len() / CODEWORD_BYTES;
+    let total_capacity = codeword_count * MESSAGE_BYTES;
+    if let Some(len) = message_len {
+        if len > total_capacity {
+            return Err(Error::SectionMap(format!(
+                "Reed-Solomon decode: message_len {len} exceeds codeword capacity {total_capacity}"
+            )));
+        }
+    }
+    // Append each codeword's first 239 bytes.
+    for chunk in block.chunks_exact(CODEWORD_BYTES) {
+        message_out.extend_from_slice(&chunk[..MESSAGE_BYTES]);
+    }
+    if let Some(len) = message_len {
+        // Trim padding from the last codeword.
+        let extra = total_capacity - len;
+        message_out.truncate(message_out.len() - extra);
+    }
+    Ok(())
+}
+
+/// Compute the minimum number of 255-byte codewords needed to carry
+/// `message_bytes`. Useful for sizing buffers before
+/// [`decode_stream`].
+pub fn codewords_for_message(message_bytes: usize) -> usize {
+    message_bytes.div_ceil(MESSAGE_BYTES)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
