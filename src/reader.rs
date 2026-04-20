@@ -173,6 +173,7 @@ impl DwgFile {
                     size: 0,
                     compressed: false,
                     encrypted: false,
+                    ..Section::default()
                 });
             }
             // Synthetic placeholder. R2007 files have real sections but
@@ -187,6 +188,7 @@ impl DwgFile {
                 size: (bytes.len() as u64).saturating_sub(0x80),
                 compressed: true,
                 encrypted: true,
+                ..Section::default()
             });
             Ok(Self {
                 bytes,
@@ -637,6 +639,7 @@ fn extract_r2004_sections_full(bytes: &[u8], header: &R2004Header) -> Result<Vec
             size: d.size,
             compressed: d.compressed == 2,
             encrypted: d.encrypted == 1,
+            ..Section::default()
         });
     }
     Ok(out)
@@ -657,6 +660,7 @@ fn extract_r2004_sections_stub(bytes: &[u8], header: &R2004Header) -> Result<Vec
         size: 0, // unknown without decompressing
         compressed: true,
         encrypted: false,
+        ..Section::default()
     });
 
     // 2. Summary Info — if the file_header pointer is non-zero.
@@ -668,6 +672,7 @@ fn extract_r2004_sections_stub(bytes: &[u8], header: &R2004Header) -> Result<Vec
             size: 0,
             compressed: false,
             encrypted: false,
+            ..Section::default()
         });
     }
 
@@ -680,6 +685,7 @@ fn extract_r2004_sections_stub(bytes: &[u8], header: &R2004Header) -> Result<Vec
             size: 0,
             compressed: false,
             encrypted: false,
+            ..Section::default()
         });
     }
 
@@ -692,6 +698,7 @@ fn extract_r2004_sections_stub(bytes: &[u8], header: &R2004Header) -> Result<Vec
             size: 0,
             compressed: false,
             encrypted: false,
+            ..Section::default()
         });
     }
 
@@ -704,6 +711,7 @@ fn extract_r2004_sections_stub(bytes: &[u8], header: &R2004Header) -> Result<Vec
             size: 0,
             compressed: false,
             encrypted: false,
+            ..Section::default()
         });
     }
 
@@ -766,6 +774,7 @@ fn sniff_first_page_at_0x100(bytes: &[u8]) -> Option<Section> {
         size: comp_size,
         compressed: true,
         encrypted: true,
+        ..Section::default()
     })
 }
 

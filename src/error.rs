@@ -116,4 +116,36 @@ pub enum Error {
         offset: u64,
         reason: String,
     },
+
+    /// The object walker's running count (successful + errored +
+    /// skipped) exceeded the configured
+    /// [`crate::limits::WalkerLimits::max_handles`] cap. Prevents
+    /// adversarial DWGs with fabricated handle-map entries from
+    /// exhausting memory by triggering a runaway decode pass.
+    #[error(
+        "object walker: visited {seen} records, exceeds configured max_handles \
+         limit {limit} (DoS defense per SECURITY.md)"
+    )]
+    WalkerLimitExceeded {
+        /// Cap that was tripped (matches
+        /// [`crate::limits::WalkerLimits::max_handles`]).
+        limit: usize,
+        /// Count of records visited at the point the cap tripped.
+        seen: usize,
+    },
+
+    /// The strict parse posture encountered a record with an
+    /// [`crate::object_type::ObjectType::Unknown`] type code —
+    /// i.e. a value in a range the spec reserves but this file uses.
+    /// Lossy mode records such codes in the walk summary instead.
+    #[error(
+        "strict parse: unknown object type code 0x{type_code:X} at stream offset {offset} \
+         (reserved range; lossy mode collects these into a diagnostic list)"
+    )]
+    UnknownObjectType {
+        /// The on-disk type code (pre-classification).
+        type_code: u16,
+        /// Byte offset into the decompressed `AcDb:AcDbObjects` stream.
+        offset: u64,
+    },
 }

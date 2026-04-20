@@ -71,6 +71,22 @@ pub enum Curve {
         radius: f64,
         turns: f64,
     },
+    /// TEXT baseline anchor (L8-16). Carries the geometric *placement*
+    /// of a single-line text entity — insertion point, character height,
+    /// rotation, and the literal content — without tessellating glyph
+    /// outlines. Glyph rendering is a separate concern handled by the
+    /// SVG/glTF font loader, not by the curve abstraction.
+    ///
+    /// `style_name` is the DWG `STYLE` table reference (font, oblique,
+    /// width factor) when known. `None` means the writer used the
+    /// default style.
+    TextBaseline {
+        insertion: Point3D,
+        height: f64,
+        rotation: f64,
+        content: String,
+        style_name: Option<String>,
+    },
 }
 
 /// One vertex of a polyline. `bulge` is the arc bulge factor between
@@ -159,6 +175,31 @@ impl Curve {
                     min: Point3D::new(bb.min.x - r, bb.min.y - r, bb.min.z - r),
                     max: Point3D::new(bb.max.x + r, bb.max.y + r, bb.max.z + r),
                 }
+            }
+            Curve::TextBaseline {
+                insertion,
+                height,
+                rotation,
+                content,
+                ..
+            } => {
+                // Conservative bound: a box `height` tall by an estimated
+                // string-width-by-height ratio (1.0 per character — DWG's
+                // default `width_factor`) wide, anchored at `insertion`
+                // and rotated by `rotation` around it.
+                let cols = content.chars().count().max(1) as f64;
+                let w = height * cols;
+                let h = *height;
+                let (s, c) = rotation.sin_cos();
+                // Four corner offsets in local (pre-rotation) frame.
+                let corners = [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)];
+                let mut bb = BBox3::empty();
+                for (lx, ly) in corners {
+                    let wx = insertion.x + lx * c - ly * s;
+                    let wy = insertion.y + lx * s + ly * c;
+                    bb = bb.expand(Point3D::new(wx, wy, insertion.z));
+                }
+                bb
             }
         }
     }

@@ -11,6 +11,16 @@
 //! Sections are named (UTF-16LE strings up to 64 bytes) and looked up via
 //! the section info table. A section can be flagged compressed (LZ77) and/or
 //! encrypted (Sec_Mask XOR).
+//!
+//! # Decode diagnostics
+//!
+//! [`Section`] carries a small set of post-hoc diagnostic fields
+//! ([`Section::decode_attempted`], [`Section::decode_succeeded`],
+//! [`Section::decompressed_bytes`]) that a caller may populate after
+//! running [`crate::reader::DwgFile::read_section`] to remember the
+//! outcome alongside the section's locator metadata. The fields are
+//! optional and default to "not attempted"; [`Section::diagnostics`]
+//! renders them as a printable [`SectionDiagnostics`] view.
 
 use std::fmt;
 
@@ -32,6 +42,147 @@ pub struct Section {
     pub compressed: bool,
     /// R2004+: is this section's payload XOR-encrypted (Sec_Mask)?
     pub encrypted: bool,
+    /// Post-hoc diagnostic: did a caller try to decode / decompress this
+    /// section? Populated by the reader via [`Section::mark_decode_attempt`]
+    /// after calling [`crate::reader::DwgFile::read_section`]. Defaults to
+    /// `false` — the bare section list carries locator metadata only.
+    pub decode_attempted: bool,
+    /// Post-hoc diagnostic: did the decode / decompress succeed? Only
+    /// meaningful when `decode_attempted` is `true`.
+    pub decode_succeeded: bool,
+    /// Post-hoc diagnostic: number of bytes produced by the decompress /
+    /// decrypt pipeline, when one ran. `None` when no attempt has been
+    /// made or the attempt failed before producing output.
+    pub decompressed_bytes: Option<usize>,
+}
+
+impl Default for Section {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            kind: SectionKind::Unknown,
+            offset: 0,
+            size: 0,
+            compressed: false,
+            encrypted: false,
+            decode_attempted: false,
+            decode_succeeded: false,
+            decompressed_bytes: None,
+        }
+    }
+}
+
+impl Section {
+    /// Record a successful decode attempt with the number of bytes
+    /// produced by the decompress / decrypt pipeline. Idempotent —
+    /// safe to call twice from different call sites.
+    pub fn mark_decode_success(&mut self, decompressed_bytes: usize) {
+        self.decode_attempted = true;
+        self.decode_succeeded = true;
+        self.decompressed_bytes = Some(decompressed_bytes);
+    }
+
+    /// Record a failed decode attempt. Leaves `decompressed_bytes`
+    /// unset if the failure happened before any output was produced.
+    pub fn mark_decode_failure(&mut self) {
+        self.decode_attempted = true;
+        self.decode_succeeded = false;
+    }
+
+    /// Ratio of decompressed to on-disk compressed size. `None` when
+    /// no decode has been attempted, when the attempt failed before
+    /// producing output, or when the on-disk size is zero (which
+    /// would divide by zero).
+    ///
+    /// A ratio of `1.0` means the section was uncompressed or
+    /// decompressed to exactly the on-disk size; larger values
+    /// indicate the expected "decompression amplification" of a
+    /// compressed section. Useful as a coarse reasonableness check
+    /// when enforcing [`crate::limits::OpenLimits::max_section_bytes`].
+    pub fn compression_ratio(&self) -> Option<f64> {
+        let decomp = self.decompressed_bytes?;
+        if self.size == 0 {
+            return None;
+        }
+        Some(decomp as f64 / self.size as f64)
+    }
+
+    /// Render the section's post-hoc diagnostic fields as a printable
+    /// [`SectionDiagnostics`] view. Used by the `dwg-info` / `dwg-dump`
+    /// CLI output so operators can see which sections a given tool
+    /// actually touched without grepping for them.
+    pub fn diagnostics(&self) -> SectionDiagnostics<'_> {
+        SectionDiagnostics {
+            name: &self.name,
+            kind: self.kind,
+            compressed: self.compressed,
+            encrypted: self.encrypted,
+            on_disk_bytes: self.size,
+            decode_attempted: self.decode_attempted,
+            decode_succeeded: self.decode_succeeded,
+            decompressed_bytes: self.decompressed_bytes,
+            compression_ratio: self.compression_ratio(),
+        }
+    }
+}
+
+/// Printable diagnostic view over a [`Section`]. Kept as a flat struct
+/// of primitives so it can be formatted directly by a CLI or serialized
+/// by a future JSON output path without pulling a `serde` feature in.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SectionDiagnostics<'a> {
+    /// Borrow of the section's canonical name.
+    pub name: &'a str,
+    /// Section classification.
+    pub kind: SectionKind,
+    /// LZ77-compressed on disk.
+    pub compressed: bool,
+    /// Sec_Mask XOR-encrypted on disk.
+    pub encrypted: bool,
+    /// On-disk byte size (compressed size when `compressed` is true).
+    pub on_disk_bytes: u64,
+    /// A caller invoked the decode path on this section.
+    pub decode_attempted: bool,
+    /// The decode path produced output.
+    pub decode_succeeded: bool,
+    /// Decompressed byte count, when a successful decode captured it.
+    pub decompressed_bytes: Option<usize>,
+    /// `decompressed_bytes / on_disk_bytes`, when both are known.
+    pub compression_ratio: Option<f64>,
+}
+
+impl<'a> fmt::Display for SectionDiagnostics<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{name:<28} kind={kind:<12} on_disk={on_disk:>10} bytes",
+            name = self.name,
+            kind = self.kind.short_label(),
+            on_disk = self.on_disk_bytes,
+        )?;
+        if self.compressed {
+            f.write_str(" [compressed]")?;
+        }
+        if self.encrypted {
+            f.write_str(" [encrypted]")?;
+        }
+        if !self.decode_attempted {
+            f.write_str(" [decode: not attempted]")?;
+        } else if self.decode_succeeded {
+            match (self.decompressed_bytes, self.compression_ratio) {
+                (Some(b), Some(r)) => {
+                    write!(f, " [decoded: {b} bytes, ratio {r:.2}x]")?;
+                }
+                (Some(b), None) => {
+                    write!(f, " [decoded: {b} bytes]")?;
+                }
+                _ => f.write_str(" [decoded: ok]")?,
+            }
+        } else {
+            f.write_str(" [decode: failed]")?;
+        }
+        Ok(())
+    }
 }
 
 /// Classification of a section by role.
@@ -198,5 +349,84 @@ mod tests {
         assert_eq!(SectionKind::Header.short_label(), "header");
         assert_eq!(SectionKind::Handles.short_label(), "handles");
         assert_eq!(SectionKind::Preview.short_label(), "preview");
+    }
+
+    #[test]
+    fn default_section_has_no_decode_attempt() {
+        let s = Section::default();
+        assert!(!s.decode_attempted);
+        assert!(!s.decode_succeeded);
+        assert_eq!(s.decompressed_bytes, None);
+        assert_eq!(s.compression_ratio(), None);
+    }
+
+    #[test]
+    fn mark_decode_success_sets_all_three() {
+        let mut s = Section {
+            name: "AcDb:Header".to_string(),
+            kind: SectionKind::Header,
+            offset: 0x120,
+            size: 200,
+            compressed: true,
+            encrypted: true,
+            ..Default::default()
+        };
+        s.mark_decode_success(800);
+        assert!(s.decode_attempted);
+        assert!(s.decode_succeeded);
+        assert_eq!(s.decompressed_bytes, Some(800));
+        // 800 / 200 = 4.0
+        assert_eq!(s.compression_ratio(), Some(4.0));
+    }
+
+    #[test]
+    fn mark_decode_failure_does_not_set_decompressed_bytes() {
+        let mut s = Section::default();
+        s.mark_decode_failure();
+        assert!(s.decode_attempted);
+        assert!(!s.decode_succeeded);
+        assert_eq!(s.decompressed_bytes, None);
+    }
+
+    #[test]
+    fn compression_ratio_is_none_when_on_disk_size_is_zero() {
+        let mut s = Section {
+            size: 0,
+            ..Default::default()
+        };
+        s.mark_decode_success(500);
+        assert_eq!(s.compression_ratio(), None);
+    }
+
+    #[test]
+    fn diagnostics_view_renders_human_readable() {
+        let mut s = Section {
+            name: "AcDb:Header".to_string(),
+            kind: SectionKind::Header,
+            offset: 0x120,
+            size: 200,
+            compressed: true,
+            encrypted: false,
+            ..Default::default()
+        };
+        s.mark_decode_success(800);
+        let out = format!("{}", s.diagnostics());
+        assert!(out.contains("AcDb:Header"));
+        assert!(out.contains("header"));
+        assert!(out.contains("compressed"));
+        assert!(out.contains("decoded"));
+        assert!(out.contains("800"));
+    }
+
+    #[test]
+    fn diagnostics_view_flags_not_attempted() {
+        let s = Section {
+            name: "AcDb:Preview".to_string(),
+            kind: SectionKind::Preview,
+            size: 12345,
+            ..Default::default()
+        };
+        let out = format!("{}", s.diagnostics());
+        assert!(out.contains("not attempted"));
     }
 }

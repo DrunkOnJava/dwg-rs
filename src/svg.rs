@@ -37,9 +37,44 @@
 //! preserves CAD coordinates verbatim and applies the flip at the
 //! root `<svg>` transform (`transform="scale(1,-1) translate(0,-H)"`).
 //! Downstream renderers can override by passing a custom viewBox.
+//!
+//! # Paper space vs model space (L9-10)
+//!
+//! A DWG document has one model space plus zero or more paper-space
+//! layouts (title-block sheets). [`SvgSpace`] selects which one the
+//! document renders; [`SvgDoc::with_space`] sets it at construction time
+//! and the root `<g>` gets a `data-layout="LAYOUT_NAME"` attribute in
+//! paper mode so downstream tooling can distinguish model-space output
+//! from paper-space sheets (title block, drawing frame, viewports).
+//!
+//! # PDF export (L9-13)
+//!
+//! [`SvgDoc::to_pdf_via_paged_svg`] emits an SVG shaped for browser-based
+//! "Save as PDF" (headless Chromium). First-class PDF generation without
+//! an external browser is deferred; see the function's docstring for the
+//! headless-chromium workflow and the `L9-13a` follow-up TODO.
 
 use crate::curve::{Curve, Path, PolylineVertex};
 use crate::entities::Point3D;
+use crate::error::Result;
+
+/// Which DWG space a [`SvgDoc`] is rendering.
+///
+/// A DWG document always has one model space (`Model`) plus zero or more
+/// paper-space layouts; each layout is identified by its name (e.g.
+/// `"Layout1"`, `"ISO A4"`). When the document is a paper-space layout,
+/// the root `<g>` gets a `data-layout="LAYOUT_NAME"` attribute so
+/// downstream tooling can distinguish the two — title blocks, drawing
+/// frames, and viewport definitions all live in paper space and must be
+/// rendered differently from the underlying model-space geometry.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum SvgSpace {
+    /// Model space — the CAD drawing itself. This is the default.
+    #[default]
+    Model,
+    /// Paper-space layout with the given name (e.g. `"Layout1"`).
+    Paper(String),
+}
 
 /// A render-time style for an SVG element.
 #[derive(Debug, Clone)]
@@ -75,23 +110,56 @@ pub struct SvgDoc {
     height: f64,
     body: String,
     current_layer: Option<String>,
+    /// Which DWG space this document is rendering (model vs paper).
+    /// Defaults to [`SvgSpace::Model`]; set with [`Self::with_space`].
+    space: SvgSpace,
     /// Hatch pattern `<defs>` blocks, deduplicated by pattern id.
     /// Each entry is the inner SVG string for one `<pattern>` element.
     /// Emitted at the document root by [`SvgDoc::finish`] so patterns
     /// can be referenced by `fill="url(#hatch-NAME)"` from any layer.
     pattern_defs: Vec<String>,
+    /// `<clipPath>` `<defs>` blocks, deduplicated by clip-path id.
+    /// Each entry is the inner SVG string for one `<clipPath>` element.
+    /// Emitted at the document root by [`SvgDoc::finish`] so viewports
+    /// can be referenced by `clip-path="url(#clip-N)"` from any layer.
+    /// Mirrors the dedupe strategy used for `pattern_defs`.
+    clip_paths: Vec<String>,
 }
 
 impl SvgDoc {
     /// Start a new document with the given canvas size in CAD units.
+    /// The document defaults to [`SvgSpace::Model`]; call [`Self::with_space`]
+    /// to render a paper-space layout instead.
     pub fn new(width: f64, height: f64) -> Self {
         SvgDoc {
             width,
             height,
             body: String::new(),
             current_layer: None,
+            space: SvgSpace::Model,
             pattern_defs: Vec::new(),
+            clip_paths: Vec::new(),
         }
+    }
+
+    /// Set which DWG space this document is rendering. When `space` is
+    /// [`SvgSpace::Paper`], the root `<g>` that wraps the flipped-Y
+    /// content emits an extra `data-layout="LAYOUT_NAME"` attribute so
+    /// downstream tooling can tell paper-space sheets from model-space
+    /// drawings (they have different coordinate conventions, title
+    /// blocks, viewport definitions, etc.).
+    ///
+    /// Consuming builder — call this immediately after [`Self::new`]:
+    ///
+    /// ```
+    /// use dwg::svg::{SvgDoc, SvgSpace};
+    /// let doc = SvgDoc::new(800.0, 600.0).with_space(SvgSpace::Paper("Layout1".into()));
+    /// let s = doc.finish();
+    /// assert!(s.contains("data-layout=\"Layout1\""));
+    /// ```
+    pub fn with_space(mut self, space: SvgSpace) -> Self {
+        self.space = space;
+        self
     }
 
     /// Begin a named layer group. All subsequent elements go into this
@@ -188,6 +256,24 @@ impl SvgDoc {
                 // renderer should sample the curve + emit polyline.
                 self.body.push_str(&format!(
                     "{indent}<!-- spline/helix: tessellate before emit -->\n"
+                ));
+            }
+            Curve::TextBaseline {
+                insertion,
+                height,
+                rotation,
+                content,
+                ..
+            } => {
+                // Glyph rendering is the SVG layer's job; emit a
+                // placement-only `<text>` so consumers see content at
+                // the right anchor and rotation.
+                let safe = svg_escape_attr(content);
+                let deg = rotation.to_degrees();
+                self.body.push_str(&format!(
+                    "{indent}<text x=\"{}\" y=\"{}\" font-size=\"{}\" \
+                     transform=\"rotate({deg} {} {})\"{style_attr}{handle_attr}>{safe}</text>\n",
+                    insertion.x, insertion.y, height, insertion.x, insertion.y
                 ));
             }
         }
@@ -796,6 +882,243 @@ impl SvgDoc {
         ));
     }
 
+    /// Append a title-block frame (L9-11) at `position` with the given
+    /// `width` × `height` and a generic label→value field list.
+    ///
+    /// Emits:
+    ///   * one closed `<path>` forming the outer rectangle (black stroke,
+    ///     no fill, stroke-width `0.5`) — the drawing frame;
+    ///   * one `<text>` element per `(label, value)` pair, laid out
+    ///     top-down along the right edge of the frame in Arial at a font
+    ///     size derived from the frame height (≈ 3% of `height`, clamped
+    ///     to a sensible minimum).
+    ///
+    /// `fields` is intentionally generic — callers supply whatever schema
+    /// their title block uses (Drawing Number, Revision, Date, Scale,
+    /// Sheet Size, Project, Designer, Checked By, …). No assumptions are
+    /// baked into the writer about which labels are present or their
+    /// order; the caller owns the layout contract.
+    ///
+    /// Text uses [`resolve_font_family`] so `.shx` fallbacks and the
+    /// existing font machinery behave the same way as [`Self::push_text`].
+    pub fn push_title_block(
+        &mut self,
+        position: Point3D,
+        width: f64,
+        height: f64,
+        fields: &[(String, String)],
+    ) {
+        let indent = self.current_indent();
+        let x = position.x;
+        let y = position.y;
+        // Closed rectangular frame — path rather than <rect> so the
+        // callers that post-process SVG geometry see the same tag family
+        // as other boundary emitters (hatches, viewports).
+        self.body.push_str(&format!(
+            "{indent}<path d=\"M {x} {y} L {x2} {y} L {x2} {y2} L {x} {y2} Z\" \
+             stroke=\"#000000\" fill=\"none\" stroke-width=\"0.5\" \
+             data-role=\"title-block-frame\"/>\n",
+            x2 = x + width,
+            y2 = y + height,
+        ));
+        if fields.is_empty() {
+            return;
+        }
+        // Field text: laid out top-down along the inside-right edge of
+        // the frame, one row per field. Font size scales with the frame
+        // height so small frames don't blow up and large frames don't
+        // render tiny; clamp to at least 1.0 CAD unit for legibility.
+        let row_count = fields.len() as f64;
+        let font_size = (height * 0.03).max(height / (row_count * 1.5 + 1.0).max(2.0));
+        let row_height = font_size * 1.6;
+        let label_x = x + width * 0.55;
+        let value_x = x + width * 0.95;
+        let resolved_font = resolve_font_family("Arial");
+        let font_escaped = svg_escape_attr(&resolved_font);
+        let top_y = y + height - row_height * 0.8;
+        for (i, (label, value)) in fields.iter().enumerate() {
+            let row_y = top_y - (i as f64) * row_height;
+            // Counter-flip Y so glyphs read right-side-up under the root
+            // flip — identical transform shape used by push_text.
+            let label_transform = format!(
+                " transform=\"translate({lx},{ry}) scale(1,-1) translate({nlx},{nry})\"",
+                lx = label_x,
+                ry = row_y,
+                nlx = -label_x,
+                nry = -row_y,
+            );
+            let value_transform = format!(
+                " transform=\"translate({vx},{ry}) scale(1,-1) translate({nvx},{nry})\"",
+                vx = value_x,
+                ry = row_y,
+                nvx = -value_x,
+                nry = -row_y,
+            );
+            self.body.push_str(&format!(
+                "{indent}<text x=\"{label_x}\" y=\"{row_y}\" \
+                 font-family=\"{font_escaped}\" font-size=\"{font_size}\" \
+                 fill=\"#000000\"{label_transform} \
+                 data-role=\"title-block-label\">{label_text}</text>\n",
+                label_text = svg_escape_text(label),
+            ));
+            self.body.push_str(&format!(
+                "{indent}<text x=\"{value_x}\" y=\"{row_y}\" \
+                 font-family=\"{font_escaped}\" font-size=\"{font_size}\" \
+                 text-anchor=\"end\" fill=\"#000000\"{value_transform} \
+                 data-role=\"title-block-value\">{value_text}</text>\n",
+                value_text = svg_escape_text(value),
+            ));
+        }
+    }
+
+    /// Append a paper-space viewport (L9-12) at `position` with the given
+    /// `width` × `height`. The viewport defines a clipping region for
+    /// model-space content projected onto a paper-space sheet.
+    ///
+    /// Emits:
+    ///   * one `<clipPath id="clip-NNN">` in the document `<defs>` block
+    ///     (deduplicated via [`Self::clip_paths`] — repeated registrations
+    ///     of the same id are no-ops); the clip path is a rectangular
+    ///     region `width` × `height` in CAD units;
+    ///   * one opening `<g clip-path="url(#clip-NNN)">` in the body.
+    ///
+    /// Subsequent `push_*` calls write elements that are clipped by the
+    /// viewport rectangle. Call [`Self::pop_clip`] to close the group.
+    ///
+    /// `clip_path_id` is the raw id the caller wants to use (e.g.
+    /// `"viewport-42"`); the `clip-` prefix is added automatically so the
+    /// final element id is `clip-viewport-42`. Non-ASCII characters are
+    /// escaped per [`svg_escape_attr`] but callers are encouraged to use
+    /// ids matching `[A-Za-z0-9_-]+`.
+    pub fn push_viewport(
+        &mut self,
+        position: Point3D,
+        width: f64,
+        height: f64,
+        clip_path_id: &str,
+    ) {
+        let indent = self.current_indent();
+        let full_id = format!("clip-{clip_path_id}");
+        let safe_id = svg_escape_attr(&full_id);
+        let x = position.x;
+        let y = position.y;
+        // Register the clipPath once — dedupe by id against any previous
+        // registration so a caller can emit the same viewport id twice
+        // without producing a malformed defs block.
+        let needle = format!("id=\"{safe_id}\"");
+        if !self.clip_paths.iter().any(|d| d.contains(&needle)) {
+            self.clip_paths.push(format!(
+                "<clipPath id=\"{safe_id}\">\
+                 <path d=\"M {x} {y} L {x2} {y} L {x2} {y2} L {x} {y2} Z\"/>\
+                 </clipPath>",
+                x2 = x + width,
+                y2 = y + height,
+            ));
+        }
+        self.body.push_str(&format!(
+            "{indent}<g clip-path=\"url(#{safe_id})\" data-role=\"viewport\">\n"
+        ));
+    }
+
+    /// Close the most recent [`Self::push_viewport`] (or any caller-managed
+    /// clip group). Emits the matching `</g>`. Balanced pairing is the
+    /// caller's responsibility — this method does not validate that an
+    /// open clip group exists and will happily emit an unbalanced tag if
+    /// called incorrectly.
+    pub fn pop_clip(&mut self) {
+        let indent = self.current_indent();
+        self.body.push_str(&format!("{indent}</g>\n"));
+    }
+
+    /// Render this document as an SVG shaped for browser-based PDF
+    /// export (L9-13) via headless Chromium. Returns the SVG bytes.
+    ///
+    /// `page_size` is the target page size in millimetres (e.g.
+    /// `(210.0, 297.0)` for ISO A4 portrait). `dpi` is the resolution
+    /// the browser should use when rasterizing the page (typically
+    /// `96.0` for web or `300.0` for print-quality).
+    ///
+    /// The returned SVG embeds a `<style>` block containing a CSS
+    /// `@page { size: Wmm Hmm; margin: 0; }` rule and sets the root
+    /// `<svg>` element's width/height to the physical page size. Paired
+    /// with headless Chromium's "print to PDF" mode, this produces a
+    /// pixel-accurate PDF without pulling a heavyweight PDF crate into
+    /// the dependency tree:
+    ///
+    /// ```text
+    /// chromium --headless --print-to-pdf=out.pdf file:///path/to/input.svg
+    /// ```
+    ///
+    /// First-class PDF generation (an embedded PDF writer that doesn't
+    /// depend on an external browser) is deferred to a follow-up task;
+    /// the open TODO is tracked as `L9-13a` — see the module docs.
+    pub fn to_pdf_via_paged_svg(&self, page_size: (f64, f64), dpi: f64) -> Result<Vec<u8>> {
+        let (w_mm, h_mm) = page_size;
+        // Compute pixel size from mm × dpi. The `@page` rule uses raw
+        // millimetres so the PDF rasterizer sees a physical page; the
+        // `<svg width="…px">` attribute is for browsers that don't
+        // honor `@page` (e.g. older headless Chromium) so the SVG still
+        // lays out at the correct pixel size in a viewport.
+        let mm_per_inch = 25.4;
+        let w_px = w_mm / mm_per_inch * dpi;
+        let h_px = h_mm / mm_per_inch * dpi;
+        // Rebuild the SVG body with paged-SVG framing. This mirrors the
+        // shape of `finish()` but takes a borrowed self (no consume) so
+        // the caller can keep using the document if desired.
+        let mut out = String::new();
+        out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        out.push_str(&format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" \
+             xmlns:inkscape=\"http://www.inkscape.org/namespaces/inkscape\" \
+             width=\"{w_mm}mm\" height=\"{h_mm}mm\" \
+             viewBox=\"0 0 {inner_w} {inner_h}\" \
+             data-print-dpi=\"{dpi}\" data-print-page-mm=\"{w_mm}x{h_mm}\" \
+             data-print-page-px=\"{w_px}x{h_px}\">\n",
+            inner_w = self.width,
+            inner_h = self.height,
+        ));
+        // CSS @page rule — honored by headless Chromium in print mode.
+        // The `size` declaration uses millimetres so the PDF is
+        // dimensioned in physical units regardless of the SVG's
+        // internal user-unit coordinate system.
+        out.push_str(&format!(
+            "  <style>\n\
+             @page {{ size: {w_mm}mm {h_mm}mm; margin: 0; }}\n\
+             svg {{ width: {w_mm}mm; height: {h_mm}mm; }}\n\
+             </style>\n"
+        ));
+        if !self.pattern_defs.is_empty() || !self.clip_paths.is_empty() {
+            out.push_str("  <defs>\n");
+            for def in &self.pattern_defs {
+                out.push_str("    ");
+                out.push_str(def);
+                out.push('\n');
+            }
+            for def in &self.clip_paths {
+                out.push_str("    ");
+                out.push_str(def);
+                out.push('\n');
+            }
+            out.push_str("  </defs>\n");
+        }
+        let layout_attr = match &self.space {
+            SvgSpace::Model => String::new(),
+            SvgSpace::Paper(name) => format!(" data-layout=\"{}\"", svg_escape_attr(name)),
+        };
+        out.push_str(&format!(
+            "  <g transform=\"translate(0,{h}) scale(1,-1)\"{layout_attr}>\n",
+            h = self.height,
+        ));
+        // Close any still-open layer group so the body is well-formed.
+        out.push_str(&self.body);
+        if self.current_layer.is_some() {
+            out.push_str("  </g>\n");
+        }
+        out.push_str("  </g>\n");
+        out.push_str("</svg>\n");
+        Ok(out.into_bytes())
+    }
+
     /// Resolve the indent prefix for the current nesting depth (root or
     /// inside a layer group). Centralized so the four new emitters stay
     /// in sync with the original `push_curve` / `push_path` indent rule.
@@ -872,21 +1195,34 @@ impl SvgDoc {
              width=\"{w}\" height=\"{h}\" \
              viewBox=\"0 0 {w} {h}\">\n"
         ));
-        // Pattern defs sit OUTSIDE the Y-flip transform so the pattern
-        // tile orientation matches user expectation (lines that look
-        // 45-degree in the source render 45-degree on screen).
-        if !self.pattern_defs.is_empty() {
+        // Pattern + clip-path defs sit OUTSIDE the Y-flip transform so
+        // the pattern tile orientation matches user expectation (lines
+        // that look 45-degree in the source render 45-degree on screen)
+        // and clipPath coordinates are interpreted in the same
+        // post-transform space as the elements that reference them.
+        if !self.pattern_defs.is_empty() || !self.clip_paths.is_empty() {
             out.push_str("  <defs>\n");
             for def in &self.pattern_defs {
                 out.push_str("    ");
                 out.push_str(def);
                 out.push('\n');
             }
+            for def in &self.clip_paths {
+                out.push_str("    ");
+                out.push_str(def);
+                out.push('\n');
+            }
             out.push_str("  </defs>\n");
         }
-        // CAD Y-up → SVG Y-down flip.
+        // CAD Y-up → SVG Y-down flip. In paper space we also tag the
+        // root group with a `data-layout` attribute so downstream
+        // tooling can distinguish paper-space sheets from model space.
+        let layout_attr = match &self.space {
+            SvgSpace::Model => String::new(),
+            SvgSpace::Paper(name) => format!(" data-layout=\"{}\"", svg_escape_attr(name)),
+        };
         out.push_str(&format!(
-            "  <g transform=\"translate(0,{h}) scale(1,-1)\">\n"
+            "  <g transform=\"translate(0,{h}) scale(1,-1)\"{layout_attr}>\n"
         ));
         out.push_str(&self.body);
         out.push_str("  </g>\n");
@@ -1664,5 +2000,195 @@ mod tests {
         assert_eq!(resolve_font_family("simplex.shx"), "Arial, sans-serif");
         assert_eq!(resolve_font_family(""), "Arial, sans-serif");
         assert_eq!(resolve_font_family("   "), "Arial, sans-serif");
+    }
+
+    // --- L9-10..13: paper space / title block / viewport / PDF --------
+
+    #[test]
+    fn svg_space_default_is_model() {
+        // Default-constructed SvgDoc renders model space and omits the
+        // `data-layout` attribute on the root flip group. Negative check
+        // against paper-space output establishes the contract that
+        // downstream tooling relies on to distinguish the two.
+        let doc = SvgDoc::new(100.0, 100.0);
+        let s = doc.finish();
+        assert!(!s.contains("data-layout"));
+    }
+
+    #[test]
+    fn with_space_paper_emits_data_layout_on_root_group() {
+        let doc = SvgDoc::new(100.0, 100.0).with_space(SvgSpace::Paper("Layout1".to_string()));
+        let s = doc.finish();
+        assert!(s.contains("data-layout=\"Layout1\""));
+        // The attribute must live on the flip-group wrapper, not the
+        // outer <svg> (so per-layout styling works under a common root).
+        assert!(s.contains("scale(1,-1)\" data-layout=\"Layout1\""));
+    }
+
+    #[test]
+    fn model_space_and_paper_space_root_g_attributes_differ() {
+        // Regression guard: the two spaces must produce meaningfully
+        // different root-group markup so downstream tooling can route
+        // content correctly. Model space: bare `<g transform=…>`; paper
+        // space: `<g transform=… data-layout="…">`.
+        let model = SvgDoc::new(100.0, 100.0).finish();
+        let paper = SvgDoc::new(100.0, 100.0)
+            .with_space(SvgSpace::Paper("Sheet-A".to_string()))
+            .finish();
+        assert_ne!(model, paper);
+        assert!(!model.contains("data-layout"));
+        assert!(paper.contains("data-layout=\"Sheet-A\""));
+    }
+
+    #[test]
+    fn paper_space_layout_name_is_attribute_escaped() {
+        // Layout names may contain `&`, quotes, or angle brackets — SVG
+        // attributes must stay well-formed regardless.
+        let doc =
+            SvgDoc::new(10.0, 10.0).with_space(SvgSpace::Paper("A & B <Layout>\"1\"".to_string()));
+        let s = doc.finish();
+        assert!(s.contains("data-layout=\"A &amp; B &lt;Layout&gt;&quot;1&quot;\""));
+    }
+
+    #[test]
+    fn push_title_block_emits_frame_and_field_text() {
+        let mut doc = SvgDoc::new(300.0, 200.0);
+        let fields = vec![
+            ("Drawing Number".to_string(), "DWG-001".to_string()),
+            ("Revision".to_string(), "A".to_string()),
+            ("Date".to_string(), "2026-04-19".to_string()),
+            ("Scale".to_string(), "1:100".to_string()),
+        ];
+        doc.push_title_block(Point3D::new(10.0, 10.0, 0.0), 280.0, 60.0, &fields);
+        let s = doc.finish();
+        // Frame path — closed rectangle with the required style.
+        assert!(s.contains("data-role=\"title-block-frame\""));
+        assert!(s.contains("stroke=\"#000000\""));
+        assert!(s.contains("fill=\"none\""));
+        assert!(s.contains("stroke-width=\"0.5\""));
+        // Each field label + value is a separate <text> element.
+        assert!(s.contains(">Drawing Number</text>"));
+        assert!(s.contains(">DWG-001</text>"));
+        assert!(s.contains(">Revision</text>"));
+        assert!(s.contains(">2026-04-19</text>"));
+        assert!(s.contains("data-role=\"title-block-label\""));
+        assert!(s.contains("data-role=\"title-block-value\""));
+        // Font machinery matches the rest of the writer — Arial plus
+        // the , sans-serif graceful-degradation suffix.
+        assert!(s.contains("font-family=\"Arial, sans-serif\""));
+    }
+
+    #[test]
+    fn push_title_block_with_empty_fields_emits_frame_only() {
+        let mut doc = SvgDoc::new(100.0, 100.0);
+        doc.push_title_block(Point3D::new(0.0, 0.0, 0.0), 100.0, 50.0, &[]);
+        let s = doc.finish();
+        assert!(s.contains("data-role=\"title-block-frame\""));
+        assert!(!s.contains("title-block-label"));
+        assert!(!s.contains("title-block-value"));
+    }
+
+    #[test]
+    fn push_title_block_escapes_xml_specials_in_field_values() {
+        let mut doc = SvgDoc::new(100.0, 100.0);
+        let fields = vec![("Client".to_string(), "Smith & <Co>".to_string())];
+        doc.push_title_block(Point3D::new(0.0, 0.0, 0.0), 100.0, 50.0, &fields);
+        let s = doc.finish();
+        assert!(s.contains(">Smith &amp; &lt;Co&gt;</text>"));
+    }
+
+    #[test]
+    fn push_viewport_registers_clip_path_and_opens_group() {
+        let mut doc = SvgDoc::new(400.0, 300.0);
+        doc.push_viewport(Point3D::new(20.0, 30.0, 0.0), 300.0, 200.0, "vp1");
+        doc.pop_clip();
+        let s = doc.finish();
+        // clipPath id is the concatenation of the `clip-` prefix and the
+        // caller-supplied id.
+        assert!(s.contains("<clipPath id=\"clip-vp1\""));
+        // The clip shape is a rectangle sized to (20+300, 30+200).
+        assert!(s.contains("M 20 30"));
+        assert!(s.contains("L 320 230"));
+        // The body references the clip path and balances with </g>.
+        assert!(s.contains("clip-path=\"url(#clip-vp1)\""));
+        assert!(s.contains("data-role=\"viewport\""));
+    }
+
+    #[test]
+    fn push_viewport_dedupes_repeat_registrations_of_same_id() {
+        // Two calls with the same clip id should still only emit one
+        // <clipPath> definition — mirrors the pattern_defs dedupe rule.
+        let mut doc = SvgDoc::new(400.0, 300.0);
+        doc.push_viewport(Point3D::new(0.0, 0.0, 0.0), 100.0, 100.0, "dup");
+        doc.pop_clip();
+        doc.push_viewport(Point3D::new(0.0, 0.0, 0.0), 100.0, 100.0, "dup");
+        doc.pop_clip();
+        let s = doc.finish();
+        assert_eq!(s.matches("<clipPath id=\"clip-dup\"").count(), 1);
+        // But each push_viewport opens its own <g>, so two clip-path
+        // references are expected in the body.
+        assert_eq!(s.matches("clip-path=\"url(#clip-dup)\"").count(), 2);
+    }
+
+    #[test]
+    fn pop_clip_emits_closing_g_tag() {
+        let mut doc = SvgDoc::new(100.0, 100.0);
+        doc.push_viewport(Point3D::new(0.0, 0.0, 0.0), 50.0, 50.0, "v");
+        // Body should contain an opening <g clip-path=…> at this point.
+        doc.pop_clip();
+        let s = doc.finish();
+        // One opening clip group, one closing </g> for it plus the
+        // root flip group.
+        assert_eq!(s.matches("data-role=\"viewport\"").count(), 1);
+        assert!(s.matches("</g>").count() >= 2);
+    }
+
+    #[test]
+    fn to_pdf_via_paged_svg_emits_page_size_in_mm_and_dpi_metadata() {
+        let doc = SvgDoc::new(100.0, 100.0);
+        let bytes = doc
+            .to_pdf_via_paged_svg((210.0, 297.0), 96.0)
+            .expect("paged SVG should emit");
+        let s = std::str::from_utf8(&bytes).expect("UTF-8 output");
+        // Root svg dimensions are in millimetres.
+        assert!(s.contains("width=\"210mm\""));
+        assert!(s.contains("height=\"297mm\""));
+        // @page CSS rule — size in millimetres, zero margin so the
+        // drawing fills the entire page.
+        assert!(s.contains("@page { size: 210mm 297mm; margin: 0; }"));
+        // DPI metadata round-trips through data-print-dpi.
+        assert!(s.contains("data-print-dpi=\"96\""));
+        assert!(s.contains("data-print-page-mm=\"210x297\""));
+    }
+
+    #[test]
+    fn to_pdf_via_paged_svg_preserves_body_elements() {
+        let mut doc = SvgDoc::new(100.0, 100.0);
+        let style = Style::default();
+        doc.push_curve(
+            &Curve::Line {
+                a: Point3D::new(0.0, 0.0, 0.0),
+                b: Point3D::new(50.0, 50.0, 0.0),
+            },
+            &style,
+            None,
+        );
+        let bytes = doc
+            .to_pdf_via_paged_svg((210.0, 297.0), 300.0)
+            .expect("paged SVG should emit");
+        let s = std::str::from_utf8(&bytes).expect("UTF-8 output");
+        assert!(s.contains("<line"));
+        assert!(s.contains("x2=\"50\""));
+        // Paper-space layouts must also make it through to_pdf output.
+    }
+
+    #[test]
+    fn to_pdf_via_paged_svg_propagates_paper_space_data_layout() {
+        let doc = SvgDoc::new(100.0, 100.0).with_space(SvgSpace::Paper("ISO-A4".into()));
+        let bytes = doc
+            .to_pdf_via_paged_svg((210.0, 297.0), 96.0)
+            .expect("paged SVG should emit");
+        let s = std::str::from_utf8(&bytes).expect("UTF-8 output");
+        assert!(s.contains("data-layout=\"ISO-A4\""));
     }
 }

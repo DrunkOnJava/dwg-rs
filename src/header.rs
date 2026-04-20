@@ -142,6 +142,7 @@ impl R13R15Header {
                 size: r.size as u64,
                 compressed: false,
                 encrypted: false,
+                ..Section::default()
             })
             .collect()
     }
