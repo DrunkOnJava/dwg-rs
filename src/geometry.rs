@@ -378,6 +378,58 @@ impl BBox3 {
 }
 
 // ---------------------------------------------------------------------------
+// Triangle / quad mesh (for 3D face entities).
+// ---------------------------------------------------------------------------
+
+/// An indexed mesh: shared vertex list + triangle indices.
+///
+/// Quads from DWG 3DFACE / polyface-mesh entities are split into two
+/// triangles at ingest; everything downstream (glTF, render) consumes
+/// triangle-only meshes.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Mesh {
+    /// Unique vertex positions.
+    pub vertices: Vec<Point3D>,
+    /// Three indices per triangle, referring to `vertices`.
+    pub triangles: Vec<[u32; 3]>,
+}
+
+impl Mesh {
+    /// Empty mesh (no vertices, no triangles).
+    pub const fn empty() -> Self {
+        Mesh {
+            vertices: Vec::new(),
+            triangles: Vec::new(),
+        }
+    }
+
+    /// Append a triangle; returns the triangle index. Callers are
+    /// responsible for deduplicating `vertices` if sharing is desired
+    /// (the mesh stores whatever the caller hands it).
+    pub fn push_triangle(&mut self, a: Point3D, b: Point3D, c: Point3D) -> usize {
+        let i = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(&[a, b, c]);
+        self.triangles.push([i, i + 1, i + 2]);
+        self.triangles.len() - 1
+    }
+
+    /// Append a quad as two triangles (ABC + ACD).
+    pub fn push_quad(&mut self, a: Point3D, b: Point3D, c: Point3D, d: Point3D) {
+        let base = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(&[a, b, c, d]);
+        self.triangles.push([base, base + 1, base + 2]);
+        self.triangles.push([base, base + 2, base + 3]);
+    }
+
+    /// Axis-aligned bounding box enclosing every vertex.
+    pub fn bounds(&self) -> BBox3 {
+        self.vertices
+            .iter()
+            .fold(BBox3::empty(), |acc, p| acc.expand(*p))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -608,5 +660,51 @@ mod tests {
         let t = Transform3::translation(1.0, 2.0, 3.0);
         assert_eq!(i.compose(&t), t);
         assert_eq!(t.compose(&i), t);
+    }
+
+    #[test]
+    fn mesh_push_triangle_appends_three_vertices() {
+        let mut m = Mesh::empty();
+        let a = Point3D::new(0.0, 0.0, 0.0);
+        let b = Point3D::new(1.0, 0.0, 0.0);
+        let c = Point3D::new(0.0, 1.0, 0.0);
+        let idx = m.push_triangle(a, b, c);
+        assert_eq!(idx, 0);
+        assert_eq!(m.vertices.len(), 3);
+        assert_eq!(m.triangles.len(), 1);
+        assert_eq!(m.triangles[0], [0, 1, 2]);
+    }
+
+    #[test]
+    fn mesh_push_quad_splits_into_two_triangles() {
+        let mut m = Mesh::empty();
+        let a = Point3D::new(0.0, 0.0, 0.0);
+        let b = Point3D::new(1.0, 0.0, 0.0);
+        let c = Point3D::new(1.0, 1.0, 0.0);
+        let d = Point3D::new(0.0, 1.0, 0.0);
+        m.push_quad(a, b, c, d);
+        assert_eq!(m.vertices.len(), 4);
+        assert_eq!(m.triangles.len(), 2);
+        assert_eq!(m.triangles[0], [0, 1, 2]);
+        assert_eq!(m.triangles[1], [0, 2, 3]);
+    }
+
+    #[test]
+    fn mesh_bounds_unions_vertices() {
+        let mut m = Mesh::empty();
+        m.push_triangle(
+            Point3D::new(-1.0, 0.0, 0.0),
+            Point3D::new(2.0, 3.0, 0.0),
+            Point3D::new(0.0, -4.0, 5.0),
+        );
+        let b = m.bounds();
+        assert_eq!(b.min, Point3D::new(-1.0, -4.0, 0.0));
+        assert_eq!(b.max, Point3D::new(2.0, 3.0, 5.0));
+    }
+
+    #[test]
+    fn mesh_empty_has_empty_bounds() {
+        let m = Mesh::empty();
+        assert!(m.bounds().is_empty());
     }
 }
