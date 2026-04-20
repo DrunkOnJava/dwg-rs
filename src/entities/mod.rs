@@ -21,6 +21,9 @@
 //! | XLINE          | [`xline`]         | §19.4.58     |
 //! | SOLID          | [`solid`]         | §19.4.43     |
 //! | 3DFACE         | [`three_d_face`]  | §19.4.32     |
+//! | 3DSOLID        | [`three_d_solid`] | §19.4.42     |
+//! | REGION         | [`region`]        | §19.4.43     |
+//! | BODY           | [`body`]          | §19.4.44     |
 //! | VIEWPORT (stub)| [`viewport`]      | §19.4.60     |
 //!
 //! # Shared types
@@ -39,6 +42,7 @@ pub mod arc;
 pub mod attdef;
 pub mod attrib;
 pub mod block;
+pub mod body;
 pub mod circle;
 pub mod dimension;
 pub mod dispatch;
@@ -55,10 +59,12 @@ pub mod mtext;
 pub mod point;
 pub mod polyline;
 pub mod ray;
+pub mod region;
 pub mod solid;
 pub mod spline;
 pub mod text;
 pub mod three_d_face;
+pub mod three_d_solid;
 pub mod trace;
 pub mod vertex;
 pub mod viewport;
