@@ -1,0 +1,17 @@
+# rust-toolchain.toml
+#
+# Pinned so every contributor builds dwg-rs against the same stable
+# channel that the CI matrix verifies, with the components the pre-
+# commit suite needs (rustfmt + clippy). Uses `minimal` profile to
+# skip the large default `docs` / `rust-src` downloads — `cargo doc`
+# against the local workspace still works without them.
+#
+# The MSRV (currently 1.85) is enforced separately by the
+# `Verify MSRV` job in `.github/workflows/ci.yml`; this file does not
+# pin to 1.85 so IDE / analyzer flows on a contributor's workstation
+# can use a newer stable if they want to.
+
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

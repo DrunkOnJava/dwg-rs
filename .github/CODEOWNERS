@@ -1,0 +1,17 @@
+# CODEOWNERS for dwg-rs.
+#
+# GitHub uses this file to auto-request review on pull requests and
+# to enforce the branch-protection "Require review from Code Owners"
+# rule when enabled.
+#
+# Format: <path> <@user|@team> [<@user|@team> ...]
+# Later matches override earlier ones. See
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in this repo.
+*                       @DrunkOnJava
+
+# Per-area owners may be added here later, e.g.:
+# /src/entities/        @DrunkOnJava @someone-with-entity-expertise
+# /src/lz77*.rs         @DrunkOnJava
+# /.github/             @DrunkOnJava
