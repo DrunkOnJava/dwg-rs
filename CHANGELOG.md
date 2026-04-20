@@ -8,6 +8,114 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — Phase 12 write-path + Phase 13 WASM scaffolding (2026-04-20 late)
+
+**Write path — Stages 1 through foundations of 5:**
+
+- **`src/file_writer.rs`** — `version_magic_bytes(Version)` +
+  `build_version_header(Version)` (16-byte $ACADVER leader,
+  R2004+ 0x1F marker), `atomic_write(path, bytes)` via temp + rename
+  (P0-10), `validate_section_name(&str)` with 16-entry
+  `KNOWN_SECTION_NAMES` (P0-11, guards against typo-induced round-trip
+  corruption). Existing `WriterScaffold` Stage-1 unchanged.
+- **`src/crc.rs`** — `embed_crc8` / `embed_crc32` / `page_checksums`
+  writer helpers (L12-02) — zero-fill-and-overwrite pattern matches
+  the ODA §2.14 convention for CRC-bearing records.
+- **`src/element_encoder.rs`** — `ElementEncoder` trait with
+  `Line`/`Circle`/`Arc`/`Point` impls (L12-05).
+- **`src/handle_allocator.rs`** — `HandleAllocator` with allocate /
+  reserve / collision avoidance (L12-06).
+- **`src/classes.rs`** + **`src/handle_map.rs`** — `write_class_map`
+  and `write_handle_map` inverse-of-parse emitters (L12-07, L12-08).
+- **`src/reed_solomon_encode.rs`** — (255, 239) systematic codeword
+  encoder via GF(256) generator-polynomial long division (L12-10).
+- **`tests/integration_write_roundtrip.rs`** — 4 tests covering
+  multi-section Stage-1 round-trip, empty-section edge, byte-
+  deterministic output, and 32-byte page alignment (L12-12 partial).
+- **`src/bin/dwg_write.rs`** — 7th CLI binary. Scaffolds named-section
+  input via CLI, runs the Stage-1 pipeline, emits a JSON Stage-1
+  report + optional Stage-1 concatenated bytes (L12-14). Explicitly
+  labeled "NOT A VALID DWG FILE" pending Stages 3-5.
+
+**Entity decoders — MESH / DIMENSION / MLINE / IMAGE / proxy:**
+
+- **`src/entities/mesh.rs`** — subdivision MESH per §19.4.66 (R2010+
+  gate, vertex / face / edge count caps derived from `remaining_bits`)
+  (L4-34).
+- **`src/entities/polyface_mesh.rs`** — legacy 3D mesh header per
+  §19.4.29 (L4-35).
+- **`src/entities/polygon_mesh.rs`** — M×N indexed mesh header per
+  §19.4.30 (L4-36).
+- **`src/entities/dimension_linear.rs`**,
+  **`dimension_aligned.rs`**, **`dimension_radial.rs`**,
+  **`dimension_diameter.rs`**, **`dimension_angular_2l.rs`**,
+  **`dimension_angular_3p.rs`**, **`dimension_ordinate.rs`** — 7
+  subclass decoders per ODA §§19.4.18..19.4.23 (L4-17..21).
+- **`src/entities/mline.rs`** — MLINE (§19.4.71) top-level +
+  per-vertex sub-records; nested per-line segment parameters kept
+  as `Vec<f64>` (honest-partial decode) (L4-54).
+- **`src/entities/imagedef.rs`** — IMAGEDEF (§19.5.26) companion to
+  IMAGE (L4-43).
+- **`src/entities/proxy_entity_passthrough.rs`** — opaque proxy
+  body preserved verbatim (L4-55).
+- **`src/entities/lwpolyline.rs`** — count caps now derive from
+  `remaining_bits` × 4 bits/point rather than the coarse 1 bit/item
+  (L4-12).
+
+**Graph / traversal / rendering:**
+
+- **`src/block_expansion.rs`** (new crate module) — `expand_insert`
+  with cycle detection + depth cap (default 16), emits
+  `ExpandedEntity { entity, accumulated_transform, depth }`
+  composing INSERT instance transforms outer-to-inner (L5-05).
+- **`src/graph.rs`** — L6-18 `MODEL_SPACE_BLOCK_NAME` /
+  `PAPER_SPACE_BLOCK_PREFIX` / `is_model_space_block_name` /
+  `is_paper_space_block_name` / `BlockSpace` / `classify_block_name`.
+  L6-19 `filter_by_paper_space_block` / `filter_by_block_space` /
+  `membership_for`. L6-20 `ViewportTransform` with
+  `model_to_paper` / `paper_bounds` / `contains_paper_point`.
+- **`src/objects/acad_layout.rs`** — ACAD_LAYOUT decoder per §19.6.12
+  (L6-12); `is_model_space()`, `paper_width/height()`,
+  `extents_diagonal()` helpers.
+
+**API hardening:**
+
+- **`src/reader.rs`** — `DwgFile::read_section_with_limit(name,
+  max_bytes)` per-call byte cap (SEC-09).
+- **`src/python_stubs.rs`** — strict/lossy parity stubs for 10
+  JSON-export methods (API-12).
+
+**Fuzzing:**
+
+- **`fuzz/fuzz_targets/rs_fec_decode.rs`** + registered in
+  `fuzz/Cargo.toml` (SEC-21).
+- **`.github/workflows/fuzz-nightly.yml`** — matrix over all 9
+  fuzz targets at 06:00 UTC daily, 5-min duration per target,
+  crash + corpus artifacts uploaded (SEC-24).
+- **`fuzz/corpus/{rs_fec_decode,header_vars,classmap_parse,handlemap_parse}/`** —
+  hand-crafted seeds exercising distinct code paths (SEC-23 seed).
+- **`fuzz/fuzz_targets/object_walker.rs`** — uses public
+  `collect_all_lossy` API (fixes pre-existing fuzz compile gap).
+- **`tests/integration_fuzz_corpus_regression.rs`** — 6 tests replay
+  every seed through the matching library entry point and forbid
+  panics; this locks the fuzz contract against future regressions
+  (L4-61).
+
+**WASM Phase 13 scaffolding:**
+
+- **`wasm/`** (new subcrate) — `dwg-wasm` with wasm-bindgen +
+  js-sys + serde-wasm-bindgen. `DwgFile` JS class with
+  `open(bytes)` / `versionMagic()` / `versionName()` / `sections()` /
+  `sectionMapStatus()` + `crateVersion()` (V-01, V-02).
+- **`.github/workflows/wasm.yml`** — matrix build over `--target
+  web / bundler / nodejs`, uploads `web` artifact (14-day
+  retention), asserts `pkg/dwg_wasm_bg.wasm` + `pkg/dwg_wasm.js`
+  present. SHA-pinned actions.
+
+Also: 18+ stale tasks closed as bookkeeping cleanup; Twitter thread
+(L-13) refreshed to mention `dwg-to-dxf` / `dwg-to-svg` / `dwg-to-gltf`
+which all shipped.
+
 ### Added — CI release infrastructure (2026-04-20, Q-06 / Q-07 / Q-09)
 
 - **`.github/workflows/perf.yml`**: criterion-benchmark
