@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use dwg-rs in academic or archival work, please cite it using this metadata."
-title: "dwg-rs: Clean-room Rust foundation for Autodesk DWG files"
+title: "dwg-rs: Apache-2.0 Rust reader for Autodesk DWG files"
 type: software
 version: 0.1.0-alpha.1
 date-released: "2026-04-19"
@@ -8,16 +8,17 @@ license: Apache-2.0
 repository-code: "https://github.com/DrunkOnJava/dwg-rs"
 url: "https://github.com/DrunkOnJava/dwg-rs"
 abstract: >-
-  dwg-rs is an Apache-2-licensed Rust library and CLI for reading
-  Autodesk DWG files (R13 through R2018 / AC1032) without any
-  dependency on Autodesk's or the Open Design Alliance's SDKs, and
-  without incorporating GPL-3 code from LibreDWG. To the authors'
-  knowledge it is the first Apache-2.0, clean-room Rust foundation
-  focused specifically on DWG container parsing and interoperability
-  without Autodesk SDK, ODA SDK, or GPL-derived implementation code.
-  The crate is pre-alpha: container-layer parsing is the most mature
-  component, end-to-end typed entity decoding on real-world files is
-  still an active work in progress.
+  dwg-rs is an Apache-2.0-licensed Rust library and CLI for reading
+  Autodesk DWG files (R13 through R2018 / AC1032). The implementation
+  is derived from version 5.4.1 of the Open Design Alliance's Open
+  Design Specification and does not link against the ODA SDK or reuse
+  GPL-licensed source code. Complementary open-source DWG readers
+  include LibreDWG (GPL-3, more complete) and ACadSharp (MIT, C#); for
+  stacks that can take those licenses they are currently more mature
+  options. dwg-rs is pre-alpha: container-layer parsing (file header,
+  section map, LZ77, metadata, object stream) is the most mature
+  component; end-to-end typed entity decoding on real-world files has
+  documented gaps and is an active work in progress.
 keywords:
   - dwg
   - autocad

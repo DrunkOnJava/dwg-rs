@@ -1,11 +1,10 @@
 # dwg-rs
 
-> **Clean-room, Apache-2.0 Rust foundation for Autodesk DWG files (R13 → R2018 / AC1032).**
-> No Autodesk SDK. No ODA SDK. No GPL-3 dependency. To our knowledge, the first Apache-2.0, clean-room Rust foundation focused specifically on DWG container parsing and interoperability.
+> **Apache-2.0 Rust reader for Autodesk DWG files (R13 → R2018 / AC1032), built from the Open Design Alliance's published specification.** Pre-alpha; container-layer parsing shipping, per-entity decoders have documented coverage gaps.
 
 [![CI](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml)
 [![Perf](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/perf.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/perf.yml)
-[![docs.rs build](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/docs-rs.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/docs-rs.yml)
+[![Doc build](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/docs-rs.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/docs-rs.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust MSRV](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 
@@ -78,12 +77,12 @@ crate doesn't yet fully model. This is the gap between "decoder functions exist"
 
 ## What *does* work today
 
-The container layer is the most mature part of the crate and is covered by 193 tests:
+The container layer is the most mature part of the crate and is covered by the test suite (run `cargo test` for the current count; 645 unit + ~100 integration + 10 doctests as of 2026-04-20):
 
 - Version identification across AC1014 (R14, 1997) → AC1032 (2018, 2024+)
 - R13–R15 simple file header + R2004+ XOR-encrypted header
 - Section Page Map + Section Info parsing
-- LZ77 decompression — the ODA spec's offset-encoding description is ambiguous in one place; this crate's implementation matches a publicly-documented errata reading (algorithm description only, no implementation code consulted)
+- LZ77 decompression — the ODA spec's offset-encoding description is ambiguous in one place; this crate's implementation was cross-checked against the algorithm-description comments in the MIT-licensed [ACadSharp](https://github.com/DomCR/ACadSharp) source (no executable code imported, comments-only). See [`CLEANROOM.md`](./CLEANROOM.md) for the specific scope of what was and wasn't consulted.
 - Sec_Mask layer-1 un-masking for every R2004-family version
 - `DwgFile::read_section(name)` — decompressed bytes for any named section
 - CRC-8 + CRC-32 verification
@@ -228,7 +227,11 @@ Quick layer overview:
 
 ```text
 $ cargo test --release
-156 unit tests    + 5 corpus + 9 proptest + 22 samples + 1 doctest = 193 tests, 0 failures
+# 645 unit tests + integration suites (code_table, corpus_roundtrip,
+# dispatch_roundtrip, dxf_roundtrip, entity_regression, fuzz_corpus,
+# gltf, svg_goldens, write_roundtrip, mutation_failure, proptest,
+# samples) + 10 doctests. Exact count grows with each commit; check
+# the final `test result:` lines for current numbers.
 $ cargo clippy --all-targets --all-features -- -D warnings       # clean
 $ cargo fmt --all -- --check                                      # clean
 $ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features   # clean
@@ -258,16 +261,23 @@ the [CHANGELOG](./CHANGELOG.md). CI verifies MSRV on every PR.
 | Project | Language | License | Notes |
 |---------|----------|---------|-------|
 | [ACadSharp](https://github.com/DomCR/ACadSharp) | C# | MIT | Permissive reference — `dwg-rs` cross-checked LZ77 offset errata against it (not its source, just the algorithm in comments) |
-| [LibreDWG](https://www.gnu.org/software/libredwg/) | C | **GPL-3** | Mature but copyleft; not consulted at any point during this crate's build |
+| [LibreDWG](https://www.gnu.org/software/libredwg/) | C | **GPL-3** | The most complete open-source DWG reader; preferable to `dwg-rs` today for any stack that can take GPL-3. Its source was not consulted during this crate's implementation |
 | [Teigha / ODA SDK](https://www.opendesign.com/) | C++ | Commercial | Proprietary; paid membership required |
 | [dxf-rs](https://github.com/ixmilia/dxf-rs) | Rust | MIT | DXF (text companion format) only |
 | [rvt-rs](https://github.com/DrunkOnJava/rvt-rs) | Rust | Apache-2 | Sibling project — clean-room Autodesk Revit (.rvt / .rfa) reader by the same author. Same CLEANROOM posture. |
 
 ## Why this exists
 
-For ~28 years the DWG format has been a moat. Autodesk never published a spec. The ODA's SDK requires membership and introduces licensing constraints. LibreDWG is GPL-3, which disqualifies it from most commercial stacks.
+DWG is Autodesk's proprietary format. Autodesk does not publish a specification. What's available to open-source implementers is:
 
-To our knowledge, `dwg-rs` is the first Apache-2.0, clean-room Rust foundation focused specifically on DWG container parsing and interoperability without Autodesk SDK, ODA SDK, or GPL-derived implementation code. It is **not** a finished DWG reader — it is a foundation other people can build on without paying SDK tolls or pulling GPL-3 into their dependency graph.
+- The **Open Design Alliance's** Open Design Specification — the result of the ODA's own long-standing reverse-engineering effort, made available publicly. `dwg-rs` is built from version 5.4.1 of that spec.
+- **LibreDWG** (GPL-3) — the most complete open-source DWG reader today. If GPL-3 fits your project, it is almost certainly the better tool.
+- **ACadSharp** (MIT, C#) — a mature .NET DWG reader for stacks that can take a C# dependency.
+- **Teigha / the ODA SDK** — a commercial C++ SDK appropriate for production workloads that can afford the membership.
+
+`dwg-rs` occupies a narrow niche: a permissively-licensed (Apache-2.0) Rust crate for reading the DWG *container* (file header, section map, LZ77 decompression, metadata sections, object stream), implemented from the ODA specification without linking against the ODA SDK and without reusing GPL-licensed source code. It is useful when your stack can't take GPL-3, can't justify an ODA membership, and needs a Rust dependency rather than an FFI binding.
+
+It is **pre-alpha and not a finished DWG reader.** The container layer is shipping; per-entity decoders have known gaps documented in the coverage table above. See [`CLEANROOM.md`](./CLEANROOM.md) for the implementation discipline this project follows, including the honest scope of what "clean-room" means for a solo-developer project — it is a spec-only, no-reference-source posture, not a formal two-team protocol.
 
 ## Contributing
 
@@ -283,7 +293,7 @@ Before submitting a PR:
 
 - Run `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
 - Cite the ODA spec section for any new decoder behavior.
-- **Clean-room declaration**: confirm in the PR body that you have not consulted Autodesk SDK source, ODA SDK source, or LibreDWG (GPL-3) source for the contribution. The PR template has a checkbox for this.
+- **Source-provenance declaration**: confirm in the PR body that your contribution does not incorporate executable code (not just comments, not just API shapes) from any source whose license is incompatible with Apache-2.0 — in particular, no Autodesk SDK source, no ODA SDK / Teigha source, and no GPL-licensed DWG implementation source (LibreDWG). Reading algorithm-description comments in permissively-licensed projects (MIT / Apache / BSD) to resolve a spec ambiguity is allowed and should be disclosed in the PR body so we can record it in [`CLEANROOM.md`](./CLEANROOM.md). The PR template has a checkbox for this.
 - Follow the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) code of conduct.
 
 Security vulnerabilities: report privately via [GitHub Security Advisories](https://github.com/DrunkOnJava/dwg-rs/security/advisories/new) — see [SECURITY.md](./SECURITY.md).
@@ -292,11 +302,9 @@ Security vulnerabilities: report privately via [GitHub Security Advisories](http
 
 "Autodesk", "AutoCAD", and "DWG" are trademarks of Autodesk, Inc. This crate is not affiliated with, authorized by, or endorsed by Autodesk.
 
-`dwg-rs` is intended as a clean-room interoperability implementation. It does not use Autodesk SDK source, ODA SDK (Drawings SDK / Teigha) source, or GPL-licensed DWG implementation source. The authoritative reference is the ODA's freely-redistributable *Open Design Specification for .dwg files* (v5.4.1) — a document distinct from ODA's SDK license.
+`dwg-rs` is a spec-based interoperability implementation. The authoritative reference is the Open Design Alliance's freely-redistributable *Open Design Specification for .dwg files* (v5.4.1) — a document distinct from the ODA's Drawings SDK (Teigha) license. Executable code from the Autodesk SDK, the ODA SDK, and GPL-licensed DWG implementations (LibreDWG) was not consulted or imported at any point. One clearly-scoped exception is documented in [`CLEANROOM.md`](./CLEANROOM.md): algorithm-description comments (not executable code) from the MIT-licensed ACadSharp were consulted to resolve one LZ77 offset-encoding spec ambiguity.
 
-Users with specific legal constraints should evaluate the project with their own counsel. `NOTICE` summarizes the relevant public authority that typically supports independent file-format reverse engineering for interoperability (e.g. *Sega v. Accolade*, *Sony v. Connectix*, EU Software Directive Art. 6, Australia Copyright Act §47D) — it is not offered as a legal opinion.
-
-No Autodesk SDK, no ODA SDK, and no LibreDWG source was consulted at any point.
+Independent reverse engineering for interoperability is generally supported across jurisdictions by authorities such as *Sega v. Accolade* (9th Cir. 1992) and *Sony v. Connectix* (9th Cir. 2000) in the United States, Article 6 of the EU Software Directive (2009/24/EC), and comparable provisions elsewhere. See [`NOTICE`](./NOTICE) for a fuller reference set. Nothing in this repository is offered as legal advice; users with specific legal constraints should consult their own counsel.
 
 ## License
 
