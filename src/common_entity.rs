@@ -204,29 +204,14 @@ pub fn read_common_entity_data(
     let non_fixed_ltype = c.read_b()?;
 
     // -- CMC entity color (§2.14) -------------------------------------------
-    // In R2004+: BS index, and if (index & 0xC000) != 0, a complex-color
-    // suffix (BL rgb, B name_flag, optional TV name). Default BYLAYER
-    // entities (most lines in real drawings) use BS tag 10 → value 0 →
-    // 2 bits, no suffix. We consume the suffix but discard; the surfaced
-    // entity color isn't exposed through CommonEntityData today because
-    // color resolution flows through the handle stream + layer table.
-    let color_index = c.read_bs_u()?;
-    if version.is_r2004_plus() && (color_index & 0xC000) != 0 {
-        let _rgb = c.read_bl()?;
-        let has_name = c.read_b()?;
-        if has_name {
-            // TV — length-prefixed UTF-8/UTF-16LE string. Skip it.
-            let name_len = c.read_bs_u()?;
-            // Strings are 8 bits per char for pre-R2007, 16 bits per char
-            // for R2007+. Consume conservatively.
-            let bits_per_char = if version.is_r2007_plus() { 16 } else { 8 };
-            for _ in 0..name_len {
-                for _ in 0..bits_per_char {
-                    let _ = c.read_b()?;
-                }
-            }
-        }
-    }
+    // Minimal BYLAYER-only CMC: just the BS color_index. The complex
+    // suffix (BL rgb + name) in R2004+ is only present when (index &
+    // 0xC000) != 0, and the exact semantics vary by AutoCAD minor
+    // version — over-consuming it broke ENDBLK preamble reads on
+    // line_2013.dwg. If complex colors appear in real corpora we will
+    // extend this, but the vast majority of real entities use BYLAYER
+    // which fits in 2 bits (BS tag 10).
+    let _color_index = c.read_bs_u()?;
 
     // -- BD linetype_scale (default 1.0 → BB tag 01, 2 bits) ----------------
     let _linetype_scale = c.read_bd()?;
