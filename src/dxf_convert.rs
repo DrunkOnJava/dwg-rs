@@ -53,6 +53,55 @@ pub fn convert_file_to_dxf(
     convert_dwg_to_dxf(&file, version)
 }
 
+/// Cross-version DXF → DWG conversion stub (L12-13 / #386).
+///
+/// # Honest scope
+///
+/// A full DXF parser is its own sub-project (3 KLOC+ of group-code
+/// parsing across 400+ entity types). This stub exists so downstream
+/// callers and the WASM viewer can wire the API today; the
+/// implementation returns [`Error::Unsupported`] until the parser
+/// ships under the `dxf-parse` feature flag.
+///
+/// Inputs:
+/// - `_dxf`: The DXF text to parse. Today ignored; checked only for
+///   non-empty so callers passing nothing get a clear error.
+/// - `_target_version`: The DWG version to target on emit.
+///
+/// Returns [`Error::Unsupported`] with a clear "DXF parser not yet
+/// implemented" message. When the parser lands, this function
+/// becomes an orchestrator: parse → build synthetic DwgFile →
+/// [`crate::file_writer::assemble_dwg_bytes`].
+pub fn convert_dxf_to_dwg(
+    dxf: &str,
+    target_version: crate::version::Version,
+) -> crate::Result<Vec<u8>> {
+    if dxf.is_empty() {
+        return Err(crate::Error::Unsupported {
+            feature: "convert_dxf_to_dwg called with empty DXF".into(),
+        });
+    }
+    // Basic sanity-parse: a DXF text MUST start with the group code
+    // `0` followed by `SECTION`. If it doesn't, the caller has given
+    // us something that can't be a DXF at all, so we can error fast
+    // rather than wait for the full parser.
+    let first_nonwhite = dxf.trim_start();
+    if !first_nonwhite.starts_with("0\n") && !first_nonwhite.starts_with("0\r\n") {
+        return Err(crate::Error::Unsupported {
+            feature: "DXF input does not start with group code 0 (not a DXF text file?)".into(),
+        });
+    }
+    // If the $ACADVER magic is missing, the DXF is headerless — we
+    // could proceed with defaults but the downstream writer needs a
+    // version anyway. Error with a clear message.
+    let _ = target_version;
+    Err(crate::Error::Unsupported {
+        feature: "convert_dxf_to_dwg: full DXF parser not yet implemented (L12-13). API surface is stable; \
+                  callers can wire this today and the implementation lands in a follow-up"
+            .into(),
+    })
+}
+
 /// Emit a minimal DXF document representing `file`. Targets `version`
 /// — controls the `$ACADVER` magic and whether subclass markers are
 /// emitted (see [`DxfVersion::supports_subclass_markers`]).
