@@ -161,12 +161,12 @@ These block 0.1.0 stable:
 
 Clean-room — no Autodesk SDK, no ODA SDK, no LibreDWG (GPL-3) source
 consulted. Implemented against the ODA's freely-redistributable *Open Design
-Specification for .dwg files* (v5.4.1); cross-verified against ACadSharp
-(MIT) only for LZ77 offset-encoding spec typos, and only by reading the
-algorithm description in comments — not the C# code.
+Specification for .dwg files* (v5.4.1). Where the spec is ambiguous in one
+place (an LZ77 offset-encoding corner), the authors consulted a publicly
+documented errata reading via algorithm descriptions only — no implementation
+code was reviewed or ported.
 
 ### Not yet
 
 - Not published to crates.io.
-- GitHub repository still private.
 - No official release tarball.

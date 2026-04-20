@@ -19,15 +19,19 @@
 //!
 //! # Version coverage
 //!
-//! | Magic    | Release          | Year | Coverage             |
-//! |----------|------------------|------|----------------------|
-//! | `AC1014` | R14              | 1997 | Full                 |
-//! | `AC1015` | 2000 / 2000i / 2002 | 1999 | Full               |
-//! | `AC1018` | 2004 / 2005 / 2006  | 2003 | Full               |
-//! | `AC1021` | 2007 / 2008 / 2009  | 2006 | **Deferred** (Sec_Mask layer-2 bookkeeping not yet implemented — R2007 files open with identifier + header only; section payloads return an error) |
-//! | `AC1024` | 2010 / 2011 / 2012  | 2009 | Full               |
-//! | `AC1027` | 2013 → 2017         | 2012 | Full               |
-//! | `AC1032` | 2018 → 2025+        | 2017 | Full               |
+//! This crate is pre-alpha. Coverage below reflects what currently
+//! parses end-to-end against measured corpora, not what the spec
+//! describes. See `README.md` for the empirical decode-rate table.
+//!
+//! | Magic    | Release                 | Status                                                                                      |
+//! |----------|-------------------------|---------------------------------------------------------------------------------------------|
+//! | `AC1014` | R14                     | Identifier / header recognized; object-stream walker for this layout not yet implemented    |
+//! | `AC1015` | 2000 / 2000i / 2002     | Identifier / header recognized; object-stream walker not yet implemented                    |
+//! | `AC1018` | 2004 / 2005 / 2006      | Container parsing works; end-to-end entity decode currently low on real corpora             |
+//! | `AC1021` | 2007 / 2008 / 2009      | **Deferred** — Sec_Mask layer-2 bookkeeping not yet implemented; section payloads error     |
+//! | `AC1024` | 2010 / 2011 / 2012      | Container parsing works; partial entity decode (see README for measured coverage)           |
+//! | `AC1027` | 2013 → 2017             | Container parsing works; best current entity coverage, still pre-alpha                      |
+//! | `AC1032` | 2018 → 2025+            | Object walker works on sample; typed entity decode has known correctness gaps on real files |
 //!
 //! # Module map
 //!
@@ -62,12 +66,15 @@
 //!
 //! # Legal posture
 //!
-//! DWG is a trademark of Autodesk, Inc. This crate is not affiliated with,
-//! authorized by, or endorsed by Autodesk. It is a clean-room third-party
-//! implementation created for interoperability purposes, protected by
-//! 17 U.S.C. § 1201(f) (DMCA interoperability exception) and the 2006
-//! *Autodesk, Inc. v. Open Design Alliance* settlement, which explicitly
-//! permits third-party DWG implementations.
+//! "Autodesk", "AutoCAD", and "DWG" are trademarks of Autodesk, Inc.
+//! This crate is not affiliated with, authorized by, or endorsed by
+//! Autodesk. It is intended as a clean-room interoperability
+//! implementation. It does not use Autodesk SDK source, ODA SDK
+//! source, or GPL-licensed DWG implementation source. Users with
+//! specific legal constraints should evaluate the project with their
+//! own counsel; `NOTICE` summarizes the relevant public authority
+//! that typically supports independent file-format reverse
+//! engineering for interoperability.
 //!
 //! No Autodesk SDK source, no ODA SDK source, and no LibreDWG (GPL-3) source
 //! was consulted at any point. The authoritative reference is the ODA's

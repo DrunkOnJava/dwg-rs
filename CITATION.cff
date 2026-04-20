@@ -11,9 +11,13 @@ abstract: >-
   dwg-rs is an Apache-2-licensed Rust library and CLI for reading
   Autodesk DWG files (R13 through R2018 / AC1032) without any
   dependency on Autodesk's or the Open Design Alliance's SDKs, and
-  without incorporating GPL-3 code from LibreDWG. It is the first
-  clean-room, permissively-licensed DWG reader and provides a stable
-  foundation for open-source CAD interoperability tooling.
+  without incorporating GPL-3 code from LibreDWG. To the authors'
+  knowledge it is the first Apache-2.0, clean-room Rust foundation
+  focused specifically on DWG container parsing and interoperability
+  without Autodesk SDK, ODA SDK, or GPL-derived implementation code.
+  The crate is pre-alpha: container-layer parsing is the most mature
+  component, end-to-end typed entity decoding on real-world files is
+  still an active work in progress.
 keywords:
   - dwg
   - autocad

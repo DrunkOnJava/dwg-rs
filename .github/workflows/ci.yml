@@ -127,16 +127,20 @@ jobs:
           OUTPUT=$(cargo +stable run --release --example coverage_report -- tests/fixtures/canonical 2>&1)
           echo "$OUTPUT"
           # Extract the TOTAL ratio percentage. If parse fails or
-          # ratio drops below 25% aggregate, fail the job.
+          # ratio drops below the threshold below, fail the job.
+          # Threshold value MUST match the numeric comparison below.
           RATIO=$(echo "$OUTPUT" | awk '/^TOTAL/ { for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/) print $i }' | tail -1)
           if [ -z "$RATIO" ]; then
             echo "::error::could not parse decoded_ratio from coverage_report"
             exit 1
           fi
-          # bash float comparison via awk
-          PASS=$(awk -v r="$RATIO" 'BEGIN { print (r+0 >= 20.0) ? "1" : "0" }')
+          # Threshold is deliberately below the current measured aggregate
+          # (~25%) to allow noise while still catching large regressions.
+          # Raise this once real .dwg fixtures land under canonical/.
+          THRESHOLD=20.0
+          PASS=$(awk -v r="$RATIO" -v t="$THRESHOLD" 'BEGIN { print (r+0 >= t+0) ? "1" : "0" }')
           if [ "$PASS" != "1" ]; then
-            echo "::error::decoded_ratio $RATIO% < 20% minimum threshold"
+            echo "::error::decoded_ratio $RATIO% < $THRESHOLD% minimum threshold"
             exit 1
           fi
           echo "coverage-smoke PASS: decoded_ratio=$RATIO%"

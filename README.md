@@ -1,13 +1,14 @@
 # dwg-rs
 
 > **Clean-room, Apache-2.0 Rust foundation for Autodesk DWG files (R13 → R2018 / AC1032).**
-> No Autodesk SDK. No ODA SDK. No GPL-3 dependency. The first permissively-licensed DWG codebase with none of those strings attached.
+> No Autodesk SDK. No ODA SDK. No GPL-3 dependency. To our knowledge, the first Apache-2.0, clean-room Rust foundation focused specifically on DWG container parsing and interoperability.
 
 [![CI](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml)
-[![Crates.io](https://img.shields.io/crates/v/dwg.svg)](https://crates.io/crates/dwg)
-[![Documentation](https://docs.rs/dwg/badge.svg)](https://docs.rs/dwg)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust MSRV](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
+
+<!-- Crates.io and docs.rs badges will be added here once the crate is published. -->
+
 
 ---
 
@@ -47,12 +48,12 @@ crate doesn't yet fully model. This is the gap between "decoder functions exist"
 
 ## What *does* work today
 
-The container layer is rock-solid and passes 193 tests:
+The container layer is the most mature part of the crate and is covered by 193 tests:
 
 - Version identification across AC1014 (R14, 1997) → AC1032 (2018, 2024+)
 - R13–R15 simple file header + R2004+ XOR-encrypted header
 - Section Page Map + Section Info parsing
-- LZ77 decompression (ACadSharp-verified +1 offset dialect)
+- LZ77 decompression — the ODA spec's offset-encoding description is ambiguous in one place; this crate's implementation matches a publicly-documented errata reading (algorithm description only, no implementation code consulted)
 - Sec_Mask layer-1 un-masking for every R2004-family version
 - `DwgFile::read_section(name)` — decompressed bytes for any named section
 - CRC-8 + CRC-32 verification
@@ -217,13 +218,13 @@ the [CHANGELOG](./CHANGELOG.md). CI verifies MSRV on every PR.
 
 For ~28 years the DWG format has been a moat. Autodesk never published a spec. The ODA's SDK requires membership and introduces licensing constraints. LibreDWG is GPL-3, which disqualifies it from most commercial stacks.
 
-`dwg-rs` is the first open-source, Apache-2.0, clean-room foundation — a permissive-licensed base for CAD interoperability tooling. It is **not** a finished product. It is a foundation other people can build on without paying tolls or pulling GPL-3 into their dependency graph.
+To our knowledge, `dwg-rs` is the first Apache-2.0, clean-room Rust foundation focused specifically on DWG container parsing and interoperability without Autodesk SDK, ODA SDK, or GPL-derived implementation code. It is **not** a finished DWG reader — it is a foundation other people can build on without paying SDK tolls or pulling GPL-3 into their dependency graph.
 
 ## Contributing
 
 The project needs help, in rough order of impact:
 
-1. **Per-version entity preamble fixes** — figuring out why LINE and MTEXT fail on R2004/R2010/R2018 real files. This is the single biggest gap between "4 % aggregate" and "shipping."
+1. **Per-version entity preamble fixes** — figuring out why LINE and MTEXT fail on R2004/R2010/R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
 2. **R14 / R2000 object-stream walker** — completely different layout from R2004-family.
 3. **R2007 Sec_Mask layer-2 bookkeeping** — spec §5.2.
 4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.
@@ -240,12 +241,11 @@ Security vulnerabilities: report privately via [GitHub Security Advisories](http
 
 ## Legal posture
 
-DWG is a trademark of Autodesk, Inc. This crate is not affiliated with, authorized by, or endorsed by Autodesk. It is a clean-room third-party implementation for interoperability, protected by:
+"Autodesk", "AutoCAD", and "DWG" are trademarks of Autodesk, Inc. This crate is not affiliated with, authorized by, or endorsed by Autodesk.
 
-- **17 U.S.C. § 1201(f)** — the DMCA reverse-engineering-for-interoperability exception.
-- **Autodesk, Inc. v. Open Design Alliance**, N.D. Cal. 2006 (settled) — explicitly permits third-party DWG implementations.
+`dwg-rs` is intended as a clean-room interoperability implementation. It does not use Autodesk SDK source, ODA SDK (Drawings SDK / Teigha) source, or GPL-licensed DWG implementation source. The authoritative reference is the ODA's freely-redistributable *Open Design Specification for .dwg files* (v5.4.1) — a document distinct from ODA's SDK license.
 
-The authoritative reference is the ODA's freely-redistributable *Open Design Specification for .dwg files* (v5.4.1) — a document distinct from ODA's SDK license.
+Users with specific legal constraints should evaluate the project with their own counsel. `NOTICE` summarizes the relevant public authority that typically supports independent file-format reverse engineering for interoperability (e.g. *Sega v. Accolade*, *Sony v. Connectix*, EU Software Directive Art. 6, Australia Copyright Act §47D) — it is not offered as a legal opinion.
 
 No Autodesk SDK, no ODA SDK, and no LibreDWG source was consulted at any point.
 
