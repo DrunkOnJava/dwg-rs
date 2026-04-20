@@ -46,6 +46,27 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "classmap_parse"
+path = "fuzz_targets/classmap_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "handlemap_parse"
+path = "fuzz_targets/handlemap_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "header_vars"
+path = "fuzz_targets/header_vars.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 # cargo-fuzz compiles targets in release mode with sanitizers controlled
 # via RUSTFLAGS (-Z sanitizer=address, etc). We keep `debug = 1` so stack

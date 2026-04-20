@@ -6,6 +6,17 @@ a few practices keep the repo healthy.
 
 ## What's welcome
 
+- **Entity decoder coverage — the #1 most-wanted contribution.** The
+  container layer (container, sections, LZ77, RS-FEC, ObjectType,
+  HandleMap, ClassMap) is shipped and tested; per-entity field-body
+  decoders are alpha and fail on most real-world files (see README
+  coverage table). Fixing bit-alignment on the common-entity
+  preamble across R2004 / R2010 / R2013 / R2018, and wiring up
+  end-to-end decode for LINE / CIRCLE / ARC / LWPOLYLINE / TEXT /
+  MTEXT / INSERT / DIMENSION, closes the single biggest gap between
+  "decoder functions exist" and "dwg-rs reads real drawings."
+  Contributions against the public ODA specification are very
+  welcome.
 - **Bug reports** with a minimal reproducer (the smallest `.dwg`
   that triggers the issue). Include the DWG version byte (visible
   in the first 6 bytes as `AC10XX`). Security-sensitive reports go
@@ -16,11 +27,6 @@ a few practices keep the repo healthy.
   findings in `ARCHITECTURE.md` with dated evidence. Please mirror
   any new finding there and back it with a reproducible probe under
   `examples/`.
-- **Entity decoder coverage.** The container layer (container,
-  sections, LZ77, RS-FEC, ObjectType, HandleMap, ClassMap) is
-  shipped and tested; per-entity field-body decoders are alpha.
-  Contributions that expand per-entity coverage against the public
-  ODA specification are very welcome.
 - **Documentation improvements.** The README, ARCHITECTURE, and
   inline doc comments are fair game.
 - **Tests.** More coverage is always welcome, especially for

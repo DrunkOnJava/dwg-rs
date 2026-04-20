@@ -81,7 +81,7 @@
 //! freely-redistributable *Open Design Specification for .dwg files*
 //! (v5.4.1), a document available separately from ODA's SDK license.
 
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]
 
 pub mod bitcursor;
