@@ -582,6 +582,95 @@ pub fn classify_block_name(name: &str) -> BlockSpace {
 }
 
 // ---------------------------------------------------------------------------
+// L6-19 — per-layout entity filtering
+// ---------------------------------------------------------------------------
+
+/// Which layout an entity lives in. Computed from the entity's owning
+/// block-record name via [`classify_block_name`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntityLayoutMembership {
+    /// Entity lives in the model-space block (`*Model_Space`).
+    Model,
+    /// Entity lives in a paper-space block. The payload is the
+    /// specific block-record name (e.g. `*Paper_Space`,
+    /// `*Paper_Space3`) — downstream callers can map this back to
+    /// the ACAD_LAYOUT object whose `block_record_handle` resolves
+    /// to the same block.
+    Paper(String),
+    /// Entity lives in a user-defined reusable block. The payload is
+    /// the block-record name.
+    CustomBlock(String),
+}
+
+/// Filter a sequence of (entity, owner-block-name) pairs down to the
+/// ones whose owner is a paper-space block with the exact name
+/// `layout_block_name`.
+///
+/// The (entity, owner-name) input is what the caller produces after
+/// resolving each entity's owner handle → block-record → block-record
+/// name. Because the trailing-handle decoder has a documented gap in
+/// `src/graph.rs`, this function deliberately doesn't try to walk the
+/// handle chain itself — it takes pre-resolved pairs so the gap
+/// doesn't block the filter layer.
+///
+/// ```
+/// use dwg::graph::filter_by_paper_space_block;
+/// # #[derive(Debug, Clone, PartialEq)] struct FakeEntity(u32);
+/// let items = vec![
+///     (FakeEntity(1), "*Model_Space".to_string()),
+///     (FakeEntity(2), "*Paper_Space".to_string()),
+///     (FakeEntity(3), "*Paper_Space1".to_string()),
+/// ];
+/// let filtered: Vec<_> = filter_by_paper_space_block(items, "*Paper_Space").collect();
+/// assert_eq!(filtered.len(), 1);
+/// assert_eq!(filtered[0].0, FakeEntity(2));
+/// ```
+pub fn filter_by_paper_space_block<I, T>(
+    items: I,
+    layout_block_name: &str,
+) -> impl Iterator<Item = (T, String)> + '_
+where
+    I: IntoIterator<Item = (T, String)> + 'static,
+    I::IntoIter: 'static,
+    T: 'static,
+{
+    let wanted = layout_block_name.to_string();
+    items
+        .into_iter()
+        .filter(move |(_entity, owner_name)| *owner_name == wanted)
+}
+
+/// Filter the same sequence by the coarse [`BlockSpace`] category
+/// (model, paper, custom). Useful when a caller wants "all paper-space
+/// entities regardless of which layout" — e.g. to emit a combined
+/// plot layer.
+pub fn filter_by_block_space<I, T>(
+    items: I,
+    wanted: BlockSpace,
+) -> impl Iterator<Item = (T, String)> + 'static
+where
+    I: IntoIterator<Item = (T, String)> + 'static,
+    I::IntoIter: 'static,
+    T: 'static,
+{
+    items
+        .into_iter()
+        .filter(move |(_entity, owner_name)| classify_block_name(owner_name) == wanted)
+}
+
+/// Classify a single (entity, owner-block-name) pair into a
+/// [`EntityLayoutMembership`]. Caller-convenient single-item API for
+/// the common case of "I have one entity and want to know where it
+/// lives."
+pub fn membership_for(owner_block_name: &str) -> EntityLayoutMembership {
+    match classify_block_name(owner_block_name) {
+        BlockSpace::Model => EntityLayoutMembership::Model,
+        BlockSpace::Paper => EntityLayoutMembership::Paper(owner_block_name.to_string()),
+        BlockSpace::Custom => EntityLayoutMembership::CustomBlock(owner_block_name.to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1016,5 +1105,62 @@ mod tests {
         assert_eq!(classify_block_name("MyCustomBlock"), BlockSpace::Custom);
         assert_eq!(classify_block_name("DoorFrame_v2"), BlockSpace::Custom);
         assert_eq!(classify_block_name(""), BlockSpace::Custom);
+    }
+
+    // ---- L6-19: per-layout entity filtering ----
+
+    #[test]
+    fn filter_by_paper_space_block_keeps_exact_matches() {
+        let items = vec![
+            (1u32, "*Model_Space".to_string()),
+            (2, "*Paper_Space".to_string()),
+            (3, "*Paper_Space".to_string()),
+            (4, "*Paper_Space1".to_string()),
+            (5, "CustomBlock".to_string()),
+        ];
+        let got: Vec<_> = filter_by_paper_space_block(items, "*Paper_Space").collect();
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0].0, 2);
+        assert_eq!(got[1].0, 3);
+    }
+
+    #[test]
+    fn filter_by_block_space_model_and_paper() {
+        let items = vec![
+            (1u32, "*Model_Space".to_string()),
+            (2, "*Paper_Space".to_string()),
+            (3, "*Paper_Space2".to_string()),
+            (4, "LibraryBlock".to_string()),
+        ];
+        let model: Vec<_> =
+            filter_by_block_space(items.clone(), BlockSpace::Model).collect();
+        assert_eq!(model.len(), 1);
+        assert_eq!(model[0].0, 1);
+
+        let paper: Vec<_> =
+            filter_by_block_space(items.clone(), BlockSpace::Paper).collect();
+        assert_eq!(paper.len(), 2);
+
+        let custom: Vec<_> =
+            filter_by_block_space(items, BlockSpace::Custom).collect();
+        assert_eq!(custom.len(), 1);
+        assert_eq!(custom[0].0, 4);
+    }
+
+    #[test]
+    fn membership_for_maps_block_names_to_variants() {
+        assert_eq!(membership_for("*Model_Space"), EntityLayoutMembership::Model);
+        assert_eq!(
+            membership_for("*Paper_Space"),
+            EntityLayoutMembership::Paper("*Paper_Space".to_string())
+        );
+        assert_eq!(
+            membership_for("*Paper_Space7"),
+            EntityLayoutMembership::Paper("*Paper_Space7".to_string())
+        );
+        assert_eq!(
+            membership_for("DoorFrame"),
+            EntityLayoutMembership::CustomBlock("DoorFrame".to_string())
+        );
     }
 }
