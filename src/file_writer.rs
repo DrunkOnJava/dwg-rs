@@ -49,10 +49,11 @@
 //! A method like `DwgFile::to_bytes()` would require all five stages;
 //! that API is deferred until Stages 2-5 ship.
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::section_writer::{BuiltSection, build_section};
 use crate::version::Version;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 /// Stage-1 writer — collects named sections + decompressed byte
 /// payloads, emits a `Vec<NamedBuiltSection>` where each element is
@@ -127,6 +128,130 @@ pub struct NamedBuiltSection {
     pub built: BuiltSection,
 }
 
+// ================================================================
+// L12-03 — per-version magic byte + file-header writer
+// ================================================================
+
+/// Return the 6-byte ASCII `$ACADVER` magic for a given DWG version
+/// (spec §3.1, first 6 bytes of the file).
+///
+/// | Version      | Magic  |
+/// |--------------|--------|
+/// | R14          | AC1014 |
+/// | R2000..R2002 | AC1015 |
+/// | R2004..R2006 | AC1018 |
+/// | R2007..R2009 | AC1021 |
+/// | R2010..R2012 | AC1024 |
+/// | R2013..R2017 | AC1027 |
+/// | R2018+       | AC1032 |
+pub fn version_magic_bytes(version: Version) -> [u8; 6] {
+    let s: &[u8; 6] = match version {
+        Version::R14 => b"AC1014",
+        Version::R2000 => b"AC1015",
+        Version::R2004 => b"AC1018",
+        Version::R2007 => b"AC1021",
+        Version::R2010 => b"AC1024",
+        Version::R2013 => b"AC1027",
+        Version::R2018 => b"AC1032",
+    };
+    *s
+}
+
+/// Build the first 16 bytes of a DWG file — the "version string"
+/// region per spec §3.1:
+///
+/// ```text
+/// [0x00..0x06]  6 ASCII bytes  — $ACADVER magic (e.g. "AC1032")
+/// [0x06..0x0B]  5 bytes 0x00   — reserved
+/// [0x0B]        1 byte         — maintenance release (0)
+/// [0x0C..0x0D]  1 byte 0x00    — reserved
+/// [0x0D]        1 byte 0x1F    — marker (0x1F on R2004+, 0x00 older)
+/// [0x0E..0x10]  2 bytes 0x00   — reserved
+/// ```
+///
+/// Downstream stages (Section Page Map, file-open header, XOR magic)
+/// are added by Stages 2-5 of the writer pipeline. This function
+/// produces only the leading 16-byte ACADVER block.
+pub fn build_version_header(version: Version) -> [u8; 16] {
+    let mut out = [0u8; 16];
+    let magic = version_magic_bytes(version);
+    out[0..6].copy_from_slice(&magic);
+    // [6..11] stays zero.
+    // [11] maintenance release — 0 for now.
+    // [12] stays zero.
+    // [13] marker: 0x1F on R2004+, 0x00 older.
+    out[13] = if matches!(
+        version,
+        Version::R2004 | Version::R2007 | Version::R2010 | Version::R2013 | Version::R2018
+    ) {
+        0x1F
+    } else {
+        0x00
+    };
+    // [14..16] stays zero.
+    out
+}
+
+// ================================================================
+// P0-10 — atomic write via temp + rename
+// ================================================================
+
+/// Write bytes to `path` atomically: first write to a sibling
+/// temporary file, then rename into place. Rename is atomic on all
+/// POSIX + NTFS platforms for same-volume targets — consumers that
+/// cross volumes should opt into a copy+unlink fallback.
+///
+/// On success the target file contains exactly `bytes`. On failure
+/// the target is unchanged; the temp file is deleted if it exists.
+///
+/// The temp file is named `<target>.tmp-<pid>` to avoid collisions
+/// with other processes writing the same target.
+///
+/// # Errors
+///
+/// Returns [`Error::Io`] for any filesystem failure. Unlike a naive
+/// `File::create + write_all` pair, an interrupted atomic write
+/// never leaves a half-written target behind.
+pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::fs;
+    use std::io::Write as IoWrite;
+
+    let parent = path.parent().ok_or_else(|| {
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("atomic_write: path {:?} has no parent directory", path),
+        ))
+    })?;
+
+    let pid = std::process::id();
+    let temp_name = format!(
+        "{}.tmp-{pid}",
+        path.file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("dwg-rs-atomic")
+    );
+    let temp_path = parent.join(&temp_name);
+
+    // Scope the File so it's closed before rename.
+    {
+        let mut f = fs::File::create(&temp_path).map_err(Error::Io)?;
+        let write_err = f.write_all(bytes).err();
+        let sync_err = f.sync_all().err();
+        drop(f);
+        if let Some(e) = write_err.or(sync_err) {
+            let _ = fs::remove_file(&temp_path);
+            return Err(Error::Io(e));
+        }
+    }
+
+    // Atomic rename (POSIX + NTFS same-volume guarantee).
+    if let Err(e) = fs::rename(&temp_path, path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(Error::Io(e));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +300,102 @@ mod tests {
         assert_eq!(built[1].number, 2);
         assert_eq!(built[2].name, "AcDb:SummaryInfo");
         assert_eq!(built[2].number, 3);
+    }
+
+    // ---- L12-03: version magic + file-header writer ----
+
+    #[test]
+    fn version_magic_matches_spec_table() {
+        assert_eq!(&version_magic_bytes(Version::R14), b"AC1014");
+        assert_eq!(&version_magic_bytes(Version::R2000), b"AC1015");
+        assert_eq!(&version_magic_bytes(Version::R2004), b"AC1018");
+        assert_eq!(&version_magic_bytes(Version::R2007), b"AC1021");
+        assert_eq!(&version_magic_bytes(Version::R2010), b"AC1024");
+        assert_eq!(&version_magic_bytes(Version::R2013), b"AC1027");
+        assert_eq!(&version_magic_bytes(Version::R2018), b"AC1032");
+    }
+
+    #[test]
+    fn version_header_first_6_bytes_are_ascii_magic() {
+        let header = build_version_header(Version::R2018);
+        assert_eq!(&header[0..6], b"AC1032");
+        // Reserved bytes [6..11] must be zero.
+        assert!(header[6..11].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn version_header_marker_is_0x1f_on_r2004_plus() {
+        assert_eq!(build_version_header(Version::R14)[13], 0x00);
+        assert_eq!(build_version_header(Version::R2000)[13], 0x00);
+        assert_eq!(build_version_header(Version::R2004)[13], 0x1F);
+        assert_eq!(build_version_header(Version::R2018)[13], 0x1F);
+    }
+
+    #[test]
+    fn version_header_is_exactly_16_bytes() {
+        let header = build_version_header(Version::R2000);
+        assert_eq!(header.len(), 16);
+    }
+
+    // ---- P0-10: atomic write ----
+
+    #[test]
+    fn atomic_write_creates_target_with_exact_bytes() {
+        let tmp_dir = std::env::temp_dir();
+        let target = tmp_dir.join(format!("dwg-rs-atomic-test-{}.bin", std::process::id()));
+        let payload = b"\xACtest atomic write";
+
+        atomic_write(&target, payload).expect("atomic_write must succeed");
+        let read_back = std::fs::read(&target).expect("target must exist after atomic_write");
+        assert_eq!(read_back, payload);
+
+        std::fs::remove_file(&target).ok();
+    }
+
+    #[test]
+    fn atomic_write_overwrites_existing_file() {
+        let tmp_dir = std::env::temp_dir();
+        let target = tmp_dir.join(format!(
+            "dwg-rs-atomic-overwrite-{}.bin",
+            std::process::id()
+        ));
+
+        std::fs::write(&target, b"old contents").expect("seed write");
+        atomic_write(&target, b"new contents").expect("atomic overwrite");
+
+        let read_back = std::fs::read(&target).unwrap();
+        assert_eq!(read_back, b"new contents");
+
+        std::fs::remove_file(&target).ok();
+    }
+
+    #[test]
+    fn atomic_write_rejects_path_with_no_parent() {
+        // A single-component path on most platforms has no parent
+        // directory other than the CWD — but Path::parent() returns
+        // Some("") for "filename". So use the empty path as a
+        // pathological case.
+        let bad = Path::new("");
+        let err = atomic_write(bad, b"anything").unwrap_err();
+        assert!(matches!(err, Error::Io(_)));
+    }
+
+    #[test]
+    fn atomic_write_leaves_no_temp_file_on_success() {
+        let tmp_dir = std::env::temp_dir();
+        let target = tmp_dir.join(format!(
+            "dwg-rs-atomic-cleanup-{}.bin",
+            std::process::id()
+        ));
+        atomic_write(&target, b"clean").unwrap();
+
+        // No sibling .tmp-<pid> file should remain.
+        let pid = std::process::id();
+        let orphan = tmp_dir.join(format!(
+            "dwg-rs-atomic-cleanup-{pid}.bin.tmp-{pid}"
+        ));
+        assert!(!orphan.exists(), "temp file leaked: {orphan:?}");
+
+        std::fs::remove_file(&target).ok();
     }
 }
