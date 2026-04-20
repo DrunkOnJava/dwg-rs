@@ -33,6 +33,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod layer_panel;
+pub mod linetype;
 pub mod measure;
 pub mod no_upload;
 pub mod url_state;
