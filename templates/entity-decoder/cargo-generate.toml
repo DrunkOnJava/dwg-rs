@@ -1,0 +1,14 @@
+[template]
+cargo_generate_version = ">=0.18.0"
+
+[placeholders.entity_name]
+type = "string"
+prompt = "Entity name (PascalCase, e.g. 'Helix')"
+
+[placeholders.entity_module]
+type = "string"
+prompt = "Module name (snake_case, e.g. 'helix')"
+
+[placeholders.spec_section]
+type = "string"
+prompt = "ODA spec section (e.g. '19.4.76')"

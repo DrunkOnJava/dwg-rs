@@ -31,8 +31,8 @@ use crate::bitcursor::BitCursor;
 use crate::entities::{
     arc, attdef, attrib, block, camera, circle, dimension, ellipse, endblk, extruded_surface,
     geodata, hatch, helix, image, insert, leader, light, line, lofted_surface, lwpolyline, mleader,
-    mtext, point, polyline, ray, revolved_surface, solid, spline, sun, swept_surface, text,
-    three_d_face, trace, vertex, viewport, xline,
+    mtext, ole2_frame, point, polyline, ray, revolved_surface, solid, spline, sun, swept_surface,
+    text, three_d_face, tolerance, trace, underlay, vertex, viewport, wipeout, xline,
 };
 use crate::error::{Error, Result};
 use crate::object::RawObject;
@@ -81,17 +81,21 @@ pub enum DecodedEntity {
     SweptSurface(swept_surface::SweptSurface),
     LoftedSurface(lofted_surface::LoftedSurface),
     Helix(helix::Helix),
+    Tolerance(tolerance::Tolerance),
+    Ole2Frame(ole2_frame::Ole2Frame),
+    Underlay(underlay::Underlay),
+    Wipeout(wipeout::Wipeout),
     // Symbol-table entries — not drawing entities but worth
     // surfacing as typed variants for callers that iterate
     // DecodedEntity over the whole object stream.
     Layer(crate::tables::layer::Layer),
-    Ltype(crate::tables::ltype::LType),
-    Style(crate::tables::style::Style),
-    View(crate::tables::view::View),
-    Ucs(crate::tables::ucs::Ucs),
-    VPort(crate::tables::vport::VPort),
+    Ltype(crate::tables::ltype::LtypeEntry),
+    Style(crate::tables::style::StyleEntry),
+    View(crate::tables::view::ViewEntry),
+    Ucs(crate::tables::ucs::UcsEntry),
+    VPort(crate::tables::vport::VportEntry),
     AppId(crate::tables::appid::AppId),
-    DimStyle(crate::tables::dimstyle::DimStyle),
+    DimStyle(crate::tables::dimstyle::DimStyleEntry),
     BlockRecord(crate::tables::block_record::BlockRecord),
     /// Object type this dispatcher doesn't decode (control objects,
     /// dictionaries, unknown custom classes). The raw bytes remain
@@ -155,6 +159,12 @@ impl DecodedEntity {
             Self::SweptSurface(_) => 0,
             Self::LoftedSurface(_) => 0,
             Self::Helix(_) => 0,
+            Self::Tolerance(_) => OBJECT_TYPE_TOLERANCE,
+            Self::Ole2Frame(_) => OBJECT_TYPE_OLE2FRAME,
+            // UNDERLAY family + WIPEOUT are custom classes — codes
+            // vary per-file via AcDb:Classes.
+            Self::Underlay(_) => 0,
+            Self::Wipeout(_) => 0,
             Self::Layer(_) => 0x33,
             Self::Ltype(_) => 0x39,
             Self::Style(_) => 0x35,
@@ -209,6 +219,8 @@ const OBJECT_TYPE_RAY: u16 = 0x28; // 40
 const OBJECT_TYPE_XLINE: u16 = 0x29; // 41
 const OBJECT_TYPE_MTEXT: u16 = 0x2C; // 44
 const OBJECT_TYPE_LEADER: u16 = 0x2D; // 45
+const OBJECT_TYPE_TOLERANCE: u16 = 0x2E; // 46
+const OBJECT_TYPE_OLE2FRAME: u16 = 0x4A; // 74
 const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
 const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
 // CAMERA / SUN / LIGHT / GEODATA are visual/scene entities introduced
@@ -292,6 +304,25 @@ pub fn decode_from_raw_with_class_map(
             .map_err(|e| e.to_string()),
         "HELIX" | "ACDBHELIX" => helix::decode(&mut cursor)
             .map(DecodedEntity::Helix)
+            .map_err(|e| e.to_string()),
+        // UNDERLAY family (§19.4.86) — PDF / DWF / DGN share one payload.
+        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" => {
+            underlay::decode(&mut cursor, underlay::UnderlayKind::Pdf)
+                .map(DecodedEntity::Underlay)
+                .map_err(|e| e.to_string())
+        }
+        "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => {
+            underlay::decode(&mut cursor, underlay::UnderlayKind::Dwf)
+                .map(DecodedEntity::Underlay)
+                .map_err(|e| e.to_string())
+        }
+        "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => {
+            underlay::decode(&mut cursor, underlay::UnderlayKind::Dgn)
+                .map(DecodedEntity::Underlay)
+                .map_err(|e| e.to_string())
+        }
+        "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor)
+            .map(DecodedEntity::Wipeout)
             .map_err(|e| e.to_string()),
         _ => {
             return DecodedEntity::Unhandled {
@@ -536,6 +567,12 @@ fn dispatch(
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_LEADER => leader::decode(cursor)
             .map(DecodedEntity::Leader)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_TOLERANCE => tolerance::decode(cursor, version)
+            .map(DecodedEntity::Tolerance)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_OLE2FRAME => ole2_frame::decode(cursor)
+            .map(DecodedEntity::Ole2Frame)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_HATCH => hatch::decode(cursor, version)
             .map(DecodedEntity::Hatch)

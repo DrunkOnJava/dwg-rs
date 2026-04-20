@@ -63,6 +63,7 @@ pub mod lwpolyline;
 pub mod mleader;
 pub mod modeler;
 pub mod mtext;
+pub mod ole2_frame;
 pub mod point;
 pub mod polyline;
 pub mod ray;
@@ -75,9 +76,12 @@ pub mod swept_surface;
 pub mod text;
 pub mod three_d_face;
 pub mod three_d_solid;
+pub mod tolerance;
 pub mod trace;
+pub mod underlay;
 pub mod vertex;
 pub mod viewport;
+pub mod wipeout;
 pub mod xline;
 
 pub use dispatch::{

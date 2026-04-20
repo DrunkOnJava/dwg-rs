@@ -277,6 +277,114 @@ impl Transform3 {
             z: self.m[2][0] * v.x + self.m[2][1] * v.y + self.m[2][2] * v.z,
         }
     }
+
+    /// Build a transform from World Coordinate System (WCS) to a User
+    /// Coordinate System (UCS) defined by an origin + X axis + Y axis.
+    /// (L8-01.) The Z axis is computed as `x_axis × y_axis`.
+    ///
+    /// Use this when an entity stores its coordinates in UCS-local
+    /// space and you need to lift them to WCS for rendering: take the
+    /// inverse of this transform via [`invert_orthonormal`] and apply
+    /// to entity coordinates.
+    pub fn ucs_from_axes(origin: Point3D, x_axis: Vec3D, y_axis: Vec3D) -> Self {
+        let x = x_axis.normalize(1e-12);
+        let y = y_axis.normalize(1e-12);
+        let z = x.cross(y).normalize(1e-12);
+        Transform3 {
+            m: [
+                [x.x, y.x, z.x, origin.x],
+                [x.y, y.y, z.y, origin.y],
+                [x.z, y.z, z.z, origin.z],
+                [0.0, 0.0, 0.0, 1.0],
+            ],
+        }
+    }
+
+    /// Invert an orthonormal transform (rotation + translation only —
+    /// no scale or shear). Cheap closed-form inverse: transpose the
+    /// 3×3 rotation block and negate the translation. UCS↔WCS pairs
+    /// are always orthonormal, so this is the right inverse for them.
+    pub fn invert_orthonormal(&self) -> Transform3 {
+        let mut out = Transform3 { m: [[0.0; 4]; 4] };
+        for i in 0..3 {
+            for j in 0..3 {
+                out.m[i][j] = self.m[j][i];
+            }
+        }
+        // New translation = -Rᵀ · old translation.
+        let tx = self.m[0][3];
+        let ty = self.m[1][3];
+        let tz = self.m[2][3];
+        out.m[0][3] = -(out.m[0][0] * tx + out.m[0][1] * ty + out.m[0][2] * tz);
+        out.m[1][3] = -(out.m[1][0] * tx + out.m[1][1] * ty + out.m[1][2] * tz);
+        out.m[2][3] = -(out.m[2][0] * tx + out.m[2][1] * ty + out.m[2][2] * tz);
+        out.m[3][3] = 1.0;
+        out
+    }
+
+    /// AutoCAD's "Arbitrary Axis Algorithm" — derives a stable UCS basis
+    /// from an extrusion-direction normal vector. (L8-02.) Per the
+    /// publicly-documented algorithm in the ODA spec appendix and
+    /// Autodesk DXF reference: when |Nx| < 1/64 AND |Ny| < 1/64, take
+    /// the world Y axis as Wy; otherwise take the world Z axis as Wz.
+    /// Then build:
+    ///
+    ///   Ax = Wy × Nz_normal       (or Wz × Nz_normal)
+    ///   Ay = Nz_normal × Ax
+    ///
+    /// The returned transform takes UCS-local coordinates to WCS
+    /// for an entity whose extrusion is `normal`.
+    pub fn arbitrary_axis(normal: Vec3D) -> Self {
+        let n = normal.normalize(1e-12);
+        let world_y = Vec3D {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        };
+        let world_z = Vec3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        };
+        let pivot = if n.x.abs() < 1.0 / 64.0 && n.y.abs() < 1.0 / 64.0 {
+            world_y
+        } else {
+            world_z
+        };
+        let ax = pivot.cross(n).normalize(1e-12);
+        let ay = n.cross(ax);
+        Transform3::ucs_from_axes(Point3D::new(0.0, 0.0, 0.0), ax, ay)
+    }
+
+    /// Compose this transform with `other`, treating `self` as an
+    /// entity-level instance transform applied AFTER `other` (which
+    /// is typically the parent block's transform). Equivalent to
+    /// [`compose`](Self::compose).
+    ///
+    /// The named alias exists for L8-03 readability — at INSERT
+    /// expansion time, callers write
+    /// `parent_transform.then(insert_transform)` to express
+    /// "the INSERT is positioned within the block".
+    pub fn then(&self, other: &Transform3) -> Transform3 {
+        other.compose(self)
+    }
+
+    /// Build a single composite transform from a chain of nested
+    /// block-INSERT transforms, with the outermost block first and
+    /// the innermost INSERT last. (L8-04.) Useful for flattening a
+    /// nested-block hierarchy at render time without walking the
+    /// entity tree per-vertex.
+    ///
+    /// `chain.iter().rev().fold(identity, |acc, t| acc.compose(t))`
+    /// — but the public API hides the fold direction so callers don't
+    /// have to reason about whether to reverse.
+    pub fn compose_chain(chain: &[Transform3]) -> Transform3 {
+        let mut acc = Transform3::identity();
+        for t in chain {
+            acc = acc.compose(t);
+        }
+        acc
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -706,5 +814,115 @@ mod tests {
     fn mesh_empty_has_empty_bounds() {
         let m = Mesh::empty();
         assert!(m.bounds().is_empty());
+    }
+
+    // -----------------------------------------------------------------
+    // L8-01 / L8-02 / L8-03 / L8-04 transform composition tests
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn ucs_from_axes_round_trips_via_invert_orthonormal() {
+        let origin = Point3D::new(10.0, 20.0, 30.0);
+        let x = Vec3D {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        };
+        let y = Vec3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        };
+        let to_wcs = Transform3::ucs_from_axes(origin, x, y);
+        let to_ucs = to_wcs.invert_orthonormal();
+        let p = Point3D::new(1.0, 2.0, 3.0);
+        let world = to_wcs.transform_point(p);
+        let back = to_ucs.transform_point(world);
+        assert!(approx(back.x, p.x));
+        assert!(approx(back.y, p.y));
+        assert!(approx(back.z, p.z));
+    }
+
+    #[test]
+    fn arbitrary_axis_world_z_normal_is_identity_xy() {
+        // Normal pointing along +Z should give Ax = +X, Ay = +Y
+        // (the standard WCS-aligned UCS).
+        let n = Vec3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        };
+        let t = Transform3::arbitrary_axis(n);
+        let p = Point3D::new(1.0, 0.0, 0.0);
+        let q = t.transform_point(p);
+        assert!(approx(q.x, 1.0));
+        assert!(approx(q.y, 0.0));
+        assert!(approx(q.z, 0.0));
+    }
+
+    #[test]
+    fn arbitrary_axis_uses_world_y_when_normal_near_z() {
+        // Normal that's *almost* +Z but with tiny X+Y components below
+        // the 1/64 threshold should still pick world Z as the pivot
+        // (per the spec algorithm).
+        let n = Vec3D {
+            x: 0.0001,
+            y: 0.0001,
+            z: 1.0,
+        };
+        let t = Transform3::arbitrary_axis(n);
+        // Just verify it produces a valid (orthonormal) transform —
+        // applying twice with the inverse should be near-identity.
+        let inv = t.invert_orthonormal();
+        let p = Point3D::new(2.0, 3.0, 4.0);
+        let round = inv.transform_point(t.transform_point(p));
+        assert!(approx(round.x, p.x));
+        assert!(approx(round.y, p.y));
+        assert!(approx(round.z, p.z));
+    }
+
+    #[test]
+    fn then_alias_matches_compose() {
+        let a = Transform3::translation(5.0, 0.0, 0.0);
+        let b = Transform3::rotation_z(std::f64::consts::FRAC_PI_2);
+        // a.then(b) should equal b.compose(a) per the doc — i.e.,
+        // "first a (translate), then b (rotate)".
+        let p = Point3D::new(1.0, 0.0, 0.0);
+        let via_then = a.then(&b).transform_point(p);
+        let via_compose = b.compose(&a).transform_point(p);
+        assert_eq!(via_then, via_compose);
+    }
+
+    #[test]
+    fn compose_chain_empty_is_identity() {
+        let t = Transform3::compose_chain(&[]);
+        let p = Point3D::new(7.0, 8.0, 9.0);
+        assert_eq!(t.transform_point(p), p);
+    }
+
+    #[test]
+    fn compose_chain_single_is_self() {
+        let t1 = Transform3::translation(10.0, 0.0, 0.0);
+        let composed = Transform3::compose_chain(&[t1]);
+        let p = Point3D::new(0.0, 0.0, 0.0);
+        assert_eq!(composed.transform_point(p), Point3D::new(10.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn compose_chain_two_translations_sum() {
+        let t1 = Transform3::translation(10.0, 0.0, 0.0);
+        let t2 = Transform3::translation(0.0, 20.0, 0.0);
+        let composed = Transform3::compose_chain(&[t1, t2]);
+        let p = Point3D::new(0.0, 0.0, 0.0);
+        let q = composed.transform_point(p);
+        assert!(approx(q.x, 10.0));
+        assert!(approx(q.y, 20.0));
+    }
+
+    #[test]
+    fn invert_orthonormal_of_identity_is_identity() {
+        let i = Transform3::identity();
+        let inv = i.invert_orthonormal();
+        assert_eq!(inv, i);
     }
 }

@@ -16,6 +16,13 @@ exclude = [
     ".github/",
     ".gitattributes",
     "fuzz/",
+    # Developer-experience scaffolding. `templates/` contains a
+    # cargo-generate template for entity decoders (handlebars
+    # placeholders, not valid Rust); `tools/` contains auxiliary
+    # binaries like the synthetic-DWG fixture generator. Neither
+    # belongs in the published library crate.
+    "templates/",
+    "tools/",
     # Note: CHANGELOG.md, README.md, SECURITY.md, ARCHITECTURE.md, and
     # NOTICE are intentionally INCLUDED in the published crate so users
     # who discover the crate via `cargo add dwg` can read the honest
@@ -37,12 +44,36 @@ clap = { version = "4", features = ["derive"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 
+# Heap profiler used by `examples/dhat_profile.rs`. Declared in
+# `[dependencies]` with `optional = true` (Cargo disallows optional
+# dev-dependencies) so it is only resolved when the `dhat-heap`
+# feature is activated, e.g.
+#   cargo run --release --example dhat_profile --features dhat-heap
+# Library consumers that do not opt in never pull this crate.
+dhat = { version = "0.3", optional = true }
+
 [dev-dependencies]
 proptest = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "lz77"
+harness = false
+
+[[bench]]
+name = "section_map"
+harness = false
+
+[[bench]]
+name = "object_walk"
+harness = false
+
+[[bench]]
+name = "metadata_parse"
+harness = false
+
+[[bench]]
+name = "libredwg_compare"
 harness = false
 
 [features]
@@ -56,6 +87,12 @@ cli = ["dep:anyhow", "dep:clap", "dep:serde", "dep:serde_json"]
 # for debugging; unconditional tracing would wreck performance and flood
 # stderr on healthy files.
 lz77-trace = []
+# Install `dhat::Alloc` as the global allocator in
+# `examples/dhat_profile.rs`. Turned off by default so the example's
+# heap-profiler init does not run during `cargo build --examples` or
+# `cargo test`. Activate with
+# `cargo run --release --example dhat_profile --features dhat-heap`.
+dhat-heap = ["dep:dhat"]
 
 [[bin]]
 name = "dwg-info"
