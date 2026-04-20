@@ -53,11 +53,7 @@ fn dimension_subtype_labels_agree_per_code() {
         (0x14, ObjectType::DimensionOrdinate, DimensionKind::Ordinate),
         (0x15, ObjectType::DimensionLinear, DimensionKind::Linear),
         (0x16, ObjectType::DimensionAligned, DimensionKind::Aligned),
-        (
-            0x17,
-            ObjectType::DimensionAng3Pt,
-            DimensionKind::Angular3Pt,
-        ),
+        (0x17, ObjectType::DimensionAng3Pt, DimensionKind::Angular3Pt),
         (
             0x18,
             ObjectType::DimensionAng2Ln,
@@ -240,7 +236,7 @@ fn reserved_slots_classify_cleanly() {
 /// Unused imports quiet — the imports above exist to make the tests
 /// compile if someone factors out the decoder functions later; silence
 /// the current-build warning without an allow-attribute.
-#[allow(dead_code)]
+#[allow(dead_code, clippy::too_many_arguments)]
 fn _decoder_imports_exist(
     _a: fn() -> arc::Arc,
     _b: fn() -> attdef::AttDef,

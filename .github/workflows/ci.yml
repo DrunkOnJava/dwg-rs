@@ -114,8 +114,14 @@ jobs:
       - name: Run coverage_report and assert minimum decode ratio
         run: |
           set -e
-          if [ ! -d tests/fixtures/canonical ]; then
-            echo "::warning::canonical corpus missing; skipping coverage smoke"
+          # Skip if the directory doesn't exist OR has no .dwg fixtures
+          # yet — the canonical corpus is committed lazily (see
+          # tests/fixtures/canonical/README.md). Both conditions matter:
+          # an empty directory with only a README is a valid state while
+          # the write path matures.
+          if [ ! -d tests/fixtures/canonical ] \
+             || [ -z "$(find tests/fixtures/canonical -maxdepth 1 -name '*.dwg' -print -quit)" ]; then
+            echo "::warning::canonical corpus has no .dwg files yet; skipping coverage smoke"
             exit 0
           fi
           OUTPUT=$(cargo +stable run --release --example coverage_report -- tests/fixtures/canonical 2>&1)

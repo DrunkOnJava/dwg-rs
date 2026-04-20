@@ -135,9 +135,9 @@ fn integration_arc_dispatch_is_not_circle() {
     let decoded = decode_from_raw(&raw, Version::R2018);
     match decoded {
         DecodedEntity::Arc(_) | DecodedEntity::Error { .. } => { /* correct */ }
-        DecodedEntity::Circle(_) => panic!(
-            "type 0x11 (ARC) dispatched to CIRCLE variant — swap regression"
-        ),
+        DecodedEntity::Circle(_) => {
+            panic!("type 0x11 (ARC) dispatched to CIRCLE variant — swap regression")
+        }
         other => panic!(
             "type 0x11 (ARC) dispatched to unexpected variant: {:?}",
             std::mem::discriminant(&other)

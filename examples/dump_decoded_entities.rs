@@ -149,12 +149,7 @@ fn print_entity(i: usize, e: &DecodedEntity) {
             println!(
                 "[{i}] ELLIPSE  center=({:.6}, {:.6}, {:.6}) axis_ratio={:.6} \
                  start_param={:.6} end_param={:.6}",
-                el.center.x,
-                el.center.y,
-                el.center.z,
-                el.axis_ratio,
-                el.start_param,
-                el.end_param
+                el.center.x, el.center.y, el.center.z, el.axis_ratio, el.start_param, el.end_param
             );
             println!(
                 "         major_axis=({:.6}, {:.6}, {:.6})",

@@ -213,21 +213,21 @@ pub fn decode_from_raw_with_class_map(
             message: format!("common entity preamble: {e}"),
         };
     }
-    let result: std::result::Result<DecodedEntity, String> =
-        match class_def.dxf_class_name.as_str() {
-            "IMAGE" | "RASTERIMAGE" => image::decode(&mut cursor, version)
-                .map(DecodedEntity::Image)
-                .map_err(|e| e.to_string()),
-            "MULTILEADER" | "MLEADER" => mleader::decode(&mut cursor)
-                .map(DecodedEntity::MLeader)
-                .map_err(|e| e.to_string()),
-            _ => {
-                return DecodedEntity::Unhandled {
-                    type_code,
-                    kind: raw.kind,
-                };
-            }
-        };
+    let result: std::result::Result<DecodedEntity, String> = match class_def.dxf_class_name.as_str()
+    {
+        "IMAGE" | "RASTERIMAGE" => image::decode(&mut cursor, version)
+            .map(DecodedEntity::Image)
+            .map_err(|e| e.to_string()),
+        "MULTILEADER" | "MLEADER" => mleader::decode(&mut cursor)
+            .map(DecodedEntity::MLeader)
+            .map_err(|e| e.to_string()),
+        _ => {
+            return DecodedEntity::Unhandled {
+                type_code,
+                kind: raw.kind,
+            };
+        }
+    };
     match result {
         Ok(entity) => entity,
         Err(message) => DecodedEntity::Error {
