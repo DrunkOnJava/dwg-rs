@@ -95,8 +95,8 @@ impl DwgFile {
     }
 
     /// Open with explicit safety limits — refuses to read the file at
-    /// all if its on-disk size exceeds [`OpenLimits::max_file_bytes`].
-    /// Use [`OpenLimits::paranoid`] for untrusted-upload contexts.
+    /// all if its on-disk size exceeds [`crate::limits::OpenLimits::max_file_bytes`].
+    /// Use [`crate::limits::OpenLimits::paranoid`] for untrusted-upload contexts.
     ///
     /// Performs the size check via `fs::metadata` BEFORE allocating the
     /// buffer, so an adversarial filename pointing at a multi-GB file

@@ -3,7 +3,7 @@
 //! A POLYGON_MESH header stores the (M, N) dimensions of an indexed
 //! surface patch plus closed-direction flags. The vertex grid itself
 //! lives in a handle chain of `VERTEX_MESH` sub-entities referenced by
-//! [`Self::first_vertex_handle`] .. [`Self::last_vertex_handle`]; the
+//! `first_vertex_handle` .. `last_vertex_handle`; the
 //! traversal is a downstream concern, not handled here.
 //!
 //! POLYGON_MESH and [`super::polyface_mesh::PolyfaceMesh`] are sibling

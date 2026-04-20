@@ -8,8 +8,8 @@
 //!
 //! [`HandleAllocator`] keeps two pieces of state:
 //!
-//! - `next` — the monotonic counter returned by [`Self::allocate`].
-//! - `known` — a set of "taken" handles registered via [`Self::reserve`].
+//! - `next` — the monotonic counter returned by [`HandleAllocator::allocate`].
+//! - `known` — a set of "taken" handles registered via [`HandleAllocator::reserve`].
 //!
 //! On every `allocate` the counter advances past any reserved collision
 //! before returning, so allocated values are guaranteed not to collide with
@@ -50,6 +50,9 @@ impl HandleAllocator {
     /// Construct a fresh allocator. The first handle returned is `1` —
     /// handle `0` is not legal in DWG (used as a null-handle sentinel in
     /// the object stream).
+    ///
+    /// Use [`Self::allocate`] to mint the next handle and
+    /// [`Self::reserve`] to pre-register fixed handles.
     pub fn new() -> Self {
         Self {
             next: 1,

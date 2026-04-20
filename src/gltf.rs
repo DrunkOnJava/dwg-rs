@@ -22,7 +22,7 @@
 //! `format!` strings, same pattern as [`crate::svg`] and [`crate::dxf`].
 //! Float values use Rust's default `{}` formatting, which is valid
 //! JSON for finite floats (no trailing dot; no `NaN`/`Inf` — see
-//! [`escape_f32`]).
+//! `escape_f32`).
 //!
 //! # Example
 //!

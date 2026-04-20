@@ -284,7 +284,7 @@ impl Transform3 {
     ///
     /// Use this when an entity stores its coordinates in UCS-local
     /// space and you need to lift them to WCS for rendering: take the
-    /// inverse of this transform via [`invert_orthonormal`] and apply
+    /// inverse of this transform via `invert_orthonormal` and apply
     /// to entity coordinates.
     pub fn ucs_from_axes(origin: Point3D, x_axis: Vec3D, y_axis: Vec3D) -> Self {
         let x = x_axis.normalize(1e-12);
@@ -403,7 +403,7 @@ pub struct BBox3 {
 }
 
 impl BBox3 {
-    /// An empty bbox that acts as the identity element for [`union`].
+    /// An empty bbox that acts as the identity element for [`Self::union`].
     pub const fn empty() -> Self {
         BBox3 {
             min: Point3D {

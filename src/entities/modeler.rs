@@ -5,7 +5,7 @@
 //! Autodesk stores parametric solids and surfaces as an opaque ACIS
 //! SAT (Standard ACIS Text) byte stream wrapped in a thin DWG-level
 //! envelope. The low-level wire decoder lives in
-//! [`crate::entities::three_d_solid::read_sat_blob`]; this module
+//! `crate::entities::three_d_solid::read_sat_blob`; this module
 //! offers a small typed wrapper that the four SURFACE variants use
 //! to keep their own structs uncluttered.
 //!
@@ -42,7 +42,7 @@ pub struct SatBlob {
 }
 
 /// Decode one ACIS envelope by delegating to
-/// [`three_d_solid::read_sat_blob`] and adapting the tuple result
+/// `three_d_solid::read_sat_blob` and adapting the tuple result
 /// into the [`SatBlob`] struct.
 pub fn decode_sat_blob(c: &mut BitCursor<'_>) -> Result<SatBlob> {
     let (empty, version, bytes) = three_d_solid::read_sat_blob(c)?;

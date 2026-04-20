@@ -28,7 +28,7 @@
 //!
 //! # Shared helper
 //!
-//! [`read_sat_blob`] extracts `(version, blob)` per the shape above.
+//! `read_sat_blob` extracts `(version, blob)` per the shape above.
 //! It is re-used by [`crate::entities::region::decode`] and
 //! [`crate::entities::body::decode`] — the three ODA spec sections
 //! §19.4.42/43/44 define identical encodings, so one implementation

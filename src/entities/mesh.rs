@@ -2,9 +2,9 @@
 //!
 //! Introduced in R2010 as a custom class (`ACDB_MESH_OBJECT` /
 //! `ACDB_SUBDMESH`), MESH stores a subdivision-surface control cage plus
-//! crease metadata. Unlike [`polyface_mesh::PolyfaceMesh`] or
-//! [`polygon_mesh::PolygonMesh`] — both of which keep vertices in a
-//! separate handle chain — MESH packs all geometry inline.
+//! crease metadata. Unlike [`crate::entities::polyface_mesh::PolyfaceMesh`]
+//! or [`crate::entities::polygon_mesh::PolygonMesh`] — both of which keep
+//! vertices in a separate handle chain — MESH packs all geometry inline.
 //!
 //! Pre-R2010 files never emit this entity; older versions are treated
 //! as [`crate::error::Error::Unsupported`].
@@ -30,13 +30,13 @@
 //!
 //! The cross-field-count stream (a single `BL face_count` followed by
 //! per-face counts) reuses the defensive pattern from
-//! [`lwpolyline::decode`]: every claimed count is capped against both a
+//! [`crate::entities::lwpolyline::decode`]: every claimed count is capped against both a
 //! hard ceiling and [`BitCursor::remaining_bits`].
 //!
 //! # Version gating
 //!
 //! Only R2010+ is supported. Earlier versions surface
-//! [`Error::Unsupported`] without attempting a best-effort decode —
+//! [`crate::error::Error::Unsupported`] without attempting a best-effort decode —
 //! guessing the stream shape for a file format that never contained
 //! this entity would produce misaligned output downstream.
 

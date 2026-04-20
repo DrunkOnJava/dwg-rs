@@ -1,6 +1,6 @@
 //! Library entry point for the `dwg-to-dxf` conversion pipeline (L11-08).
 //!
-//! Separated from [`crate::bin::dwg_to_dxf`] so the CLI stays a thin
+//! Separated from the `dwg-to-dxf` binary so the CLI stays a thin
 //! wrapper and the conversion logic is available to downstream
 //! library consumers (integration tests, programmatic exporters)
 //! without pulling in `clap` / `anyhow`.
@@ -60,7 +60,7 @@ pub fn convert_file_to_dxf(
 /// A full DXF parser is its own sub-project (3 KLOC+ of group-code
 /// parsing across 400+ entity types). This stub exists so downstream
 /// callers and the WASM viewer can wire the API today; the
-/// implementation returns [`Error::Unsupported`] until the parser
+/// implementation returns [`crate::Error::Unsupported`] until the parser
 /// ships under the `dxf-parse` feature flag.
 ///
 /// Inputs:
@@ -68,7 +68,7 @@ pub fn convert_file_to_dxf(
 ///   non-empty so callers passing nothing get a clear error.
 /// - `_target_version`: The DWG version to target on emit.
 ///
-/// Returns [`Error::Unsupported`] with a clear "DXF parser not yet
+/// Returns [`crate::Error::Unsupported`] with a clear "DXF parser not yet
 /// implemented" message. When the parser lands, this function
 /// becomes an orchestrator: parse → build synthetic DwgFile →
 /// [`crate::file_writer::assemble_dwg_bytes`].

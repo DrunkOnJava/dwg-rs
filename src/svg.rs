@@ -103,7 +103,7 @@ impl Default for Style {
 }
 
 /// SVG document in progress. Elements are appended with the `push_*`
-/// methods and the complete document is produced by [`finish`].
+/// methods and the complete document is produced by [`SvgDoc::finish`].
 #[derive(Debug, Clone)]
 pub struct SvgDoc {
     width: f64,
@@ -163,7 +163,7 @@ impl SvgDoc {
     }
 
     /// Begin a named layer group. All subsequent elements go into this
-    /// group until [`end_layer`] is called or a new layer begins.
+    /// group until [`Self::end_layer`] is called or a new layer begins.
     pub fn begin_layer(&mut self, name: &str) {
         if self.current_layer.is_some() {
             self.end_layer();
@@ -483,23 +483,23 @@ impl SvgDoc {
                         }
                     }
                     'C' => {
-                        if let Some((value, consumed)) = parse_mtext_arg(&chars, i + 2)
-                            && let Ok(idx) = value.parse::<u32>()
-                        {
-                            Self::flush_mtext_buf(
-                                &mut self.body,
-                                &mut buf,
-                                stack.last().unwrap(),
-                                first_line,
-                                position.x,
-                                height,
-                            );
-                            first_line = false;
-                            if let Some(top) = stack.last_mut() {
-                                top.fill = aci_to_hex(idx);
+                        if let Some((value, consumed)) = parse_mtext_arg(&chars, i + 2) {
+                            if let Ok(idx) = value.parse::<u32>() {
+                                Self::flush_mtext_buf(
+                                    &mut self.body,
+                                    &mut buf,
+                                    stack.last().unwrap(),
+                                    first_line,
+                                    position.x,
+                                    height,
+                                );
+                                first_line = false;
+                                if let Some(top) = stack.last_mut() {
+                                    top.fill = aci_to_hex(idx);
+                                }
+                                i += 2 + consumed;
+                                continue;
                             }
-                            i += 2 + consumed;
-                            continue;
                         }
                     }
                     'H' => {
@@ -682,7 +682,7 @@ impl SvgDoc {
 
     /// Append a PATTERN hatch (L9-07). For `SOLID`, delegates to
     /// [`Self::push_hatch_solid`]. For `ANSI31` and `ANGLE`, registers
-    /// a one-time `<pattern>` definition (via [`Self::register_pattern`])
+    /// a one-time `<pattern>` definition (via `Self::register_pattern`)
     /// and emits a `<path>` referencing it through `fill="url(#…)"`.
     /// All other names emit a placeholder comment plus a solid fill so
     /// the boundary is at least visible to a downstream renderer.
@@ -899,7 +899,7 @@ impl SvgDoc {
     /// baked into the writer about which labels are present or their
     /// order; the caller owns the layout contract.
     ///
-    /// Text uses [`resolve_font_family`] so `.shx` fallbacks and the
+    /// Text uses `resolve_font_family` so `.shx` fallbacks and the
     /// existing font machinery behave the same way as [`Self::push_text`].
     pub fn push_title_block(
         &mut self,
@@ -977,7 +977,7 @@ impl SvgDoc {
     ///
     /// Emits:
     ///   * one `<clipPath id="clip-NNN">` in the document `<defs>` block
-    ///     (deduplicated via [`Self::clip_paths`] — repeated registrations
+    ///     (deduplicated via `Self::clip_paths` — repeated registrations
     ///     of the same id are no-ops); the clip path is a rectangular
     ///     region `width` × `height` in CAD units;
     ///   * one opening `<g clip-path="url(#clip-NNN)">` in the body.
@@ -988,7 +988,7 @@ impl SvgDoc {
     /// `clip_path_id` is the raw id the caller wants to use (e.g.
     /// `"viewport-42"`); the `clip-` prefix is added automatically so the
     /// final element id is `clip-viewport-42`. Non-ASCII characters are
-    /// escaped per [`svg_escape_attr`] but callers are encouraged to use
+    /// escaped per `svg_escape_attr` but callers are encouraged to use
     /// ids matching `[A-Za-z0-9_-]+`.
     pub fn push_viewport(
         &mut self,
@@ -1422,11 +1422,11 @@ fn boundary_path_d(boundary: &Path) -> String {
                 if !moved {
                     d.push_str(&format!("M {} {} ", a.x, a.y));
                     moved = true;
-                } else if let Some(p) = last
-                    && (p.x - a.x).abs() + (p.y - a.y).abs() > f64::EPSILON
-                {
-                    // Discontinuous — start a new sub-loop.
-                    d.push_str(&format!("M {} {} ", a.x, a.y));
+                } else if let Some(p) = last {
+                    if (p.x - a.x).abs() + (p.y - a.y).abs() > f64::EPSILON {
+                        // Discontinuous — start a new sub-loop.
+                        d.push_str(&format!("M {} {} ", a.x, a.y));
+                    }
                 }
                 d.push_str(&format!("L {} {} ", b.x, b.y));
                 last = Some(*b);

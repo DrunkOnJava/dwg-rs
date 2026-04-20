@@ -43,7 +43,7 @@ pub struct Section {
     /// R2004+: is this section's payload XOR-encrypted (Sec_Mask)?
     pub encrypted: bool,
     /// Post-hoc diagnostic: did a caller try to decode / decompress this
-    /// section? Populated by the reader via [`Section::mark_decode_attempt`]
+    /// section? Populated by the reader via `Section::mark_decode_attempt`
     /// after calling [`crate::reader::DwgFile::read_section`]. Defaults to
     /// `false` — the bare section list carries locator metadata only.
     pub decode_attempted: bool,
