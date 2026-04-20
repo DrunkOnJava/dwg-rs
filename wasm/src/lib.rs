@@ -34,6 +34,7 @@
 #![forbid(unsafe_code)]
 
 pub mod measure;
+pub mod url_state;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
