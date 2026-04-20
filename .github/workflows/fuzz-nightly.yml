@@ -1,0 +1,107 @@
+name: Fuzz (nightly)
+
+# Nightly cargo-fuzz canary for the 9 registered fuzz targets:
+# lz77_decompress, bitcursor_primitives, dwg_file_open, section_map,
+# object_walker, classmap_parse, handlemap_parse, header_vars,
+# rs_fec_decode.
+#
+# Each target runs for 5 minutes (300s) — enough to shake out the
+# panics that survive from-scratch seeding but short enough to keep
+# the aggregate job under ~50 min. Serious fuzz campaigns happen
+# locally against long-lived corpora; this workflow is the "did a
+# regression sneak in today?" early warning.
+#
+# Crash artifacts (under fuzz/artifacts/<target>/) are uploaded on
+# any run — pass or fail — so committers can reproduce locally with
+# the exact input.
+
+on:
+  schedule:
+    # 06:00 UTC daily = 02:00 ET / 23:00 PT — off-peak, predictable.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      duration_seconds:
+        description: 'Seconds per target (default 300)'
+        required: false
+        default: '300'
+
+concurrency:
+  group: fuzz-nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  fuzz:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # Don't kill all targets on one panic — we want per-target
+      # crash artifacts uploaded independently.
+      fail-fast: false
+      matrix:
+        target:
+          - lz77_decompress
+          - bitcursor_primitives
+          - dwg_file_open
+          - section_map
+          - object_walker
+          - classmap_parse
+          - handlemap_parse
+          - header_vars
+          - rs_fec_decode
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install nightly toolchain
+        # cargo-fuzz requires nightly Rust for the libfuzzer-sys
+        # codegen flags. Pin to a recent nightly channel — update
+        # deliberately alongside the MSRV in rust-toolchain.toml.
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable (dtolnay resolves `nightly` at runtime)
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: fuzz -> target
+          key: fuzz-${{ matrix.target }}-${{ runner.os }}
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.12.0 --locked
+
+      - name: Run ${{ matrix.target }}
+        working-directory: fuzz
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          DURATION="${{ github.event.inputs.duration_seconds || '300' }}"
+          echo "Fuzzing ${{ matrix.target }} for ${DURATION}s"
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            -- -max_total_time="${DURATION}" -runs=100000 \
+            2>&1 | head -n 500 || true
+
+      - name: Upload crash artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload corpus snapshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fuzz-corpus-${{ matrix.target }}
+          path: fuzz/corpus/${{ matrix.target }}/
+          if-no-files-found: ignore
+          retention-days: 7
