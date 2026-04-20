@@ -34,6 +34,7 @@
 #![forbid(unsafe_code)]
 
 pub mod measure;
+pub mod no_upload;
 pub mod url_state;
 
 use serde::Serialize;

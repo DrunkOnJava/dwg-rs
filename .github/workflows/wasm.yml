@@ -68,6 +68,23 @@ jobs:
           test -f pkg/dwg_wasm.js
           wc -c pkg/dwg_wasm_bg.wasm
 
+      - name: Client-side-only attestation (V-19) — no network symbols
+        if: matrix.target == 'web'
+        working-directory: wasm
+        run: |
+          set -euo pipefail
+          # Install wabt for wasm-objdump (once per runner).
+          sudo apt-get update && sudo apt-get install -y wabt
+          # Grep the wasm module for any network-capable import symbol.
+          # Matches the FORBIDDEN_IMPORT_SUBSTRINGS constant in
+          # src/no_upload.rs. If any match is found, fail the build.
+          if wasm-objdump -x pkg/dwg_wasm_bg.wasm \
+             | grep -iE "fetch|xhr|XMLHttpRequest|WebSocket|sendBeacon|EventSource"; then
+            echo "::error::V-19 client-side-only attestation FAILED: network symbol found in wasm import list"
+            exit 1
+          fi
+          echo "V-19 attestation: no network symbols present."
+
       - name: Upload pkg/
         if: matrix.target == 'web'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
