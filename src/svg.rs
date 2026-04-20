@@ -96,8 +96,9 @@ impl SvgDoc {
         }
         // Escape the name minimally for SVG attribute safety.
         let safe = svg_escape_attr(name);
-        self.body
-            .push_str(&format!("  <g inkscape:label=\"{safe}\" data-layer=\"{safe}\">\n"));
+        self.body.push_str(&format!(
+            "  <g inkscape:label=\"{safe}\" data-layer=\"{safe}\">\n"
+        ));
         self.current_layer = Some(name.to_string());
     }
 
@@ -112,7 +113,11 @@ impl SvgDoc {
     /// Append one curve with the given style. Optional `data_handle`
     /// is emitted as a `data-handle` attribute for downstream tooling.
     pub fn push_curve(&mut self, curve: &Curve, style: &Style, data_handle: Option<&str>) {
-        let indent = if self.current_layer.is_some() { "    " } else { "  " };
+        let indent = if self.current_layer.is_some() {
+            "    "
+        } else {
+            "  "
+        };
         let handle_attr = data_handle
             .map(|h| format!(" data-handle=\"{}\"", svg_escape_attr(h)))
             .unwrap_or_default();
@@ -124,9 +129,7 @@ impl SvgDoc {
                     a.x, a.y, b.x, b.y
                 ));
             }
-            Curve::Circle {
-                center, radius, ..
-            } => {
+            Curve::Circle { center, radius, .. } => {
                 self.body.push_str(&format!(
                     "{indent}<circle cx=\"{}\" cy=\"{}\" r=\"{}\"{style_attr}{handle_attr}/>\n",
                     center.x, center.y, radius
@@ -187,7 +190,11 @@ impl SvgDoc {
     /// Append a compound path (multiple segments) as a single SVG
     /// `<path>` element with one `d=` attribute.
     pub fn push_path(&mut self, path: &Path, style: &Style, data_handle: Option<&str>) {
-        let indent = if self.current_layer.is_some() { "    " } else { "  " };
+        let indent = if self.current_layer.is_some() {
+            "    "
+        } else {
+            "  "
+        };
         let handle_attr = data_handle
             .map(|h| format!(" data-handle=\"{}\"", svg_escape_attr(h)))
             .unwrap_or_default();

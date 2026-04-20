@@ -149,7 +149,14 @@ pub fn write_tables_section(w: &mut DxfWriter, layers: &[LayerEntry]) {
         // 70 → flags: 1 = frozen, 2 = frozen-by-default, 4 = locked.
         w.write_int(70, if layer.frozen { 1 } else { 0 });
         // 62 → color (negative for off layers per DXF convention).
-        w.write_int(62, if layer.frozen { -(layer.aci as i64) } else { layer.aci as i64 });
+        w.write_int(
+            62,
+            if layer.frozen {
+                -(layer.aci as i64)
+            } else {
+                layer.aci as i64
+            },
+        );
         w.write_string(6, &layer.linetype);
     }
     w.write_string(0, "ENDTAB");
@@ -245,7 +252,11 @@ pub fn write_entities_section(w: &mut DxfWriter, entities: &[EntityRecord]) {
                 w.write_string(100, "AcDbPolyline");
                 // Count line segments as vertices (+1 for start).
                 let n = path.segments.len();
-                let vertex_count = if n == 0 { 0 } else { n + if path.closed { 0 } else { 1 } };
+                let vertex_count = if n == 0 {
+                    0
+                } else {
+                    n + if path.closed { 0 } else { 1 }
+                };
                 w.write_int(90, vertex_count as i64);
                 w.write_int(70, if path.closed { 1 } else { 0 });
                 // Emit each endpoint. For a polyline built from
@@ -464,10 +475,7 @@ mod tests {
     #[test]
     fn full_document_has_all_sections() {
         let mut w = DxfWriter::new();
-        write_header_section(
-            &mut w,
-            &[HeaderEntry::string("$ACADVER", "AC1032")],
-        );
+        write_header_section(&mut w, &[HeaderEntry::string("$ACADVER", "AC1032")]);
         write_tables_section(&mut w, &[LayerEntry::default()]);
         write_blocks_section(&mut w);
         write_entities_section(

@@ -93,9 +93,7 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<ThreeDSolid> {
 ///   [`MAX_SAT_BLOB_BYTES`] or if a declared `chunk_size` exceeds the
 ///   remaining bytes in the cursor.
 /// - Any [`BitCursor`] read error propagated from an underlying field.
-pub(crate) fn read_sat_blob(
-    c: &mut BitCursor<'_>,
-) -> Result<(bool, Option<u16>, Option<Vec<u8>>)> {
+pub(crate) fn read_sat_blob(c: &mut BitCursor<'_>) -> Result<(bool, Option<u16>, Option<Vec<u8>>)> {
     let acis_empty = c.read_b()?;
     if acis_empty {
         return Ok((true, None, None));

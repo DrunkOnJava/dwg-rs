@@ -308,8 +308,8 @@ impl OpenLimits {
     /// container memory budget without thrashing.
     pub fn safe() -> Self {
         Self {
-            max_file_bytes: 1024 * 1024 * 1024, // 1 GiB
-            max_section_bytes: 256 * 1024 * 1024,   // 256 MiB
+            max_file_bytes: 1024 * 1024 * 1024,   // 1 GiB
+            max_section_bytes: 256 * 1024 * 1024, // 256 MiB
             decompress: crate::lz77::DecompressLimits::default(),
             parse: ParseLimits::safe(),
             walker: WalkerLimits::safe(),

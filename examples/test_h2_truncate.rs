@@ -11,10 +11,10 @@
 //! story and more investigation is needed.
 
 use dwg::DwgFile;
+use dwg::Version;
 use dwg::bitcursor::BitCursor;
 use dwg::common_entity::read_common_entity_data;
 use dwg::entities::line;
-use dwg::Version;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = DwgFile::open("../../samples/line_2013.dwg")?;

@@ -147,7 +147,8 @@ fn read_tv(c: &mut BitCursor<'_>, _version: Version) -> Result<String> {
     if units.last() == Some(&0) {
         units.pop();
     }
-    String::from_utf16(&units).map_err(|_| Error::SectionMap("LIGHT name is not valid UTF-16".into()))
+    String::from_utf16(&units)
+        .map_err(|_| Error::SectionMap("LIGHT name is not valid UTF-16".into()))
 }
 
 #[cfg(test)]

@@ -174,9 +174,7 @@ mod tests {
             },
         };
         match circle_to_curve(&c) {
-            Curve::Circle {
-                center, radius, ..
-            } => {
+            Curve::Circle { center, radius, .. } => {
                 assert_eq!(center, c.center);
                 assert_eq!(radius, c.radius);
             }

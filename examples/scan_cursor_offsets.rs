@@ -16,7 +16,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let objects = file.all_objects().unwrap()?;
     let line_obj = objects.iter().find(|o| o.type_code == 0x13).unwrap();
     let payload = &line_obj.raw;
-    println!("payload: {} bits ({} bytes)", payload.len() * 8, payload.len());
+    println!(
+        "payload: {} bits ({} bytes)",
+        payload.len() * 8,
+        payload.len()
+    );
     println!("data stream ends at bit {}", payload.len() * 8 - 22);
     println!();
 
@@ -37,15 +41,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(line) => {
                 let plausible_x = line.start.x.abs() < 1e6 && line.end.x.abs() < 1e6;
                 let plausible_y = line.start.y.abs() < 1e6 && line.end.y.abs() < 1e6;
-                let marker = if plausible_x && plausible_y { ">>" } else { "  " };
+                let marker = if plausible_x && plausible_y {
+                    ">>"
+                } else {
+                    "  "
+                };
                 println!(
                     "{marker} start_bit {start_bit:3}: 2d={} sx={:.3e} sy={:.3e} ex={:.3e} ey={:.3e} thick={:.3e}",
-                    line.is_2d,
-                    line.start.x,
-                    line.start.y,
-                    line.end.x,
-                    line.end.y,
-                    line.thickness,
+                    line.is_2d, line.start.x, line.start.y, line.end.x, line.end.y, line.thickness,
                 );
                 hits += 1;
             }

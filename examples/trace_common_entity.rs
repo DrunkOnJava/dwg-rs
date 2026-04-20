@@ -30,7 +30,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let objects = file.all_objects().unwrap()?;
     let line = objects.iter().find(|o| o.type_code == 0x13).unwrap();
     let payload = &line.raw;
-    println!("payload: {} bytes = {} bits", payload.len(), payload.len() * 8);
+    println!(
+        "payload: {} bytes = {} bits",
+        payload.len(),
+        payload.len() * 8
+    );
 
     let mut c = BitCursor::new(payload);
     println!();
@@ -47,12 +51,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             (msb << 8) | lsb
         }
     };
-    report(&mut c, "BB + type_code", format!("tag={tag} type=0x{type_code:04X}"));
+    report(
+        &mut c,
+        "BB + type_code",
+        format!("tag={tag} type=0x{type_code:04X}"),
+    );
     let h = c.read_handle()?;
     report(
         &mut c,
         "Handle code/counter/value",
-        format!("code={} counter={} value=0x{:X}", h.code, h.counter, h.value),
+        format!(
+            "code={} counter={} value=0x{:X}",
+            h.code, h.counter, h.value
+        ),
     );
 
     println!();
@@ -73,12 +84,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     report(
         &mut c,
         "BB entmode",
-        format!("{entmode} ({})", match entmode {
-            0 => "ByLayer",
-            1 => "ByPreviousEntity",
-            2 => "InBlock",
-            _ => "Reserved",
-        }),
+        format!(
+            "{entmode} ({})",
+            match entmode {
+                0 => "ByLayer",
+                1 => "ByPreviousEntity",
+                2 => "InBlock",
+                _ => "Reserved",
+            }
+        ),
     );
 
     let reactors = c.read_bl()?;
@@ -103,7 +117,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     report(&mut c, "BB material (R2007+)", format!("{material}"));
 
     let shadow = c.read_rc()?; // R2007+
-    report(&mut c, "RC shadow_flags (R2007+)", format!("0x{shadow:02X}"));
+    report(
+        &mut c,
+        "RC shadow_flags (R2007+)",
+        format!("0x{shadow:02X}"),
+    );
 
     let vs_full = c.read_b()?; // R2010+
     let vs_face = c.read_b()?;
@@ -136,7 +154,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== remaining bits after preamble ===");
     let pos = c.position_bits();
     let total = payload.len() * 8;
-    println!("cursor: bit {}/{} ({} bits remain in full payload)", pos, total, total - pos);
+    println!(
+        "cursor: bit {}/{} ({} bits remain in full payload)",
+        pos,
+        total,
+        total - pos
+    );
     let data_stream_end = total - (mc as usize);
     println!(
         "data stream ends at bit {} → {} bits remain in data stream",

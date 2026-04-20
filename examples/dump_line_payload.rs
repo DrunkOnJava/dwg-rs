@@ -94,10 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
     println!("total payload bits: {}", line.raw.len() * 8);
-    println!(
-        "bits consumed by preamble: {}",
-        c.position_bits()
-    );
+    println!("bits consumed by preamble: {}", c.position_bits());
     println!(
         "bits remaining for entity body: {}",
         line.raw.len() * 8 - c.position_bits()

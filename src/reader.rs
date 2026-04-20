@@ -516,10 +516,16 @@ impl DwgFile {
         match &self.section_map_status {
             SectionMapStatus::Full => {}
             SectionMapStatus::Fallback { reason } => {
-                diagnostics.warn("section_map_fallback", format!("section map fell back: {reason}"));
+                diagnostics.warn(
+                    "section_map_fallback",
+                    format!("section map fell back: {reason}"),
+                );
             }
             SectionMapStatus::Deferred { reason } => {
-                diagnostics.warn("section_map_deferred", format!("section map deferred: {reason}"));
+                diagnostics.warn(
+                    "section_map_deferred",
+                    format!("section map deferred: {reason}"),
+                );
             }
         }
         if diagnostics.is_clean() {

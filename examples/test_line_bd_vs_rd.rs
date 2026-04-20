@@ -31,7 +31,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_rd(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -45,7 +54,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_bd(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -59,7 +77,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_bd_no_delta(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -75,7 +102,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_bd_inverted_zflag(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -89,7 +125,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_bd_no_delta_inv_zflag(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -104,7 +149,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_bd_inv_zflag_no_be(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -118,7 +172,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match decode_line_bd_inv_zflag_no_bt_be(&mut cc) {
             Ok((line, end)) => println!(
                 "  DECODED bit {}→{}: 2d={} start=({:.3e},{:.3e},{:.3e}) end=({:.3e},{:.3e},{:.3e}) thick={:.3e}",
-                body_start, end, line.is_2d, line.sx, line.sy, line.sz, line.ex, line.ey, line.ez, line.thick
+                body_start,
+                end,
+                line.is_2d,
+                line.sx,
+                line.sy,
+                line.sz,
+                line.ex,
+                line.ey,
+                line.ez,
+                line.thick
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -127,24 +190,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn decode_line_bd_inv_zflag_no_be(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_bd_inv_zflag_no_be(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let z_is_3d = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
     let is_2d = !z_is_3d;
-    let sx = c.read_bd().map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_bd().map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_bd()
+        .map_err(|e| ("BD start.x", c.position_bits(), e))?;
+    let ex_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_bd()
+        .map_err(|e| ("BD start.y", c.position_bits(), e))?;
+    let ey_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
-        let sz = c.read_bd().map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_bd()
+            .map_err(|e| ("BD start.z", c.position_bits(), e))?;
+        let ez_delta = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, sz + ez_delta)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     Ok((
         LineFields {
-            sx, sy, sz,
+            sx,
+            sy,
+            sz,
             ex: sx + ex_delta,
             ey: sy + ey_delta,
             ez,
@@ -155,23 +234,39 @@ fn decode_line_bd_inv_zflag_no_be(c: &mut BitCursor<'_>) -> Result<(LineFields, 
     ))
 }
 
-fn decode_line_bd_inv_zflag_no_bt_be(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_bd_inv_zflag_no_bt_be(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let z_is_3d = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
     let is_2d = !z_is_3d;
-    let sx = c.read_bd().map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_bd().map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_bd()
+        .map_err(|e| ("BD start.x", c.position_bits(), e))?;
+    let ex_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_bd()
+        .map_err(|e| ("BD start.y", c.position_bits(), e))?;
+    let ey_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
-        let sz = c.read_bd().map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_bd()
+            .map_err(|e| ("BD start.z", c.position_bits(), e))?;
+        let ez_delta = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, sz + ez_delta)
     };
     Ok((
         LineFields {
-            sx, sy, sz,
+            sx,
+            sy,
+            sz,
             ex: sx + ex_delta,
             ey: sy + ey_delta,
             ez,
@@ -182,25 +277,41 @@ fn decode_line_bd_inv_zflag_no_bt_be(c: &mut BitCursor<'_>) -> Result<(LineField
     ))
 }
 
-fn decode_line_bd_inverted_zflag(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_bd_inverted_zflag(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let z_is_3d = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
     let is_2d = !z_is_3d;
-    let sx = c.read_bd().map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_bd().map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_bd()
+        .map_err(|e| ("BD start.x", c.position_bits(), e))?;
+    let ex_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_bd()
+        .map_err(|e| ("BD start.y", c.position_bits(), e))?;
+    let ey_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
-        let sz = c.read_bd().map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_bd()
+            .map_err(|e| ("BD start.z", c.position_bits(), e))?;
+        let ez_delta = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, sz + ez_delta)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
     Ok((
         LineFields {
-            sx, sy, sz,
+            sx,
+            sy,
+            sz,
             ex: sx + ex_delta,
             ey: sy + ey_delta,
             ez,
@@ -211,24 +322,47 @@ fn decode_line_bd_inverted_zflag(c: &mut BitCursor<'_>) -> Result<(LineFields, u
     ))
 }
 
-fn decode_line_bd_no_delta_inv_zflag(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_bd_no_delta_inv_zflag(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let z_is_3d = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
     let is_2d = !z_is_3d;
-    let sx = c.read_bd().map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_bd().map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_bd()
+        .map_err(|e| ("BD start.x", c.position_bits(), e))?;
+    let ex = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_bd()
+        .map_err(|e| ("BD start.y", c.position_bits(), e))?;
+    let ey = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
-        let sz = c.read_bd().map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_bd()
+            .map_err(|e| ("BD start.z", c.position_bits(), e))?;
+        let ez = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, ez)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
     Ok((
-        LineFields { sx, sy, sz, ex, ey, ez, thick, is_2d },
+        LineFields {
+            sx,
+            sy,
+            sz,
+            ex,
+            ey,
+            ez,
+            thick,
+            is_2d,
+        },
         c.position_bits(),
     ))
 }
@@ -245,24 +379,40 @@ struct LineFields {
     is_2d: bool,
 }
 
-fn decode_line_rd(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_rd(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let zflag = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
-    let sx = c.read_rd().map_err(|e| ("RD start.x", c.position_bits(), e))?;
-    let ex_delta = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_rd().map_err(|e| ("RD start.y", c.position_bits(), e))?;
-    let ey_delta = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_rd()
+        .map_err(|e| ("RD start.x", c.position_bits(), e))?;
+    let ex_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_rd()
+        .map_err(|e| ("RD start.y", c.position_bits(), e))?;
+    let ey_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if zflag {
         (0.0, 0.0)
     } else {
-        let sz = c.read_rd().map_err(|e| ("RD start.z", c.position_bits(), e))?;
-        let ez_delta = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_rd()
+            .map_err(|e| ("RD start.z", c.position_bits(), e))?;
+        let ez_delta = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, sz + ez_delta)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
     Ok((
         LineFields {
-            sx, sy, sz,
+            sx,
+            sy,
+            sz,
             ex: sx + ex_delta,
             ey: sy + ey_delta,
             ez,
@@ -273,24 +423,40 @@ fn decode_line_rd(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'stati
     ))
 }
 
-fn decode_line_bd(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_bd(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let zflag = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
-    let sx = c.read_bd().map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_bd().map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_bd()
+        .map_err(|e| ("BD start.x", c.position_bits(), e))?;
+    let ex_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_bd()
+        .map_err(|e| ("BD start.y", c.position_bits(), e))?;
+    let ey_delta = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if zflag {
         (0.0, 0.0)
     } else {
-        let sz = c.read_bd().map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_bd()
+            .map_err(|e| ("BD start.z", c.position_bits(), e))?;
+        let ez_delta = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, sz + ez_delta)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
     Ok((
         LineFields {
-            sx, sy, sz,
+            sx,
+            sy,
+            sz,
             ex: sx + ex_delta,
             ey: sy + ey_delta,
             ez,
@@ -301,23 +467,46 @@ fn decode_line_bd(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'stati
     ))
 }
 
-fn decode_line_bd_no_delta(c: &mut BitCursor<'_>) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
+fn decode_line_bd_no_delta(
+    c: &mut BitCursor<'_>,
+) -> Result<(LineFields, usize), (&'static str, usize, dwg::Error)> {
     let zflag = c.read_b().map_err(|e| ("zflag", c.position_bits(), e))?;
-    let sx = c.read_bd().map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex = c.read_bd().map_err(|e| ("BD end.x", c.position_bits(), e))?;
-    let sy = c.read_bd().map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey = c.read_bd().map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let sx = c
+        .read_bd()
+        .map_err(|e| ("BD start.x", c.position_bits(), e))?;
+    let ex = c
+        .read_bd()
+        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let sy = c
+        .read_bd()
+        .map_err(|e| ("BD start.y", c.position_bits(), e))?;
+    let ey = c
+        .read_bd()
+        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
     let (sz, ez) = if zflag {
         (0.0, 0.0)
     } else {
-        let sz = c.read_bd().map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez = c.read_bd().map_err(|e| ("BD end.z", c.position_bits(), e))?;
+        let sz = c
+            .read_bd()
+            .map_err(|e| ("BD start.z", c.position_bits(), e))?;
+        let ez = c
+            .read_bd()
+            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
         (sz, ez)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
     Ok((
-        LineFields { sx, sy, sz, ex, ey, ez, thick, is_2d: zflag },
+        LineFields {
+            sx,
+            sy,
+            sz,
+            ex,
+            ey,
+            ez,
+            thick,
+            is_2d: zflag,
+        },
         c.position_bits(),
     ))
 }
@@ -350,21 +539,21 @@ fn skip_to_preamble_end(c: &mut BitCursor<'_>) -> Result<(), Box<dyn std::error:
     let _ = c.read_handle()?;
     // preamble (52 bits matching prior tracer):
     let _ = c.read_bs_u()?; // XDATA terminator
-    let _ = c.read_b()?;     // graphics
-    let _ = c.read_bb()?;    // entmode
-    let _ = c.read_bl()?;    // num_reactors
-    let _ = c.read_b()?;     // no_xdict
-    let _ = c.read_b()?;     // binary_chain
-    let _ = c.read_b()?;     // is_on_layer
-    let _ = c.read_b()?;     // non_fixed_ltype
-    let _ = c.read_bb()?;    // plotstyle
-    let _ = c.read_bb()?;    // material (R2007+)
-    let _ = c.read_rc()?;    // shadow (R2007+)
-    let _ = c.read_b()?;     // visualstyle full (R2010+)
-    let _ = c.read_b()?;     // visualstyle face
-    let _ = c.read_b()?;     // visualstyle edge
-    let _ = c.read_bs()?;    // invisibility
-    let _ = c.read_rc()?;    // lineweight
+    let _ = c.read_b()?; // graphics
+    let _ = c.read_bb()?; // entmode
+    let _ = c.read_bl()?; // num_reactors
+    let _ = c.read_b()?; // no_xdict
+    let _ = c.read_b()?; // binary_chain
+    let _ = c.read_b()?; // is_on_layer
+    let _ = c.read_b()?; // non_fixed_ltype
+    let _ = c.read_bb()?; // plotstyle
+    let _ = c.read_bb()?; // material (R2007+)
+    let _ = c.read_rc()?; // shadow (R2007+)
+    let _ = c.read_b()?; // visualstyle full (R2010+)
+    let _ = c.read_b()?; // visualstyle face
+    let _ = c.read_b()?; // visualstyle edge
+    let _ = c.read_bs()?; // invisibility
+    let _ = c.read_rc()?; // lineweight
     Ok(())
 }
 

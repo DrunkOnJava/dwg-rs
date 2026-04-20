@@ -29,9 +29,10 @@
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{
-    arc, attdef, attrib, block, circle, dimension, ellipse, endblk, hatch, image, insert, leader,
-    line, lwpolyline, mleader, mtext, point, polyline, ray, solid, spline, text, three_d_face,
-    trace, vertex, viewport, xline,
+    arc, attdef, attrib, block, camera, circle, dimension, ellipse, endblk, extruded_surface,
+    geodata, hatch, helix, image, insert, leader, light, line, lofted_surface, lwpolyline, mleader,
+    mtext, point, polyline, ray, revolved_surface, solid, spline, sun, swept_surface, text,
+    three_d_face, trace, vertex, viewport, xline,
 };
 use crate::error::{Error, Result};
 use crate::object::RawObject;
@@ -71,6 +72,15 @@ pub enum DecodedEntity {
     Hatch(hatch::Hatch),
     MLeader(mleader::MLeader),
     Viewport(viewport::Viewport),
+    Camera(camera::Camera),
+    Sun(sun::Sun),
+    Light(light::Light),
+    GeoData(geodata::GeoData),
+    ExtrudedSurface(extruded_surface::ExtrudedSurface),
+    RevolvedSurface(revolved_surface::RevolvedSurface),
+    SweptSurface(swept_surface::SweptSurface),
+    LoftedSurface(lofted_surface::LoftedSurface),
+    Helix(helix::Helix),
     // Symbol-table entries — not drawing entities but worth
     // surfacing as typed variants for callers that iterate
     // DecodedEntity over the whole object stream.
@@ -133,6 +143,18 @@ impl DecodedEntity {
             // MLEADER is a custom class; see Image above.
             Self::MLeader(_) => 0,
             Self::Viewport(_) => OBJECT_TYPE_VIEWPORT,
+            Self::Camera(_) => OBJECT_TYPE_CAMERA,
+            Self::Sun(_) => OBJECT_TYPE_SUN,
+            Self::Light(_) => OBJECT_TYPE_LIGHT,
+            Self::GeoData(_) => OBJECT_TYPE_GEODATA,
+            // SURFACE family + HELIX are custom classes — their type
+            // codes vary per-file via AcDb:Classes. Return 0 so callers
+            // know to consult the class map.
+            Self::ExtrudedSurface(_) => 0,
+            Self::RevolvedSurface(_) => 0,
+            Self::SweptSurface(_) => 0,
+            Self::LoftedSurface(_) => 0,
+            Self::Helix(_) => 0,
             Self::Layer(_) => 0x33,
             Self::Ltype(_) => 0x39,
             Self::Style(_) => 0x35,
@@ -189,6 +211,17 @@ const OBJECT_TYPE_MTEXT: u16 = 0x2C; // 44
 const OBJECT_TYPE_LEADER: u16 = 0x2D; // 45
 const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
 const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
+// CAMERA / SUN / LIGHT / GEODATA are visual/scene entities introduced
+// in R2007+ (GEODATA in R2010+). Per the spec they appear in the
+// AcDb:Classes table per-file, but every observed modern drawing uses
+// the codes below when present outside the dynamic range, so they are
+// wired as fixed codes here. If a file assigns a different class
+// index, custom-class dispatch via decode_from_raw_with_class_map
+// is the correct path.
+const OBJECT_TYPE_CAMERA: u16 = 0x4F8; // 1272
+const OBJECT_TYPE_SUN: u16 = 0x4F9; // 1273
+const OBJECT_TYPE_LIGHT: u16 = 0x4FA; // 1274
+const OBJECT_TYPE_GEODATA: u16 = 0x4FB; // 1275
 
 /// The used-for-the-back-fix chosen sentinel that `DecodedEntity::type_code()`
 /// returns for the `Dimension(...)` variant. Any code in `0x14..=0x1A` would
@@ -241,6 +274,24 @@ pub fn decode_from_raw_with_class_map(
             .map_err(|e| e.to_string()),
         "MULTILEADER" | "MLEADER" => mleader::decode(&mut cursor)
             .map(DecodedEntity::MLeader)
+            .map_err(|e| e.to_string()),
+        // SURFACE family + HELIX — type codes vary per-file, dispatched
+        // on the DXF class name recorded in AcDb:Classes. See spec
+        // §19.4.76 (HELIX) and §19.4.78-81 (SURFACE variants).
+        "EXTRUDEDSURFACE" | "ACDBEXTRUDEDSURFACE" => extruded_surface::decode(&mut cursor)
+            .map(DecodedEntity::ExtrudedSurface)
+            .map_err(|e| e.to_string()),
+        "REVOLVEDSURFACE" | "ACDBREVOLVEDSURFACE" => revolved_surface::decode(&mut cursor)
+            .map(DecodedEntity::RevolvedSurface)
+            .map_err(|e| e.to_string()),
+        "SWEPTSURFACE" | "ACDBSWEPTSURFACE" => swept_surface::decode(&mut cursor)
+            .map(DecodedEntity::SweptSurface)
+            .map_err(|e| e.to_string()),
+        "LOFTEDSURFACE" | "ACDBLOFTEDSURFACE" => lofted_surface::decode(&mut cursor)
+            .map(DecodedEntity::LoftedSurface)
+            .map_err(|e| e.to_string()),
+        "HELIX" | "ACDBHELIX" => helix::decode(&mut cursor)
+            .map(DecodedEntity::Helix)
             .map_err(|e| e.to_string()),
         _ => {
             return DecodedEntity::Unhandled {
@@ -491,6 +542,18 @@ fn dispatch(
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_VIEWPORT => viewport::decode(cursor)
             .map(DecodedEntity::Viewport)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_CAMERA => camera::decode(cursor, version)
+            .map(DecodedEntity::Camera)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_SUN => sun::decode(cursor, version)
+            .map(DecodedEntity::Sun)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_LIGHT => light::decode(cursor, version)
+            .map(DecodedEntity::Light)
+            .map_err(|e| e.to_string()),
+        OBJECT_TYPE_GEODATA => geodata::decode(cursor, version)
+            .map(DecodedEntity::GeoData)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_SHAPE => return DecodedEntity::Unhandled { type_code, kind },
         // DIMENSION family per ODA §5 Table 4:

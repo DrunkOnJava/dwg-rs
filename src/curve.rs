@@ -108,9 +108,7 @@ impl Curve {
     pub fn bounds(&self) -> BBox3 {
         match self {
             Curve::Line { a, b } => BBox3::empty().expand(*a).expand(*b),
-            Curve::Circle {
-                center, radius, ..
-            } => {
+            Curve::Circle { center, radius, .. } => {
                 // Conservative: cube of side 2*radius around center.
                 let r = *radius;
                 BBox3 {
@@ -118,9 +116,7 @@ impl Curve {
                     max: Point3D::new(center.x + r, center.y + r, center.z + r),
                 }
             }
-            Curve::Arc {
-                center, radius, ..
-            } => {
+            Curve::Arc { center, radius, .. } => {
                 // Same conservative bound as circle — tight arc bounds
                 // requires working out which axes the arc crosses.
                 let r = *radius;
@@ -130,21 +126,23 @@ impl Curve {
                 }
             }
             Curve::Ellipse {
-                center, major_axis, ratio, ..
+                center,
+                major_axis,
+                ratio,
+                ..
             } => {
                 // Major axis length is vec-length; minor = major * ratio.
-                let ma = (major_axis.x.powi(2) + major_axis.y.powi(2) + major_axis.z.powi(2)).sqrt();
+                let ma =
+                    (major_axis.x.powi(2) + major_axis.y.powi(2) + major_axis.z.powi(2)).sqrt();
                 let r = ma.max(ma * ratio.abs());
                 BBox3 {
                     min: Point3D::new(center.x - r, center.y - r, center.z - r),
                     max: Point3D::new(center.x + r, center.y + r, center.z + r),
                 }
             }
-            Curve::Polyline { vertices, .. } => {
-                vertices
-                    .iter()
-                    .fold(BBox3::empty(), |acc, v| acc.expand(v.point))
-            }
+            Curve::Polyline { vertices, .. } => vertices
+                .iter()
+                .fold(BBox3::empty(), |acc, v| acc.expand(v.point)),
             Curve::Spline(s) => s
                 .control_points
                 .iter()

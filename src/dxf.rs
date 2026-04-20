@@ -67,7 +67,10 @@ impl DxfWriter {
     /// tracks the open state. Panics if a section is already open;
     /// callers must balance begin/end.
     pub fn begin_section(&mut self, name: &str) {
-        assert!(!self.in_section, "DXF: section '{name}' begins while another is open");
+        assert!(
+            !self.in_section,
+            "DXF: section '{name}' begins while another is open"
+        );
         assert!(!self.finished, "DXF: cannot begin section after finish()");
         self.write_pair(0, "SECTION");
         self.write_pair(2, name);

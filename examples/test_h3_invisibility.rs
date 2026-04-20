@@ -35,12 +35,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         payload_bits, handle_stream_bits, data_stream_end
     );
 
-    for label in ["baseline (BS, current)", "A: B (1 bit)", "B: skip invis", "C: RS (16 bits)"] {
+    for label in [
+        "baseline (BS, current)",
+        "A: B (1 bit)",
+        "B: skip invis",
+        "C: RS (16 bits)",
+    ] {
         println!("\n=== {label} ===");
         match try_variant(payload, label) {
             Ok((before, after, line)) => println!(
                 "  DECODED  preamble→bit {before}  line→bit {after} (consumed {} bits)\n  line = {:?}",
-                after - before, line
+                after - before,
+                line
             ),
             Err((stage, pos, e)) => println!("  FAILED at {stage}, bit {pos}: {e}"),
         }
@@ -56,51 +62,73 @@ fn try_variant(
     let mut c = BitCursor::new(payload);
     // Object header: MC handle_stream_size, BB+RC type_code, Handle.
     read_mc_unsigned(&mut c).map_err(|e| ("header MC", c.position_bits(), e))?;
-    let tag = c.read_bb().map_err(|e| ("header BB", c.position_bits(), e))?;
+    let tag = c
+        .read_bb()
+        .map_err(|e| ("header BB", c.position_bits(), e))?;
     match tag {
         0 => {
-            c.read_rc().map_err(|e| ("type_code", c.position_bits(), e))?;
+            c.read_rc()
+                .map_err(|e| ("type_code", c.position_bits(), e))?;
         }
         1 => {
-            c.read_rc().map_err(|e| ("type_code", c.position_bits(), e))?;
+            c.read_rc()
+                .map_err(|e| ("type_code", c.position_bits(), e))?;
         }
         _ => {
-            c.read_rc().map_err(|e| ("type_code lsb", c.position_bits(), e))?;
-            c.read_rc().map_err(|e| ("type_code msb", c.position_bits(), e))?;
+            c.read_rc()
+                .map_err(|e| ("type_code lsb", c.position_bits(), e))?;
+            c.read_rc()
+                .map_err(|e| ("type_code msb", c.position_bits(), e))?;
         }
     }
-    c.read_handle().map_err(|e| ("handle", c.position_bits(), e))?;
+    c.read_handle()
+        .map_err(|e| ("handle", c.position_bits(), e))?;
 
     // Preamble — inline copy of read_common_entity_data with the
     // variant-under-test substitution.
     // XDATA loop: BS_u terminator.
     loop {
-        let size = c.read_bs_u().map_err(|e| ("xdata size", c.position_bits(), e))?;
+        let size = c
+            .read_bs_u()
+            .map_err(|e| ("xdata size", c.position_bits(), e))?;
         if size == 0 {
             break;
         }
-        c.read_handle().map_err(|e| ("xdata appid", c.position_bits(), e))?;
+        c.read_handle()
+            .map_err(|e| ("xdata appid", c.position_bits(), e))?;
         for _ in 0..size {
-            c.read_rc().map_err(|e| ("xdata payload", c.position_bits(), e))?;
+            c.read_rc()
+                .map_err(|e| ("xdata payload", c.position_bits(), e))?;
         }
     }
     // Graphics flag.
-    if c.read_b().map_err(|e| ("graphics flag", c.position_bits(), e))? {
-        let n = c.read_rl().map_err(|e| ("graphics size", c.position_bits(), e))?;
+    if c.read_b()
+        .map_err(|e| ("graphics flag", c.position_bits(), e))?
+    {
+        let n = c
+            .read_rl()
+            .map_err(|e| ("graphics size", c.position_bits(), e))?;
         for _ in 0..n {
-            c.read_rc().map_err(|e| ("graphics payload", c.position_bits(), e))?;
+            c.read_rc()
+                .map_err(|e| ("graphics payload", c.position_bits(), e))?;
         }
     }
     // Mode + reactors + dict markers.
     c.read_bb().map_err(|e| ("entmode", c.position_bits(), e))?;
-    c.read_bl().map_err(|e| ("num_reactors", c.position_bits(), e))?;
+    c.read_bl()
+        .map_err(|e| ("num_reactors", c.position_bits(), e))?;
     c.read_b().map_err(|e| ("no_xdict", c.position_bits(), e))?;
-    c.read_b().map_err(|e| ("binary_chain", c.position_bits(), e))?;
-    c.read_b().map_err(|e| ("is_on_layer", c.position_bits(), e))?;
-    c.read_b().map_err(|e| ("non_fixed_ltype", c.position_bits(), e))?;
-    c.read_bb().map_err(|e| ("plotstyle", c.position_bits(), e))?;
+    c.read_b()
+        .map_err(|e| ("binary_chain", c.position_bits(), e))?;
+    c.read_b()
+        .map_err(|e| ("is_on_layer", c.position_bits(), e))?;
+    c.read_b()
+        .map_err(|e| ("non_fixed_ltype", c.position_bits(), e))?;
+    c.read_bb()
+        .map_err(|e| ("plotstyle", c.position_bits(), e))?;
     // R2007+: material + shadow
-    c.read_bb().map_err(|e| ("material", c.position_bits(), e))?;
+    c.read_bb()
+        .map_err(|e| ("material", c.position_bits(), e))?;
     c.read_rc().map_err(|e| ("shadow", c.position_bits(), e))?;
     // R2010+: visualstyle 3B
     c.read_b().map_err(|e| ("vs_full", c.position_bits(), e))?;
@@ -110,7 +138,8 @@ fn try_variant(
     // Variant-under-test: invisibility encoding.
     match label {
         "baseline (BS, current)" => {
-            c.read_bs().map_err(|e| ("invis BS", c.position_bits(), e))?;
+            c.read_bs()
+                .map_err(|e| ("invis BS", c.position_bits(), e))?;
         }
         "A: B (1 bit)" => {
             c.read_b().map_err(|e| ("invis B", c.position_bits(), e))?;
@@ -119,12 +148,14 @@ fn try_variant(
             // no read
         }
         "C: RS (16 bits)" => {
-            c.read_rs().map_err(|e| ("invis RS", c.position_bits(), e))?;
+            c.read_rs()
+                .map_err(|e| ("invis RS", c.position_bits(), e))?;
         }
         _ => unreachable!(),
     }
     // Lineweight (R2000+): RC = 8 bits.
-    c.read_rc().map_err(|e| ("lineweight", c.position_bits(), e))?;
+    c.read_rc()
+        .map_err(|e| ("lineweight", c.position_bits(), e))?;
 
     let preamble_end = c.position_bits();
     let line = line::decode(&mut c).map_err(|e| ("line::decode", c.position_bits(), e))?;
