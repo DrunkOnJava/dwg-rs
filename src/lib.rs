@@ -96,6 +96,7 @@ pub mod curve;
 pub mod dxf;
 pub mod dxf_sections;
 pub mod entities;
+pub mod entity_geometry;
 pub mod error;
 pub mod file_writer;
 pub mod geometry;
