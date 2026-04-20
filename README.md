@@ -171,12 +171,30 @@ Other examples live in [`examples/`](./examples/):
 
 ## CLI tools
 
+Seven binaries ship behind the `cli` feature flag. Inspection tools
+work against any file the container layer can parse; export tools
+(`dwg-to-*`) work to the extent that the per-entity decoders for
+your file's version do — see the
+[compatibility matrix](./docs/landing/compatibility.md).
+
 ```bash
+# Inspection
 dwg-info drawing.dwg                                        # version + section list
 dwg-corpus /path/to/corpus/                                 # sweep a directory
 dwg-dump drawing.dwg                                        # hierarchical dump
 dwg-convert --extract AcDb:Preview -o preview.bmp x.dwg     # decompressed section
 dwg-convert --verify drawing.dwg                            # all-sections decompress check
+
+# Export (pre-alpha, spec-syntactic; real-app acceptance is manual)
+dwg-to-dxf drawing.dwg out.dxf --version R2018              # ASCII DXF (R12..R2018)
+dwg-to-gltf drawing.dwg out.glb                             # glTF 2.0 binary (.glb)
+dwg-to-gltf drawing.dwg out.gltf                            # glTF JSON + sidecar .bin
+
+# Write scaffolding (Stage 1 of 5 — does NOT emit valid DWG yet)
+dwg-write --version R2018 \
+  --section AcDb:Header=header.bin \
+  --section AcDb:SummaryInfo=summary.bin \
+  --report stage1.json
 ```
 
 ## Architecture
