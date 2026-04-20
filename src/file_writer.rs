@@ -129,6 +129,65 @@ pub struct NamedBuiltSection {
 }
 
 // ================================================================
+// P0-11 — stream-name validation pre-write
+// ================================================================
+
+/// The set of DWG section names recognized by the reader + writer.
+///
+/// Per ODA Open Design Specification §3.2 and §4.5 the file layer
+/// identifies sections by these fixed ASCII strings. Passing an
+/// unrecognized name into the writer at section-add time used to be
+/// silently accepted and would produce a file whose own reader
+/// could not locate the section back. [`validate_section_name`]
+/// makes that case an error upfront.
+///
+/// New entries should only be added when an authoritative spec
+/// reference says a new section is defined — the reader must know
+/// how to look up the section too, otherwise the round-trip fails.
+pub const KNOWN_SECTION_NAMES: &[&str] = &[
+    "AcDb:AcDbObjects",
+    "AcDb:AppInfo",
+    "AcDb:AppInfoHistory",
+    "AcDb:AuxHeader",
+    "AcDb:Classes",
+    "AcDb:FileDepList",
+    "AcDb:Handles",
+    "AcDb:Header",
+    "AcDb:ObjFreeSpace",
+    "AcDb:ObjectsSection",
+    "AcDb:Preview",
+    "AcDb:RevHistory",
+    "AcDb:Security",
+    "AcDb:Signature",
+    "AcDb:SummaryInfo",
+    "AcDb:Template",
+];
+
+/// Validate a section name against [`KNOWN_SECTION_NAMES`] before
+/// handing it to the writer. Returns
+/// [`Error::Unsupported`] with a helpful message on typos or
+/// custom names.
+///
+/// Callers that need to emit a non-standard section (e.g. during
+/// reverse-engineering experiments) can bypass this check by
+/// inserting directly into [`WriterScaffold`]'s backing map — but
+/// the round-trip won't work if the reader doesn't recognize the
+/// name.
+pub fn validate_section_name(name: &str) -> Result<()> {
+    if KNOWN_SECTION_NAMES.contains(&name) {
+        Ok(())
+    } else {
+        Err(Error::Unsupported {
+            feature: format!(
+                "unknown section name {name:?}; expected one of the ODA-spec'd \
+                 AcDb:* names (KNOWN_SECTION_NAMES). Typos in section names \
+                 silently corrupt round-trip — reject at write time"
+            ),
+        })
+    }
+}
+
+// ================================================================
 // L12-03 — per-version magic byte + file-header writer
 // ================================================================
 
@@ -378,6 +437,41 @@ mod tests {
         let bad = Path::new("");
         let err = atomic_write(bad, b"anything").unwrap_err();
         assert!(matches!(err, Error::Io(_)));
+    }
+
+    // ---- P0-11: stream-name validation ----
+
+    #[test]
+    fn validate_section_name_accepts_spec_names() {
+        assert!(validate_section_name("AcDb:Header").is_ok());
+        assert!(validate_section_name("AcDb:SummaryInfo").is_ok());
+        assert!(validate_section_name("AcDb:AcDbObjects").is_ok());
+        assert!(validate_section_name("AcDb:Classes").is_ok());
+    }
+
+    #[test]
+    fn validate_section_name_rejects_typos() {
+        // Common mis-spellings: lowercase db, missing colon, etc.
+        let err = validate_section_name("acdb:Header").unwrap_err();
+        assert!(matches!(err, Error::Unsupported { .. }));
+        let err = validate_section_name("AcDb.Header").unwrap_err();
+        assert!(matches!(err, Error::Unsupported { .. }));
+        let err = validate_section_name("Header").unwrap_err();
+        assert!(matches!(err, Error::Unsupported { .. }));
+    }
+
+    #[test]
+    fn validate_section_name_rejects_empty() {
+        assert!(validate_section_name("").is_err());
+    }
+
+    #[test]
+    fn known_section_names_are_unique() {
+        let mut seen: Vec<&str> = KNOWN_SECTION_NAMES.to_vec();
+        seen.sort();
+        seen.dedup();
+        assert_eq!(seen.len(), KNOWN_SECTION_NAMES.len(),
+            "KNOWN_SECTION_NAMES has duplicates");
     }
 
     #[test]
