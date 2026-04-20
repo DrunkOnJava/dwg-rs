@@ -46,6 +46,34 @@ handle-stream layout in production DWG files has version-specific deviations thi
 crate doesn't yet fully model. This is the gap between "decoder functions exist" and
 "decoders work end-to-end." Closing it is the 0.2.0 milestone.
 
+## Capability matrix at a glance
+
+| Layer | Status | Notes |
+|-------|--------|-------|
+| File identification (AC1014 → AC1032) | ✓ shipped | All 8 versions recognized |
+| R13–R15 header parsing | ✓ shipped | Plain + XOR-encrypted variants |
+| R18 / R21 / R24 / R27 / R32 header parsing | ✓ shipped | All shipped variants |
+| LZ77 decompression + output-limit caps | ✓ shipped | 256 MiB default, configurable |
+| Section Page Map + Section Info | ✓ shipped | Plus fallback path via `SectionMapStatus` |
+| Sec_Mask layer-1 (R2004 family) | ✓ shipped | Layer-2 R2007 bookkeeping deferred |
+| CRC-8 + CRC-32 verification | ✓ shipped | — |
+| Reed-Solomon (255,239) FEC decoder | ✓ shipped | Encoder pending (#109) |
+| Metadata (SummaryInfo / AppInfo / Preview / FileDepList) | ✓ shipped | UTF-16 auto-detect, PNG thumbnail carve |
+| HandleMap + ClassMap parsing | ✓ shipped | — |
+| Header variables | ✓ shipped | Strict + lossy variants |
+| Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
+| Per-entity field decoders | ⚠ alpha | 27 types defined; R2013 best ~86%, real-file coverage gap (#103) |
+| Entity graph (owner / reactors / blocks / layers) | ⏳ pending | Phase 5 of roadmap |
+| Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ✓ dispatch shipped | Content-field decode pending |
+| SVG / PDF export | ⏳ pending | Phase 9 of roadmap |
+| DXF writer | ⏳ pending | Phase 11 of roadmap |
+| DWG writer | ⚠ scaffold only | Stage 1 of 5; #105–#108 track the remainder |
+| glTF 3D export | ⏳ pending | Phase 10 of roadmap |
+| WASM viewer | ⏳ pending | Phase 13 of roadmap |
+| Python bindings | ⏳ pending | No PyO3 crate yet |
+
+✓ shipped · ⚠ alpha/partial · ⏳ pending
+
 ## What *does* work today
 
 The container layer is the most mature part of the crate and is covered by 193 tests:
