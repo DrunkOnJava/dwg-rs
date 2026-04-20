@@ -4,15 +4,22 @@
 //! encodes its boundary path tree (which can contain LINE / ARC /
 //! ELLIPSE / SPLINE sub-edges, or an explicit polyline), its pattern
 //! definition (line angles + offsets), gradient settings, and seed
-//! points — typically 30-100 fields total. Here we decode the
-//! *header* portion of the entity, which covers the fields most
-//! downstream consumers need: gradient flag, pattern name,
-//! solid-fill flag, pattern type, rotation, scale, pixel size.
+//! points — typically 30-100 fields total. This module currently
+//! decodes only the *header-plus-tail* view of a HATCH, namely
+//! every field BEFORE the boundary path tree (gradient, extrusion,
+//! elevation, pattern name, solid-fill flag, `num_paths`) and every
+//! field AFTER it (style, pattern type, optional pattern info).
 //!
-//! The boundary path tree + pattern line definitions are *skipped*
-//! via the leading `num_paths` / `num_pattern_lines` fields; callers
-//! needing to reconstruct path geometry should access the raw
-//! object bytes directly.
+//! # Boundary path tree is NOT skipped — it is unsupported
+//!
+//! An earlier iteration of this decoder read `num_paths` and then
+//! immediately read the post-tree fields, on the assumption that the
+//! boundary path tree had been consumed out-of-band. It had not: real
+//! HATCH entities with `num_paths > 0` left the bit cursor misaligned
+//! and every subsequent field decoded to garbage. The decoder now
+//! returns [`crate::error::Error::Unsupported`] for such hatches. The
+//! `num_paths == 0` path is rare in production drawings but is the
+//! one case for which the tail fields parse correctly.
 //!
 //! # Stream shape (partial — what this decoder reads)
 //!
@@ -47,7 +54,7 @@
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Vec3D, read_bd3};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::tables::read_tv;
 use crate::version::Version;
 
@@ -83,7 +90,23 @@ pub struct PatternInfo {
     pub num_pattern_lines: u16,
 }
 
-pub fn decode_header(c: &mut BitCursor<'_>, version: Version) -> Result<Hatch> {
+/// Decode the HATCH fields that bracket the boundary-path tree —
+/// everything up to and including `num_paths`, plus the tail fields
+/// (style, pattern type, optional pattern info) IF `num_paths == 0`.
+///
+/// When `num_paths > 0` this function returns
+/// [`crate::error::Error::Unsupported`] with feature string
+/// `"HATCH boundary path tree"`. The tail is not parsed in that
+/// case because the bit cursor would be positioned mid-path-tree and
+/// every subsequent field would decode to garbage.
+///
+/// # When boundary paths are implemented
+///
+/// Replace the early return with a call to a future
+/// `decode_boundary_paths(&mut cursor, num_paths, ...)` and then
+/// continue with the tail read. The public signature of this
+/// function stays the same.
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Hatch> {
     let gradient = if version.is_r2004_plus() {
         let gradient_flag = c.read_bl()? as u32;
         if gradient_flag != 0 {
@@ -116,7 +139,19 @@ pub fn decode_header(c: &mut BitCursor<'_>, version: Version) -> Result<Hatch> {
     let solid_fill = c.read_b()?;
     let associative = c.read_b()?;
     let num_paths = c.read_bl()? as u32;
-    // (boundary path tree skipped by caller)
+
+    // Boundary path tree is not yet implemented. Surface the gap loudly
+    // instead of reading misaligned tail fields.
+    if num_paths > 0 {
+        return Err(Error::Unsupported {
+            feature: format!(
+                "HATCH boundary path tree (num_paths = {num_paths}); \
+                 tail fields (style, pattern_type, pattern) cannot be \
+                 decoded without first advancing past the path tree"
+            ),
+        });
+    }
+
     let style = c.read_bs()?;
     let pattern_type = c.read_bs()?;
     let pattern = if !solid_fill {
@@ -143,9 +178,8 @@ pub fn decode_header(c: &mut BitCursor<'_>, version: Version) -> Result<Hatch> {
     })
 }
 
-/// Decode the full HATCH header + advance past the path tree. This
-/// is an alias — path parsing is deferred to a later pass.
-pub use decode_header as decode;
+/// Back-compat alias. Prefer `decode`.
+pub use decode as decode_header;
 
 #[cfg(test)]
 mod tests {
@@ -153,7 +187,7 @@ mod tests {
     use crate::bitwriter::BitWriter;
 
     #[test]
-    fn roundtrip_solid_fill_hatch_r2000() {
+    fn roundtrip_solid_fill_hatch_r2000_no_paths() {
         let mut w = BitWriter::new();
         // R2000 has no gradient block
         w.write_bd(0.0);
@@ -167,7 +201,7 @@ mod tests {
         }
         w.write_b(true); // solid fill
         w.write_b(false); // not associative
-        w.write_bl(1); // 1 path (not decoded here)
+        w.write_bl(0); // 0 paths — the only currently-supported case
         w.write_bs(0); // odd parity
         w.write_bs(1); // predefined
         let bytes = w.into_bytes();
@@ -176,13 +210,13 @@ mod tests {
         assert_eq!(h.name, "SOLID");
         assert!(h.solid_fill);
         assert!(!h.associative);
-        assert_eq!(h.num_paths, 1);
+        assert_eq!(h.num_paths, 0);
         assert!(h.pattern.is_none());
         assert!(h.gradient.is_none());
     }
 
     #[test]
-    fn roundtrip_patterned_hatch_r2004() {
+    fn roundtrip_patterned_hatch_r2004_no_paths() {
         // R2004 (R2004+ for gradient header, but not UTF-16 strings).
         let mut w = BitWriter::new();
         w.write_bl(0); // not a gradient
@@ -197,7 +231,7 @@ mod tests {
         }
         w.write_b(false); // not solid
         w.write_b(false); // not associative
-        w.write_bl(1); // 1 path
+        w.write_bl(0); // 0 paths
         w.write_bs(0);
         w.write_bs(1);
         w.write_bd(0.0); // rotation
@@ -212,5 +246,33 @@ mod tests {
         let pat = h.pattern.unwrap();
         assert_eq!(pat.scale_or_spacing, 1.0);
         assert_eq!(pat.num_pattern_lines, 1);
+    }
+
+    /// HATCH with any boundary paths must return `Error::Unsupported`
+    /// instead of silently misaligning the cursor and reading garbage
+    /// from the tail fields.
+    #[test]
+    fn hatch_with_paths_returns_unsupported() {
+        let mut w = BitWriter::new();
+        w.write_bl(0); // not a gradient
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        let s = b"ANSI31";
+        w.write_bs_u(s.len() as u16);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bl(3); // 3 paths — currently unsupported
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let err = decode(&mut c, Version::R2004).unwrap_err();
+        assert!(
+            matches!(err, crate::error::Error::Unsupported { ref feature } if feature.contains("HATCH boundary path tree")),
+            "err={err:?}"
+        );
     }
 }

@@ -19,11 +19,61 @@
 
 use crate::error::{Error, Result};
 
-/// Decompress a DWG LZ77 stream.
+/// Safety limits for LZ77 decompression.
 ///
-/// The stream runs until opcode `0x11` is encountered. If `expected_size`
-/// is provided, it is used as a capacity hint (not a bound). The function
-/// returns the decompressed bytes.
+/// The DWG LZ77 stream format has no intrinsic size declaration in the
+/// compressed prefix — a truncated or adversarial stream can in
+/// principle declare arbitrarily large back-reference runs or literal
+/// lengths via the 0x00-extension pattern. The decompressor treats
+/// these as bounded-by-input, but the OUTPUT buffer still needs an
+/// explicit cap to prevent a decompression-bomb style DoS.
+///
+/// `Default` picks conservative values that accommodate real-world
+/// DWG section sizes while rejecting pathological inputs:
+///
+/// - `max_output_bytes`: 256 MiB — larger than any real DWG section
+///   this author has observed, but far below modern RAM.
+/// - `max_backref_len`: 1 MiB — real back-reference copies are
+///   typically tens to thousands of bytes; 1 MiB catches obviously
+///   malformed copy lengths without clipping legitimate runs.
+#[derive(Debug, Clone, Copy)]
+pub struct DecompressLimits {
+    /// Hard ceiling on the returned `Vec<u8>` length. When a literal
+    /// run or back-reference copy would exceed this, decompression
+    /// errors with [`Error::Lz77OutputLimitExceeded`].
+    pub max_output_bytes: usize,
+    /// Ceiling on any single back-reference copy length.
+    pub max_backref_len: usize,
+}
+
+impl Default for DecompressLimits {
+    fn default() -> Self {
+        Self {
+            max_output_bytes: 256 * 1024 * 1024,
+            max_backref_len: 1024 * 1024,
+        }
+    }
+}
+
+impl DecompressLimits {
+    /// Permissive profile — used by tests that intentionally construct
+    /// streams larger than the conservative default. Not recommended
+    /// for production.
+    pub fn permissive() -> Self {
+        Self {
+            max_output_bytes: 4 * 1024 * 1024 * 1024,
+            max_backref_len: 64 * 1024 * 1024,
+        }
+    }
+}
+
+/// Decompress a DWG LZ77 stream using the default [`DecompressLimits`].
+///
+/// The stream runs until opcode `0x11` is encountered. `expected_size`
+/// is a capacity hint, used to pre-size the output buffer but clamped
+/// to [`DecompressLimits::max_output_bytes`] so an adversarial caller
+/// cannot trigger a giant up-front allocation by lying about the
+/// expected size.
 ///
 /// Errors:
 /// - [`Error::Lz77Truncated`] — input ran out before a terminator
@@ -31,14 +81,34 @@ use crate::error::{Error, Result};
 ///   start of the output buffer
 /// - [`Error::Lz77InvalidOpcode`] — an opcode in the reserved range
 ///   `0x00..=0x0F` appeared where an opcode was expected
+/// - [`Error::Lz77OutputLimitExceeded`] — decompressed output would
+///   exceed [`DecompressLimits::max_output_bytes`] (DoS defense)
+/// - [`Error::Lz77BackrefTooLong`] — a single copy would exceed
+///   [`DecompressLimits::max_backref_len`]
 pub fn decompress(input: &[u8], expected_size: Option<usize>) -> Result<Vec<u8>> {
+    decompress_with_limits(input, expected_size, DecompressLimits::default())
+}
+
+/// Decompress a DWG LZ77 stream with caller-supplied safety limits.
+/// See [`decompress`] for the semantics and [`DecompressLimits`] for
+/// the available knobs.
+pub fn decompress_with_limits(
+    input: &[u8],
+    expected_size: Option<usize>,
+    limits: DecompressLimits,
+) -> Result<Vec<u8>> {
     let mut r = Lz77Reader::new(input);
-    let mut out: Vec<u8> = Vec::with_capacity(expected_size.unwrap_or(4096));
+    // Clamp the capacity hint so a malicious or corrupted caller can't
+    // trigger a giant up-front allocation by claiming a huge expected
+    // size. The bound still grows lazily if needed up to
+    // `limits.max_output_bytes`.
+    let cap = expected_size.unwrap_or(4096).min(limits.max_output_bytes);
+    let mut out: Vec<u8> = Vec::with_capacity(cap);
 
     // Initial literal length — always present. If the first byte has its
     // high nibble set, treat as "length 0 + the byte is the first opcode1".
     match read_literal_length_or_peek_opcode(&mut r)? {
-        Some(n) => copy_literal(&mut r, &mut out, n)?,
+        Some(n) => copy_literal(&mut r, &mut out, n, &limits)?,
         None => { /* literal length is 0; opcode byte is unread */ }
     }
 
@@ -120,6 +190,17 @@ pub fn decompress(input: &[u8], expected_size: Option<usize>) -> Result<Vec<u8>>
         if comp_offset == 0 {
             return Err(Error::Lz77InvalidOffset);
         }
+        if comp_bytes > limits.max_backref_len {
+            return Err(Error::Lz77BackrefTooLong {
+                length: comp_bytes,
+                limit: limits.max_backref_len,
+            });
+        }
+        if out.len().saturating_add(comp_bytes) > limits.max_output_bytes {
+            return Err(Error::Lz77OutputLimitExceeded {
+                limit: limits.max_output_bytes,
+            });
+        }
         let start = out
             .len()
             .checked_sub(comp_offset)
@@ -131,7 +212,7 @@ pub fn decompress(input: &[u8], expected_size: Option<usize>) -> Result<Vec<u8>>
             out.push(b);
         }
 
-        copy_literal(&mut r, &mut out, lit_count)?;
+        copy_literal(&mut r, &mut out, lit_count, &limits)?;
     }
 
     Ok(out)
@@ -225,8 +306,19 @@ fn read_literal_length_or_peek_opcode(r: &mut Lz77Reader<'_>) -> Result<Option<u
     Ok(Some((b as usize) + 3))
 }
 
-/// Copy `n` literal bytes from input to output.
-fn copy_literal(r: &mut Lz77Reader<'_>, out: &mut Vec<u8>, n: usize) -> Result<()> {
+/// Copy `n` literal bytes from input to output, bounded by
+/// `limits.max_output_bytes`.
+fn copy_literal(
+    r: &mut Lz77Reader<'_>,
+    out: &mut Vec<u8>,
+    n: usize,
+    limits: &DecompressLimits,
+) -> Result<()> {
+    if out.len().saturating_add(n) > limits.max_output_bytes {
+        return Err(Error::Lz77OutputLimitExceeded {
+            limit: limits.max_output_bytes,
+        });
+    }
     out.reserve(n);
     for _ in 0..n {
         let b = r.read()?;
@@ -382,5 +474,105 @@ mod tests {
         let stream = [0x01, b'A', b'B', b'C', b'D', 0x05];
         let e = decompress(&stream, None).unwrap_err();
         assert!(matches!(e, Error::Lz77InvalidOpcode { opcode: 0x05, .. }));
+    }
+
+    // ================================================================
+    // Decompression-bomb defense regression tests.
+    // ================================================================
+
+    /// A literal run that asks for more bytes than the configured
+    /// `max_output_bytes` must error before any allocation.
+    #[test]
+    fn output_limit_rejects_oversize_literal_run() {
+        let limits = DecompressLimits {
+            max_output_bytes: 8,
+            max_backref_len: 8,
+        };
+        // Literal length 8 → 0x05 + 3 = 8; 8 bytes of literal.
+        let mut stream = vec![0x05];
+        stream.extend_from_slice(b"AAAAAAAA");
+        stream.push(0x11);
+        // 8 bytes fits exactly; must succeed.
+        let out = decompress_with_limits(&stream, None, limits).unwrap();
+        assert_eq!(out.len(), 8);
+
+        // Nudge the literal length up one byte (0x06 + 3 = 9) and
+        // expect the limit to fire.
+        let mut bomb = vec![0x06];
+        bomb.extend_from_slice(b"AAAAAAAAA");
+        bomb.push(0x11);
+        let err = decompress_with_limits(&bomb, None, limits).unwrap_err();
+        assert!(matches!(err, Error::Lz77OutputLimitExceeded { limit: 8 }));
+    }
+
+    /// A back-reference copy whose length alone would exceed the
+    /// configured limit must error.
+    #[test]
+    fn output_limit_rejects_oversize_backref() {
+        // Build a stream: literal "AB" (len=2 → 0x00+3 via extension),
+        // then a 0x20 opcode that claims comp_bytes = 64 and offset = 2.
+        // Skip 0x20: uses the long-compression-offset extension.
+        //
+        // Simpler: use opcode 0x21 (class 0x21-0x3F) with a small cb.
+        // cb = (0x21 & 0x1F) + 2 = 1 + 2 = 3. Not useful for a big copy.
+        //
+        // Use opcode 0x20 which extends comp_bytes via the long form.
+        // cb = long_extension + 0x21.
+        // To hit cb = 100, long_extension = 79, encoded as single byte 0x4F.
+        //
+        // Layout: [literal_len=0x02 "ABC", terminator would be 0x11, but we
+        //  need the main-loop opcode]. Easier: use the 0x40-0xFF family
+        //  where cb = (op1>>4 - 1). E.g., op1=0xC1 → cb = (0xC >> 0) - 1
+        //  = 0xB = 11. Still small. Combined with class 0x20 is fastest.
+        let mut stream = vec![
+            0x01, b'A', b'B', b'C', b'D', // 4 literal bytes
+            0x20, // class 0x20 → cb = long_extension + 0x21
+            0x4F, // long_extension first byte = 0x4F (79). cb = 79 + 0x21 = 112.
+            0x00, 0x00, // two-byte offset, small value → offset = 0 + 1 = 1, lit=0
+            0x11, // terminator (won't be reached)
+        ];
+        // Force literal-len-extension for the lit=0 case to avoid the
+        // reserved-opcode path; not needed since our terminator 0x11 is
+        // NOT in 0x00..=0x0F.
+        // (literal length 0 via peekback: the first post-opcode byte is
+        //  the lit_count from the two-byte-offset, which is 0, then we
+        //  read a real literal length. Use 0x11 as the peeked byte to
+        //  terminate via the opcode path.)
+        stream.push(0x11);
+
+        let limits = DecompressLimits {
+            max_output_bytes: 1024 * 1024,
+            max_backref_len: 50, // less than the 112-byte copy above
+        };
+        let err = decompress_with_limits(&stream, None, limits).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                Error::Lz77BackrefTooLong {
+                    length: 112,
+                    limit: 50
+                }
+            ),
+            "err={err:?}"
+        );
+    }
+
+    /// `expected_size` must be clamped to the output limit so a
+    /// caller-claimed huge size cannot trigger a giant up-front
+    /// `Vec::with_capacity` allocation.
+    #[test]
+    fn expected_size_is_clamped_to_output_limit() {
+        let limits = DecompressLimits {
+            max_output_bytes: 16,
+            max_backref_len: 16,
+        };
+        // Decompressing the empty-terminator stream with a huge
+        // expected_size must not allocate 1 TiB. This test does not
+        // observe memory directly — it asserts behavior (no error,
+        // empty output) that proves the function didn't try to
+        // allocate more than the limit.
+        let stream = [0x11u8];
+        let out = decompress_with_limits(&stream, Some(1usize << 40), limits).unwrap();
+        assert!(out.is_empty());
     }
 }

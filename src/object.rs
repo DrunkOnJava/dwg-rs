@@ -67,6 +67,38 @@ pub struct ObjectWalker<'a> {
     handle_idx: usize,
 }
 
+/// A single handle-driven walk step. In handle-driven mode the
+/// walker either yields an object or, on a record that failed to
+/// parse, a [`SkippedEntry`] describing which handle+offset failed
+/// and why.
+#[derive(Debug, Clone)]
+pub enum ObjectWalkItem {
+    /// A successfully-parsed object.
+    Object(RawObject),
+    /// A record at the named handle+offset could not be parsed. The
+    /// walk continues; the caller decides whether to treat this as a
+    /// hard error (via [`ObjectWalker::collect_all_strict`]) or to
+    /// collect it as a diagnostic (via [`ObjectWalker::collect_all_lossy`]).
+    Skipped(SkippedEntry),
+}
+
+/// One entry in the lossy-collector's skip list.
+#[derive(Debug, Clone)]
+pub struct SkippedEntry {
+    pub handle: u64,
+    pub offset: u64,
+    pub reason: String,
+}
+
+/// Summary of a [`ObjectWalker::collect_all_lossy`] pass.
+#[derive(Debug, Clone, Default)]
+pub struct ObjectWalkSummary {
+    /// Number of objects yielded successfully.
+    pub decoded_count: usize,
+    /// Records the walker stepped over due to per-object parse errors.
+    pub skipped: Vec<SkippedEntry>,
+}
+
 impl<'a> ObjectWalker<'a> {
     pub fn new(bytes: &'a [u8], version: Version) -> Self {
         let initial = if bytes.len() >= 4
@@ -105,9 +137,16 @@ impl<'a> ObjectWalker<'a> {
         }
     }
 
-    /// Read all objects into a Vec. Errors on the first malformed record
-    /// that can't be stepped past; by design this should be rare because
-    /// MS sizes are authoritative.
+    /// Read all objects into a `Vec`, silently skipping any record that
+    /// fails to parse in handle-driven mode. Preserves the pre-0.2.0
+    /// default behavior.
+    ///
+    /// **Callers that need to distinguish "record parsed cleanly" from
+    /// "record could not be parsed" should prefer [`collect_all_strict`]
+    /// (hard-fail) or [`collect_all_lossy`] (diagnostic list).**
+    ///
+    /// [`collect_all_strict`]: Self::collect_all_strict
+    /// [`collect_all_lossy`]: Self::collect_all_lossy
     pub fn collect_all(mut self) -> Result<Vec<RawObject>> {
         let mut out = Vec::new();
         while let Some(raw) = self.next()? {
@@ -115,37 +154,106 @@ impl<'a> ObjectWalker<'a> {
         }
         Ok(out)
     }
+
+    /// Read all objects into a `Vec`, returning an error on the first
+    /// handle-driven record that fails to parse. Use when the caller
+    /// needs to trust the object count — for example, when computing
+    /// coverage metrics that assume every handle-map entry was visited.
+    pub fn collect_all_strict(mut self) -> Result<Vec<RawObject>> {
+        let mut out = Vec::new();
+        loop {
+            match self.next_item()? {
+                Some(ObjectWalkItem::Object(raw)) => out.push(raw),
+                Some(ObjectWalkItem::Skipped(entry)) => {
+                    return Err(Error::ObjectWalk {
+                        handle: entry.handle,
+                        offset: entry.offset,
+                        reason: entry.reason,
+                    });
+                }
+                None => break,
+            }
+        }
+        Ok(out)
+    }
+
+    /// Read all objects into a `Vec` alongside a [`ObjectWalkSummary`]
+    /// that records every record the walker could not parse. Use when
+    /// partial data is acceptable but the caller still wants visibility
+    /// into what was dropped.
+    pub fn collect_all_lossy(mut self) -> (Vec<RawObject>, ObjectWalkSummary) {
+        let mut out = Vec::new();
+        let mut summary = ObjectWalkSummary::default();
+        while let Ok(Some(item)) = self.next_item() {
+            match item {
+                ObjectWalkItem::Object(raw) => {
+                    summary.decoded_count += 1;
+                    out.push(raw);
+                }
+                ObjectWalkItem::Skipped(entry) => summary.skipped.push(entry),
+            }
+        }
+        (out, summary)
+    }
 }
 
 impl<'a> ObjectWalker<'a> {
+    /// Back-compat iterator. Silently continues past handle-driven
+    /// parse failures; use [`next_item`](Self::next_item) to observe them.
     fn next(&mut self) -> Result<Option<RawObject>> {
+        loop {
+            match self.next_item()? {
+                Some(ObjectWalkItem::Object(raw)) => return Ok(Some(raw)),
+                Some(ObjectWalkItem::Skipped(_)) => continue,
+                None => return Ok(None),
+            }
+        }
+    }
+
+    /// Lower-level iterator that surfaces handle-driven parse failures
+    /// as [`ObjectWalkItem::Skipped`] rather than silently dropping
+    /// them. Advances one step per call.
+    fn next_item(&mut self) -> Result<Option<ObjectWalkItem>> {
         // Handle-driven mode: seek to the next entry's byte offset.
         if let Some(map) = self.handle_map {
-            loop {
-                if self.handle_idx >= map.entries.len() {
-                    return Ok(None);
-                }
-                let entry = map.entries[self.handle_idx];
-                self.handle_idx += 1;
-                let pos = entry.offset as usize;
-                if pos >= self.bytes.len() {
-                    continue;
-                }
-                self.pos = pos;
-                match self.read_one_at_pos() {
-                    Ok(Some(mut raw)) => {
-                        raw.handle.value = entry.handle;
-                        return Ok(Some(raw));
-                    }
-                    Ok(None) => continue,
-                    Err(_) => continue, // skip malformed; keep iterating
-                }
+            if self.handle_idx >= map.entries.len() {
+                return Ok(None);
             }
+            let entry = map.entries[self.handle_idx];
+            self.handle_idx += 1;
+            let pos = entry.offset as usize;
+            if pos >= self.bytes.len() {
+                return Ok(Some(ObjectWalkItem::Skipped(SkippedEntry {
+                    handle: entry.handle,
+                    offset: entry.offset,
+                    reason: format!(
+                        "offset {pos} past end of object stream ({} bytes)",
+                        self.bytes.len()
+                    ),
+                })));
+            }
+            self.pos = pos;
+            return match self.read_one_at_pos() {
+                Ok(Some(mut raw)) => {
+                    raw.handle.value = entry.handle;
+                    Ok(Some(ObjectWalkItem::Object(raw)))
+                }
+                Ok(None) => Ok(Some(ObjectWalkItem::Skipped(SkippedEntry {
+                    handle: entry.handle,
+                    offset: entry.offset,
+                    reason: "record read returned None (truncated or zero-length)".to_string(),
+                }))),
+                Err(e) => Ok(Some(ObjectWalkItem::Skipped(SkippedEntry {
+                    handle: entry.handle,
+                    offset: entry.offset,
+                    reason: e.to_string(),
+                }))),
+            };
         }
         if self.pos >= self.bytes.len() {
             return Ok(None);
         }
-        self.read_one_at_pos()
+        Ok(self.read_one_at_pos()?.map(ObjectWalkItem::Object))
     }
 
     fn read_one_at_pos(&mut self) -> Result<Option<RawObject>> {

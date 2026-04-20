@@ -66,6 +66,54 @@ pub enum Error {
     #[error("LZ77 literal-only encoder cannot emit {0} bytes (valid: 0 or >=4, gap at 1..=3)")]
     Lz77UnencodableLength(usize),
 
+    #[error(
+        "LZ77 decompressed output exceeded configured limit \
+         ({limit} bytes; decompression-bomb defense per SECURITY.md)"
+    )]
+    Lz77OutputLimitExceeded { limit: usize },
+
+    #[error(
+        "LZ77 back-reference copy length ({length}) exceeds configured limit \
+         ({limit}); malformed or adversarial compressed stream"
+    )]
+    Lz77BackrefTooLong { length: usize, limit: usize },
+
     #[error("Section map parse failed: {0}")]
     SectionMap(String),
+
+    /// The BLL encoding (`spec §2.4`) uses a 3-bit prefix-coded length
+    /// whose representable set is `{0, 2, 6, 7}` bytes. Values in the
+    /// top byte of a `u64` (`v >= 1 << 56`) cannot fit in the largest
+    /// allowed length (7 bytes) and must be rejected at write time.
+    #[error(
+        "BLL value 0x{value:016X} requires more than 56 bits; BLL encoding \
+         caps at 7 bytes (spec §2.4)"
+    )]
+    BllOverflow { value: u64 },
+
+    /// The writer was asked to emit a 3B prefix-coded value outside the
+    /// representable set `{0, 2, 6, 7}` (spec §2.1). Internal callers
+    /// normalize upstream; this variant surfaces the programmer error
+    /// without a panic.
+    #[error("invalid 3B value {value}; representable: {{0, 2, 6, 7}} (spec §2.1)")]
+    Invalid3B { value: u8 },
+
+    /// A feature is known to exist in the file format but is not yet
+    /// implemented by this crate. Surfaces instead of producing
+    /// misaligned output from a best-effort partial decode.
+    #[error("unsupported feature: {feature}")]
+    Unsupported { feature: String },
+
+    /// A single object in the handle-driven object walk could not be
+    /// parsed. Surfaced only by [`crate::object::ObjectWalker::collect_all_strict`];
+    /// the lossy variant records these in a summary instead.
+    #[error(
+        "object walk: record at offset {offset} (handle 0x{handle:X}) \
+         failed to parse: {reason}"
+    )]
+    ObjectWalk {
+        handle: u64,
+        offset: u64,
+        reason: String,
+    },
 }

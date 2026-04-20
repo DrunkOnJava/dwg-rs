@@ -16,13 +16,16 @@
 //! pair is the foundational round-trip invariant for Phase H write
 //! support.
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 /// A MSB-first bit buffer.
 #[derive(Debug, Default, Clone)]
 pub struct BitWriter {
     bytes: Vec<u8>,
-    bit_pos: u8, // 0..7, MSB-first; 0 means "next write goes in top bit of the last byte"
+    // Position within the last byte where the NEXT write will land.
+    // 0 means "no partial byte in progress — next write pushes a new byte";
+    // 1..=7 means "1..=7 bits already used in the last (already-pushed) byte".
+    bit_pos: u8,
 }
 
 impl BitWriter {
@@ -31,9 +34,16 @@ impl BitWriter {
     }
 
     /// Total bits written so far.
+    ///
+    /// At a whole-byte boundary (no partial byte in progress),
+    /// `bit_pos == 0` and the count is `bytes.len() * 8`. Mid-byte,
+    /// the last element of `bytes` already exists and `bit_pos` is
+    /// the 1..=7 bits-used offset into it.
     pub fn position_bits(&self) -> usize {
         if self.bytes.is_empty() {
             0
+        } else if self.bit_pos == 0 {
+            self.bytes.len() * 8
         } else {
             (self.bytes.len() - 1) * 8 + self.bit_pos as usize
         }
@@ -96,15 +106,31 @@ impl BitWriter {
     /// | `110` | 6 |
     /// | `111` | 7 |
     ///
-    /// Any other input is a bug at the call site.
-    pub fn write_3b(&mut self, v: u8) {
+    /// Returns [`Error::Invalid3B`] for any value outside that set —
+    /// this is the preferred fallible API. [`write_3b`](Self::write_3b)
+    /// is kept as a convenience wrapper that `.expect`s the result for
+    /// call sites that have statically validated the input.
+    pub fn try_write_3b(&mut self, v: u8) -> Result<()> {
         match v {
             0 => self.write_bits(0b0, 1),
             2 => self.write_bits(0b10, 2),
             6 => self.write_bits(0b110, 3),
             7 => self.write_bits(0b111, 3),
-            _ => panic!("invalid 3B value {v}; representable: 0, 2, 6, 7"),
+            _ => return Err(Error::Invalid3B { value: v }),
         }
+        Ok(())
+    }
+
+    /// Convenience wrapper around [`try_write_3b`](Self::try_write_3b)
+    /// that panics on invalid input. Prefer the fallible form at any
+    /// call site where the value is not statically one of `{0, 2, 6, 7}`.
+    ///
+    /// # Panics
+    ///
+    /// Panics with [`Error::Invalid3B`] formatting when `v` is outside
+    /// the representable set.
+    pub fn write_3b(&mut self, v: u8) {
+        self.try_write_3b(v).expect("invalid 3B value");
     }
 
     /// BS (bitshort) — 00=LE short, 01=u8, 10=0, 11=256. Choose the
@@ -152,18 +178,41 @@ impl BitWriter {
         self.write_bl(v as i32);
     }
 
-    /// BLL (R24+): 1-3 bits length, then that many bytes LSB-first.
-    pub fn write_bll(&mut self, v: u64) {
-        let len = if v == 0 {
+    /// BLL (R24+) per spec §2.4: a 3B prefix-coded length followed by
+    /// that many little-endian data bytes.
+    ///
+    /// Because 3B can only represent lengths `{0, 2, 6, 7}` (spec §2.1,
+    /// prefix code), the writer must choose the smallest representable
+    /// length that fits the value. Encoding layout:
+    ///
+    /// | range of `v`              | length | payload bytes | total bits (incl. prefix) |
+    /// |---------------------------|--------|---------------|---------------------------|
+    /// | `0`                       | 0      | 0             | 1                         |
+    /// | `1..=0xFFFF`              | 2      | 2             | 18                        |
+    /// | `0x10000..=0xFFFF_FFFF_FFFF` | 6    | 6             | 51                        |
+    /// | `0x1_0000_0000_0000..=(1<<56)-1` | 7 | 7           | 59                        |
+    ///
+    /// Values requiring more than 56 bits (`v >= 1 << 56`) return
+    /// [`Error::BllOverflow`] — the encoding cannot represent them.
+    pub fn write_bll(&mut self, v: u64) -> Result<()> {
+        let byte_count = if v == 0 {
             0
         } else {
             ((64 - v.leading_zeros()) as usize).div_ceil(8)
         };
-        debug_assert!(len <= 7);
-        self.write_3b(len as u8);
-        for i in 0..len {
+        // Round up to the nearest representable prefix-coded length.
+        let len: u8 = match byte_count {
+            0 => 0,
+            1 | 2 => 2,
+            3..=6 => 6,
+            7 => 7,
+            _ => return Err(Error::BllOverflow { value: v }),
+        };
+        self.try_write_3b(len)?;
+        for i in 0..len as usize {
             self.write_bits((v >> (i * 8)) & 0xFF, 8);
         }
+        Ok(())
     }
 
     /// BD — 00=IEEE 754 double, 01=1.0, 10=0.0, 11=reserved.
@@ -204,9 +253,13 @@ impl BitWriter {
     }
 
     /// MC (modular char, signed) per spec §2.6.
+    ///
+    /// Uses [`i64::unsigned_abs`] so that `v == i64::MIN` (whose
+    /// two's-complement negation is unrepresentable as an `i64`) is
+    /// still encoded correctly instead of overflowing.
     pub fn write_mc(&mut self, v: i64) -> Result<()> {
         let (abs, negate) = if v < 0 {
-            ((-v) as u64, true)
+            (v.unsigned_abs(), true)
         } else {
             (v as u64, false)
         };
@@ -381,5 +434,112 @@ mod tests {
         assert_eq!(h.code, 5);
         assert_eq!(h.counter, 1);
         assert_eq!(h.value, 0x0F);
+    }
+
+    // ================================================================
+    // Regression tests for correctness bugs surfaced by the external
+    // release-readiness audit.
+    // ================================================================
+
+    /// `position_bits` must return `N * 8` after exactly `N` whole
+    /// bytes have been written, not `(N - 1) * 8`.
+    #[test]
+    fn position_bits_after_whole_bytes() {
+        let mut w = BitWriter::new();
+        assert_eq!(w.position_bits(), 0);
+        w.write_bits(0xAB, 8);
+        assert_eq!(w.position_bits(), 8, "after 1 byte");
+        w.write_bits(0xCD, 8);
+        assert_eq!(w.position_bits(), 16, "after 2 bytes");
+        w.write_bits(0x1, 1);
+        assert_eq!(w.position_bits(), 17, "after 2 bytes + 1 bit");
+        // Fill out the current byte.
+        w.write_bits(0, 7);
+        assert_eq!(w.position_bits(), 24, "after 3 bytes (boundary)");
+    }
+
+    /// `write_mc` must not overflow on `i64::MIN`. The two's-complement
+    /// negation `-i64::MIN` is unrepresentable as `i64`; the encoder
+    /// must use `unsigned_abs` instead.
+    #[test]
+    fn write_mc_i64_min_does_not_overflow() {
+        let mut w = BitWriter::new();
+        w.write_mc(i64::MIN).unwrap();
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        // Round-trip must preserve the value.
+        assert_eq!(c.read_mc().unwrap(), i64::MIN);
+    }
+
+    #[test]
+    fn write_mc_i64_max_roundtrips() {
+        let mut w = BitWriter::new();
+        w.write_mc(i64::MAX).unwrap();
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        assert_eq!(c.read_mc().unwrap(), i64::MAX);
+    }
+
+    /// `try_write_3b` returns `Err(Error::Invalid3B)` for values
+    /// outside `{0, 2, 6, 7}` instead of panicking.
+    #[test]
+    fn try_write_3b_rejects_invalid_values() {
+        for bad in [1u8, 3, 4, 5, 8, 15, 255] {
+            let mut w = BitWriter::new();
+            let err = w.try_write_3b(bad).unwrap_err();
+            assert!(
+                matches!(err, crate::error::Error::Invalid3B { value } if value == bad),
+                "bad={bad} err={err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn try_write_3b_accepts_representable_values() {
+        for good in [0u8, 2, 6, 7] {
+            let mut w = BitWriter::new();
+            assert!(w.try_write_3b(good).is_ok(), "good={good}");
+        }
+    }
+
+    /// BLL must round-trip across the full byte-length spectrum the
+    /// prefix code can represent. The encoder upgrades counts of
+    /// `{1, 3, 4, 5, 7, 8}` bytes to the next larger representable
+    /// length, padding the value with zeros — the reader reconstructs
+    /// the original integer either way.
+    #[test]
+    fn bll_roundtrip_spans_representable_range() {
+        let values: [u64; 11] = [
+            0,
+            1,
+            0xFF,
+            0x100,
+            0xFFFF,
+            0x10000,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF_FFFF,
+            1u64 << 40,
+            1u64 << 48,
+            (1u64 << 56) - 1,
+        ];
+        for v in values {
+            let mut w = BitWriter::new();
+            w.write_bll(v)
+                .unwrap_or_else(|e| panic!("write_bll({v}): {e}"));
+            let bytes = w.into_bytes();
+            let mut c = BitCursor::new(&bytes);
+            let got = c.read_bll().unwrap();
+            assert_eq!(got, v, "roundtrip mismatch for v={v:#018X}");
+        }
+    }
+
+    #[test]
+    fn bll_rejects_values_requiring_more_than_56_bits() {
+        let mut w = BitWriter::new();
+        let res = w.write_bll(1u64 << 56);
+        assert!(
+            matches!(res, Err(crate::error::Error::BllOverflow { .. })),
+            "res={res:?}"
+        );
     }
 }
