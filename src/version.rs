@@ -119,9 +119,39 @@ impl Version {
         matches!(self, Self::R2007)
     }
 
-    /// True for R2007+ — uses `Sec_Mask` two-layer bitstream obfuscation.
+    /// True for the set `{R2007, R2010, R2013, R2018}` — the release
+    /// line from AC1021 onward.
+    ///
+    /// The primary meaning callers rely on is **text encoding**: these
+    /// versions store `TV` (variable text) and symbol-table entry names
+    /// as UTF-16LE bit-streams, whereas R2004 and earlier use 8-bit
+    /// bytes. That single observation is load-bearing across
+    /// [`crate::tables::read_tv`], `block::decode`, and the attribute
+    /// decoders.
+    ///
+    /// An earlier version of this docstring claimed the predicate
+    /// corresponded to "`Sec_Mask` two-layer bitstream obfuscation,"
+    /// which is inaccurate — only R2007 uses the two-layer variant; R2010,
+    /// R2013, and R2018 revert to the single-layer `Sec_Mask` that R2004
+    /// already used. Separate predicates exist for that distinction
+    /// ([`Self::is_r2007`] and [`Self::is_r2004_family`]).
+    ///
+    /// Prefer the semantically-named [`uses_utf16_text`](Self::uses_utf16_text)
+    /// at new call sites; `is_r2007_plus` is retained as an alias so
+    /// existing callers keep compiling.
     pub fn is_r2007_plus(self) -> bool {
         matches!(self, Self::R2007 | Self::R2010 | Self::R2013 | Self::R2018)
+    }
+
+    /// True for formats that store variable-text (`TV`) fields as
+    /// UTF-16LE bit-streams rather than 8-bit bytes. This is the
+    /// dominant meaning of "R2007-plus" across the rest of the crate.
+    ///
+    /// Equivalent to [`is_r2007_plus`](Self::is_r2007_plus) at present;
+    /// provided as a semantic name for readability at call sites that
+    /// are specifically branching on text encoding.
+    pub fn uses_utf16_text(self) -> bool {
+        self.is_r2007_plus()
     }
 
     /// True for R2010+ — object-type encoding changed (see spec §2.12).

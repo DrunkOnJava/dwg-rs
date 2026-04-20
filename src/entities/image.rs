@@ -80,9 +80,15 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Image> {
     };
     let clip_boundary_type = c.read_bs()?;
     let num_clip_verts = c.read_bl()? as usize;
-    if num_clip_verts > 1_000_000 {
+    // Real IMAGE clip boundaries are a handful of vertices; 100K is a
+    // conservative upper bound. Also cross-check against remaining
+    // payload bits (each vertex is ≥ 4 bits — two BB dispatch tags).
+    const IMAGE_MAX_CLIP_VERTS: usize = 100_000;
+    if num_clip_verts > IMAGE_MAX_CLIP_VERTS || num_clip_verts > c.remaining_bits() {
         return Err(Error::SectionMap(format!(
-            "IMAGE clip verts {num_clip_verts} exceeds 1M cap"
+            "IMAGE clip verts {num_clip_verts} exceeds cap \
+             ({IMAGE_MAX_CLIP_VERTS} or remaining_bits {})",
+            c.remaining_bits()
         )));
     }
     let clip_boundary = match clip_boundary_type {

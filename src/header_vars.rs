@@ -29,7 +29,7 @@
 //! future work can populate the rest.
 
 use crate::bitcursor::BitCursor;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::version::Version;
 
 /// Decoded form of the `AcDb:Header` section.
@@ -57,14 +57,27 @@ impl HeaderVars {
         0x5F,
     ];
 
-    /// Parse a decompressed `AcDb:Header` payload.
+    /// Parse a decompressed `AcDb:Header` payload in **lossy** mode.
     ///
-    /// Bytes 0..16 are the sentinel, 16..20 are a size-in-bits
-    /// little-endian u32, and the remainder is the variable
+    /// Bytes `0..16` are the sentinel, `16..20` are a size-in-bits
+    /// little-endian `u32`, and the remainder is the variable
     /// bit-stream proper. This method does not consume any
     /// variables — callers use [`Self::read_first_bd`] or similar
     /// targeted getters.
+    ///
+    /// Back-compat shim: identical to [`parse_lossy`](Self::parse_lossy).
+    /// Prefer that name explicitly at new call sites; use
+    /// [`parse_strict`](Self::parse_strict) when partial data is not
+    /// acceptable.
     pub fn parse(bytes: &[u8], version: Version) -> Result<Self> {
+        Self::parse_lossy(bytes, version)
+    }
+
+    /// Parse a decompressed `AcDb:Header` payload, tolerating inputs
+    /// that are shorter than the 20-byte sentinel-plus-size prefix by
+    /// returning an empty-bodied `HeaderVars`. Useful for exploratory
+    /// CLIs that want to keep going on corrupted sections.
+    pub fn parse_lossy(bytes: &[u8], version: Version) -> Result<Self> {
         if bytes.len() < 20 {
             return Ok(Self {
                 sentinel: [0; 16],
@@ -73,6 +86,32 @@ impl HeaderVars {
                 version,
             });
         }
+        Self::parse_prefix(bytes, version)
+    }
+
+    /// Parse a decompressed `AcDb:Header` payload, returning an
+    /// [`Error::Truncated`] if the input is shorter than the 20-byte
+    /// sentinel-plus-size prefix. Callers that need to distinguish
+    /// "valid section with empty body" from "section too short to be
+    /// an `AcDb:Header` at all" should use this instead of
+    /// [`parse`](Self::parse) or [`parse_lossy`](Self::parse_lossy).
+    pub fn parse_strict(bytes: &[u8], version: Version) -> Result<Self> {
+        if bytes.len() < 20 {
+            return Err(Error::Truncated {
+                offset: 0,
+                wanted: 20,
+                len: bytes.len() as u64,
+            });
+        }
+        Self::parse_prefix(bytes, version)
+    }
+
+    /// Shared body for [`parse_lossy`](Self::parse_lossy) and
+    /// [`parse_strict`](Self::parse_strict): both require the input
+    /// slice to have at least 20 bytes, which the public methods
+    /// enforce above before calling here.
+    fn parse_prefix(bytes: &[u8], version: Version) -> Result<Self> {
+        debug_assert!(bytes.len() >= 20);
         let mut sentinel = [0u8; 16];
         sentinel.copy_from_slice(&bytes[..16]);
         let size_in_bits =
@@ -149,6 +188,40 @@ mod tests {
     fn parse_short_bytes_is_lenient() {
         let h = HeaderVars::parse(&[0u8; 10], Version::R2018).unwrap();
         assert_eq!(h.body_len(), 0);
+    }
+
+    #[test]
+    fn parse_lossy_matches_parse() {
+        let h = HeaderVars::parse_lossy(&[0u8; 10], Version::R2018).unwrap();
+        assert_eq!(h.body_len(), 0);
+        assert!(!h.has_valid_sentinel());
+    }
+
+    #[test]
+    fn parse_strict_errors_on_short_input() {
+        let err = HeaderVars::parse_strict(&[0u8; 10], Version::R2018).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                crate::error::Error::Truncated {
+                    wanted: 20,
+                    len: 10,
+                    ..
+                }
+            ),
+            "err={err:?}"
+        );
+    }
+
+    #[test]
+    fn parse_strict_accepts_sentinel_prefix() {
+        let mut bytes = HeaderVars::SENTINEL.to_vec();
+        bytes.extend_from_slice(&42u32.to_le_bytes());
+        bytes.extend_from_slice(&[0xAA]);
+        let h = HeaderVars::parse_strict(&bytes, Version::R2018).unwrap();
+        assert!(h.has_valid_sentinel());
+        assert_eq!(h.size_in_bits, 42);
+        assert_eq!(h.body_len(), 1);
     }
 
     #[test]

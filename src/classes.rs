@@ -30,6 +30,7 @@
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
+use crate::tables::read_tv;
 use crate::version::Version;
 
 /// One custom class definition.
@@ -141,26 +142,11 @@ impl ClassMap {
     }
 }
 
-/// Read a variable text (TV) — R2004 and earlier use 8-bit strings,
-/// R2007+ uses UTF-16LE strings (spec §2). For simplicity we read as
-/// 8-bit for all versions here; R2007+ strings will often read as valid
-/// ASCII when the content is ASCII-only (app names, C++ class names are
-/// always ASCII in practice).
-fn read_tv(c: &mut BitCursor<'_>, _version: Version) -> Result<String> {
-    let len = c.read_bs_u()? as usize;
-    if len == 0 {
-        return Ok(String::new());
-    }
-    let mut out = Vec::with_capacity(len);
-    for _ in 0..len {
-        out.push(c.read_rc()?);
-    }
-    // Strip trailing NUL if any.
-    if out.last() == Some(&0) {
-        out.pop();
-    }
-    Ok(String::from_utf8_lossy(&out).into_owned())
-}
+// TV string reading is delegated to `crate::tables::read_tv`, which
+// correctly branches on UTF-8 (R2004 and earlier) vs UTF-16LE (R2007+
+// per spec §2). An earlier local implementation in this module
+// read 8-bit for all versions, which mangled vendor class names in
+// files whose author used non-ASCII identifiers.
 
 #[cfg(test)]
 mod tests {

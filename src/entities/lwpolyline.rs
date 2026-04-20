@@ -109,15 +109,34 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
         None
     };
 
-    // Defensive caps — no real drawing has 10M vertices on a single
-    // polyline; this bounds malformed-stream runaway reads.
-    if num_points > 10_000_000
-        || num_bulges > 10_000_000
-        || num_ids > 10_000_000
-        || num_widths > 10_000_000
+    // Defensive caps. Two checks:
+    //
+    // 1. Hard sanity ceiling — 1 million vertices is already far beyond
+    //    any real drawing. Previously this was 10M; the lower value
+    //    still accommodates real-world usage and shrinks the worst-case
+    //    allocation envelope by an order of magnitude.
+    //
+    // 2. Remaining-payload derivation — a count larger than the number
+    //    of BITS left on the cursor cannot possibly be real, regardless
+    //    of the ceiling above. Each claimed item needs at least 1 bit to
+    //    exist; so `remaining_bits() >= count` is the cheapest sound
+    //    upper bound. Catches counts inflated past the literal length
+    //    of the object's payload.
+    const LWPOLYLINE_MAX: usize = 1_000_000;
+    let remaining = c.remaining_bits();
+    let total_claimed = num_points
+        .saturating_add(num_bulges)
+        .saturating_add(num_ids)
+        .saturating_add(num_widths);
+    if num_points > LWPOLYLINE_MAX
+        || num_bulges > LWPOLYLINE_MAX
+        || num_ids > LWPOLYLINE_MAX
+        || num_widths > LWPOLYLINE_MAX
+        || total_claimed > remaining
     {
         return Err(crate::error::Error::SectionMap(format!(
-            "LWPOLYLINE has implausible counts (p={num_points}, b={num_bulges}, i={num_ids}, w={num_widths})"
+            "LWPOLYLINE has implausible counts (p={num_points}, b={num_bulges}, \
+             i={num_ids}, w={num_widths}; remaining_bits={remaining})"
         )));
     }
 

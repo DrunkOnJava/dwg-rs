@@ -51,9 +51,15 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Leader> {
     let annot_type = c.read_bs()?;
     let path_type = c.read_bs()?;
     let num_points = c.read_bl()? as usize;
-    if num_points > 1_000_000 {
+    // Leader callouts are a small handful of points in every real
+    // drawing; a 100K ceiling catches pathological inputs while still
+    // covering any imaginable real use.
+    const LEADER_MAX_POINTS: usize = 100_000;
+    if num_points > LEADER_MAX_POINTS || num_points > c.remaining_bits() {
         return Err(Error::SectionMap(format!(
-            "LEADER claims {num_points} points (>1M cap)"
+            "LEADER claims {num_points} points (cap {LEADER_MAX_POINTS}, \
+             remaining_bits {})",
+            c.remaining_bits()
         )));
     }
     let mut points = Vec::with_capacity(num_points);

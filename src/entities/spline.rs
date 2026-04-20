@@ -82,7 +82,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Spline> {
             let begin_tangent = read_bd3(c)?;
             let end_tangent = read_bd3(c)?;
             let n = c.read_bl()? as usize;
-            bounds_check(n, "fit_points")?;
+            bounds_check(n, "fit_points", c.remaining_bits())?;
             let mut fit_points = Vec::with_capacity(n);
             for _ in 0..n {
                 fit_points.push(read_bd3(c)?);
@@ -104,13 +104,13 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Spline> {
             let knot_tolerance = c.read_bd()?;
             let control_tolerance = c.read_bd()?;
             let num_knots = c.read_bl()? as usize;
-            bounds_check(num_knots, "knots")?;
+            bounds_check(num_knots, "knots", c.remaining_bits())?;
             let mut knots = Vec::with_capacity(num_knots);
             for _ in 0..num_knots {
                 knots.push(c.read_bd()?);
             }
             let num_control = c.read_bl()? as usize;
-            bounds_check(num_control, "control_points")?;
+            bounds_check(num_control, "control_points", c.remaining_bits())?;
             let mut control_points = Vec::with_capacity(num_control);
             let mut weights = Vec::new();
             for _ in 0..num_control {
@@ -153,10 +153,17 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Spline> {
     })
 }
 
-fn bounds_check(n: usize, field: &'static str) -> Result<()> {
-    if n > 1_000_000 {
+/// Ceiling on any per-spline collection size. 100K is already far
+/// beyond any real-world NURBS; the remaining-bits derivation in
+/// `bounds_check` catches inputs that are smaller than this ceiling
+/// but still larger than the object payload could physically encode.
+const SPLINE_MAX_COUNT: usize = 100_000;
+
+fn bounds_check(n: usize, field: &'static str, remaining_bits: usize) -> Result<()> {
+    if n > SPLINE_MAX_COUNT || n > remaining_bits {
         Err(Error::SectionMap(format!(
-            "SPLINE {field} count {n} exceeds 1M sanity bound"
+            "SPLINE {field} count {n} exceeds cap \
+             ({SPLINE_MAX_COUNT} or remaining_bits {remaining_bits})"
         )))
     } else {
         Ok(())
