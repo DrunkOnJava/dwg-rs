@@ -93,6 +93,7 @@ pub mod crc;
 pub mod entities;
 pub mod error;
 pub mod file_writer;
+pub mod geometry;
 pub mod handle_map;
 pub mod header;
 pub mod header_vars;
