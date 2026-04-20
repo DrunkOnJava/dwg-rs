@@ -33,6 +33,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod measure;
+
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -70,7 +72,7 @@ impl DwgFile {
     /// R2018). Available even when the section map fell back.
     #[wasm_bindgen(js_name = "versionMagic")]
     pub fn version_magic(&self) -> String {
-        self.inner.version().magic_str().to_string()
+        String::from_utf8_lossy(&self.inner.version().magic()).into_owned()
     }
 
     /// Human-readable version name (e.g. "R2018"). Convenience for
