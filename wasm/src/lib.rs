@@ -33,6 +33,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod drag_drop;
+pub mod export_buttons;
 pub mod layer_panel;
 pub mod linetype;
 pub mod measure;
