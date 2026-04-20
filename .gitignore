@@ -34,6 +34,9 @@ perf.data.old
 # Proptest regression seeds (commit after narrowing to verify shrinking)
 # Comment the next line out to keep reproducible counter-examples.
 proptest-regressions/
+# Proptest 1.x also writes <test-name>.proptest-regressions next to
+# each test file — same exclusion applies.
+*.proptest-regressions
 
 # Environment
 .env
