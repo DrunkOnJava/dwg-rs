@@ -288,19 +288,30 @@ block before a PR is mergeable.
 
 ## 11. Legal posture
 
-DWG is a trademark of Autodesk, Inc. This crate is clean-room —
-implemented against the ODA's freely-published spec, with *no*
-consultation of:
+DWG is a trademark of Autodesk, Inc. This crate is implemented from
+the Open Design Alliance's freely-redistributable *Open Design
+Specification for .dwg files* (v5.4.1). Executable code from the
+following sources was not consulted or imported:
 
-- Autodesk's proprietary DWG SDK.
-- Open Design Alliance's closed-source `Teigha` SDK.
-- LibreDWG or any other GPL-3 DWG implementation.
+- Autodesk's proprietary DWG SDKs (RealDWG, ObjectARX, ObjectDBX).
+- The Open Design Alliance's `Teigha` / Drawings SDK.
+- LibreDWG or any other GPL-licensed DWG implementation.
 
-The 2006 *Autodesk v. ODA* settlement and 17 U.S.C. § 1201(f)
-(DMCA interoperability exception) both explicitly permit
-third-party implementations against DWG for interop purposes.
+One scoped exception is documented in `CLEANROOM.md`: algorithm-
+description comments (not executable code) in the MIT-licensed
+[ACadSharp](https://github.com/DomCR/ACadSharp) were consulted to
+resolve one LZ77 offset-encoding spec ambiguity. Every cross-check
+is annotated at the affected source file.
 
-Cross-verification against ACadSharp (MIT) is limited to LZ77
-offset-encoding spec typos, where we read their algorithm but
-not their code. Every cross-check is annotated in the affected
-source file.
+17 U.S.C. § 1201(f) (DMCA interoperability exception), Article 6 of
+EU Directive 2009/24/EC (Software Directive), and the line of U.S.
+fair-use cases from *Sega v. Accolade* (9th Cir. 1992) through *Sony
+v. Connectix* (9th Cir. 2000) all support independent file-format
+reverse engineering for interoperability. Nothing in this repository
+is offered as legal advice; see `NOTICE` for the fuller reference
+set.
+
+The term "clean-room" as used elsewhere in this project refers to
+the project's solo-developer, spec-only, no-reference-source
+discipline — it is not a formal two-team clean-room protocol in the
+IBM-BIOS sense. The scope is defined precisely in `CLEANROOM.md`.

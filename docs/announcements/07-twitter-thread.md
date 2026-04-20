@@ -7,9 +7,9 @@
 ---
 
 **1/**
-Published a pre-alpha today: dwg-rs — a clean-room, Apache-2.0 Rust reader for AutoCAD DWG files (R13 through AC1032 / 2018+).
+Published a pre-alpha today: dwg-rs — an Apache-2.0 Rust reader for AutoCAD DWG files (R13 through AC1032 / 2018+), built from the ODA's published specification.
 
-For ~28 years DWG has been closed. This is a small, honest pickaxe.
+Narrow niche: LibreDWG (GPL-3) is more complete today; ACadSharp (MIT) covers .NET. This is for Rust stacks that can't take either.
 
 **2/**
 Early-preview framing up front: the container layer has landed and carries a multi-hundred test suite. Per-entity decoders are alpha. Real-file decode rates run 22% on R2018 to 86% on R2013. The README publishes the measured per-version table rather than marketing copy.
@@ -24,13 +24,13 @@ Export pipelines (pre-alpha, partial coverage — see the capability matrix): `d
 What does NOT work yet: end-to-end entity decode on most real R2004-family files, R14 / R2000 / R2007 walker, DWG writer (scaffolded, not round-trip capable), Python bindings (placeholder — see docs/python.md). Each is a tracking issue on the public roadmap.
 
 **6/**
-Clean-room posture: no Autodesk SDK, no ODA Drawings SDK / Teigha source, no LibreDWG (GPL-3) source consulted. Only the ODA Open Design Specification v5.4.1 PDF plus public sample files. Policy + contributor declaration live in CLEANROOM.md.
+Source provenance: executable code from Autodesk SDK, ODA Drawings SDK / Teigha, and GPL-licensed readers was not imported. Built from the ODA Open Design Specification v5.4.1 PDF plus public sample files. Full policy in CLEANROOM.md.
 
 **7/**
-Why Apache-2? LibreDWG is GPL-3, which disqualifies it from downstream Rust stacks that cannot absorb copyleft. dwg-rs fills that specific gap — a DWG read path permissive downstreams can pull in, for the subset of DWG features already covered.
+Why Apache-2? LibreDWG is GPL-3, which downstream Rust stacks with permissive licensing can't absorb. dwg-rs fills that specific gap — a DWG read path permissive downstreams can pull in, for the subset of DWG features already covered.
 
 **8/**
-Sibling project, same day: rvt-rs — same clean-room posture, same author, for Autodesk Revit (.rvt / .rfa 2016-2026). First open-source tool to enumerate the Formats/Latest class schema inventory. github.com/DrunkOnJava/rvt-rs
+Sibling project, same day: rvt-rs — same source-provenance policy, same author, for Autodesk Revit (.rvt / .rfa 2016-2026). github.com/DrunkOnJava/rvt-rs
 
 **9/**
 Repo, roadmap, and the measured decode-rate table: https://github.com/DrunkOnJava/dwg-rs

@@ -195,6 +195,6 @@ These have genuine open scope requiring focused work, not stubs.
 
 ## How to contribute
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the clean-room posture and
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the source-provenance policy and
 development workflow. Good first issues are labeled `good-first-issue`
 in the GitHub tracker; the 7 items above are the "meaty" open scope.

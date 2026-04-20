@@ -14,7 +14,7 @@ Where it falls short: the per-entity decoders (the code that turns "object #42" 
 
 You can already pull a DWG's embedded thumbnail, list the AutoCAD version that wrote the file, extract the metadata block, and walk the raw object table. The in-browser viewer needs the entity decoders to land first.
 
-Why bother: no permissively-licensed DWG reader exists today — the choices are paid-membership SDKs or GPL-3. dwg-rs is built clean-room from the public Open Design Specification, so there is a real path toward a viewer permissive downstreams can embed.
+Why bother: the open-source DWG reader ecosystem is strong but split — LibreDWG (GPL-3, the most complete reader), ACadSharp (MIT, .NET). Nothing Apache-2.0 exists in Rust, which is what dwg-rs fills. Built from the ODA's public Open Design Specification; see CLEANROOM.md for the full source-provenance policy.
 
 Repo: https://github.com/DrunkOnJava/dwg-rs
 

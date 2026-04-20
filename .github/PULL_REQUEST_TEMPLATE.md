@@ -26,18 +26,20 @@ from `cargo run --release --example coverage_report -- <path>`.
 - [ ] For decoder changes: coverage-report numbers attached
 -->
 
-## Clean-room declaration
+## Source-provenance declaration
 
-By submitting this PR I certify that:
+By submitting this PR I certify that my contribution does not incorporate executable code from any source whose license is incompatible with Apache-2.0. Specifically:
 
-- **I have not consulted the Autodesk DWG SDK** source code or NDA-protected documentation in creating this contribution.
-- **I have not consulted the Open Design Alliance's closed-source Teigha / ODA SDK** source code.
-- **I have not consulted LibreDWG** (GPL-3) or any other copyleft-licensed DWG implementation in creating this contribution. This is a critical legal requirement: `dwg-rs` is Apache-2.0 and must remain free of GPL-adjacent contamination.
+- **No Autodesk DWG SDK source** (RealDWG, ObjectARX, ObjectDBX) or NDA-protected Autodesk documentation was consulted or imported.
+- **No Open Design Alliance Teigha / Drawings SDK source** was consulted or imported. The ODA's public *Open Design Specification for .dwg files* PDF is explicitly allowed (see `CLEANROOM.md`).
+- **No GPL-licensed DWG implementation source** (LibreDWG, etc.) was consulted or imported. This matters because `dwg-rs` is Apache-2.0 and must remain compatible.
 
-My contribution is based exclusively on:
+My contribution is based on:
 - The ODA's freely-redistributable *Open Design Specification for .dwg files* (v5.4.1);
-- Public reverse-engineering notes, research papers, or blog posts where cited inline;
-- Cross-verification against permissively-licensed implementations (e.g., ACadSharp / MIT) where noted in code comments — and such verification is limited to reading the algorithmic description, not copying code.
+- Public reverse-engineering notes, research papers, or blog posts cited inline;
+- Reading algorithm-description **comments** (not executable code) in permissively-licensed projects (MIT / Apache / BSD) to resolve spec ambiguities — disclose any such reading in this PR body so it can be recorded in `CLEANROOM.md`.
+
+See `CLEANROOM.md` for the full allowed/forbidden source list and the honest scope of what "clean-room" means for this project.
 
 ## Developer Certificate of Origin
 

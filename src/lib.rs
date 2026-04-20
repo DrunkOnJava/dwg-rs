@@ -1,8 +1,13 @@
-//! dwg-rs · Apache-2 Rust reader for Autodesk DWG files (R13 → R2018 / AC1032).
+//! dwg-rs · Apache-2.0 Rust reader for Autodesk DWG files (R13 → R2018 / AC1032).
 //!
-//! Clean-room implementation against the Open Design Alliance's freely-
-//! redistributable *Open Design Specification for .dwg files* (v5.4.1). No
-//! Autodesk SDK, no ODA SDK, no GPL-3 dependency.
+//! Implemented from the Open Design Alliance's freely-redistributable
+//! *Open Design Specification for .dwg files* (v5.4.1). The crate does not
+//! link against the Autodesk SDK or the ODA SDK, and no executable code
+//! from GPL-licensed DWG readers was imported. See
+//! [`CLEANROOM.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/CLEANROOM.md)
+//! for the full source-provenance policy and the scope of what "clean-room"
+//! means for a solo-developer project (spec-only, no-reference-source posture,
+//! not a formal two-team clean-room protocol).
 //!
 //! # Quick start
 //!
@@ -70,18 +75,21 @@
 //!
 //! "Autodesk", "AutoCAD", and "DWG" are trademarks of Autodesk, Inc.
 //! This crate is not affiliated with, authorized by, or endorsed by
-//! Autodesk. It is intended as a clean-room interoperability
-//! implementation. It does not use Autodesk SDK source, ODA SDK
-//! source, or GPL-licensed DWG implementation source. Users with
-//! specific legal constraints should evaluate the project with their
-//! own counsel; `NOTICE` summarizes the relevant public authority
-//! that typically supports independent file-format reverse
-//! engineering for interoperability.
+//! Autodesk. It is a spec-based interoperability implementation built
+//! from the ODA's freely-redistributable *Open Design Specification
+//! for .dwg files* (v5.4.1) — a document available separately from
+//! the ODA's Drawings SDK license. No executable code from the
+//! Autodesk SDK, the ODA SDK, or GPL-licensed DWG readers was
+//! imported. One scoped exception is documented in `CLEANROOM.md`:
+//! algorithm-description comments (not code) in the MIT-licensed
+//! ACadSharp were consulted to resolve one LZ77 offset-encoding
+//! ambiguity.
 //!
-//! No Autodesk SDK source, no ODA SDK source, and no LibreDWG (GPL-3) source
-//! was consulted at any point. The authoritative reference is the ODA's
-//! freely-redistributable *Open Design Specification for .dwg files*
-//! (v5.4.1), a document available separately from ODA's SDK license.
+//! Users with specific legal constraints should evaluate the project
+//! with their own counsel. `NOTICE` summarizes the public authorities
+//! that typically support independent file-format reverse engineering
+//! for interoperability; nothing in this crate is offered as legal
+//! advice.
 
 #![forbid(unsafe_code)]
 #![warn(missing_debug_implementations)]

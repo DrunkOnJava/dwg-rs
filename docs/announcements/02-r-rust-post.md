@@ -1,14 +1,14 @@
 # r/rust post draft (L-08)
 
-**Suggested title:** dwg-rs — Apache-2.0 Rust reader for AutoCAD DWG (R13–R2018), pre-alpha, clean-room, zero unsafe
+**Suggested title:** dwg-rs — Apache-2.0 Rust reader for AutoCAD DWG (R13–R2018), pre-alpha, zero unsafe
 
 ---
 
 **Body:**
 
-Just published dwg-rs, a clean-room Rust foundation for Autodesk DWG files. Honest upfront: 0.1.0-alpha.1. Container layer has landed; per-entity decoders are alpha. Aggregate decode rate across the public `nextgis/dwg_samples` corpus + one AC1032 sample is 25 %, ranging from 22 % on R2018 to 86 % on R2013; the full per-version breakdown is in the README.
+Just published dwg-rs, an Apache-2.0 Rust reader for Autodesk DWG files. Honest upfront: 0.1.0-alpha.1. Container layer has landed; per-entity decoders are alpha. Aggregate decode rate across the public `nextgis/dwg_samples` corpus + one AC1032 sample is 25 %, ranging from 22 % on R2018 to 86 % on R2013; the full per-version breakdown is in the README.
 
-Why this exists: Autodesk never published a DWG spec. The ODA SDK is paid-membership. LibreDWG is GPL-3. dwg-rs is built only from the ODA's freely-redistributable Open Design Specification v5.4.1 and first-party byte inspection of public sample files. `CLEANROOM.md` documents the allowed / forbidden source list and every PR ships with a clean-room declaration.
+Why this exists: mature open-source DWG readers do exist — LibreDWG (GPL-3) and ACadSharp (MIT, C#) — but nothing Apache-2.0 in Rust. dwg-rs fills that niche. It is built from the ODA's freely-redistributable Open Design Specification v5.4.1 and first-party byte inspection of public sample files. `CLEANROOM.md` documents the source-provenance policy; every PR ships with a declaration.
 
 Technical posture:
 

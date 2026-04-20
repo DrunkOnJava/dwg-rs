@@ -8,8 +8,11 @@ by its vendor. What you can use — legally, for interoperability work —
 is the Open Design Alliance's **Open Design Specification for .dwg
 files v5.4.1**, a freely-redistributable PDF that is distinct from
 the ODA SDK's license. Everything in this post cites that document.
-No Autodesk SDK, no ODA SDK, and no GPL-3 source (LibreDWG) was
-consulted while building `dwg-rs`.
+Executable code from the Autodesk SDK, the ODA SDK, and GPL-licensed
+DWG readers (LibreDWG) was not imported during `dwg-rs`' build; one
+scoped exception — algorithm-description comments in the MIT-licensed
+ACadSharp for one LZ77 offset-encoding spec ambiguity — is documented
+in [`CLEANROOM.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/CLEANROOM.md).
 
 This isn't a tour of DWG as a whole. It's a focused walk through the
 three layers most likely to bite an engineer writing a reader from

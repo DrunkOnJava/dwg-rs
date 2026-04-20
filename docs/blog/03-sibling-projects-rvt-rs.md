@@ -1,13 +1,14 @@
 # Sibling projects: `rvt-rs` and the case for open CAD interop
 
-*`dwg-rs` has a sibling. Both are clean-room Apache-2.0 Rust
-readers for proprietary Autodesk file formats, with identical
-legal posture. This post explains why they're designed as a pair.*
+*`dwg-rs` has a sibling. Both are Apache-2.0 Rust readers for
+Autodesk file formats, built from public specifications (DWG from
+the ODA spec; Revit from first-party byte inspection of publicly-
+released files) with matching source-provenance policy. This post
+explains why they're designed as a pair.*
 
-[`rvt-rs`](https://github.com/DrunkOnJava/rvt-rs) is a clean-room
+[`rvt-rs`](https://github.com/DrunkOnJava/rvt-rs) is an Apache-2.0
 Rust reader for Autodesk Revit files — `.rvt`, `.rfa`, `.rte`,
-`.rft` — published under Apache-2.0, by the same author as
-`dwg-rs`. It opens the OLE/CFB container, decodes Revit's
+`.rft` — by the same author as `dwg-rs`. It opens the OLE/CFB container, decodes Revit's
 truncated-gzip streams, extracts metadata and thumbnails, parses
 the embedded `Formats/Latest` schema, and enumerates a first-class
 inventory of field-type encodings across an 11-release 2016–2026
@@ -76,9 +77,9 @@ decompilations of Autodesk binaries; leaked or unofficial
 documentation.
 
 Every pull request on either repo carries a contributor
-declaration confirming clean-room provenance. If legal review
-matters for your downstream adoption, the audit trail is the same
-shape in both projects: declaration in every PR body,
+declaration of source provenance. If legal review matters for your
+downstream adoption, the audit trail is the same shape in both
+projects: declaration in every PR body,
 cross-referenced by the `CLEANROOM.md` policy, with `NOTICE` files
 summarizing the public authority that typically supports
 independent file-format reverse engineering for interoperability
@@ -138,7 +139,7 @@ For `rvt-rs`:
   beachhead is solid; earlier releases need their own pattern).
 
 Either repo welcomes contributors who are willing to follow the
-clean-room discipline. If you've worked with ODA's or Autodesk's
+source-provenance policy. If you've worked with ODA's or Autodesk's
 SDKs commercially or under NDA, both repos' `CONTRIBUTING.md`
 files explain how to disclose that so reviewers can flag PRs for
 additional review — the discipline doesn't require you to have
@@ -167,5 +168,6 @@ starts.
 ---
 
 *`dwg-rs` and `rvt-rs` are both pre-alpha and Apache-2.0 licensed.
-No Autodesk SDK, ODA SDK, or GPL-licensed implementation source
-was consulted in either.*
+No executable code from the Autodesk SDK, the ODA SDK, or GPL-
+licensed readers was imported into either; see each repo's
+`CLEANROOM.md` for the full source-provenance policy.*

@@ -1,4 +1,5 @@
-dwg-rs — clean-room Apache-2 Rust reader for Autodesk DWG files
+dwg-rs — Apache-2.0 Rust reader for Autodesk DWG files, built from
+the Open Design Alliance's published specification.
 Copyright 2026 Griffin Long
 
 Licensed under the Apache License, Version 2.0 (see LICENSE).
@@ -36,10 +37,16 @@ format is recognised as lawful fair use under:
 
   * United States — Sega Enterprises v. Accolade, 977 F.2d 1510
     (9th Cir. 1992); Sony Computer Entertainment v. Connectix, 203
-    F.3d 596 (9th Cir. 2000).
+    F.3d 596 (9th Cir. 2000); 17 U.S.C. §117(b) (essential-step /
+    archival copies); and the broader fair-use doctrine as developed
+    in format-interoperability cases.
   * European Union — Article 6 of Directive 2009/24/EC (Software
-    Directive).
-  * Australia — Copyright Act 1968, Section 47D.
+    Directive), which specifically addresses decompilation for
+    interoperability.
+  * Other jurisdictions — analogous provisions exist in many national
+    copyright regimes (e.g. Australia Copyright Act 1968 §47D);
+    listing any one here should not be read as a statement that the
+    project has been analyzed under that specific jurisdiction's law.
 
 File formats themselves are not copyrightable subject matter (Baker
 v. Selden, 101 U.S. 99 (1879); Lotus Development v. Borland, 516
@@ -91,7 +98,10 @@ is the "Open Design Specification for .dwg files" published by the
 Open Design Alliance. This project does NOT derive from or link
 against the ODA's implementing code (Drawings SDK / Teigha) — only
 from their published public specification document. All decoder
-logic here is independently implemented in clean-room Rust.
+logic is independently implemented; one scoped exception is
+documented in CLEANROOM.md (algorithm-description comments, not
+executable code, in the MIT-licensed ACadSharp were consulted to
+resolve one LZ77 offset-encoding ambiguity).
 
 ==============================================================================
 Test-corpus attribution

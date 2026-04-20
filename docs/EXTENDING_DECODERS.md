@@ -202,7 +202,7 @@ cargo fmt --all
 ```
 
 Then push your PR. The template at
-`.github/PULL_REQUEST_TEMPLATE.md` includes the clean-room
+`.github/PULL_REQUEST_TEMPLATE.md` includes the source-provenance
 declaration checkbox and spec-reference prompt — please fill in
 both.
 

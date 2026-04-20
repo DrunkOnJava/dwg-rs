@@ -1,6 +1,6 @@
 # Community post: Open Design Alliance forum
 
-**Title:** dwg-rs — a clean-room Apache-2.0 Rust DWG reader built on the Open Design Specification v5.4.1
+**Title:** dwg-rs — an Apache-2.0 Rust DWG reader built on the Open Design Specification v5.4.1
 
 **Audience:** Open Design Alliance community forum / mailing list.
 
@@ -10,11 +10,11 @@
 
 Hello ODA community,
 
-I want to introduce a new open-source project and, more importantly, say thank you. For roughly 28 years the DWG format has been closed territory, and the single most useful public reference on it has been the ODA's freely-redistributable *Open Design Specification for .dwg files* (currently v5.4.1). That PDF is the foundation this project is built on. Without it, there is no credible clean-room path into DWG for anyone outside the Autodesk or ODA membership umbrella, and publishing it the way ODA does is a real contribution to the ecosystem.
+I want to introduce a new open-source project and, more importantly, say thank you. The ODA's freely-redistributable *Open Design Specification for .dwg files* (currently v5.4.1) is the single most useful public reference on DWG, and it is the foundation this project is built on. Publishing that specification the way the ODA does is a substantial contribution to the ecosystem.
 
-The project is called `dwg-rs`. It is an Apache-2.0, clean-room Rust reader for the DWG container format, targeting R13 through AC1032. It is pre-alpha — the container layer (file identification, LZ77 decompression, Section Page Map, Sec_Mask layer-1, CRC, Reed-Solomon, metadata parsers, handle and class maps, raw object stream walker) has landed and been exercised against a 19-file public corpus; per-entity field decoders are alpha, with real-file decode rates currently in the 22 to 86 percent range depending on version. The README states this honestly.
+The project is called `dwg-rs`. It is an Apache-2.0 Rust reader for the DWG container format, targeting R13 through AC1032. It is pre-alpha — the container layer (file identification, LZ77 decompression, Section Page Map, Sec_Mask layer-1, CRC, Reed-Solomon, metadata parsers, handle and class maps, raw object stream walker) has landed and been exercised against a 19-file public corpus; per-entity field decoders are alpha, with real-file decode rates currently in the 22 to 86 percent range depending on version. The README states this honestly.
 
-I want to be explicit about what `dwg-rs` does **not** use: no ODA Drawings SDK / Teigha source, no decompiled binaries, no internal ODA documentation. Only the public specification PDF, publicly-redistributable sample files, academic papers, and independent byte-level inspection. The full sourcing policy is in `CLEANROOM.md` in the repository.
+I want to be explicit about provenance: executable code from the ODA Drawings SDK / Teigha was not consulted or imported, no decompiled binaries or internal ODA documentation was used. Only the public specification PDF, publicly-redistributable sample files, academic papers, and independent byte-level inspection. One scoped exception is documented in the repository: algorithm-description comments (not executable code) in the MIT-licensed ACadSharp were consulted to resolve one LZ77 offset-encoding ambiguity. The full source-provenance policy is in `CLEANROOM.md`.
 
 `dwg-rs` is not a substitute for the ODA SDK. It is a complement, aimed specifically at the Apache-2-only segment — projects that cannot take the SDK license but still want a permissively-licensed path toward interoperability for the subset of DWG features already covered. Feedback from ODA members is welcome.
 

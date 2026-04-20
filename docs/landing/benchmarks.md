@@ -44,13 +44,13 @@ output in `target/criterion/`.
 ## Baseline comparison posture
 
 The planned baseline is [LibreDWG](https://www.gnu.org/software/libredwg/)
-— the only other open-source DWG reader with broad version
-coverage. LibreDWG is GPL-3 licensed and **was not consulted at any
-point** during the build of `dwg-rs`; the comparison is strictly
-external-behavior benchmarking (same input files, same operations),
-not an implementation cross-reference. The clean-room posture
-documented in [`CLEANROOM.md`](../../CLEANROOM.md) is unchanged by
-the benchmark track.
+— a mature open-source DWG reader with broad version coverage
+(GPL-3-licensed). The comparison is strictly external-behavior
+benchmarking: same input files, same operations, wall-clock +
+allocation measurements — not an implementation cross-reference.
+LibreDWG source was not consulted during `dwg-rs` development; see
+[`CLEANROOM.md`](../../CLEANROOM.md) for the full source-provenance
+policy.
 
 We are not benchmarking against the ODA SDK. Its license terms make
 publishing head-to-head numbers legally awkward, and the project

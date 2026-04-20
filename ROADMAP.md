@@ -19,7 +19,7 @@ Ship bar for this milestone:
       `FileDepList`
 - [x] Handle map + class map parsers
 - [x] Object-stream walker with typed dispatch (`DispatchSummary`)
-- [x] Clean-room legal posture documented in `NOTICE` + `CLEANROOM.md`
+- [x] Source-provenance policy documented in `NOTICE` + `CLEANROOM.md`
 - [x] Safe-Rust parser (`#![deny(unsafe_code)]`)
 - [x] Per-entity decoders verified against hand-crafted synthetic
       bit streams (193 unit + proptest tests)

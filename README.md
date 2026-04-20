@@ -264,7 +264,7 @@ the [CHANGELOG](./CHANGELOG.md). CI verifies MSRV on every PR.
 | [LibreDWG](https://www.gnu.org/software/libredwg/) | C | **GPL-3** | The most complete open-source DWG reader; preferable to `dwg-rs` today for any stack that can take GPL-3. Its source was not consulted during this crate's implementation |
 | [Teigha / ODA SDK](https://www.opendesign.com/) | C++ | Commercial | Proprietary; paid membership required |
 | [dxf-rs](https://github.com/ixmilia/dxf-rs) | Rust | MIT | DXF (text companion format) only |
-| [rvt-rs](https://github.com/DrunkOnJava/rvt-rs) | Rust | Apache-2 | Sibling project — clean-room Autodesk Revit (.rvt / .rfa) reader by the same author. Same CLEANROOM posture. |
+| [rvt-rs](https://github.com/DrunkOnJava/rvt-rs) | Rust | Apache-2.0 | Sibling project — Autodesk Revit (.rvt / .rfa) reader by the same author, same source-provenance policy. |
 
 ## Why this exists
 

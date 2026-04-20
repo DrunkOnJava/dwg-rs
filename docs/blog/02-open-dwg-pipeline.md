@@ -307,6 +307,8 @@ milestone.
 
 ---
 
-*`dwg-rs` is pre-alpha (0.1.0-alpha.1) and Apache-2.0 licensed.
-No Autodesk SDK, ODA SDK, or GPL-licensed DWG source was
-consulted. [Source on GitHub](https://github.com/DrunkOnJava/dwg-rs).*
+*`dwg-rs` is pre-alpha (0.1.0-alpha.1) and Apache-2.0 licensed. No
+executable code from the Autodesk SDK, ODA SDK, or GPL-licensed DWG
+readers was imported; see [`CLEANROOM.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/CLEANROOM.md)
+for the full source-provenance policy.
+[Source on GitHub](https://github.com/DrunkOnJava/dwg-rs).*
