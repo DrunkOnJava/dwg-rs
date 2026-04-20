@@ -264,3 +264,109 @@ mod walker_tests {
         assert_eq!(WalkerLimits::default(), WalkerLimits::safe());
     }
 }
+
+/// Top-level safety profile applied at [`crate::DwgFile::open_with_limits`].
+///
+/// Bundles the three load-bearing caps:
+/// - [`max_file_bytes`](Self::max_file_bytes) — refuse oversize input
+///   before reading bytes (SEC-08).
+/// - [`max_section_bytes`](Self::max_section_bytes) — per-section cap
+///   applied after decompression.
+/// - [`decompress`](Self::decompress) — the LZ77 caps from
+///   [`crate::lz77::DecompressLimits`].
+///
+/// Plus the per-parse and per-walker profiles ([`ParseLimits`] +
+/// [`WalkerLimits`]) so callers can specify a single struct and have
+/// every downstream cap honored coherently.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OpenLimits {
+    /// Maximum file size (bytes) the open path will read. Compared
+    /// against the file's metadata BEFORE allocating buffers, so an
+    /// adversarial multi-GB DWG cannot trigger an OOM allocation.
+    pub max_file_bytes: u64,
+    /// Maximum decompressed bytes for a single section read. Section
+    /// reads beyond this cap return an error.
+    pub max_section_bytes: usize,
+    /// LZ77 decompression caps applied to every section unpack.
+    pub decompress: crate::lz77::DecompressLimits,
+    /// Parser caps (handle map size, XDATA loop depth, entity count
+    /// caps) applied during decode.
+    pub parse: ParseLimits,
+    /// Graph-iteration caps applied to handle-walking + block expansion.
+    pub walker: WalkerLimits,
+}
+
+impl Default for OpenLimits {
+    fn default() -> Self {
+        Self::safe()
+    }
+}
+
+impl OpenLimits {
+    /// Conservative default profile. Fits every real-world drawing
+    /// observed during dwg-rs development; fits in a typical 4 GB
+    /// container memory budget without thrashing.
+    pub fn safe() -> Self {
+        Self {
+            max_file_bytes: 1024 * 1024 * 1024, // 1 GiB
+            max_section_bytes: 256 * 1024 * 1024,   // 256 MiB
+            decompress: crate::lz77::DecompressLimits::default(),
+            parse: ParseLimits::safe(),
+            walker: WalkerLimits::safe(),
+        }
+    }
+
+    /// Tighter profile for SaaS / web-upload contexts where every
+    /// cap should be conservative.
+    pub fn paranoid() -> Self {
+        Self {
+            max_file_bytes: 100 * 1024 * 1024, // 100 MiB
+            max_section_bytes: 16 * 1024 * 1024,
+            decompress: crate::lz77::DecompressLimits::default(),
+            parse: ParseLimits::paranoid(),
+            walker: WalkerLimits::paranoid(),
+        }
+    }
+
+    /// Looser profile for stress-test fixtures and corpus harnesses.
+    pub fn permissive() -> Self {
+        Self {
+            max_file_bytes: 16 * 1024 * 1024 * 1024, // 16 GiB
+            max_section_bytes: 4 * 1024 * 1024 * 1024,
+            decompress: crate::lz77::DecompressLimits::permissive(),
+            parse: ParseLimits::permissive(),
+            walker: WalkerLimits::permissive(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod open_limits_tests {
+    use super::*;
+
+    #[test]
+    fn open_paranoid_strictly_lower_than_safe() {
+        let s = OpenLimits::safe();
+        let p = OpenLimits::paranoid();
+        assert!(p.max_file_bytes < s.max_file_bytes);
+        assert!(p.max_section_bytes < s.max_section_bytes);
+        // Inner profile caps follow ParseLimits + WalkerLimits invariants.
+        assert!(p.parse.max_handle_entries < s.parse.max_handle_entries);
+        assert!(p.walker.max_handles < s.walker.max_handles);
+    }
+
+    #[test]
+    fn open_permissive_strictly_higher_than_safe() {
+        let s = OpenLimits::safe();
+        let p = OpenLimits::permissive();
+        assert!(p.max_file_bytes > s.max_file_bytes);
+        assert!(p.max_section_bytes > s.max_section_bytes);
+        assert!(p.parse.max_handle_entries > s.parse.max_handle_entries);
+        assert!(p.walker.max_handles > s.walker.max_handles);
+    }
+
+    #[test]
+    fn open_default_matches_safe() {
+        assert_eq!(OpenLimits::default(), OpenLimits::safe());
+    }
+}

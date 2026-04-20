@@ -94,6 +94,33 @@ impl DwgFile {
         Self::from_bytes(bytes)
     }
 
+    /// Open with explicit safety limits — refuses to read the file at
+    /// all if its on-disk size exceeds [`OpenLimits::max_file_bytes`].
+    /// Use [`OpenLimits::paranoid`] for untrusted-upload contexts.
+    ///
+    /// Performs the size check via `fs::metadata` BEFORE allocating the
+    /// buffer, so an adversarial filename pointing at a multi-GB file
+    /// cannot trigger an OOM allocation. The other caps in `limits`
+    /// (parse / walker / decompress) are stored on the resulting
+    /// `DwgFile` for downstream paths to honor (currently advisory —
+    /// per-cap wiring is task-tracked).
+    pub fn open_with_limits(
+        path: impl AsRef<Path>,
+        limits: crate::limits::OpenLimits,
+    ) -> Result<Self> {
+        let path = path.as_ref();
+        let meta = fs::metadata(path)?;
+        if meta.len() > limits.max_file_bytes {
+            return Err(Error::SectionMap(format!(
+                "open refused — file size {} bytes exceeds OpenLimits::max_file_bytes {} bytes",
+                meta.len(),
+                limits.max_file_bytes
+            )));
+        }
+        let bytes = fs::read(path)?;
+        Self::from_bytes(bytes)
+    }
+
     /// Parse an already-loaded byte buffer.
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self> {
         if bytes.len() < 6 {

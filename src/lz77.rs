@@ -36,7 +36,7 @@ use crate::error::{Error, Result};
 /// - `max_backref_len`: 1 MiB — real back-reference copies are
 ///   typically tens to thousands of bytes; 1 MiB catches obviously
 ///   malformed copy lengths without clipping legitimate runs.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecompressLimits {
     /// Hard ceiling on the returned `Vec<u8>` length. When a literal
     /// run or back-reference copy would exceed this, decompression
