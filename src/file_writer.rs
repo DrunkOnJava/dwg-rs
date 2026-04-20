@@ -621,7 +621,10 @@ pub fn build_system_pages(built: &[NamedBuiltSection]) -> Result<SystemPageAssem
 /// The caller must XOR-encrypt the returned bytes against
 /// [`crate::cipher::magic_sequence`] before writing them at file
 /// offset 0x80.
-fn build_decrypted_file_open_header(a: &SystemPageAssembly, total_pages: u32) -> [u8; cipher::MAGIC_LEN] {
+fn build_decrypted_file_open_header(
+    a: &SystemPageAssembly,
+    total_pages: u32,
+) -> [u8; cipher::MAGIC_LEN] {
     let mut block = [0u8; cipher::MAGIC_LEN];
     // file_id at 0x00 — the reader requires the first 11 bytes to
     // decrypt to "AcFssFcAJMB" for the decrypt sanity check to pass.
@@ -629,10 +632,7 @@ fn build_decrypted_file_open_header(a: &SystemPageAssembly, total_pages: u32) ->
     // block[11] stays 0 (NUL terminator).
 
     // 0x28 last_section_page_id — use last page number (section info).
-    LittleEndian::write_u32(
-        &mut block[0x28..0x2C],
-        a.section_info_page_number as u32,
-    );
+    LittleEndian::write_u32(&mut block[0x28..0x2C], a.section_info_page_number as u32);
     // 0x2C last_section_page_end — end of section_info page bytes.
     let last_end = a.section_info_file_offset + a.section_info_bytes.len() as u64;
     LittleEndian::write_u64(&mut block[0x2C..0x34], last_end);
@@ -641,20 +641,14 @@ fn build_decrypted_file_open_header(a: &SystemPageAssembly, total_pages: u32) ->
     // 0x40 section_page_amount.
     LittleEndian::write_u32(&mut block[0x40..0x44], total_pages);
     // 0x50 section_page_map_id.
-    LittleEndian::write_u32(
-        &mut block[0x50..0x54],
-        a.page_map_page_number as u32,
-    );
+    LittleEndian::write_u32(&mut block[0x50..0x54], a.page_map_page_number as u32);
     // 0x54 section_page_map_addr = page_map_file_offset - 0x100.
     LittleEndian::write_u64(
         &mut block[0x54..0x5C],
         a.page_map_file_offset.saturating_sub(0x100),
     );
     // 0x5C section_map_id.
-    LittleEndian::write_u32(
-        &mut block[0x5C..0x60],
-        a.section_info_page_number as u32,
-    );
+    LittleEndian::write_u32(&mut block[0x5C..0x60], a.section_info_page_number as u32);
     // 0x60 section_page_array_size stays 0.
     // 0x64 gap_array_size stays 0.
     // 0x68..0x6C — CRC-32 slot; splice via embed_crc32 in Stage 4.
@@ -673,10 +667,7 @@ fn build_decrypted_file_open_header(a: &SystemPageAssembly, total_pages: u32) ->
 /// layout not yet implemented on the write path; R13/R15 (flat
 /// locator) are not yet implemented either. Callers hitting those
 /// paths get [`Error::Unsupported`].
-pub fn assemble_dwg_bytes(
-    built: &[NamedBuiltSection],
-    version: Version,
-) -> Result<Vec<u8>> {
+pub fn assemble_dwg_bytes(built: &[NamedBuiltSection], version: Version) -> Result<Vec<u8>> {
     if !version.is_r2004_family() {
         return Err(Error::Unsupported {
             feature: format!(
