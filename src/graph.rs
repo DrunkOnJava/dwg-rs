@@ -658,6 +658,85 @@ where
         .filter(move |(_entity, owner_name)| classify_block_name(owner_name) == wanted)
 }
 
+// ---------------------------------------------------------------------------
+// L6-20 — viewport scale + transform for paper space rendering
+// ---------------------------------------------------------------------------
+
+/// The 2D affine transform that maps a paper-space viewport's frame
+/// onto its model-space view target.
+///
+/// Paper-space layouts contain rectangular VIEWPORT entities; each
+/// viewport is a "window" through which a region of model space is
+/// displayed at a given scale. To render paper space faithfully, the
+/// viewer must: (a) clip to the viewport rectangle, (b) translate
+/// model-space coordinates so the view target lands at the viewport
+/// center, and (c) scale by `scale_factor`.
+///
+/// This struct captures the minimal computed form. Downstream
+/// renderers (svg.rs, gltf.rs) consume it as the per-viewport
+/// transform they apply to the model-space geometry they pull from
+/// the viewport's visible model-space block.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViewportTransform {
+    /// Paper-space center of the viewport window (where the view
+    /// target projects to).
+    pub paper_center_x: f64,
+    pub paper_center_y: f64,
+    /// Paper-space half-width + half-height of the viewport rectangle.
+    pub paper_half_width: f64,
+    pub paper_half_height: f64,
+    /// Model-space point that renders at the paper-space center.
+    pub model_view_target_x: f64,
+    pub model_view_target_y: f64,
+    pub model_view_target_z: f64,
+    /// Scale = paper-units per model-unit. A viewport at 1:50 has
+    /// scale = 0.02 (1 paper-mm per 50 model-mm).
+    pub scale_factor: f64,
+    /// Twist angle in radians (viewport rotation about its center).
+    pub twist_radians: f64,
+}
+
+impl ViewportTransform {
+    /// Compose the viewport-specific model-to-paper transform for a
+    /// single model-space 2D point. Applies the scale + twist + view-
+    /// target centering in a single pass. Returns paper-space (x, y).
+    pub fn model_to_paper(&self, mx: f64, my: f64) -> (f64, f64) {
+        // 1. Translate so view target is at origin.
+        let tx = mx - self.model_view_target_x;
+        let ty = my - self.model_view_target_y;
+        // 2. Apply twist.
+        let (s, c) = (self.twist_radians.sin(), self.twist_radians.cos());
+        let rx = tx * c - ty * s;
+        let ry = tx * s + ty * c;
+        // 3. Scale.
+        let sx = rx * self.scale_factor;
+        let sy = ry * self.scale_factor;
+        // 4. Translate to paper center.
+        (sx + self.paper_center_x, sy + self.paper_center_y)
+    }
+
+    /// Paper-space rectangle bounds (min, max) for clipping.
+    pub fn paper_bounds(&self) -> ((f64, f64), (f64, f64)) {
+        (
+            (
+                self.paper_center_x - self.paper_half_width,
+                self.paper_center_y - self.paper_half_height,
+            ),
+            (
+                self.paper_center_x + self.paper_half_width,
+                self.paper_center_y + self.paper_half_height,
+            ),
+        )
+    }
+
+    /// Test whether a paper-space point falls inside the viewport
+    /// rectangle. Inclusive on all four edges.
+    pub fn contains_paper_point(&self, px: f64, py: f64) -> bool {
+        let ((x_min, y_min), (x_max, y_max)) = self.paper_bounds();
+        px >= x_min && px <= x_max && py >= y_min && py <= y_max
+    }
+}
+
 /// Classify a single (entity, owner-block-name) pair into a
 /// [`EntityLayoutMembership`]. Caller-convenient single-item API for
 /// the common case of "I have one entity and want to know where it
@@ -1145,6 +1224,94 @@ mod tests {
             filter_by_block_space(items, BlockSpace::Custom).collect();
         assert_eq!(custom.len(), 1);
         assert_eq!(custom[0].0, 4);
+    }
+
+    // ---- L6-20: viewport scale + transform ----
+
+    #[test]
+    fn viewport_identity_transform_is_pass_through() {
+        let vp = ViewportTransform {
+            paper_center_x: 0.0,
+            paper_center_y: 0.0,
+            paper_half_width: 100.0,
+            paper_half_height: 50.0,
+            model_view_target_x: 0.0,
+            model_view_target_y: 0.0,
+            model_view_target_z: 0.0,
+            scale_factor: 1.0,
+            twist_radians: 0.0,
+        };
+        let (px, py) = vp.model_to_paper(10.0, 20.0);
+        assert!((px - 10.0).abs() < 1e-9);
+        assert!((py - 20.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn viewport_one_to_fifty_scale_reduces_coordinates() {
+        let vp = ViewportTransform {
+            paper_center_x: 100.0,
+            paper_center_y: 100.0,
+            paper_half_width: 50.0,
+            paper_half_height: 50.0,
+            model_view_target_x: 0.0,
+            model_view_target_y: 0.0,
+            model_view_target_z: 0.0,
+            scale_factor: 1.0 / 50.0,
+            twist_radians: 0.0,
+        };
+        // A model-space point 250 units from the view target projects
+        // to 250 / 50 = 5 paper-units from the viewport center.
+        let (px, py) = vp.model_to_paper(250.0, 0.0);
+        assert!((px - 105.0).abs() < 1e-9);
+        assert!((py - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn viewport_bounds_and_contains() {
+        let vp = ViewportTransform {
+            paper_center_x: 100.0,
+            paper_center_y: 100.0,
+            paper_half_width: 20.0,
+            paper_half_height: 10.0,
+            model_view_target_x: 0.0,
+            model_view_target_y: 0.0,
+            model_view_target_z: 0.0,
+            scale_factor: 1.0,
+            twist_radians: 0.0,
+        };
+        let ((min_x, min_y), (max_x, max_y)) = vp.paper_bounds();
+        assert_eq!(min_x, 80.0);
+        assert_eq!(max_x, 120.0);
+        assert_eq!(min_y, 90.0);
+        assert_eq!(max_y, 110.0);
+        // Inside
+        assert!(vp.contains_paper_point(100.0, 100.0));
+        // On edge (inclusive)
+        assert!(vp.contains_paper_point(80.0, 100.0));
+        assert!(vp.contains_paper_point(120.0, 110.0));
+        // Outside
+        assert!(!vp.contains_paper_point(79.0, 100.0));
+        assert!(!vp.contains_paper_point(100.0, 111.0));
+    }
+
+    #[test]
+    fn viewport_twist_rotates_model_space() {
+        use std::f64::consts::PI;
+        let vp = ViewportTransform {
+            paper_center_x: 0.0,
+            paper_center_y: 0.0,
+            paper_half_width: 10.0,
+            paper_half_height: 10.0,
+            model_view_target_x: 0.0,
+            model_view_target_y: 0.0,
+            model_view_target_z: 0.0,
+            scale_factor: 1.0,
+            twist_radians: PI / 2.0, // 90° CCW
+        };
+        // (1, 0) → (0, 1) after 90° CCW rotation.
+        let (px, py) = vp.model_to_paper(1.0, 0.0);
+        assert!(px.abs() < 1e-9);
+        assert!((py - 1.0).abs() < 1e-9);
     }
 
     #[test]
