@@ -629,4 +629,555 @@ mod tests {
             assert!(s.contains(sec), "output missing section {sec}");
         }
     }
+
+    // -------------------------------------------------------------------
+    // OBJECTS section tests
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn objects_section_emits_dictionary_with_entries() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::Dictionary {
+            handle: 0x10,
+            owner_handle: 0,
+            hard_owner: true,
+            entries: vec![
+                ("ACAD_LAYOUT".to_string(), 0x1A),
+                ("ACAD_MATERIAL".to_string(), 0x2B),
+            ],
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("OBJECTS"));
+        assert!(s.contains("DICTIONARY"));
+        assert!(s.contains("AcDbDictionary"));
+        assert!(s.contains("ACAD_LAYOUT"));
+        assert!(s.contains("1A"));
+    }
+
+    #[test]
+    fn objects_section_emits_xrecord_with_raw_bytes_marker() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::XRecord {
+            handle: 0x20,
+            owner_handle: 0x10,
+            cloning_flags: 1,
+            raw_bytes_len: 128,
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("XRECORD"));
+        assert!(s.contains("AcDbXrecord"));
+    }
+
+    #[test]
+    fn objects_section_proxy_object_emits_suppression_comment() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::ProxyObject {
+            handle: 0x30,
+            owner_handle: 0x10,
+            class_id: 501,
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("ACAD_PROXY_OBJECT"));
+        assert!(s.contains("opaque proxy data suppressed"));
+    }
+
+    #[test]
+    fn objects_section_proxy_entity_emits_suppression_comment() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::ProxyEntity {
+            handle: 0x31,
+            owner_handle: 0x10,
+            class_id: 500,
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("ACAD_PROXY_ENTITY"));
+        assert!(s.contains("opaque proxy data suppressed"));
+    }
+
+    #[test]
+    fn objects_section_acad_group_emits_typed_fields() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::AcadGroup {
+            handle: 0x40,
+            owner_handle: 0x10,
+            name: "MyGroup".to_string(),
+            selectable: true,
+            member_handles: vec![0x50, 0x51],
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("ACAD_GROUP"));
+        assert!(s.contains("AcDbGroup"));
+        assert!(s.contains("MyGroup"));
+        assert!(s.contains("\n50\n"));
+    }
+
+    #[test]
+    fn objects_section_acad_scale_emits_ratio_fields() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::AcadScale {
+            handle: 0x60,
+            owner_handle: 0x10,
+            name: "1/4\" = 1'-0\"".to_string(),
+            paper_units: 0.25,
+            drawing_units: 12.0,
+            is_unit_scale: false,
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("ACDBSCALE"));
+        assert!(s.contains("AcDbScale"));
+        assert!(s.contains("1/4"));
+    }
+
+    #[test]
+    fn objects_section_pass_through_emits_stub_comment() {
+        let mut w = DxfWriter::new();
+        let objects = [DecodedObject::PassThrough {
+            type_name: "ACAD_PROPERTYSET_DATA".to_string(),
+            handle: 0x70,
+            owner_handle: 0x10,
+            subclass: None,
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("ACAD_PROPERTYSET_DATA"));
+        assert!(s.contains("pass-through"));
+    }
+
+    #[test]
+    fn r12_objects_section_omits_subclass_markers() {
+        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
+        let objects = [DecodedObject::Dictionary {
+            handle: 0x10,
+            owner_handle: 0,
+            hard_owner: true,
+            entries: vec![("ACAD_LAYOUT".to_string(), 0x1A)],
+        }];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        // The whole section is skipped under R12 — OBJECTS is an
+        // R2000+ section per the DXF reference.
+        assert!(!s.contains("\nOBJECTS\n"));
+        assert!(!s.contains("AcDbDictionary"));
+    }
+
+    #[test]
+    fn objects_section_empty_emits_section_boundaries() {
+        let mut w = DxfWriter::new();
+        let objects: [DecodedObject; 0] = [];
+        write_objects_section(&mut w, objects);
+        w.finish();
+        let s = w.take_output();
+        // An R2000+ writer with no objects still emits the section
+        // boundaries so downstream consumers see a well-formed document.
+        assert!(s.contains("\nOBJECTS\n"));
+        assert!(s.contains("\nENDSEC\n"));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// OBJECTS section — non-entity, non-table objects per DXF reference.
+// ---------------------------------------------------------------------------
+
+/// A non-entity, non-symbol-table object destined for the OBJECTS
+/// section of a DXF document (DICTIONARY, XRECORD, proxy, LAYOUT,
+/// ACAD_GROUP, ACAD_MLINESTYLE, …).
+///
+/// # Variants
+///
+/// The enum carries either the typed fields we can fill in from the
+/// corresponding `src/objects/*.rs` decoder, or — for object types
+/// we can classify via [`crate::ObjectType`] but whose body we do
+/// not currently typed-decode through the public walker pipeline —
+/// a [`DecodedObject::PassThrough`] stub that emits the canonical
+/// `0 <TYPE>` + handle + subclass marker shape with a `999`
+/// diagnostic comment.
+///
+/// Proxy objects (entity or object variant) always emit a
+/// `999 opaque proxy data suppressed` comment: we don't have the
+/// originating ARX class's schema so we can't faithfully round-trip
+/// the serialised body. This mirrors the common LibreCAD / LibreDWG
+/// fallback where a proxy cannot be re-synthesised without the
+/// plug-in installed.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum DecodedObject {
+    /// §19.5.19 — string-keyed handle map.
+    Dictionary {
+        handle: u64,
+        owner_handle: u64,
+        hard_owner: bool,
+        entries: Vec<(String, u64)>,
+    },
+    /// §19.6.5 — opaque key/value storage. We preserve only the
+    /// declared body length here; the raw bytes are not round-tripped
+    /// because the group-code-to-value decomposition requires per-
+    /// consumer schema knowledge.
+    XRecord {
+        handle: u64,
+        owner_handle: u64,
+        cloning_flags: i16,
+        raw_bytes_len: usize,
+    },
+    /// §19.4.91 (object variant) — serialized body from an unknown
+    /// ARX class. Emitted with a suppression comment.
+    ProxyObject {
+        handle: u64,
+        owner_handle: u64,
+        class_id: u32,
+    },
+    /// §19.4.91 (entity variant) — same shape, exposed separately so
+    /// consumers can route to ACAD_PROXY_ENTITY vs ACAD_PROXY_OBJECT.
+    ProxyEntity {
+        handle: u64,
+        owner_handle: u64,
+        class_id: u32,
+    },
+    /// §19.6.7 — named, ordered set of entity handles.
+    AcadGroup {
+        handle: u64,
+        owner_handle: u64,
+        name: String,
+        selectable: bool,
+        member_handles: Vec<u64>,
+    },
+    /// §19.6.4 — multiline style. Emitted as the name + subclass
+    /// marker + a 999 note; full line-element round-trip is deferred.
+    AcadMlinestyle {
+        handle: u64,
+        owner_handle: u64,
+        name: String,
+    },
+    /// §19.6.6 — per-layout plot/page configuration.
+    AcadPlotSettings {
+        handle: u64,
+        owner_handle: u64,
+        page_setup_name: String,
+    },
+    /// §19.6.8 — single scale-list entry (1:1, 1/4" = 1'-0", …).
+    AcadScale {
+        handle: u64,
+        owner_handle: u64,
+        name: String,
+        paper_units: f64,
+        drawing_units: f64,
+        is_unit_scale: bool,
+    },
+    /// §19.6.9 — rendering material. Emitted with name + subclass
+    /// marker only; full texture-sub-record round-trip is deferred.
+    AcadMaterial {
+        handle: u64,
+        owner_handle: u64,
+        name: String,
+    },
+    /// §19.6.10 — named display style.
+    AcadVisualStyle {
+        handle: u64,
+        owner_handle: u64,
+        description: String,
+    },
+    /// Pass-through stub for an object whose type we can classify
+    /// (ACDBPLACEHOLDER, LAYOUT, ACAD_PROPERTYSET_DATA, etc.) but
+    /// whose body we do NOT currently typed-decode through the public
+    /// walker pipeline. Emits `0 <type_name>`, `5 <handle>`, `330`,
+    /// optional `100 <subclass>`, and a `999 pass-through` comment.
+    PassThrough {
+        type_name: String,
+        handle: u64,
+        owner_handle: u64,
+        /// Optional `AcDb<Class>` subclass marker. `None` for object
+        /// types with no canonical subclass tag (e.g. DUMMY).
+        subclass: Option<String>,
+    },
+}
+
+/// Emit an OBJECTS section containing `objects`.
+///
+/// The OBJECTS section is an R2000+ concept per the AutoCAD DXF
+/// reference: R12 drawings keep their dictionaries and layouts inside
+/// the TABLES section or not at all. Under R12 this function emits
+/// nothing — callers get a DXF document with HEADER / TABLES /
+/// BLOCKS / ENTITIES only, which R12 readers expect.
+///
+/// Under R2000+ every object gets the canonical `0 <TYPE>` /
+/// `5 <handle>` / `330 <owner>` shape. Subclass markers (`100 AcDb*`)
+/// are gated on [`crate::dxf::DxfVersion::supports_subclass_markers`]
+/// — consistent with the ENTITIES and BLOCKS emitters.
+///
+/// Proxy objects are emitted with a `999 opaque proxy data
+/// suppressed` diagnostic: we don't have the originating ARX class's
+/// schema so faithful round-trip is impossible without that plug-in
+/// installed, and writing fake data would corrupt the drawing.
+pub fn write_objects_section<I>(w: &mut DxfWriter, objects: I)
+where
+    I: IntoIterator<Item = DecodedObject>,
+{
+    // OBJECTS is an R2000+ section per the DXF reference; R12 files
+    // have no equivalent. Emit nothing under R12 so the resulting
+    // document stays spec-compliant for that target.
+    if !w.version().supports_subclass_markers() {
+        return;
+    }
+
+    let subclasses = w.version().supports_subclass_markers();
+    w.begin_section("OBJECTS");
+    for obj in objects {
+        write_one_object(w, subclasses, &obj);
+    }
+    w.end_section();
+}
+
+/// Emit the canonical `0 <type>` / `5 <handle>` / `330 <owner>` /
+/// optional `100 <subclass>` preamble shared by every OBJECTS entry.
+fn write_object_preamble(
+    w: &mut DxfWriter,
+    subclasses: bool,
+    object_type: &str,
+    handle: u64,
+    owner_handle: u64,
+    subclass: Option<&str>,
+) {
+    w.write_string(0, object_type);
+    w.write_handle(handle);
+    // 330 is the owner handle (DICTIONARY, BLOCK_RECORD, etc). We
+    // emit it even when the owner is 0 so the DXF reader sees a
+    // well-formed reference; an explicit "0" owner is the canonical
+    // encoding for "owned by the drawing root".
+    w.write_string(330, &format!("{owner_handle:X}"));
+    if subclasses {
+        if let Some(tag) = subclass {
+            w.write_string(100, tag);
+        }
+    }
+}
+
+fn write_one_object(w: &mut DxfWriter, subclasses: bool, obj: &DecodedObject) {
+    match obj {
+        DecodedObject::Dictionary {
+            handle,
+            owner_handle,
+            hard_owner,
+            entries,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "DICTIONARY",
+                *handle,
+                *owner_handle,
+                Some("AcDbDictionary"),
+            );
+            // 281 — hard-owner flag (1 = entries hard-owned, 0 = soft).
+            w.write_int(281, if *hard_owner { 1 } else { 0 });
+            for (name, value_handle) in entries {
+                w.write_string(3, name);
+                w.write_string(350, &format!("{value_handle:X}"));
+            }
+        }
+        DecodedObject::XRecord {
+            handle,
+            owner_handle,
+            cloning_flags,
+            raw_bytes_len,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "XRECORD",
+                *handle,
+                *owner_handle,
+                Some("AcDbXrecord"),
+            );
+            // 280 — duplicate-record cloning flag (DWG's cloning_flags
+            // field maps directly to DXF group 280).
+            w.write_int(280, *cloning_flags as i64);
+            // We do not surface the raw group-code-to-value pairs
+            // here — decomposition requires the consuming application's
+            // schema (see src/objects/xrecord.rs doc comment). Emit a
+            // diagnostic so the suppression is visible.
+            w.write_comment(&format!(
+                "XRECORD body {raw_bytes_len} bytes; group-code pairs not surfaced"
+            ));
+        }
+        DecodedObject::ProxyObject {
+            handle,
+            owner_handle,
+            class_id,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "ACAD_PROXY_OBJECT",
+                *handle,
+                *owner_handle,
+                Some("AcDbProxyObject"),
+            );
+            // 91 — proxy class id (DXF reference's "Proxy entity class id").
+            w.write_int(91, *class_id as i64);
+            w.write_comment("opaque proxy data suppressed — originating ARX class unavailable");
+        }
+        DecodedObject::ProxyEntity {
+            handle,
+            owner_handle,
+            class_id,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "ACAD_PROXY_ENTITY",
+                *handle,
+                *owner_handle,
+                Some("AcDbProxyEntity"),
+            );
+            w.write_int(91, *class_id as i64);
+            w.write_comment("opaque proxy data suppressed — originating ARX class unavailable");
+        }
+        DecodedObject::AcadGroup {
+            handle,
+            owner_handle,
+            name,
+            selectable,
+            member_handles,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "ACAD_GROUP",
+                *handle,
+                *owner_handle,
+                Some("AcDbGroup"),
+            );
+            // 300 — group description (empty by default).
+            w.write_string(300, "");
+            // 70 — unnamed flag (0 = named, 1 = AutoCAD-generated *A).
+            w.write_int(70, 0);
+            // 71 — selectable flag.
+            w.write_int(71, if *selectable { 1 } else { 0 });
+            // 340 — handle of each entity member.
+            w.write_comment(&format!("group name: {name}"));
+            for h in member_handles {
+                w.write_string(340, &format!("{h:X}"));
+            }
+        }
+        DecodedObject::AcadMlinestyle {
+            handle,
+            owner_handle,
+            name,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "ACAD_MLINESTYLE",
+                *handle,
+                *owner_handle,
+                Some("AcDbMlineStyle"),
+            );
+            w.write_string(2, name);
+            w.write_comment("MLINESTYLE line-element array not surfaced (pass-through)");
+        }
+        DecodedObject::AcadPlotSettings {
+            handle,
+            owner_handle,
+            page_setup_name,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "ACDBPLOTSETTINGS",
+                *handle,
+                *owner_handle,
+                Some("AcDbPlotSettings"),
+            );
+            w.write_string(1, page_setup_name);
+            w.write_comment("plot settings printer/paper/stylesheet fields not surfaced");
+        }
+        DecodedObject::AcadScale {
+            handle,
+            owner_handle,
+            name,
+            paper_units,
+            drawing_units,
+            is_unit_scale,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "ACDBSCALE",
+                *handle,
+                *owner_handle,
+                Some("AcDbScale"),
+            );
+            // 70 — flag (bit 0 = unit-scale).
+            w.write_int(70, if *is_unit_scale { 1 } else { 0 });
+            // 300 — scale name (user-facing label).
+            w.write_string(300, name);
+            // 140 — paper units.
+            w.write_double(140, *paper_units);
+            // 141 — drawing units.
+            w.write_double(141, *drawing_units);
+        }
+        DecodedObject::AcadMaterial {
+            handle,
+            owner_handle,
+            name,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "MATERIAL",
+                *handle,
+                *owner_handle,
+                Some("AcDbMaterial"),
+            );
+            w.write_string(1, name);
+            w.write_comment("MATERIAL ambient/diffuse/specular/textures not surfaced");
+        }
+        DecodedObject::AcadVisualStyle {
+            handle,
+            owner_handle,
+            description,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                "VISUALSTYLE",
+                *handle,
+                *owner_handle,
+                Some("AcDbVisualStyle"),
+            );
+            w.write_string(2, description);
+            w.write_comment("VISUALSTYLE face/edge/lighting fields not surfaced");
+        }
+        DecodedObject::PassThrough {
+            type_name,
+            handle,
+            owner_handle,
+            subclass,
+        } => {
+            write_object_preamble(
+                w,
+                subclasses,
+                type_name,
+                *handle,
+                *owner_handle,
+                subclass.as_deref(),
+            );
+            w.write_comment(&format!(
+                "{type_name} body pass-through — typed decoder not wired through convert pipeline"
+            ));
+        }
+    }
 }

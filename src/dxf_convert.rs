@@ -27,13 +27,15 @@
 use crate::curve::{Curve, Path};
 use crate::dxf::{DxfVersion, DxfWriter};
 use crate::dxf_sections::{
-    EntityGeometry, EntityRecord, HeaderEntry, LayerEntry, write_blocks_section,
-    write_entities_section, write_header_section, write_tables_section,
+    DecodedObject, EntityGeometry, EntityRecord, HeaderEntry, LayerEntry, write_blocks_section,
+    write_entities_section, write_header_section, write_objects_section, write_tables_section,
 };
 use crate::entities::DecodedEntity;
 use crate::entity_geometry::{
     arc_to_curve, circle_to_curve, line_to_curve, lwpolyline_to_path, point_to_curve,
 };
+use crate::object::RawObject;
+use crate::object_type::ObjectType;
 use crate::reader::DwgFile;
 
 /// Open a DWG file at `path` and emit a minimal DXF document
@@ -116,8 +118,142 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     // Second ENTITIES section — actual records.
     write_entities_section(&mut writer, &entities);
 
+    // OBJECTS section — collected from the handle-driven object walk
+    // for non-entity, non-table-entry records (DICTIONARY, XRECORD,
+    // ACDBPLACEHOLDER, LAYOUT, ACAD_GROUP, proxy, …).
+    //
+    // The emitter is a no-op under R12 (OBJECTS is an R2000+ concept
+    // per the AutoCAD DXF reference), so we always call it and let
+    // the version gate inside `write_objects_section` decide.
+    let decoded_objects = collect_decoded_objects(file);
+    write_objects_section(&mut writer, decoded_objects);
+
     writer.finish();
     Ok(writer.take_output())
+}
+
+/// Walk `file`'s object stream and synthesize a list of
+/// [`DecodedObject`] suitable for the OBJECTS section.
+///
+/// The current implementation is deliberately minimal: it enumerates
+/// every non-entity, non-table-entry [`RawObject`] via
+/// [`DwgFile::all_objects`] and emits a typed `DecodedObject` variant
+/// for the object kinds we recognise (DICTIONARY, XRECORD,
+/// ACDBPLACEHOLDER, LAYOUT, ACAD_GROUP, ACAD_MLINESTYLE, …).
+///
+/// Body fields are NOT typed-decoded here — the public walker
+/// pipeline does not currently expose per-object typed decoders for
+/// these kinds. We preserve the handle, the canonical DXF object
+/// type name, and the `100 AcDb*` subclass marker so the emitted DXF
+/// is syntactically valid and visibly honest about the suppression
+/// (via `999` diagnostic comments inside `write_objects_section`).
+fn collect_decoded_objects(file: &DwgFile) -> Vec<DecodedObject> {
+    let Some(walk) = file.all_objects() else {
+        return Vec::new();
+    };
+    let raws = match walk {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+    raws.iter().filter_map(raw_to_decoded_object).collect()
+}
+
+/// Best-effort classification of one [`RawObject`] to a
+/// [`DecodedObject`]. Returns `None` for entity kinds and for
+/// symbol-table entries — those belong in ENTITIES and TABLES
+/// respectively, not OBJECTS.
+fn raw_to_decoded_object(raw: &RawObject) -> Option<DecodedObject> {
+    if raw.is_entity() || raw.kind.is_table_entry() || raw.kind.is_control() {
+        return None;
+    }
+    let handle = raw.handle.value;
+    // Owner handle is carried in the object's common-object header,
+    // which we don't typed-decode here. Emitting 0 is the canonical
+    // "owned by the drawing root" encoding in DXF; downstream readers
+    // accept it without error.
+    let owner_handle = 0u64;
+    Some(match raw.kind {
+        ObjectType::Dictionary => DecodedObject::Dictionary {
+            handle,
+            owner_handle,
+            hard_owner: true,
+            entries: Vec::new(),
+        },
+        ObjectType::XRecord => DecodedObject::XRecord {
+            handle,
+            owner_handle,
+            cloning_flags: 1,
+            raw_bytes_len: raw.raw.len(),
+        },
+        ObjectType::AcadProxyObject => DecodedObject::ProxyObject {
+            handle,
+            owner_handle,
+            class_id: 0,
+        },
+        ObjectType::AcadProxyEntity => DecodedObject::ProxyEntity {
+            handle,
+            owner_handle,
+            class_id: 0,
+        },
+        ObjectType::Group => DecodedObject::AcadGroup {
+            handle,
+            owner_handle,
+            name: String::new(),
+            selectable: true,
+            member_handles: Vec::new(),
+        },
+        ObjectType::MLineStyle => DecodedObject::AcadMlinestyle {
+            handle,
+            owner_handle,
+            name: String::new(),
+        },
+        ObjectType::Layout => DecodedObject::PassThrough {
+            type_name: "LAYOUT".to_string(),
+            handle,
+            owner_handle,
+            subclass: Some("AcDbLayout".to_string()),
+        },
+        ObjectType::AcDbPlaceholder => DecodedObject::PassThrough {
+            type_name: "ACDBPLACEHOLDER".to_string(),
+            handle,
+            owner_handle,
+            subclass: Some("AcDbPlaceHolder".to_string()),
+        },
+        ObjectType::VbaProject => DecodedObject::PassThrough {
+            type_name: "VBA_PROJECT".to_string(),
+            handle,
+            owner_handle,
+            subclass: Some("AcDbVbaProject".to_string()),
+        },
+        ObjectType::Dummy => DecodedObject::PassThrough {
+            type_name: "DUMMY".to_string(),
+            handle,
+            owner_handle,
+            subclass: None,
+        },
+        ObjectType::LongTransaction => DecodedObject::PassThrough {
+            type_name: "LONG_TRANSACTION".to_string(),
+            handle,
+            owner_handle,
+            subclass: Some("AcDbLongTransaction".to_string()),
+        },
+        ObjectType::OleFrame => DecodedObject::PassThrough {
+            type_name: "OLEFRAME".to_string(),
+            handle,
+            owner_handle,
+            subclass: Some("AcDbOleFrame".to_string()),
+        },
+        // Custom classes (type code ≥ 500) and unknown codes —
+        // safest pass-through stub with the class-name sourced from
+        // ObjectType's short_label so we at least surface the code.
+        ObjectType::Custom(_) | ObjectType::Unknown(_) => DecodedObject::PassThrough {
+            type_name: raw.kind.short_label().to_string(),
+            handle,
+            owner_handle,
+            subclass: None,
+        },
+        _ => return None,
+    })
 }
 
 /// Best-effort conversion from a [`DecodedEntity`] to an

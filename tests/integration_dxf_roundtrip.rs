@@ -175,3 +175,61 @@ fn output_is_valid_utf8_with_line_based_pairs() {
         "suspiciously few group-code lines ({code_lines}); writer broken?"
     );
 }
+
+// -------------------------------------------------------------------
+// OBJECTS section acceptance (L11-06)
+// -------------------------------------------------------------------
+//
+// The OBJECTS section appears AFTER ENTITIES and BEFORE EOF in the
+// AutoCAD DXF reference for R2000+; R12 has no OBJECTS section. The
+// tests below exercise both arms and assert that at least one
+// DICTIONARY-style record is emitted when the sample DWG carries any
+// non-entity, non-table-entry objects (which every R2018 file does).
+
+#[test]
+fn objects_section_present_in_r2000_plus() {
+    let Some(dxf) = convert_or_skip("line_2013.dwg", DxfVersion::R2018) else {
+        return;
+    };
+    assert!(dxf.contains("OBJECTS"), "missing OBJECTS section");
+
+    // Any R2000+ DWG with non-trivial content carries an ACAD_GROUP
+    // dictionary + layout dictionary; the writer emits at least one
+    // DICTIONARY record when the object walker finds dictionaries in
+    // the AcDb:AcDbObjects stream. Sample files without an object
+    // walker (R13/R14/R2000 family today) won't hit this path, so
+    // the assertion is conditional on at least one OBJECTS record.
+    let has_dictionary = dxf.contains("\nDICTIONARY\n") || dxf.contains("\nACDBDICTIONARY\n");
+    let has_any_object_record = dxf.contains("\nXRECORD\n")
+        || has_dictionary
+        || dxf.contains("\nLAYOUT\n")
+        || dxf.contains("\nACDBPLACEHOLDER\n")
+        || dxf.contains("\nACAD_GROUP\n");
+    assert!(
+        has_any_object_record,
+        "OBJECTS section should carry at least one dictionary / layout / placeholder record",
+    );
+}
+
+#[test]
+fn objects_section_absent_in_r12() {
+    let Some(dxf) = convert_or_skip("line_2013.dwg", DxfVersion::R12) else {
+        return;
+    };
+    // R12 predates the OBJECTS section — the writer must NOT emit
+    // `0 SECTION` / `2 OBJECTS` when targeting that release.
+    assert!(
+        !dxf.contains("\nOBJECTS\n"),
+        "R12 output must not emit an OBJECTS section (introduced in R2000)",
+    );
+    // AcDbDictionary / AcDbXrecord are subclass markers that never
+    // appear under R12 either.
+    assert!(
+        !dxf.contains("AcDbDictionary"),
+        "R12 output must not contain AcDbDictionary subclass marker",
+    );
+    assert!(
+        !dxf.contains("AcDbXrecord"),
+        "R12 output must not contain AcDbXrecord subclass marker",
+    );
+}
