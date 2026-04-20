@@ -1,0 +1,74 @@
+name: Corpus submission
+description: Contribute a publicly-redistributable DWG file for the project's test corpus.
+title: "[corpus] "
+labels: ["corpus", "help-wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The project's regression coverage depends on real-world DWG files
+        across the 8 supported versions (AC1014 – AC1032). New corpus
+        files improve per-entity decoder coverage measurement and catch
+        version-specific edge cases.
+
+        **Before filing:** verify the file is publicly redistributable.
+        Client work, NDA'd drawings, and files produced by paid-only
+        samplers are NOT acceptable. Good sources:
+
+        - ODA's freely-downloadable sample DWGs
+        - Open-source CAD tools' bundled test suites (LibreCAD, QCAD,
+          FreeCAD BIM, etc. — with license review)
+        - Government open-CAD libraries (e.g. USGS, DoD, NIST-OCS)
+        - Hand-authored synthetic drawings under a permissive license
+
+  - type: input
+    id: dwg_version
+    attributes:
+      label: DWG file version (from the 6-byte magic, e.g. AC1027)
+      placeholder: "AC1027"
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Public source URL
+      description: Where the file can be downloaded. Must resolve without a login or paywall.
+    validations:
+      required: true
+
+  - type: input
+    id: license
+    attributes:
+      label: File license / redistribution terms
+      description: CC0, CC-BY, public domain, explicit redistribution grant, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: interesting_features
+    attributes:
+      label: Interesting features
+      description: |
+        What makes this file a useful corpus addition? Example:
+        - Contains entities not yet covered in existing corpus (e.g. HELIX, GEODATA)
+        - Uses an unusual version combination (e.g. R2018 with only ModelSpace)
+        - Exercises a specific encoder quirk you've observed
+    validations:
+      required: true
+
+  - type: textarea
+    id: file_size
+    attributes:
+      label: File size + entity count (approx)
+      description: "Rough numbers from `dwg-info` or equivalent."
+
+  - type: checkboxes
+    id: redistribution
+    attributes:
+      label: Redistribution check
+      options:
+        - label: I have verified the file is publicly redistributable under its stated license
+          required: true
+        - label: The file contains no PII (personal names, addresses, account numbers, client identifiers)
+          required: true

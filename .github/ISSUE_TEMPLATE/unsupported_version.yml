@@ -1,0 +1,54 @@
+name: Unsupported DWG version
+description: The reader rejects or mis-handles a version that isn't in the R13–R2018 support matrix.
+title: "[version] AC10XX — "
+labels: ["version", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        dwg-rs currently supports AC1014 (R14) through AC1032 (R2018+). Files
+        authored by AutoCAD 2025 and later may use newer formats that this
+        crate doesn't yet recognize. Report those here.
+
+        For files that DO use a supported version but fail to decode,
+        please file a bug report instead.
+
+  - type: input
+    id: version_magic
+    attributes:
+      label: Version magic from the first 6 bytes
+      description: "The 'AC10XX' string — e.g. AC1033, AC1034"
+      placeholder: "AC10__"
+    validations:
+      required: true
+
+  - type: input
+    id: autocad_release
+    attributes:
+      label: Originating AutoCAD release (if known)
+      placeholder: "AutoCAD 2026 / BricsCAD V25 / ..."
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happens when you open the file?
+      description: |
+        Include the exact error from `DwgFile::open` — e.g. `Unsupported version magic: AC1033`.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: File source (if publicly redistributable)
+      description: URL or sample-set reference. Leave blank if you can't share the file.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: What are you hoping for?
+      options:
+        - label: Add the new version magic as recognized (identification only)
+        - label: Full container-layer parsing for the new version
+        - label: Full entity-decode support for the new version

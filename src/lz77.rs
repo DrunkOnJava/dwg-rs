@@ -575,4 +575,30 @@ mod tests {
         let out = decompress_with_limits(&stream, Some(1usize << 40), limits).unwrap();
         assert!(out.is_empty());
     }
+
+    /// The default `DecompressLimits` profile ships with a 256 MiB
+    /// output cap. This pins the contract so a future config tweak
+    /// has to consciously lower/raise it rather than drift unnoticed.
+    #[test]
+    fn default_limits_cap_output_at_256_mib() {
+        let d = DecompressLimits::default();
+        assert_eq!(d.max_output_bytes, 256 * 1024 * 1024);
+        assert_eq!(d.max_backref_len, 1024 * 1024);
+    }
+
+    /// Compression-bomb regression: a small input that falsely claims
+    /// a huge `expected_size` must not allocate anywhere near that
+    /// size. Caller-supplied hint gets clamped to the output limit,
+    /// and the decoded output is small and accurate — no panic, no
+    /// OOM, no over-read.
+    #[test]
+    fn small_input_with_huge_expected_size_stays_bounded() {
+        // 6-byte input decompresses to a 5-byte literal "HELLO".
+        // expected_size claims 1 TiB — must be clamped by the default
+        // DecompressLimits (256 MiB) and allocate accordingly.
+        let stream = [0x02, b'H', b'E', b'L', b'L', b'O', 0x11];
+        let huge = 1usize << 40;
+        let out = decompress(&stream, Some(huge)).unwrap();
+        assert_eq!(&out, b"HELLO");
+    }
 }
