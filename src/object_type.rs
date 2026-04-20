@@ -106,7 +106,21 @@ pub enum ObjectType {
     AcadProxyEntity,
     /// 0x1F3 — proxy object (non-graphical variant of proxy entity).
     AcadProxyObject,
-    /// Dynamic class — type code ≥ 500. Resolve via `AcDb:Classes`:
+    /// 0x4F8 — CAMERA (R2007+). Technically a custom class whose
+    /// real type code is assigned per-file via `AcDb:Classes`; the
+    /// fixed code used here matches what the bundled dispatch path
+    /// expects and keeps CAMERA out of the generic [`Self::Custom`]
+    /// bucket when the file happens to use this value.
+    Camera,
+    /// 0x4F9 — SUN (R2007+). See [`Self::Camera`] on the fixed-code
+    /// convention for these late-introduced entities.
+    Sun,
+    /// 0x4FA — LIGHT (R2007+). See [`Self::Camera`].
+    Light,
+    /// 0x4FB — GEODATA (R2010+). See [`Self::Camera`].
+    GeoData,
+    /// Dynamic class — type code ≥ 500 (other than the fixed
+    /// visual/scene codes above). Resolve via `AcDb:Classes`:
     /// `class_index = type_code - 500`.
     Custom(u16),
     /// Type code that fell in a reserved range (shouldn't happen on
@@ -202,6 +216,10 @@ impl ObjectType {
             0x52 => Self::Layout,
             0x1F2 => Self::AcadProxyEntity,
             0x1F3 => Self::AcadProxyObject,
+            0x4F8 => Self::Camera,
+            0x4F9 => Self::Sun,
+            0x4FA => Self::Light,
+            0x4FB => Self::GeoData,
             code if code >= 500 => Self::Custom(code),
             code => Self::Unknown(code),
         }
@@ -261,6 +279,10 @@ impl ObjectType {
                 | Self::LwPolyline
                 | Self::Hatch
                 | Self::AcadProxyEntity
+                | Self::Camera
+                | Self::Sun
+                | Self::Light
+                | Self::GeoData
         )
     }
 
@@ -390,6 +412,10 @@ impl ObjectType {
             Self::Layout => "LAYOUT",
             Self::AcadProxyEntity => "ACAD_PROXY_ENTITY",
             Self::AcadProxyObject => "ACAD_PROXY_OBJECT",
+            Self::Camera => "CAMERA",
+            Self::Sun => "SUN",
+            Self::Light => "LIGHT",
+            Self::GeoData => "GEODATA",
             Self::Custom(_) => "CUSTOM",
             Self::Unknown(_) => "UNKNOWN",
         }

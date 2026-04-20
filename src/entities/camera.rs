@@ -121,7 +121,7 @@ mod tests {
         let mut c = BitCursor::new(&bytes);
         let err = decode(&mut c, Version::R2004).unwrap_err();
         assert!(
-            matches!(err, Error::Unsupported { feature } if feature.contains("CAMERA")),
+            matches!(&err, Error::Unsupported { feature } if feature.contains("CAMERA")),
             "err={err:?}"
         );
     }
