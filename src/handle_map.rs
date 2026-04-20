@@ -19,7 +19,9 @@
 //! The section list terminates with a size-0 header.
 
 use crate::bitcursor::BitCursor;
+use crate::bitwriter::BitWriter;
 use crate::error::{Error, Result};
+use crate::version::Version;
 
 /// Defensive cap on parsed handle map entries (matches the 1 M bound
 /// documented in `SECURITY.md`). No legitimate drawing ships with more
@@ -141,6 +143,143 @@ impl<'a> IntoIterator for &'a HandleMap {
     }
 }
 
+/// Maximum bytes per handle-section on the wire (spec §4.3 — the reader
+/// enforces ≤ 2032-byte section payloads + 2-byte CRC trailer).
+pub const MAX_HANDLE_SECTION_BYTES: usize = 2032;
+
+/// Write a SIGNED modular char using the same on-disk encoding
+/// [`read_signed_mc`] consumes. Multi-byte output with continuation bit
+/// 0x80 on non-terminal bytes and negation bit 0x40 on the terminator.
+/// Terminator byte holds 6 data bits; continuation bytes hold 7.
+fn write_signed_mc(out: &mut Vec<u8>, v: i64) {
+    let (abs, negate) = if v < 0 {
+        (v.unsigned_abs(), true)
+    } else {
+        (v as u64, false)
+    };
+    // Short form: value fits in 6 data bits → one terminating byte.
+    if abs < 0x40 {
+        let b = if negate {
+            0x40 | (abs as u8)
+        } else {
+            abs as u8
+        };
+        out.push(b);
+        return;
+    }
+    // Multi-byte: split into 7-bit limbs.
+    let mut limbs: Vec<u8> = Vec::new();
+    let mut x = abs;
+    while x != 0 {
+        limbs.push((x & 0x7F) as u8);
+        x >>= 7;
+    }
+    for (i, limb) in limbs.iter().enumerate() {
+        let is_last = i == limbs.len() - 1;
+        if is_last {
+            if (*limb & 0x40) == 0 {
+                // Fits in the terminator's 6 data bits → pack sign here.
+                let mut b = *limb & 0x3F;
+                if negate {
+                    b |= 0x40;
+                }
+                out.push(b);
+            } else {
+                // 0x40 bit conflicts with the terminator negation flag —
+                // emit this limb as continuation, then a zero
+                // terminator carrying only the sign.
+                out.push(0x80 | limb);
+                out.push(if negate { 0x40 } else { 0x00 });
+            }
+        } else {
+            out.push(0x80 | limb);
+        }
+    }
+}
+
+// ================================================================
+// L12-08 — handle map writer (task #381)
+//
+// Inverse of [`HandleMap::parse`]. Emits an `AcDb:Handles` stream
+// composed of zero-or-more handle sections followed by a terminator
+// section (size = 0). Each handle section:
+//
+// ```text
+//   2 bytes big-endian u16 size (pairs + CRC = size)
+//   N bytes pairs of (MC handle_delta, MC offset_delta)
+//   2 bytes LE CRC-8 (§2.14.1, seed 0xC0C1) over the pairs only
+// ```
+//
+// Section payload is bounded by [`MAX_HANDLE_SECTION_BYTES`] (≤ 2032 as
+// documented in `SECURITY.md`). If the caller's entries won't fit in a
+// single section, the writer splits them at pair boundaries and emits
+// multiple sections — handle deltas remain monotonic across splits
+// because the encoder tracks per-section baseline handles/offsets.
+// ================================================================
+
+/// Write a full [`HandleMap`] as a byte stream suitable for placement
+/// in an `AcDb:Handles` section. Inverse of [`HandleMap::parse`].
+///
+/// The `version` argument is reserved for future format divergence; the
+/// R2004-R2018 wire format is stable, so current implementations ignore
+/// it. The `_writer` argument is unused and kept only to match the
+/// signature convention the other writer helpers in this crate follow.
+///
+/// # CRC
+///
+/// Each handle-section's 2-byte trailer is a DWG CRC-8 (spec §2.14.1)
+/// computed over the section's pair bytes with seed 0xC0C1, matching
+/// what the reader verifies. An empty handle map produces a single
+/// 2-byte terminator (size-0 section header).
+pub fn write_handle_map(
+    map: &HandleMap,
+    _writer: &mut BitWriter,
+    _version: Version,
+) -> Result<Vec<u8>> {
+    use crate::crc::crc8;
+
+    let mut out = Vec::new();
+    let mut last_handle: i64 = 0;
+    let mut last_offset: i64 = 0;
+
+    let mut idx = 0;
+    while idx < map.entries.len() {
+        // Accumulate one section's pairs until adding the next pair would
+        // exceed MAX_HANDLE_SECTION_BYTES - 2 (leaving room for the CRC).
+        let mut pairs = Vec::with_capacity(32);
+        let mut sec_last_handle = last_handle;
+        let mut sec_last_offset = last_offset;
+        while idx < map.entries.len() {
+            let e = map.entries[idx];
+            let h_delta = (e.handle as i64).wrapping_sub(sec_last_handle);
+            let o_delta = (e.offset as i64).wrapping_sub(sec_last_offset);
+            let mut pair_bytes = Vec::with_capacity(4);
+            write_signed_mc(&mut pair_bytes, h_delta);
+            write_signed_mc(&mut pair_bytes, o_delta);
+            // 2 bytes reserved for the trailing CRC.
+            if pairs.len() + pair_bytes.len() + 2 > MAX_HANDLE_SECTION_BYTES {
+                break;
+            }
+            pairs.extend_from_slice(&pair_bytes);
+            sec_last_handle = e.handle as i64;
+            sec_last_offset = e.offset as i64;
+            idx += 1;
+        }
+        // Section header: big-endian u16 (pair_bytes + 2 CRC bytes).
+        let section_size = pairs.len() + 2;
+        out.extend_from_slice(&(section_size as u16).to_be_bytes());
+        out.extend_from_slice(&pairs);
+        // CRC-8 over the pair bytes.
+        let crc = crc8(0xC0C1, &pairs);
+        out.extend_from_slice(&crc.to_le_bytes());
+        last_handle = sec_last_handle;
+        last_offset = sec_last_offset;
+    }
+    // Terminator: size = 0.
+    out.extend_from_slice(&0u16.to_be_bytes());
+    Ok(out)
+}
+
 /// Read a SIGNED modular char — the 0x40 bit on the terminating byte
 /// indicates negation (spec §2.6). Mirrors `BitCursor::read_mc` but with
 /// an explicit `Result` return and tighter bounds checks for the handle
@@ -238,5 +377,100 @@ mod tests {
                 offset: 50
             }
         );
+    }
+
+    // -------- L12-08: writer tests --------
+
+    #[test]
+    fn signed_mc_short_roundtrip() {
+        for v in [0i64, 1, -1, 0x3F, -0x3F] {
+            let mut buf = Vec::new();
+            write_signed_mc(&mut buf, v);
+            let mut c = BitCursor::new(&buf);
+            let read = read_signed_mc(&mut c).unwrap();
+            assert_eq!(read, v, "roundtrip mismatch for v={v}");
+        }
+    }
+
+    #[test]
+    fn signed_mc_multi_byte_roundtrip() {
+        for v in [100i64, -100, 1000, -1000, 0xFFFF, -0xFFFF] {
+            let mut buf = Vec::new();
+            write_signed_mc(&mut buf, v);
+            let mut c = BitCursor::new(&buf);
+            let read = read_signed_mc(&mut c).unwrap();
+            assert_eq!(read, v, "roundtrip mismatch for v={v}");
+        }
+    }
+
+    #[test]
+    fn write_handle_map_empty_map_emits_two_byte_terminator() {
+        let map = HandleMap::default();
+        let mut w = BitWriter::new();
+        let bytes = write_handle_map(&map, &mut w, Version::R2018).unwrap();
+        // Just the size-0 terminator.
+        assert_eq!(bytes, vec![0x00, 0x00]);
+        // Parse roundtrips to empty.
+        let parsed = HandleMap::parse(&bytes).unwrap();
+        assert!(parsed.entries.is_empty());
+    }
+
+    #[test]
+    fn write_handle_map_single_entry_roundtrips_through_parse() {
+        let map = HandleMap {
+            entries: vec![HandleEntry {
+                handle: 1,
+                offset: 10,
+            }],
+        };
+        let mut w = BitWriter::new();
+        let bytes = write_handle_map(&map, &mut w, Version::R2018).unwrap();
+        let parsed = HandleMap::parse(&bytes).unwrap();
+        assert_eq!(parsed.entries, map.entries);
+    }
+
+    #[test]
+    fn write_handle_map_multi_entry_with_negative_offset_delta_roundtrips() {
+        let map = HandleMap {
+            entries: vec![
+                HandleEntry {
+                    handle: 1,
+                    offset: 100,
+                },
+                HandleEntry {
+                    handle: 2,
+                    offset: 50,
+                },
+                HandleEntry {
+                    handle: 10,
+                    offset: 500,
+                },
+            ],
+        };
+        let mut w = BitWriter::new();
+        let bytes = write_handle_map(&map, &mut w, Version::R2018).unwrap();
+        let parsed = HandleMap::parse(&bytes).unwrap();
+        assert_eq!(parsed.entries, map.entries);
+    }
+
+    #[test]
+    fn write_handle_map_many_entries_produces_multiple_sections() {
+        // Enough entries that the writer must emit > 1 section. At 4
+        // bytes per short-delta pair, ~508 pairs max per section. Emit
+        // 1500 entries so the writer splits at least 3 times.
+        let entries: Vec<HandleEntry> = (1u64..=1500)
+            .map(|h| HandleEntry {
+                handle: h,
+                offset: h * 10,
+            })
+            .collect();
+        let map = HandleMap {
+            entries: entries.clone(),
+        };
+        let mut w = BitWriter::new();
+        let bytes = write_handle_map(&map, &mut w, Version::R2018).unwrap();
+        let parsed = HandleMap::parse(&bytes).unwrap();
+        assert_eq!(parsed.entries.len(), entries.len());
+        assert_eq!(parsed.entries, entries);
     }
 }

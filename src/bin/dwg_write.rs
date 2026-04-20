@@ -114,8 +114,8 @@ fn run(args: Args) -> anyhow::Result<()> {
     for arg in &args.sections {
         let (name, path) = parse_section_arg(arg)?;
         file_writer::validate_section_name(&name).map_err(|e| anyhow::anyhow!("{e}"))?;
-        let bytes = fs::read(&path)
-            .map_err(|e| anyhow::anyhow!("reading {}: {e}", path.display()))?;
+        let bytes =
+            fs::read(&path).map_err(|e| anyhow::anyhow!("reading {}: {e}", path.display()))?;
         scaffold.add_section(name, bytes);
     }
 

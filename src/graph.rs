@@ -1211,17 +1211,14 @@ mod tests {
             (3, "*Paper_Space2".to_string()),
             (4, "LibraryBlock".to_string()),
         ];
-        let model: Vec<_> =
-            filter_by_block_space(items.clone(), BlockSpace::Model).collect();
+        let model: Vec<_> = filter_by_block_space(items.clone(), BlockSpace::Model).collect();
         assert_eq!(model.len(), 1);
         assert_eq!(model[0].0, 1);
 
-        let paper: Vec<_> =
-            filter_by_block_space(items.clone(), BlockSpace::Paper).collect();
+        let paper: Vec<_> = filter_by_block_space(items.clone(), BlockSpace::Paper).collect();
         assert_eq!(paper.len(), 2);
 
-        let custom: Vec<_> =
-            filter_by_block_space(items, BlockSpace::Custom).collect();
+        let custom: Vec<_> = filter_by_block_space(items, BlockSpace::Custom).collect();
         assert_eq!(custom.len(), 1);
         assert_eq!(custom[0].0, 4);
     }
@@ -1316,7 +1313,10 @@ mod tests {
 
     #[test]
     fn membership_for_maps_block_names_to_variants() {
-        assert_eq!(membership_for("*Model_Space"), EntityLayoutMembership::Model);
+        assert_eq!(
+            membership_for("*Model_Space"),
+            EntityLayoutMembership::Model
+        );
         assert_eq!(
             membership_for("*Paper_Space"),
             EntityLayoutMembership::Paper("*Paper_Space".to_string())

@@ -224,7 +224,8 @@ fn dxf_output_is_deterministic() {
     let second = convert_file_to_dxf(sample("line_2013.dwg"), DxfVersion::R2018)
         .expect("second convert should succeed");
     assert_eq!(
-        first, second,
+        first,
+        second,
         "DXF output is not deterministic — divergent byte counts: {} vs {}",
         first.len(),
         second.len()

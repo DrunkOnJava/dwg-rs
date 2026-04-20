@@ -327,11 +327,7 @@ impl DwgFile {
     /// size-cap message when the decompressed size exceeds
     /// `max_bytes` — the bytes are read into memory once to measure
     /// them, then dropped.
-    pub fn read_section_with_limit(
-        &self,
-        name: &str,
-        max_bytes: usize,
-    ) -> Option<Result<Vec<u8>>> {
+    pub fn read_section_with_limit(&self, name: &str, max_bytes: usize) -> Option<Result<Vec<u8>>> {
         let header = self.r2004.as_ref()?;
         Some(match self.read_section_r2004(header, name) {
             Ok(bytes) if bytes.len() > max_bytes => Err(Error::SectionMap(format!(

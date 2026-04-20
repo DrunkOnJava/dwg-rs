@@ -177,4 +177,39 @@ mod tests {
             Err(Error::Lz77UnencodableLength(3))
         ));
     }
+
+    // -------- L12-09: additional coverage --------
+
+    /// Spec §4.7 boundary: 4 bytes is the smallest representable initial
+    /// literal (literal-length byte = 1 → `1 + 3 = 4`). Confirms the
+    /// lower edge of the encoding gap is the correct cliff.
+    #[test]
+    fn encode_4_byte_input_is_smallest_representable() {
+        // Must succeed at exactly 4 bytes.
+        assert!(compress(&[1, 2, 3, 4]).is_ok());
+        // Must fail at 3.
+        assert!(matches!(
+            compress(&[1, 2, 3]),
+            Err(Error::Lz77UnencodableLength(3))
+        ));
+    }
+
+    /// Spec §4.7: when a run of 0xFF extension bytes rolls over, the
+    /// terminator byte must be non-zero. Exercise at a size where the
+    /// rollover forces the extension pipeline to step twice.
+    #[test]
+    fn encode_rollover_boundary_roundtrips() {
+        // 0x0F + 0xFF + 0x01 + 3 = 0x112 = 274 bytes.
+        let input: Vec<u8> = (0..274).map(|i| (i & 0xFF) as u8).collect();
+        roundtrip(&input);
+    }
+
+    /// Very large literal exercises multi-byte rollover; chosen to
+    /// require two full 0xFF extension bytes before the terminator.
+    #[test]
+    fn encode_large_literal_multi_rollover_roundtrips() {
+        // 0x0F + 0xFF + 0xFF + 0x10 + 3 = 0x220 = 544 bytes.
+        let input: Vec<u8> = (0..544).map(|i| (i & 0x7F) as u8).collect();
+        roundtrip(&input);
+    }
 }

@@ -16,8 +16,12 @@
 //! | ELLIPSE        | [`ellipse`]       | §19.4.17     |
 //! | LWPOLYLINE     | [`lwpolyline`]    | §19.4.25     |
 //! | MESH           | [`mesh`]          | §19.4.66     |
+//! | MLINE          | [`mline`]         | §19.4.71     |
 //! | POLYFACE_MESH  | [`polyface_mesh`] | §19.4.29     |
 //! | POLYGON_MESH   | [`polygon_mesh`]  | §19.4.30     |
+//! | IMAGE          | [`image`]         | §19.4.35     |
+//! | IMAGEDEF       | [`imagedef`]      | §19.5.26     |
+//! | PROXY ENTITY   | [`proxy_entity_passthrough`] | §19.4.91 |
 //! | TEXT           | [`text`]          | §19.4.46     |
 //! | INSERT         | [`insert`]        | §19.4.34     |
 //! | RAY            | [`ray`]           | §19.4.48     |
@@ -49,6 +53,13 @@ pub mod body;
 pub mod camera;
 pub mod circle;
 pub mod dimension;
+pub mod dimension_aligned;
+pub mod dimension_angular_2l;
+pub mod dimension_angular_3p;
+pub mod dimension_diameter;
+pub mod dimension_linear;
+pub mod dimension_ordinate;
+pub mod dimension_radial;
 pub mod dispatch;
 pub mod ellipse;
 pub mod endblk;
@@ -57,6 +68,7 @@ pub mod geodata;
 pub mod hatch;
 pub mod helix;
 pub mod image;
+pub mod imagedef;
 pub mod insert;
 pub mod leader;
 pub mod light;
@@ -65,6 +77,7 @@ pub mod lofted_surface;
 pub mod lwpolyline;
 pub mod mesh;
 pub mod mleader;
+pub mod mline;
 pub mod modeler;
 pub mod mtext;
 pub mod ole2_frame;
@@ -72,6 +85,7 @@ pub mod point;
 pub mod polyface_mesh;
 pub mod polygon_mesh;
 pub mod polyline;
+pub mod proxy_entity_passthrough;
 pub mod ray;
 pub mod region;
 pub mod revolved_surface;

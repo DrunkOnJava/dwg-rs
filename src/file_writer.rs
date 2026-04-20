@@ -470,24 +470,22 @@ mod tests {
         let mut seen: Vec<&str> = KNOWN_SECTION_NAMES.to_vec();
         seen.sort();
         seen.dedup();
-        assert_eq!(seen.len(), KNOWN_SECTION_NAMES.len(),
-            "KNOWN_SECTION_NAMES has duplicates");
+        assert_eq!(
+            seen.len(),
+            KNOWN_SECTION_NAMES.len(),
+            "KNOWN_SECTION_NAMES has duplicates"
+        );
     }
 
     #[test]
     fn atomic_write_leaves_no_temp_file_on_success() {
         let tmp_dir = std::env::temp_dir();
-        let target = tmp_dir.join(format!(
-            "dwg-rs-atomic-cleanup-{}.bin",
-            std::process::id()
-        ));
+        let target = tmp_dir.join(format!("dwg-rs-atomic-cleanup-{}.bin", std::process::id()));
         atomic_write(&target, b"clean").unwrap();
 
         // No sibling .tmp-<pid> file should remain.
         let pid = std::process::id();
-        let orphan = tmp_dir.join(format!(
-            "dwg-rs-atomic-cleanup-{pid}.bin.tmp-{pid}"
-        ));
+        let orphan = tmp_dir.join(format!("dwg-rs-atomic-cleanup-{pid}.bin.tmp-{pid}"));
         assert!(!orphan.exists(), "temp file leaked: {orphan:?}");
 
         std::fs::remove_file(&target).ok();

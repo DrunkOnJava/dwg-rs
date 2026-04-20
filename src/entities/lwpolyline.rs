@@ -109,34 +109,62 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
         None
     };
 
-    // Defensive caps. Two checks:
+    // Defensive caps. Three layered checks (L4-12):
     //
     // 1. Hard sanity ceiling — 1 million vertices is already far beyond
     //    any real drawing. Previously this was 10M; the lower value
     //    still accommodates real-world usage and shrinks the worst-case
     //    allocation envelope by an order of magnitude.
     //
-    // 2. Remaining-payload derivation — a count larger than the number
-    //    of BITS left on the cursor cannot possibly be real, regardless
-    //    of the ceiling above. Each claimed item needs at least 1 bit to
-    //    exist; so `remaining_bits() >= count` is the cheapest sound
-    //    upper bound. Catches counts inflated past the literal length
-    //    of the object's payload.
+    // 2. Coarse remaining-payload derivation — a count larger than the
+    //    number of BITS left on the cursor cannot possibly be real. Each
+    //    claimed item needs at least 1 bit to exist; so
+    //    `remaining_bits() >= count` is the cheapest sound upper bound.
+    //
+    // 3. Tighter per-item minimum-bits derivation (L4-12) — the spec
+    //    requires each LWPOLYLINE vertex to carry at least two compressed
+    //    doubles (x + y). A compressed double (BD, spec §2.10) occupies
+    //    at least 2 bits (the 2-bit prefix selecting one of the three
+    //    small-value sentinels — `00` = next BD, `01` = 1.0, `10` = 0.0,
+    //    `11` = previous). Even in the densest encoding path a vertex
+    //    therefore costs ≥ 2 × 2 = 4 bits; we use 2 × 2 = 4 as the floor
+    //    here. The same 2×BD floor applies per bulge (1 × BD) and per
+    //    width pair (2 × BD). This rejects adversarial counts that pass
+    //    the coarse 1-bit check but whose *realised* bit cost would still
+    //    blow past the remaining payload.
     const LWPOLYLINE_MAX: usize = 1_000_000;
+    // 2 bits-per-BD × 2 BDs = 4 bits minimum per vertex point.
+    const MIN_BITS_PER_POINT: usize = 4;
+    // 2 bits-per-BD × 1 BD = 2 bits minimum per bulge.
+    const MIN_BITS_PER_BULGE: usize = 2;
+    // 32-bit BL vertex-id. BL encoding packs small values but the
+    // shortest form is still 2 bits (00 prefix = 0).
+    const MIN_BITS_PER_VERTEX_ID: usize = 2;
+    // Variable-width entry is (start-width, end-width) — 2 × BD ⇒ 4 bits.
+    const MIN_BITS_PER_WIDTH: usize = 4;
     let remaining = c.remaining_bits();
     let total_claimed = num_points
         .saturating_add(num_bulges)
         .saturating_add(num_ids)
         .saturating_add(num_widths);
+    // Tighter cap-derived check: realised bit cost per field, then sum.
+    // Use saturating math so a claimed count of usize::MAX doesn't wrap.
+    let realised_bits = num_points
+        .saturating_mul(MIN_BITS_PER_POINT)
+        .saturating_add(num_bulges.saturating_mul(MIN_BITS_PER_BULGE))
+        .saturating_add(num_ids.saturating_mul(MIN_BITS_PER_VERTEX_ID))
+        .saturating_add(num_widths.saturating_mul(MIN_BITS_PER_WIDTH));
     if num_points > LWPOLYLINE_MAX
         || num_bulges > LWPOLYLINE_MAX
         || num_ids > LWPOLYLINE_MAX
         || num_widths > LWPOLYLINE_MAX
         || total_claimed > remaining
+        || realised_bits > remaining
     {
         return Err(crate::error::Error::SectionMap(format!(
             "LWPOLYLINE has implausible counts (p={num_points}, b={num_bulges}, \
-             i={num_ids}, w={num_widths}; remaining_bits={remaining})"
+             i={num_ids}, w={num_widths}; remaining_bits={remaining}, \
+             min_realised_bits={realised_bits})"
         )));
     }
 
@@ -218,5 +246,97 @@ mod tests {
         assert!(p.closed);
         assert_eq!(p.bulges.len(), 4);
         assert_eq!(p.bulges[1], 0.5);
+    }
+
+    // ------------------------------------------------------------------
+    // L4-12 mutation / failure-mode tests (appended 2026-04-20).
+    //
+    // Feed adversarial counts to the decoder and assert that it rejects
+    // the claim without allocating. The previous coarse "≥ 1 bit per
+    // item" check only caught counts larger than the payload bit-length;
+    // the tighter "min_bits_per_point" check rejects smaller counts
+    // whose realised bit cost would still exceed the payload.
+    // ------------------------------------------------------------------
+
+    /// Build a minimal LWPOLYLINE header claiming `num_points` vertices,
+    /// with no optional fields and no trailing vertex data. The claim
+    /// intentionally lies about the stream so the cap check fires.
+    fn build_oversized_claim(num_points: i32) -> Vec<u8> {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // no optional fields, no flags
+        w.write_bl(num_points);
+        // deliberately no vertex payload — the count check must fire
+        // before any RD reads.
+        w.into_bytes()
+    }
+
+    #[test]
+    fn rejects_ten_million_point_claim() {
+        // 10M points > LWPOLYLINE_MAX (1M) — must return Err without
+        // attempting to allocate ~160 MiB of Vec<Point2D>.
+        let bytes = build_oversized_claim(10_000_000);
+        let mut c = BitCursor::new(&bytes);
+        let err = decode(&mut c).unwrap_err();
+        assert!(
+            matches!(&err, crate::error::Error::SectionMap(msg) if msg.contains("LWPOLYLINE")),
+            "expected LWPOLYLINE SectionMap error, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_one_million_one_points_just_over_cap() {
+        // Exactly one past the cap — still must reject.
+        let bytes = build_oversized_claim(1_000_001);
+        let mut c = BitCursor::new(&bytes);
+        assert!(decode(&mut c).is_err());
+    }
+
+    #[test]
+    fn rejects_point_count_exceeding_payload_bits() {
+        // A 100-byte payload is at most 800 bits. A claim of 100_000
+        // vertices × min 4 bits/point = 400_000 bits needed — far more
+        // than the payload can hold. Under the tighter realised-bits
+        // check, this rejects even though 100_000 < LWPOLYLINE_MAX.
+        let mut w = BitWriter::new();
+        w.write_bs_u(0);
+        w.write_bl(100_000);
+        // Pad to ~100 bytes total.
+        while w.as_slice().len() < 100 {
+            w.write_rc(0);
+        }
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let err = decode(&mut c).unwrap_err();
+        // Error message must mention both the claim and the tighter
+        // derivation so debuggers can diagnose adversarial inputs.
+        if let crate::error::Error::SectionMap(msg) = &err {
+            assert!(
+                msg.contains("100000"),
+                "expected claim count in error, got: {msg}"
+            );
+        } else {
+            panic!("expected SectionMap error, got: {err:?}");
+        }
+    }
+
+    #[test]
+    fn tighter_check_rejects_where_coarse_would_pass() {
+        // Craft a case where 1-bit-per-item (coarse) passes but the
+        // tighter 4-bits-per-point check fails.
+        //
+        // Build a payload with roughly 1000 remaining bits after the BL
+        // read. Claim 500 points: coarse (500 ≤ 1000) passes, tighter
+        // (500 × 4 = 2000 > 1000) fails.
+        let mut w = BitWriter::new();
+        w.write_bs_u(0);
+        w.write_bl(500);
+        // Pad ~125 bytes ≈ 1000 bits of junk payload.
+        for _ in 0..125 {
+            w.write_rc(0);
+        }
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let err = decode(&mut c).unwrap_err();
+        assert!(matches!(err, crate::error::Error::SectionMap(_)));
     }
 }

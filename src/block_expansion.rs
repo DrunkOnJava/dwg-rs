@@ -154,9 +154,7 @@ where
 
     if ctx.visited.contains(&block_handle) {
         return Err(Error::Unsupported {
-            feature: format!(
-                "block-expansion cycle: handle 0x{block_handle:x} already on stack"
-            ),
+            feature: format!("block-expansion cycle: handle 0x{block_handle:x} already on stack"),
         });
     }
 
@@ -180,13 +178,8 @@ where
             // Then recurse if it's a nested INSERT with a known block handle.
             if let DecodedEntity::Insert(nested) = &child {
                 if let Some(nested_handle) = child_block_handle {
-                    let sub = expand_insert(
-                        nested,
-                        nested_handle,
-                        ctx,
-                        &accumulated,
-                        block_body_lookup,
-                    )?;
+                    let sub =
+                        expand_insert(nested, nested_handle, ctx, &accumulated, block_body_lookup)?;
                     out.extend(sub);
                 }
             }
