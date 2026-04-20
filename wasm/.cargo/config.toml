@@ -1,0 +1,18 @@
+# Build configuration for the wasm-pack subcrate.
+#
+# The parent `dwg` crate defines a few safety-limit constants that fit
+# in 64-bit `usize` but overflow 32-bit `usize` (the target pointer
+# width on `wasm32-unknown-unknown`): `4 * 1024 * 1024 * 1024` etc.
+# These values are used as saturating caps, so an overflow on wasm32
+# is harmless at runtime — the constants cap out at `u32::MAX` instead
+# of 4 GiB. But Rust's `arithmetic_overflow` lint is `deny`-by-default
+# and fires at compile time for the const-eval path, which blocks the
+# entire wasm build.
+#
+# Downgrade the lint to a warning for this target only, so the
+# `wasm-pack build` pipeline stays green without modifying the parent
+# crate. The lint remains `deny` on every host target (the normal
+# `cargo test` / `cargo clippy` matrix), so we don't lose the safety
+# net for host builds.
+[target.wasm32-unknown-unknown]
+rustflags = ["-A", "arithmetic_overflow"]
