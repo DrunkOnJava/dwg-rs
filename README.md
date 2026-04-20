@@ -4,6 +4,8 @@
 > No Autodesk SDK. No ODA SDK. No GPL-3 dependency. To our knowledge, the first Apache-2.0, clean-room Rust foundation focused specifically on DWG container parsing and interoperability.
 
 [![CI](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/ci.yml)
+[![Perf](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/perf.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/perf.yml)
+[![docs.rs build](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/docs-rs.yml/badge.svg?branch=main)](https://github.com/DrunkOnJava/dwg-rs/actions/workflows/docs-rs.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust MSRV](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org/)
 

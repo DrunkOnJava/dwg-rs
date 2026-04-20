@@ -51,36 +51,100 @@ There is no fixed cadence. A release is cut when:
 
 ## Cutting a release
 
+The release pipeline is automated behind a manual-approval gate
+(Q-07 / #418). The human-driven portion is steps 1–4 below; steps
+5–7 are performed by `.github/workflows/release.yml` and surface
+in the Actions tab.
+
+### Pre-flight checklist
+
+Before tagging, confirm:
+
+- [ ] `main` is green on `ci.yml` (fmt / clippy / test matrix / doc / deny / msrv / coverage-smoke / pii-guard / gitleaks).
+- [ ] `main` is green on `perf.yml` and the run recorded a fresh `main` baseline.
+- [ ] `docs-rs.yml` is green on the most recent PR merged into main.
+- [ ] `cargo deny check` is clean (also run as part of `ci.yml`, but worth re-running locally with the current Cargo.lock).
+- [ ] The `CHANGELOG.md` `[Unreleased]` section has been triaged — nothing in there is tagged "do not ship yet."
+
+### 1. Update version metadata
+
+- `Cargo.toml` — bump `version = "X.Y.Z"`.
+- `CITATION.cff` — bump `version: X.Y.Z`, set `date-released: YYYY-MM-DD`.
+- `CHANGELOG.md` — move every entry in `[Unreleased]` into a new
+  `[X.Y.Z] - YYYY-MM-DD` section, and re-create an empty `[Unreleased]`
+  heading. Keep the Keep-a-Changelog structure.
+
+### 2. Local verification
+
 ```bash
-# 1. Update the version.
-#    - Cargo.toml `version = "X.Y.Z"`
-#    - CITATION.cff `version: X.Y.Z` + `date-released: YYYY-MM-DD`
-#    - CHANGELOG.md: move [Unreleased] items into a new
-#      [X.Y.Z] - YYYY-MM-DD section; create a fresh [Unreleased].
-#
-# 2. Verify the tree.
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --release --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo deny check advisories bans licenses sources
 cargo package --allow-dirty  # dry-run the publish tarball
+```
 
-# 3. Commit + tag.
+### 3. Commit + tag
+
+```bash
 git add Cargo.toml CITATION.cff CHANGELOG.md
 git commit -m "release: vX.Y.Z"
 git tag -s "vX.Y.Z" -m "vX.Y.Z"
 git push origin main --tags
-
-# 4. Publish.
-cargo publish
 ```
 
-Steps 3 and 4 are currently manual. The GitHub release workflow
-(tracked as task #152) reacts to the pushed tag and builds binary
-artifacts (macOS / Linux / Windows) automatically; the crates.io
-publish step is `cargo publish` run locally until a PyPI/crates.io
-publish workflow lands (Q-07 / #418 / #111).
+Tags must match the SemVer regex enforced by `release.yml`:
+`v[0-9]+.[0-9]+.[0-9]+` or `v[0-9]+.[0-9]+.[0-9]+-prerelease`.
+
+### 4. Monitor the pipeline
+
+The tag push triggers `release.yml` which runs, in order:
+
+1. `verify` — `cargo publish --dry-run --all-features`.
+2. `sbom` — CycloneDX JSON SBOM generation.
+3. `binaries` — release builds for the 5 CLI tools
+   (`dwg-info`, `dwg-corpus`, `dwg-dump`, `dwg-convert`,
+   `dwg-to-dxf`) across 5 targets:
+   - `x86_64-unknown-linux-gnu`
+   - `aarch64-unknown-linux-gnu`
+   - `x86_64-apple-darwin`
+   - `aarch64-apple-darwin`
+   - `x86_64-pc-windows-msvc`
+4. `github-release` — creates a **draft** GitHub release with all
+   archives + `bom.json` attached. This is where you review the
+   auto-generated release notes, edit the description, and
+   manually press "Publish release" once satisfied.
+5. `publish-crates-io` — gated behind the `crates-io` environment.
+   A repo maintainer must click "Approve" in the Actions UI. The
+   job then runs `cargo publish --dry-run` one more time, and on
+   success, `cargo publish` for real. **`cargo publish` is
+   irrevocable**; the only remediation is `cargo yank`.
+
+Prereleases (`-alpha`, `-beta`, `-rc`) skip `publish-crates-io`
+entirely and produce a draft GitHub release marked `prerelease`.
+
+### 5. Post-publish
+
+- Wait for docs.rs to complete the build
+  (`https://docs.rs/dwg/X.Y.Z`). docs.rs runs asynchronously; if
+  the build fails, the CHANGELOG entry for this version should be
+  amended in a follow-up commit noting the docs.rs issue.
+- Announce in the CHANGELOG `[Unreleased]` for the next cycle if
+  anything post-release surfaced.
+- Publish the draft GitHub release from step 4.4 once the notes
+  read well.
+
+### What's still manual
+
+- Tag signing (`git tag -s`) is recommended but not enforced in CI.
+  A TODO in `release.yml` flags the eventual `gpg --verify` step.
+- `CHANGELOG.md` generation is manual; `cliff.toml` is committed so
+  contributors can run `git-cliff --tag vX.Y.Z --prepend CHANGELOG.md`
+  as a starting point, but the final edit is hand-curated.
+- Python wheels are not shipped yet. The `publish-pypi` job in
+  `release.yml` is gated off with `if: false` until `python_stubs.rs`
+  graduates from its placeholder (tracked alongside Phase 13).
 
 ## Yanking a release
 

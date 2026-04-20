@@ -8,6 +8,32 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — CI release infrastructure (2026-04-20, Q-06 / Q-07 / Q-09)
+
+- **`.github/workflows/perf.yml`**: criterion-benchmark
+  regression gate. Push-to-main saves a named `main` baseline to
+  GitHub Actions cache; pull requests run the same bench set and
+  diff against that baseline with `critcmp`. >20 % regression on
+  any of `lz77`, `section_map`, `object_walk`, `metadata_parse`,
+  or `libredwg_compare` fails the job. First-run cache misses are
+  a warning, not a failure.
+- **`.github/workflows/docs-rs.yml`**: pre-release docs.rs build
+  clone. Runs `cargo doc --no-deps --all-features` with
+  `RUSTDOCFLAGS='-D warnings'`, asserts >=10 HTML files in
+  `target/doc/dwg`, and soft-gates docstring coverage on
+  `pub fn` at 80 %.
+- **`.github/workflows/release.yml`**: tightened SemVer tag
+  regex (`v[0-9]+.[0-9]+.[0-9]+` ± `-prerelease`), added
+  `dwg-to-dxf` to the binary matrix (5 binaries × 5 targets),
+  added pre-publish dry-run, scaffolded a gated-off
+  `publish-pypi` job for eventual PyO3 wheel releases.
+- **`README.md`**: added Perf and docs.rs CI status badges.
+- **`RELEASE.md`**: concrete release checklist — pre-flight,
+  version bump, verification, tag, pipeline monitoring, post-publish.
+
+All third-party actions remain SHA-pinned per the SEC-28 baseline
+established at repo public-ification.
+
 ### Added — rendering pipeline primitives (2026-04-20)
 
 Decoder-independent building blocks for the SVG / PDF / glTF / DXF

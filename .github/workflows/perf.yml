@@ -1,0 +1,163 @@
+name: Perf
+
+# Early-warning performance-regression gate. This is NOT the place
+# where serious perf work gets validated — it's a "canary that
+# screams when a PR makes `section_map`, `object_walk`,
+# `metadata_parse`, or `libredwg_compare` >20 % slower than the
+# baseline on `main`".
+#
+# How it works:
+#   - push to `main` saves a criterion baseline named `main` to a
+#     GitHub Actions cache keyed on the workflow file's SHA so that
+#     changes to the benchmark set invalidate stale baselines.
+#   - pull_request runs the same benches and compares against the
+#     cached `main` baseline with `critcmp`. Regressions >20 % fail
+#     the job. If no baseline is cached yet (first run, or cache
+#     miss) the comparison is skipped with a warning — we never
+#     want first-time contributors to hit a red X because the cache
+#     is cold.
+#
+# 20 % is a conservative threshold for a pre-alpha crate where the
+# benchmarks are small enough that CI noise can spike double-digit
+# percentages on cold runners. Once the crate has a published
+# baseline in the 0.2 era, tighten this to 10 % (#417 follow-up).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  # Benches measure `pub fn` hot paths; warnings-as-errors during
+  # the bench build keeps the compile envelope identical to `ci.yml`.
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  bench:
+    name: Criterion benches vs `main` baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          # Keep the perf cache separate from test caches so a flaky
+          # bench build never pollutes the test cache.
+          key: perf-${{ runner.os }}
+
+      - name: Install critcmp
+        # Pinned — bump deliberately in a separate PR. critcmp reads
+        # criterion's `target/criterion` output and emits a
+        # percent-change summary suitable for programmatic gating.
+        run: cargo install critcmp --version 0.1.8 --locked
+
+      # --------------------------------------------------------------
+      # Baseline caching: keyed on this workflow file + Cargo.lock +
+      # the bench source files. Any change to them invalidates the
+      # stored `main` baseline so we never compare apples to oranges.
+      # --------------------------------------------------------------
+      - name: Restore cached `main` baseline
+        id: baseline-restore
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: target/criterion
+          key: criterion-baseline-${{ hashFiles('.github/workflows/perf.yml', 'Cargo.lock', 'benches/**/*.rs') }}
+
+      - name: Run benches
+        run: |
+          set -euo pipefail
+          # Four benches per the task spec (lz77 + section_map +
+          # object_walk + metadata_parse + libredwg_compare — five
+          # total counting lz77, though the task summary references
+          # four; we just run all five in the `[[bench]]` set).
+          #
+          # On push-to-main we record this run as the new baseline.
+          # On PRs we record it as "pr" so critcmp can diff against
+          # the cached "main".
+          BASELINE_NAME="pr"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            BASELINE_NAME="main"
+          fi
+          echo "Recording baseline: ${BASELINE_NAME}"
+          cargo bench --bench lz77 -- --save-baseline "${BASELINE_NAME}"
+          cargo bench --bench section_map -- --save-baseline "${BASELINE_NAME}"
+          cargo bench --bench object_walk -- --save-baseline "${BASELINE_NAME}"
+          cargo bench --bench metadata_parse -- --save-baseline "${BASELINE_NAME}"
+          cargo bench --bench libredwg_compare -- --save-baseline "${BASELINE_NAME}"
+
+      - name: Compare PR vs baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          if [ ! -d target/criterion ] || [ -z "$(find target/criterion -name 'benchmark.json' -print -quit 2>/dev/null)" ]; then
+            echo "::warning::no criterion output found; skipping compare"
+            exit 0
+          fi
+          # `critcmp main pr` prints each benchmark with a percent
+          # delta. If the baseline named "main" isn't present (cache
+          # miss, first PR ever), critcmp exits nonzero — that's a
+          # warning, not a failure, because the PR author can't fix
+          # a cold cache.
+          if ! critcmp main pr > critcmp.out 2>&1; then
+            echo "::warning::no cached 'main' baseline to compare against — likely first run"
+            cat critcmp.out || true
+            exit 0
+          fi
+          cat critcmp.out
+
+          # Parse the percent-change column. critcmp's default output
+          # is `name   timing   time/iter   ratio`. We extract the
+          # ratio (>1 == slower) and fail the job if any bench
+          # regresses by >= 1.20x (== +20 %).
+          THRESHOLD="1.20"
+          FAIL=0
+          while IFS= read -r line; do
+            # Skip header + separator rows.
+            case "$line" in
+              ""|*"-----"*|*"group"*|*"benchmark"*) continue ;;
+            esac
+            # ratio is the 4th whitespace-separated field on "pr" rows.
+            RATIO=$(echo "$line" | awk '{ for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/) { print $i; exit } }')
+            NAME=$(echo "$line" | awk '{print $1}')
+            if [ -z "$RATIO" ]; then
+              continue
+            fi
+            WORSE=$(awk -v r="$RATIO" -v t="$THRESHOLD" 'BEGIN { print (r+0 >= t+0) ? "1" : "0" }')
+            if [ "$WORSE" = "1" ]; then
+              echo "::error::${NAME} regressed by ratio ${RATIO} (threshold ${THRESHOLD})"
+              FAIL=1
+            fi
+          done < critcmp.out
+          if [ "$FAIL" -ne 0 ]; then
+            echo "::error::one or more benchmarks regressed >=20% vs main"
+            exit 1
+          fi
+          echo "All benches within ${THRESHOLD}x of main baseline."
+
+      # --------------------------------------------------------------
+      # Cache the new `main` baseline on push-to-main ONLY. PR runs
+      # never write the cache — otherwise a PR that regresses perf
+      # would poison future PRs' baselines.
+      # --------------------------------------------------------------
+      - name: Save `main` baseline cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: target/criterion
+          key: criterion-baseline-${{ hashFiles('.github/workflows/perf.yml', 'Cargo.lock', 'benches/**/*.rs') }}

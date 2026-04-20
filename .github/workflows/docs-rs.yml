@@ -1,0 +1,121 @@
+name: docs.rs build validation
+
+# Pre-release sanity gate: runs the same `cargo doc` pass that
+# docs.rs will run when the crate is published, so we find broken
+# intradoc links, unresolvable item references, and missing docs
+# on hot public APIs *before* the tag push that would expose the
+# failure on docs.rs itself.
+#
+# This complements ci.yml's `doc` job, which only asserts the
+# build completes with -D warnings. This job additionally:
+#   1. Fails if the output directory is empty (catastrophic failure
+#      mode where a stray attribute accidentally disables doc
+#      generation for the whole crate).
+#   2. Asserts a minimum docstring coverage ratio on `pub fn` in
+#      `src/*.rs`. The ratio gate is intentionally soft (80 %)
+#      because blanket `-D missing_docs` is too aggressive for a
+#      pre-alpha crate with many primitive helpers.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docs-rs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  docs-rs:
+    name: cargo doc (docs.rs clone)
+    runs-on: ubuntu-latest
+    env:
+      # Same posture docs.rs uses — rustdoc warnings become errors.
+      # The crate already compiles cleanly with this flag in ci.yml
+      # `doc`, but docs.rs also resolves inter-crate links that the
+      # stock `cargo doc` may skip depending on cache state. Running
+      # the same `-D warnings` posture here surfaces any drift.
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          key: docs-rs-${{ runner.os }}
+
+      - name: cargo doc --no-deps --all-features
+        run: cargo +stable doc --no-deps --all-features
+
+      - name: Assert doc output is non-empty
+        run: |
+          set -euo pipefail
+          DOC_DIR="target/doc/dwg"
+          if [ ! -d "$DOC_DIR" ]; then
+            echo "::error::expected ${DOC_DIR} does not exist — docs generation failed silently"
+            exit 1
+          fi
+          COUNT=$(find "$DOC_DIR" -type f -name '*.html' | wc -l | tr -d ' ')
+          if [ "$COUNT" -lt 10 ]; then
+            echo "::error::only ${COUNT} HTML files generated under ${DOC_DIR} — docs build produced no content"
+            exit 1
+          fi
+          echo "Generated ${COUNT} HTML files under ${DOC_DIR}."
+
+      - name: Docstring coverage ratio (soft gate)
+        # Soft gate, not `-D missing_docs`:
+        #   - pub items without docs      = PUBS - DOCS
+        #   - ratio = DOCS / PUBS, must be >= 0.80
+        #
+        # This counts only `pub fn` declarations in `src/**/*.rs`
+        # (excluding `bin/` / `examples/` / `tests/`). A `pub fn` is
+        # considered documented if the line immediately before it is
+        # a `///` comment or a `#[…]` attribute that is itself
+        # preceded by a `///` comment.
+        run: |
+          set -euo pipefail
+          PUBS=$(grep -rnE '^\s*pub fn ' src/ --include='*.rs' \
+                  | grep -vE '^src/bin/' \
+                  | wc -l | tr -d ' ')
+          # Count `pub fn` lines whose immediately-preceding non-attribute,
+          # non-blank line is a `///` doc comment. We use awk to walk the
+          # concatenated source looking backwards.
+          DOCS=$(awk '
+            /^[[:space:]]*pub fn / {
+              if (prev_doc) docs++;
+              next
+            }
+            /^[[:space:]]*#\[/ { next }           # skip attributes, keep prev_doc
+            /^[[:space:]]*\/\/\// { prev_doc=1; next }
+            /^[[:space:]]*$/ { next }             # skip blank lines
+            { prev_doc=0 }
+            END { print docs+0 }
+          ' $(find src -name '*.rs' | grep -v '^src/bin/'))
+          echo "pub fn count:       ${PUBS}"
+          echo "pub fn documented:  ${DOCS}"
+          if [ "$PUBS" -eq 0 ]; then
+            echo "::warning::no pub fn declarations found — skipping ratio check"
+            exit 0
+          fi
+          # Ratio math via awk (bash has no float division).
+          RATIO=$(awk -v d="$DOCS" -v p="$PUBS" 'BEGIN { printf "%.3f", d/p }')
+          echo "docstring coverage ratio: ${RATIO}"
+          # Threshold. 0.80 == 80 %. Lower = we're below the bar.
+          THRESHOLD="0.80"
+          PASS=$(awk -v r="$RATIO" -v t="$THRESHOLD" 'BEGIN { print (r+0 >= t+0) ? "1" : "0" }')
+          if [ "$PASS" != "1" ]; then
+            echo "::error::docstring coverage ${RATIO} < ${THRESHOLD} — document more pub fn or lower the floor deliberately"
+            exit 1
+          fi
+          echo "docs-rs build-validation: PASS (ratio=${RATIO} >= ${THRESHOLD})"
