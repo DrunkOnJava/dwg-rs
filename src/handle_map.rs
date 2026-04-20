@@ -114,6 +114,31 @@ impl HandleMap {
             .find(|e| e.handle == handle)
             .map(|e| e.offset)
     }
+
+    /// Iterate every (handle, offset) pair in map order. Ordering is
+    /// sorted-by-handle because handle deltas are monotonic on the
+    /// wire; callers that need sorted iteration get it for free.
+    pub fn iter(&self) -> std::slice::Iter<'_, HandleEntry> {
+        self.entries.iter()
+    }
+
+    /// Number of entries in the map.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// `true` if the map has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
+impl<'a> IntoIterator for &'a HandleMap {
+    type Item = &'a HandleEntry;
+    type IntoIter = std::slice::Iter<'a, HandleEntry>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.entries.iter()
+    }
 }
 
 /// Read a SIGNED modular char — the 0x40 bit on the terminating byte

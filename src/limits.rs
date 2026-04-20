@@ -177,3 +177,90 @@ mod tests {
         assert_eq!(ParseLimits::default(), ParseLimits::safe());
     }
 }
+
+/// Caller-configurable safety limits for graph iteration — the
+/// handle-driven walks that resolve owner chains, reactor back-refs,
+/// and block expansions.
+///
+/// Separate from [`ParseLimits`] because graph iteration has its own
+/// DoS vectors (cycles, unbounded block nesting, reactor bombs) that
+/// aren't covered by per-entity decoder caps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WalkerLimits {
+    /// Maximum handles visited in a single graph walk. Bounds the
+    /// work done by owner-chain walks, reactor traversals, and
+    /// block-flatten operations.
+    pub max_handles: usize,
+    /// Maximum total bytes scanned across all handles resolved in a
+    /// single walk. Prevents an adversarial file whose handle map
+    /// points everywhere from re-reading the object stream forever.
+    pub max_scan_bytes: usize,
+    /// Maximum depth of block-expansion nesting. AutoCAD's own
+    /// practical limit is ~32; this cap defaults higher with room for
+    /// hand-authored weirdness.
+    pub max_block_nesting: usize,
+}
+
+impl Default for WalkerLimits {
+    fn default() -> Self {
+        Self::safe()
+    }
+}
+
+impl WalkerLimits {
+    /// Conservative default profile. Fits every real-world drawing
+    /// encountered during dwg-rs development.
+    pub const fn safe() -> Self {
+        Self {
+            max_handles: 1_000_000,
+            max_scan_bytes: 512 * 1024 * 1024,
+            max_block_nesting: 128,
+        }
+    }
+
+    /// Tighter profile for untrusted-upload contexts.
+    pub const fn paranoid() -> Self {
+        Self {
+            max_handles: 100_000,
+            max_scan_bytes: 64 * 1024 * 1024,
+            max_block_nesting: 32,
+        }
+    }
+
+    /// Looser profile for stress-test fixtures.
+    pub const fn permissive() -> Self {
+        Self {
+            max_handles: 10_000_000,
+            max_scan_bytes: 4 * 1024 * 1024 * 1024,
+            max_block_nesting: 512,
+        }
+    }
+}
+
+#[cfg(test)]
+mod walker_tests {
+    use super::*;
+
+    #[test]
+    fn walker_paranoid_strictly_lower() {
+        let s = WalkerLimits::safe();
+        let p = WalkerLimits::paranoid();
+        assert!(p.max_handles < s.max_handles);
+        assert!(p.max_scan_bytes < s.max_scan_bytes);
+        assert!(p.max_block_nesting < s.max_block_nesting);
+    }
+
+    #[test]
+    fn walker_permissive_strictly_higher() {
+        let s = WalkerLimits::safe();
+        let p = WalkerLimits::permissive();
+        assert!(p.max_handles > s.max_handles);
+        assert!(p.max_scan_bytes > s.max_scan_bytes);
+        assert!(p.max_block_nesting > s.max_block_nesting);
+    }
+
+    #[test]
+    fn walker_default_matches_safe() {
+        assert_eq!(WalkerLimits::default(), WalkerLimits::safe());
+    }
+}

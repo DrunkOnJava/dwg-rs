@@ -17,7 +17,7 @@
 //! use dwg::entities::Point3D;
 //!
 //! let mut doc = SvgDoc::new(800.0, 600.0);
-//! let style = Style { stroke: "#FF0000".to_string(), stroke_width: 1.0, fill: None };
+//! let style = Style { stroke: "#FF0000".to_string(), stroke_width: 1.0, fill: None, dashes: None };
 //! doc.push_curve(
 //!     &Curve::Line {
 //!         a: Point3D::new(0.0, 0.0, 0.0),
@@ -50,6 +50,10 @@ pub struct Style {
     pub stroke_width: f64,
     /// Optional fill color. `None` → `fill="none"`.
     pub fill: Option<String>,
+    /// Optional dash-gap pattern in CAD units. `None` → solid stroke;
+    /// `Some(vec![4.0, 2.0])` → 4 units on, 2 units off, repeating.
+    /// Maps directly to SVG `stroke-dasharray`.
+    pub dashes: Option<Vec<f64>>,
 }
 
 impl Default for Style {
@@ -58,6 +62,7 @@ impl Default for Style {
             stroke: "#000000".to_string(),
             stroke_width: 1.0,
             fill: None,
+            dashes: None,
         }
     }
 }
@@ -250,8 +255,21 @@ impl Style {
             .as_ref()
             .map(|f| format!(" fill=\"{f}\""))
             .unwrap_or_else(|| " fill=\"none\"".to_string());
+        let dashes = self
+            .dashes
+            .as_ref()
+            .map(|v| {
+                format!(
+                    " stroke-dasharray=\"{}\"",
+                    v.iter()
+                        .map(|n| n.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })
+            .unwrap_or_default();
         format!(
-            " stroke=\"{}\" stroke-width=\"{}\"{fill}",
+            " stroke=\"{}\" stroke-width=\"{}\"{fill}{dashes}",
             self.stroke, self.stroke_width
         )
     }
@@ -335,6 +353,7 @@ mod tests {
             stroke: "#FF0000".to_string(),
             stroke_width: 2.0,
             fill: Some("#FFFFFF".to_string()),
+            dashes: None,
         };
         let curve = Curve::Circle {
             center: Point3D::new(50.0, 50.0, 0.0),
@@ -423,6 +442,41 @@ mod tests {
         // CAD Y-up → SVG Y-down
         assert!(s.contains("translate(0,200)"));
         assert!(s.contains("scale(1,-1)"));
+    }
+
+    #[test]
+    fn style_with_dashes_emits_stroke_dasharray() {
+        let mut doc = SvgDoc::new(100.0, 100.0);
+        let style = Style {
+            dashes: Some(vec![4.0, 2.0, 1.0, 2.0]),
+            ..Default::default()
+        };
+        doc.push_curve(
+            &Curve::Line {
+                a: Point3D::new(0.0, 0.0, 0.0),
+                b: Point3D::new(10.0, 0.0, 0.0),
+            },
+            &style,
+            None,
+        );
+        let s = doc.finish();
+        assert!(s.contains("stroke-dasharray=\"4,2,1,2\""));
+    }
+
+    #[test]
+    fn style_without_dashes_omits_dasharray_attribute() {
+        let mut doc = SvgDoc::new(100.0, 100.0);
+        let style = Style::default();
+        doc.push_curve(
+            &Curve::Line {
+                a: Point3D::new(0.0, 0.0, 0.0),
+                b: Point3D::new(1.0, 1.0, 0.0),
+            },
+            &style,
+            None,
+        );
+        let s = doc.finish();
+        assert!(!s.contains("stroke-dasharray"));
     }
 
     #[test]

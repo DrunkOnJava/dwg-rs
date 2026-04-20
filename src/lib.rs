@@ -123,7 +123,7 @@ pub use classes::{ClassDef, ClassMap};
 pub use error::{Error, Result};
 pub use handle_map::{HandleEntry, HandleMap};
 pub use header_vars::HeaderVars;
-pub use limits::ParseLimits;
+pub use limits::{ParseLimits, WalkerLimits};
 pub use metadata::{AppInfo, FileDepList, FileDependency, Preview, SummaryInfo};
 pub use object::{ObjectWalker, RawObject};
 pub use object_type::ObjectType;
