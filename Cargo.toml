@@ -124,6 +124,11 @@ name = "dwg-to-gltf"
 path = "src/bin/dwg_to_gltf.rs"
 required-features = ["cli"]
 
+[[bin]]
+name = "dwg-write"
+path = "src/bin/dwg_write.rs"
+required-features = ["cli"]
+
 [lib]
 name = "dwg"
 path = "src/lib.rs"
