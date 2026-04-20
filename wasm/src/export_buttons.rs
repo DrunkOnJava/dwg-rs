@@ -46,23 +46,19 @@ impl DwgFile {
     /// Export as glTF 2.0. `format` is `"gltf"` (JSON-only,
     /// external `.bin` separated) or `"glb"` (single binary).
     ///
-    /// Today this returns an empty glTF skeleton — the parent
-    /// crate's glTF converter takes a filesystem path
-    /// (`convert_file_to_gltf`) which doesn't exist in the
-    /// browser. A &DwgFile-based variant lands once the parent
-    /// crate refactors that entry point.
     #[wasm_bindgen(js_name = "exportGltf")]
     pub fn export_gltf(&self, format: &str) -> Result<Vec<u8>, JsValue> {
-        match format {
-            "gltf" | "glb" => {}
+        let fmt = match format {
+            "gltf" => dwg::gltf::GltfFormat::Gltf,
+            "glb" => dwg::gltf::GltfFormat::Glb,
             other => {
                 return Err(JsValue::from_str(&format!(
                     "unknown glTF format {other:?}; expected 'gltf' or 'glb'"
                 )));
             }
-        }
-        // Placeholder empty glTF 2.0 document.
-        Ok(r#"{"asset":{"version":"2.0","generator":"dwg-rs-wasm"},"scenes":[{"nodes":[]}],"scene":0,"nodes":[],"meshes":[]}"#.as_bytes().to_vec())
+        };
+        dwg::gltf::convert_dwg_to_gltf(&self.inner, fmt, "dwg-browser-scene")
+            .map_err(|e| JsValue::from_str(&format!("{e}")))
     }
 
     /// Export as a "print-preview" SVG shaped for the browser's

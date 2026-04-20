@@ -855,11 +855,24 @@ fn bbox_to_box_mesh(b: &BBox3) -> Mesh {
 /// job.
 pub fn convert_file_to_gltf(path: &std::path::Path, format: GltfFormat) -> crate::Result<Vec<u8>> {
     let file = crate::DwgFile::open(path)?;
-    let mut doc = GltfDoc::new(
-        path.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("dwg-scene"),
-    );
+    let scene_name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("dwg-scene");
+    convert_dwg_to_gltf(&file, format, scene_name)
+}
+
+/// Same as [`convert_file_to_gltf`] but takes an already-opened
+/// [`crate::DwgFile`]. Useful for callers that already have a
+/// parsed handle (browser uploads, in-memory fixtures, integration
+/// tests). `scene_name` is the logical name embedded in the glTF
+/// `scene.name` field.
+pub fn convert_dwg_to_gltf(
+    file: &crate::DwgFile,
+    format: GltfFormat,
+    scene_name: &str,
+) -> crate::Result<Vec<u8>> {
+    let mut doc = GltfDoc::new(scene_name);
     let mat = doc.add_layer_material("layer-7", 7);
     if let Some(decoded_res) = file.decoded_entities() {
         let (decoded_list, _summary) = decoded_res?;
