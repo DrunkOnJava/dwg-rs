@@ -15,10 +15,12 @@ categories = ["parser-implementations", "filesystem", "encoding"]
 exclude = [
     ".github/",
     ".gitattributes",
-    "CHANGELOG.md",
     "fuzz/",
-    "examples/probe_*.rs",
-    "examples/debug_*.rs",
+    # Note: CHANGELOG.md, README.md, SECURITY.md, ARCHITECTURE.md, and
+    # NOTICE are intentionally INCLUDED in the published crate so users
+    # who discover the crate via `cargo add dwg` can read the honest
+    # coverage story (including the pre-alpha status note) without
+    # having to browse GitHub.
 ]
 
 [dependencies]

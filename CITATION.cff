@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you use dwg-rs in academic or archival work, please cite it using this metadata."
-title: "dwg-rs: Clean-room Rust reader for Autodesk DWG files"
+title: "dwg-rs: Clean-room Rust foundation for Autodesk DWG files"
 type: software
-version: 0.1.0
+version: 0.1.0-alpha.1
 date-released: "2026-04-19"
 license: Apache-2.0
 repository-code: "https://github.com/DrunkOnJava/dwg-rs"

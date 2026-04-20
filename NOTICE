@@ -58,11 +58,29 @@ exemption also applies in any case).
 Third-party dependencies (runtime)
 ==============================================================================
 
-  thiserror — MIT OR Apache-2.0
+Per Cargo.toml, the dwg crate has six direct runtime dependencies, all
+permissively licensed and compatible with Apache-2.0 redistribution:
 
-See the dependency's own license for full terms. The single runtime
-dependency is permissively licensed and compatible with Apache-2.0
-redistribution.
+  thiserror    — MIT OR Apache-2.0
+  anyhow       — MIT OR Apache-2.0
+  clap         — MIT OR Apache-2.0    (CLI binaries only; lib is
+                                       compiled without clap when
+                                       `--lib` is used)
+  byteorder    — MIT OR Unlicense
+  serde        — MIT OR Apache-2.0
+  serde_json   — MIT OR Apache-2.0
+
+Additional transitive dependencies pulled in by the above are
+enumerated in Cargo.lock (committed to the repo). Every transitive
+dependency is verified against deny.toml's allow-list as part of CI
+(cargo deny check advisories bans licenses sources).
+
+Dev-only dependencies (not shipped with the compiled artifact):
+
+  proptest     — MIT OR Apache-2.0
+  libfuzzer-sys — MIT OR Apache-2.0 (fuzz/ crate only)
+
+See each dependency's own LICENSE file for full terms.
 
 ==============================================================================
 Format-specification attribution
