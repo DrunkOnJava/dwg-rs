@@ -97,6 +97,38 @@ pub struct ObjectWalkSummary {
     pub decoded_count: usize,
     /// Records the walker stepped over due to per-object parse errors.
     pub skipped: Vec<SkippedEntry>,
+    /// Number of records the walker read but a downstream consumer
+    /// (typically [`crate::entities::decode_from_raw`]) could not
+    /// classify. Populated by callers that wire dispatch errors back
+    /// into the summary; defaults to `0` for the bare walker pass.
+    pub errored_count: usize,
+}
+
+impl ObjectWalkSummary {
+    /// Count of records the walker stepped over (read but could not
+    /// parse into a [`RawObject`]).
+    pub fn skipped_count(&self) -> usize {
+        self.skipped.len()
+    }
+
+    /// Confidence ratio in `[0.0, 1.0]`: clean decodes divided by the
+    /// total number of records the walker tried to handle. An empty
+    /// walk (no work done) returns `1.0` — there's nothing dirty.
+    ///
+    /// `decoded_count / (decoded_count + skipped_count + errored_count)`,
+    /// clamped into `[0.0, 1.0]` defensively in case a caller mutates
+    /// the fields by hand into something silly.
+    pub fn confidence(&self) -> f64 {
+        let decoded = self.decoded_count;
+        let total = decoded
+            .saturating_add(self.skipped_count())
+            .saturating_add(self.errored_count);
+        if total == 0 {
+            return 1.0;
+        }
+        let ratio = decoded as f64 / total as f64;
+        ratio.clamp(0.0, 1.0)
+    }
 }
 
 impl<'a> ObjectWalker<'a> {
@@ -429,5 +461,40 @@ mod tests {
         let (v, n) = read_ms_bytealigned(&bytes).unwrap();
         assert_eq!(v, 0x8000);
         assert_eq!(n, 4);
+    }
+
+    #[test]
+    fn summary_confidence_all_clean_is_one() {
+        let s = ObjectWalkSummary {
+            decoded_count: 100,
+            skipped: Vec::new(),
+            errored_count: 0,
+        };
+        assert_eq!(s.confidence(), 1.0);
+    }
+
+    #[test]
+    fn summary_confidence_mixed_is_decoded_ratio() {
+        // 50 decoded / 30 skipped / 20 errored = 50/100 = 0.5
+        let skipped = (0..30)
+            .map(|i| SkippedEntry {
+                handle: i,
+                offset: i,
+                reason: String::new(),
+            })
+            .collect();
+        let s = ObjectWalkSummary {
+            decoded_count: 50,
+            skipped,
+            errored_count: 20,
+        };
+        assert_eq!(s.confidence(), 0.5);
+    }
+
+    #[test]
+    fn summary_confidence_empty_walk_is_one() {
+        // No work done is "perfectly clean" — there are zero failures.
+        let s = ObjectWalkSummary::default();
+        assert_eq!(s.confidence(), 1.0);
     }
 }

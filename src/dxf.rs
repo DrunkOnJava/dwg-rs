@@ -48,19 +48,129 @@
 
 use crate::entities::Point3D;
 
+/// DXF version targets. Controls the `$ACADVER` value emitted in the
+/// HEADER section and, at the emitter layer, which group codes are
+/// valid (e.g. 100 `AcDb*` subclass markers were introduced at R13).
+///
+/// The writer stores the version as configuration only — it does not
+/// validate that callers restrict themselves to the subset of group
+/// codes allowed for their chosen target. Section emitters that care
+/// about the target version read [`DxfWriter::version`] and branch
+/// accordingly.
+///
+/// ACADVER magic values (AutoCAD's published DXF reference):
+///
+/// | Variant  | `$ACADVER` | Release year | Notes                                             |
+/// |----------|------------|--------------|---------------------------------------------------|
+/// | `R12`    | `AC1009`   | 1992         | Last pre-subclass release; no `100 AcDb*` markers |
+/// | `R14`    | `AC1014`   | 1997         | First R13+ markers in wide use                    |
+/// | `R2000`  | `AC1015`   | 1999         |                                                   |
+/// | `R2004`  | `AC1018`   | 2003         |                                                   |
+/// | `R2007`  | `AC1021`   | 2006         |                                                   |
+/// | `R2010`  | `AC1024`   | 2009         |                                                   |
+/// | `R2013`  | `AC1027`   | 2012         |                                                   |
+/// | `R2018`  | `AC1032`   | 2017         | Current default — widest reader acceptance        |
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DxfVersion {
+    R12,
+    R14,
+    R2000,
+    R2004,
+    R2007,
+    R2010,
+    R2013,
+    R2018,
+}
+
+impl Default for DxfVersion {
+    fn default() -> Self {
+        DxfVersion::R2018
+    }
+}
+
+impl DxfVersion {
+    /// The `$ACADVER` header string canonical for this target.
+    pub fn acadver(self) -> &'static str {
+        match self {
+            DxfVersion::R12 => "AC1009",
+            DxfVersion::R14 => "AC1014",
+            DxfVersion::R2000 => "AC1015",
+            DxfVersion::R2004 => "AC1018",
+            DxfVersion::R2007 => "AC1021",
+            DxfVersion::R2010 => "AC1024",
+            DxfVersion::R2013 => "AC1027",
+            DxfVersion::R2018 => "AC1032",
+        }
+    }
+
+    /// Whether this target understands `100 AcDb*` subclass markers.
+    /// R13 introduced them; R12 predates them and rejects them.
+    pub fn supports_subclass_markers(self) -> bool {
+        !matches!(self, DxfVersion::R12)
+    }
+
+    /// Parse a target from a case-insensitive string accepted by the
+    /// `dwg-to-dxf` CLI's `--version` flag. Accepts either the short
+    /// release name (`R12`, `R14`, `R2000`, ...) or the `$ACADVER`
+    /// magic (`AC1009`, `AC1014`, ...).
+    pub fn parse_cli(s: &str) -> Option<Self> {
+        let upper = s.trim().to_uppercase();
+        match upper.as_str() {
+            "R12" | "AC1009" => Some(DxfVersion::R12),
+            "R14" | "AC1014" => Some(DxfVersion::R14),
+            "R2000" | "AC1015" => Some(DxfVersion::R2000),
+            "R2004" | "AC1018" => Some(DxfVersion::R2004),
+            "R2007" | "AC1021" => Some(DxfVersion::R2007),
+            "R2010" | "AC1024" => Some(DxfVersion::R2010),
+            "R2013" | "AC1027" => Some(DxfVersion::R2013),
+            "R2018" | "AC1032" => Some(DxfVersion::R2018),
+            _ => None,
+        }
+    }
+}
+
 /// DXF file writer. Stateful: tracks which section is open so
-/// callers can't accidentally nest or leak.
+/// callers can't accidentally nest or leak. Version-aware: section
+/// emitters may branch on [`DxfWriter::version`] to emit the right
+/// `$ACADVER` and the correct subset of group codes.
 #[derive(Debug, Clone, Default)]
 pub struct DxfWriter {
     output: String,
     in_section: bool,
     finished: bool,
+    version: DxfVersion,
 }
 
 impl DxfWriter {
-    /// Start a fresh, empty DXF document.
+    /// Start a fresh, empty DXF document targeting [`DxfVersion::R2018`]
+    /// (AC1032) — the widest-accepted modern DXF dialect.
     pub fn new() -> Self {
         DxfWriter::default()
+    }
+
+    /// Start a fresh, empty DXF document targeting the given version.
+    /// Equivalent to `DxfWriter::new()` followed by
+    /// [`DxfWriter::set_version`] but avoids the intermediate default.
+    pub fn with_version(version: DxfVersion) -> Self {
+        DxfWriter {
+            output: String::new(),
+            in_section: false,
+            finished: false,
+            version,
+        }
+    }
+
+    /// Override the target version on an already-constructed writer.
+    /// Must be called before the HEADER section is emitted — changing
+    /// version mid-stream will make the emitted `$ACADVER` inconsistent
+    /// with the rest of the file.
+    pub fn set_version(&mut self, version: DxfVersion) {
+        self.version = version;
+    }
+
+    /// The DXF target version this writer will emit for.
+    pub fn version(&self) -> DxfVersion {
+        self.version
     }
 
     /// Begin a named section. Emits `0 SECTION` + `2 <name>` and
@@ -280,5 +390,58 @@ mod tests {
         w.write_comment("a");
         let _ = w.take_output();
         assert_eq!(w.as_str(), "");
+    }
+
+    #[test]
+    fn default_version_is_r2018() {
+        let w = DxfWriter::new();
+        assert_eq!(w.version(), DxfVersion::R2018);
+        assert_eq!(w.version().acadver(), "AC1032");
+    }
+
+    #[test]
+    fn with_version_sets_target() {
+        let w = DxfWriter::with_version(DxfVersion::R12);
+        assert_eq!(w.version(), DxfVersion::R12);
+        assert_eq!(w.version().acadver(), "AC1009");
+    }
+
+    #[test]
+    fn set_version_overrides_target() {
+        let mut w = DxfWriter::new();
+        w.set_version(DxfVersion::R2000);
+        assert_eq!(w.version(), DxfVersion::R2000);
+        assert_eq!(w.version().acadver(), "AC1015");
+    }
+
+    #[test]
+    fn subclass_markers_gated_by_version() {
+        assert!(!DxfVersion::R12.supports_subclass_markers());
+        assert!(DxfVersion::R14.supports_subclass_markers());
+        assert!(DxfVersion::R2000.supports_subclass_markers());
+        assert!(DxfVersion::R2018.supports_subclass_markers());
+    }
+
+    #[test]
+    fn acadver_magic_strings_match_spec() {
+        assert_eq!(DxfVersion::R12.acadver(), "AC1009");
+        assert_eq!(DxfVersion::R14.acadver(), "AC1014");
+        assert_eq!(DxfVersion::R2000.acadver(), "AC1015");
+        assert_eq!(DxfVersion::R2004.acadver(), "AC1018");
+        assert_eq!(DxfVersion::R2007.acadver(), "AC1021");
+        assert_eq!(DxfVersion::R2010.acadver(), "AC1024");
+        assert_eq!(DxfVersion::R2013.acadver(), "AC1027");
+        assert_eq!(DxfVersion::R2018.acadver(), "AC1032");
+    }
+
+    #[test]
+    fn parse_cli_accepts_release_and_acadver() {
+        assert_eq!(DxfVersion::parse_cli("R12"), Some(DxfVersion::R12));
+        assert_eq!(DxfVersion::parse_cli("r12"), Some(DxfVersion::R12));
+        assert_eq!(DxfVersion::parse_cli("AC1009"), Some(DxfVersion::R12));
+        assert_eq!(DxfVersion::parse_cli("ac1032"), Some(DxfVersion::R2018));
+        assert_eq!(DxfVersion::parse_cli("R2018"), Some(DxfVersion::R2018));
+        assert_eq!(DxfVersion::parse_cli(" R2013 "), Some(DxfVersion::R2013));
+        assert_eq!(DxfVersion::parse_cli("bogus"), None);
     }
 }

@@ -52,6 +52,8 @@
 //! - [`objects`] — DICTIONARY / XRECORD / `*_CONTROL`
 //! - [`r2007`] — R2007-specific Sec_Mask two-layer obfuscation (layer 1 done)
 //! - [`file_writer`] — scaffolded inverse of [`reader::DwgFile`]
+//! - [`graph`] — Phase 5 handle-driven traversal helpers (owner / reactor
+//!   chains, layer / linetype / style / dimstyle resolution)
 //!
 //! See [`ARCHITECTURE.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/ARCHITECTURE.md)
 //! for the full design document.
@@ -100,6 +102,7 @@ pub mod entity_geometry;
 pub mod error;
 pub mod file_writer;
 pub mod geometry;
+pub mod graph;
 pub mod handle_map;
 pub mod header;
 pub mod header_vars;
@@ -110,6 +113,7 @@ pub mod metadata;
 pub mod object;
 pub mod object_type;
 pub mod objects;
+pub mod python_stubs;
 pub mod r2007;
 pub mod reader;
 pub mod reed_solomon;
