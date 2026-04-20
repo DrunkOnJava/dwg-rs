@@ -89,6 +89,7 @@
 pub mod api;
 pub mod bitcursor;
 pub mod bitwriter;
+pub mod block_expansion;
 pub mod cipher;
 pub mod classes;
 pub mod color;
