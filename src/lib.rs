@@ -113,6 +113,7 @@ pub mod reed_solomon;
 pub mod section;
 pub mod section_map;
 pub mod section_writer;
+pub mod svg;
 pub mod tables;
 pub mod version;
 
