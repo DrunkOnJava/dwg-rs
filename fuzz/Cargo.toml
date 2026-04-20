@@ -47,10 +47,13 @@ doc = false
 bench = false
 
 [profile.release]
+# cargo-fuzz compiles targets in release mode with sanitizers controlled
+# via RUSTFLAGS (-Z sanitizer=address, etc). We keep `debug = 1` so stack
+# traces on crash artifacts are legible; sanitizer and coverage flags are
+# injected by `cargo fuzz run`.
 debug = 1
 
-# Faster fuzz builds — default is full release.
-[profile.fuzz]
-inherits = "release"
-debug-assertions = true
-overflow-checks = true
+# Custom profile `fuzz` used to exist here; removed because cargo-fuzz
+# does NOT invoke custom profiles and their presence only confused
+# downstream tooling. To adjust fuzz-specific flags, set RUSTFLAGS
+# or pass `--sanitizer=<name>` to cargo-fuzz directly.

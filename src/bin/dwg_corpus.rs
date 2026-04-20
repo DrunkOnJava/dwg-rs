@@ -62,8 +62,9 @@ fn main() -> ExitCode {
             Err(e) => {
                 failed += 1;
                 println!(
-                    "{:<48} ERROR      {:>10} {:>6}  {}",
+                    "{:<48} {:<10} {:>10} {:>6}  {}",
                     f.file_name().and_then(|s| s.to_str()).unwrap_or("?"),
+                    "ERROR",
                     "-",
                     "-",
                     e

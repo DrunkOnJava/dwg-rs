@@ -1,4 +1,11 @@
 target/
-corpus/
 artifacts/
 coverage/
+
+# Seed corpus IS tracked (committed), but growth from fuzzing runs
+# (megabytes of minimized inputs) is NOT. Tracked files are small
+# hand-authored fixtures under fuzz/corpus/<target>/*.bin. Ignore
+# anything libFuzzer writes under those directories that isn't one
+# of those named seeds.
+corpus/*/libfuzzer-seed-*
+corpus/*/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*

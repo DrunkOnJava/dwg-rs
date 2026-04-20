@@ -313,18 +313,46 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version, kind: DimensionKind) -> R
 }
 
 impl DimensionKind {
-    /// Map a DWG object-type code to the dimension subtype. Returns
-    /// None if the code is not a dimension type.
+    /// Map a DWG object-type code to the dimension subtype.
+    ///
+    /// Per ODA spec v5.4.1 §5 Table 4 — "Object type codes, BS":
+    ///
+    /// | Code | Subtype                 |
+    /// |------|-------------------------|
+    /// | 0x14 (20) | DIMENSION (ORDINATE)    |
+    /// | 0x15 (21) | DIMENSION (LINEAR)      |
+    /// | 0x16 (22) | DIMENSION (ALIGNED)     |
+    /// | 0x17 (23) | DIMENSION (ANG 3-Pt)    |
+    /// | 0x18 (24) | DIMENSION (ANG 2-Ln)    |
+    /// | 0x19 (25) | DIMENSION (RADIUS)      |
+    /// | 0x1A (26) | DIMENSION (DIAMETER)    |
+    ///
+    /// Returns None if the code is outside the dimension range.
     pub fn from_object_type_code(code: u16) -> Option<Self> {
         match code {
-            21 => Some(Self::Ordinate),
-            22 => Some(Self::Linear),
-            23 => Some(Self::Aligned),
-            24 => Some(Self::Angular3Pt),
-            25 => Some(Self::Angular2Line),
-            26 => Some(Self::Radius),
-            27 => Some(Self::Diameter),
+            0x14 => Some(Self::Ordinate),
+            0x15 => Some(Self::Linear),
+            0x16 => Some(Self::Aligned),
+            0x17 => Some(Self::Angular3Pt),
+            0x18 => Some(Self::Angular2Line),
+            0x19 => Some(Self::Radius),
+            0x1A => Some(Self::Diameter),
             _ => None,
+        }
+    }
+
+    /// Inverse of [`Self::from_object_type_code`] — for round-trip tests
+    /// and for the dispatcher to report which fixed code a decoded
+    /// dimension corresponds to.
+    pub fn to_object_type_code(self) -> u16 {
+        match self {
+            Self::Ordinate => 0x14,
+            Self::Linear => 0x15,
+            Self::Aligned => 0x16,
+            Self::Angular3Pt => 0x17,
+            Self::Angular2Line => 0x18,
+            Self::Radius => 0x19,
+            Self::Diameter => 0x1A,
         }
     }
 }
@@ -417,15 +445,56 @@ mod tests {
     }
 
     #[test]
-    fn object_type_mapping() {
+    fn object_type_mapping_matches_oda_spec() {
+        // Per ODA v5.4.1 §5 Table 4.
         assert_eq!(
-            DimensionKind::from_object_type_code(22),
+            DimensionKind::from_object_type_code(0x14),
+            Some(DimensionKind::Ordinate)
+        );
+        assert_eq!(
+            DimensionKind::from_object_type_code(0x15),
             Some(DimensionKind::Linear)
         );
         assert_eq!(
-            DimensionKind::from_object_type_code(27),
+            DimensionKind::from_object_type_code(0x16),
+            Some(DimensionKind::Aligned)
+        );
+        assert_eq!(
+            DimensionKind::from_object_type_code(0x1A),
             Some(DimensionKind::Diameter)
         );
+        // Out-of-range codes are None.
         assert_eq!(DimensionKind::from_object_type_code(0x04), None);
+        assert_eq!(
+            DimensionKind::from_object_type_code(0x13),
+            None,
+            "0x13 is LINE, not a dimension"
+        );
+        assert_eq!(
+            DimensionKind::from_object_type_code(0x1B),
+            None,
+            "0x1B is POINT, not a dimension"
+        );
+    }
+
+    #[test]
+    fn round_trip_kind_to_code_and_back() {
+        use DimensionKind::*;
+        for k in [
+            Ordinate,
+            Linear,
+            Aligned,
+            Angular3Pt,
+            Angular2Line,
+            Radius,
+            Diameter,
+        ] {
+            let code = k.to_object_type_code();
+            assert_eq!(
+                DimensionKind::from_object_type_code(code),
+                Some(k),
+                "round trip failed for {k:?} (code 0x{code:X})"
+            );
+        }
     }
 }

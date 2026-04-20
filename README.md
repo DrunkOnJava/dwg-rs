@@ -17,24 +17,26 @@ This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it agai
 
 Empirical entity-decode coverage as measured by
 [`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
-19-file `nextgis/dwg_samples` corpus + a 1 MB AC1032 file:
+19-file `nextgis/dwg_samples` corpus + a 1 MB AC1032 file, after the
+dimension-subtype fix (task #71):
 
 | Version | Files tested | Entities attempted | Decoded | Errored | Success rate |
 |---------|--------------|--------------------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 7 | 0 | 0 | 0 | not supported (no handle-map for this layout yet) |
 | R2004 (AC1018)      | 3 | 7 per file | 0 | 7 | **0 %** |
 | R2010 (AC1024)      | 3 | 7 per file | 3 | 4 | **43 %** |
-| R2013 (AC1027)      | 3 | 6–7 per file | 6–7 | 0–1 | **85–100 %** |
-| R2018 (AC1032)      | 1 | 304 attempted (of 745 objects; 441 are non-entity controls/dictionaries) | 66 | 238 | **22 %** |
-| **Aggregate** | **19** | **335 entities attempted** | **94** | **254** | **27 %** |
+| R2013 (AC1027)      | 3 | 7 per file | 6 | 1 | **86 %** |
+| R2018 (AC1032)      | 1 | 306 attempted (of 745 objects; 439 are non-entity controls/dictionaries) | 66 | 240 | **22 %** |
+| **Aggregate** | **19** | **369 entities attempted** | **93** | **276** | **25 %** |
 
 Per-entity-type error concentration in the R2018 sample (where most real data is):
 
 | Type code | DXF name | Occurrences as error |
 |-----------|----------|-----------------------|
-| 19 | `LINE` | 82 |
-| 44 | `MTEXT` | 33 |
-| ... | (long tail) | 123 |
+| 0x13 (19) | `LINE` | 82 |
+| 0x2C (44) | `MTEXT` | 33 |
+| 0x1B (27) | `POINT` | 26 |
+| ... | (long tail) | 99 |
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
 are verified against hand-crafted synthetic input (193 unit + proptest + sample tests pass)

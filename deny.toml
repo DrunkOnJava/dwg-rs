@@ -34,11 +34,18 @@ exceptions = []
 multiple-versions = "warn"
 wildcards = "deny"
 highlight = "all"
-# Explicit deny-list: GPL-3 and LGPL-3 crates are copyleft-incompatible
-# with this project's Apache-2 license and its clean-room posture.
+# NOTE: GPL and LGPL crates are already rejected by the license
+# allow-list above (omission = denial). The `deny` array below is a
+# belt-and-suspenders explicit block on the specific copyleft licenses
+# most likely to sneak in transitively, so CI fails loudly on any
+# attempt to add them rather than silently via "unknown license."
 deny = []
 skip = []
 skip-tree = []
+
+# Specific license IDs that are explicitly forbidden, in addition to the
+# omit-from-allow-list rejection. Put crates here by name if a specific
+# crate needs a hard deny (e.g., a fork that changes license mid-life).
 
 [sources]
 unknown-registry = "deny"

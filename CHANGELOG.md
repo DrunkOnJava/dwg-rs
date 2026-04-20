@@ -17,16 +17,21 @@ for the full empirical coverage story; the short version is below.
 
 - **Entity-decode end-to-end coverage**, measured by
   `examples/coverage_report.rs` against the `nextgis/dwg_samples` +
-  `sample_AC1032.dwg` corpus (19 files):
+  `sample_AC1032.dwg` corpus (19 files) after the dimension-subtype
+  correction (task #71):
   - R14 / R2000 / R2007 — **not supported** (no handle-map walker for these layouts yet).
   - R2004 — 0 / 21 entities decoded (**0 %**).
   - R2010 — 9 / 21 entities decoded (**43 %**).
-  - R2013 — 19 / 20 entities decoded (**95 %**).
-  - R2018 (`sample_AC1032.dwg`) — 66 / 304 entities decoded (**22 %**).
-  - **Aggregate:** 94 / 348 attempted entities decoded = **27 %**.
-- 441 objects in the R2018 sample are legitimate non-entity types
+  - R2013 — 18 / 21 entities decoded (**86 %**).
+  - R2018 (`sample_AC1032.dwg`) — 66 / 306 entities decoded (**22 %**).
+  - **Aggregate:** 93 / 369 attempted entities decoded = **25 %**.
+- 439 objects in the R2018 sample are legitimate non-entity types
   (dictionaries, controls, symbol-table entries) that the dispatcher
   correctly returns as `Unhandled` — these are not counted as failures.
+- Task #71 rewrote the dispatcher's fixed code table to match ODA spec
+  §5 Table 4. Pre-fix numbers (27 % aggregate) counted structurally
+  wrong dimension decodes as successes; post-fix numbers are the
+  honest figure.
 
 The gap between "all 27 entity decoders have passing unit tests" and
 "27 % of real entities decode end-to-end" is exactly the

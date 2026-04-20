@@ -95,8 +95,13 @@ impl DwgFile {
                     encrypted: false,
                 });
             }
+            // Synthetic placeholder. R2007 files have real sections but
+            // the two-layer Sec_Mask bookkeeping that locates them is
+            // not yet implemented. This entry signals "here be dragons"
+            // to callers iterating `file.sections()`; it is NOT a real
+            // decompressible section.
             sections.push(Section {
-                name: "R2007-deferred".to_string(),
+                name: "_R2007_UNSUPPORTED".to_string(),
                 kind: SectionKind::Unknown,
                 offset: 0x80,
                 size: (bytes.len() as u64).saturating_sub(0x80),
@@ -310,10 +315,20 @@ impl DwgFile {
             Ok(r) => r,
             Err(e) => return Some(Err(e)),
         };
+        // Resolve the class map up-front so we can classify Custom(N)
+        // type codes during dispatch. Missing / parse-errored class
+        // map is fine — custom-class objects simply fall through to
+        // Unhandled, matching the pre-resolver behaviour.
+        let class_map = self.class_map().and_then(Result::ok);
         let mut out = Vec::with_capacity(raws.len());
         let mut summary = crate::entities::DispatchSummary::default();
         for raw in &raws {
-            let decoded = crate::entities::decode_from_raw(raw, self.version);
+            let decoded = match (class_map.as_ref(), raw.kind) {
+                (Some(cm), crate::ObjectType::Custom(code)) => {
+                    crate::entities::decode_from_raw_with_class_map(raw, self.version, cm, code)
+                }
+                _ => crate::entities::decode_from_raw(raw, self.version),
+            };
             summary.record(&decoded);
             out.push(decoded);
         }

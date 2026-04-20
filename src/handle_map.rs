@@ -21,6 +21,12 @@
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
 
+/// Defensive cap on parsed handle map entries (matches the 1 M bound
+/// documented in `SECURITY.md`). No legitimate drawing ships with more
+/// than a few hundred thousand objects; a claimed count past this cap
+/// indicates a malformed or adversarial file.
+pub const MAX_HANDLE_ENTRIES: usize = 1_000_000;
+
 /// Entry in the parsed handle map — one DWG object.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HandleEntry {
@@ -38,6 +44,13 @@ pub struct HandleMap {
 
 impl HandleMap {
     /// Parse a decompressed `AcDb:Handles` payload.
+    ///
+    /// # Caps
+    ///
+    /// Returns [`Error::SectionMap`] if parsing would produce more than
+    /// [`MAX_HANDLE_ENTRIES`] entries. This matches the documented
+    /// threat-model cap in `SECURITY.md` and bounds a malformed file's
+    /// ability to force unbounded allocation.
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         let mut entries = Vec::new();
         let mut pos = 0usize;
@@ -79,6 +92,12 @@ impl HandleMap {
                 };
                 last_handle = last_handle.wrapping_add(h_delta);
                 last_offset = last_offset.wrapping_add(o_delta);
+                if entries.len() >= MAX_HANDLE_ENTRIES {
+                    return Err(Error::SectionMap(format!(
+                        "AcDb:Handles parse exceeded MAX_HANDLE_ENTRIES \
+                         ({MAX_HANDLE_ENTRIES}); malformed or adversarial file"
+                    )));
+                }
                 entries.push(HandleEntry {
                     handle: last_handle as u64,
                     offset: last_offset as u64,

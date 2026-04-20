@@ -162,7 +162,15 @@ fn main() -> ExitCode {
     }
 
     if show_objects {
-        if let Some(Ok(objs)) = f.all_objects() {
+        if f.version().is_r13_r15() || f.version().is_r2007() {
+            println!();
+            println!("=== objects ===");
+            println!(
+                "  (skipped: {} object-stream walker not yet implemented; \
+                 file will show 0 objects)",
+                f.version().release()
+            );
+        } else if let Some(Ok(objs)) = f.all_objects() {
             println!();
             println!("=== objects ({}) ===", objs.len());
             let mut histo: BTreeMap<String, usize> = BTreeMap::new();
@@ -185,6 +193,12 @@ fn print_usage() {
          \n\
          Dumps a human-readable view of a DWG file. With no flags, shows\n\
          everything; pass one or more flags to select subsections.\n\
+         \n\
+         NOTE: R14 / R2000 / R2007 files have a different object-stream\n\
+         layout that this crate does not yet implement. For those files,\n\
+         --objects and --handles report empty (see README coverage table).\n\
+         The container sections (--sections, --metadata) work on every\n\
+         version.\n\
          \n\
          Examples:\n\
            dwg-dump test.dwg                    # full dump\n\

@@ -64,7 +64,7 @@ pub mod vertex;
 pub mod viewport;
 pub mod xline;
 
-pub use dispatch::{DecodedEntity, DispatchSummary, decode_from_raw};
+pub use dispatch::{DecodedEntity, DispatchSummary, decode_from_raw, decode_from_raw_with_class_map};
 
 /// A 2D point: (x, y) in WCS (World Coordinate System).
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

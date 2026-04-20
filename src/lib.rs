@@ -24,7 +24,7 @@
 //! | `AC1014` | R14              | 1997 | Full                 |
 //! | `AC1015` | 2000 / 2000i / 2002 | 1999 | Full               |
 //! | `AC1018` | 2004 / 2005 / 2006  | 2003 | Full               |
-//! | `AC1021` | 2007 / 2008 / 2009  | 2006 | Partial (Sec_Mask)  |
+//! | `AC1021` | 2007 / 2008 / 2009  | 2006 | **Deferred** (Sec_Mask layer-2 bookkeeping not yet implemented — R2007 files open with identifier + header only; section payloads return an error) |
 //! | `AC1024` | 2010 / 2011 / 2012  | 2009 | Full               |
 //! | `AC1027` | 2013 → 2017         | 2012 | Full               |
 //! | `AC1032` | 2018 → 2025+        | 2017 | Full               |

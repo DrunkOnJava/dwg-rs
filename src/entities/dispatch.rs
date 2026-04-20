@@ -112,11 +112,14 @@ impl DecodedEntity {
             Self::Vertex(_) => OBJECT_TYPE_VERTEX_2D,
             Self::Polyline(_) => OBJECT_TYPE_POLYLINE_2D,
             Self::LwPolyline(_) => OBJECT_TYPE_LWPOLYLINE,
-            Self::Dimension(_) => OBJECT_TYPE_DIMENSION_LINEAR,
+            Self::Dimension(_) => OBJECT_TYPE_DIMENSION_LINEAR_SENTINEL,
             Self::Leader(_) => OBJECT_TYPE_LEADER,
-            Self::Image(_) => OBJECT_TYPE_IMAGE,
+            // IMAGE is a custom class; there is no fixed code. Return 0
+            // so callers can detect this and consult the class map.
+            Self::Image(_) => 0,
             Self::Hatch(_) => OBJECT_TYPE_HATCH,
-            Self::MLeader(_) => OBJECT_TYPE_MLEADER,
+            // MLEADER is a custom class; see Image above.
+            Self::MLeader(_) => 0,
             Self::Viewport(_) => OBJECT_TYPE_VIEWPORT,
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -129,36 +132,111 @@ impl DecodedEntity {
     }
 }
 
-// Object type codes per spec §5 Table 4 — "Object type codes, BS".
-// These are the fixed type codes (< 500) the dispatcher recognizes.
-const OBJECT_TYPE_TEXT: u16 = 1;
-const OBJECT_TYPE_ATTRIB: u16 = 2;
-const OBJECT_TYPE_ATTDEF: u16 = 3;
-const OBJECT_TYPE_BLOCK: u16 = 4;
-const OBJECT_TYPE_ENDBLK: u16 = 5;
-const OBJECT_TYPE_INSERT: u16 = 7;
-const OBJECT_TYPE_POLYLINE_2D: u16 = 15;
-const OBJECT_TYPE_VERTEX_2D: u16 = 10;
-const OBJECT_TYPE_LINE: u16 = 19;
-const OBJECT_TYPE_DIMENSION_LINEAR: u16 = 22;
-const OBJECT_TYPE_POINT: u16 = 27;
-const OBJECT_TYPE_3DFACE: u16 = 32;
-const OBJECT_TYPE_SOLID: u16 = 31;
-const OBJECT_TYPE_TRACE: u16 = 30;
-const OBJECT_TYPE_SHAPE: u16 = 33;
-const OBJECT_TYPE_VIEWPORT: u16 = 34;
-const OBJECT_TYPE_ELLIPSE: u16 = 35;
-const OBJECT_TYPE_SPLINE: u16 = 36;
-const OBJECT_TYPE_RAY: u16 = 40;
-const OBJECT_TYPE_XLINE: u16 = 41;
-const OBJECT_TYPE_MTEXT: u16 = 44;
-const OBJECT_TYPE_LEADER: u16 = 45;
-const OBJECT_TYPE_CIRCLE: u16 = 17;
-const OBJECT_TYPE_ARC: u16 = 18;
-const OBJECT_TYPE_HATCH: u16 = 78;
-const OBJECT_TYPE_LWPOLYLINE: u16 = 77;
-const OBJECT_TYPE_IMAGE: u16 = 101;
-const OBJECT_TYPE_MLEADER: u16 = 493; // Custom class — varies, dispatch-only
+// Object type codes per ODA spec v5.4.1 §5 Table 4 — "Object type codes, BS".
+// Cross-checked against object_type.rs ObjectType::from_code; the two
+// tables MUST agree (see tests::dispatch_and_object_type_codes_agree).
+//
+// Fixed codes only (< 500). IMAGE and MLEADER are custom classes whose
+// codes are assigned per-file via AcDb:Classes — they are NOT fixed
+// codes and do NOT appear here; see task #96 for custom-class dispatch.
+const OBJECT_TYPE_TEXT: u16 = 0x01; // 1
+const OBJECT_TYPE_ATTRIB: u16 = 0x02; // 2
+const OBJECT_TYPE_ATTDEF: u16 = 0x03; // 3
+const OBJECT_TYPE_BLOCK: u16 = 0x04; // 4
+const OBJECT_TYPE_ENDBLK: u16 = 0x05; // 5
+const OBJECT_TYPE_INSERT: u16 = 0x07; // 7
+const OBJECT_TYPE_VERTEX_2D: u16 = 0x0A; // 10
+const OBJECT_TYPE_POLYLINE_2D: u16 = 0x0F; // 15
+const OBJECT_TYPE_ARC: u16 = 0x11; // 17 (spec says ARC, was incorrectly CIRCLE)
+const OBJECT_TYPE_CIRCLE: u16 = 0x12; // 18 (spec says CIRCLE, was incorrectly ARC)
+const OBJECT_TYPE_LINE: u16 = 0x13; // 19
+// DIMENSION family spans 0x14..=0x1A (20..=26), handled via a range match
+// in `dispatch()` + `DimensionKind::from_object_type_code`.
+const OBJECT_TYPE_DIMENSION_MIN: u16 = 0x14; // 20
+const OBJECT_TYPE_DIMENSION_MAX: u16 = 0x1A; // 26
+const OBJECT_TYPE_POINT: u16 = 0x1B; // 27
+const OBJECT_TYPE_3DFACE: u16 = 0x1C; // 28 (was incorrectly 32)
+const OBJECT_TYPE_SOLID: u16 = 0x1F; // 31
+const OBJECT_TYPE_TRACE: u16 = 0x20; // 32 (was incorrectly 30)
+const OBJECT_TYPE_SHAPE: u16 = 0x21; // 33
+const OBJECT_TYPE_VIEWPORT: u16 = 0x22; // 34
+const OBJECT_TYPE_ELLIPSE: u16 = 0x23; // 35
+const OBJECT_TYPE_SPLINE: u16 = 0x24; // 36
+const OBJECT_TYPE_RAY: u16 = 0x28; // 40
+const OBJECT_TYPE_XLINE: u16 = 0x29; // 41
+const OBJECT_TYPE_MTEXT: u16 = 0x2C; // 44
+const OBJECT_TYPE_LEADER: u16 = 0x2D; // 45
+const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
+const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
+
+/// The used-for-the-back-fix chosen sentinel that `DecodedEntity::type_code()`
+/// returns for the `Dimension(...)` variant. Any code in `0x14..=0x1A` would
+/// be defensible; the sentinel always points at LINEAR because that is the
+/// most common dimension subtype in real drawings.
+const OBJECT_TYPE_DIMENSION_LINEAR_SENTINEL: u16 = 0x15; // 21
+
+/// Decode a [`RawObject`] whose type code is a custom class (≥ 500)
+/// by looking up the class in [`crate::classes::ClassMap`] and
+/// dispatching on the DXF class name.
+///
+/// Supports IMAGE, MLEADER, and other post-spec entities whose type
+/// codes vary per file. Unknown class names fall through to
+/// [`DecodedEntity::Unhandled`].
+pub fn decode_from_raw_with_class_map(
+    raw: &RawObject,
+    version: Version,
+    class_map: &crate::classes::ClassMap,
+    type_code: u16,
+) -> DecodedEntity {
+    let Some(class_def) = class_map.by_type_code(type_code) else {
+        return DecodedEntity::Unhandled {
+            type_code,
+            kind: raw.kind,
+        };
+    };
+    // Position cursor past header + common preamble, then dispatch by
+    // DXF class name.
+    let mut cursor = match position_cursor_at_entity_body(raw, version) {
+        Ok(c) => c,
+        Err(e) => {
+            return DecodedEntity::Error {
+                type_code,
+                kind: raw.kind,
+                message: format!("failed to position cursor: {e}"),
+            };
+        }
+    };
+    if let Err(e) = crate::common_entity::read_common_entity_data(&mut cursor, version) {
+        return DecodedEntity::Error {
+            type_code,
+            kind: raw.kind,
+            message: format!("common entity preamble: {e}"),
+        };
+    }
+    let result: std::result::Result<DecodedEntity, String> =
+        match class_def.dxf_class_name.as_str() {
+            "IMAGE" | "RASTERIMAGE" => image::decode(&mut cursor, version)
+                .map(DecodedEntity::Image)
+                .map_err(|e| e.to_string()),
+            "MULTILEADER" | "MLEADER" => mleader::decode(&mut cursor)
+                .map(DecodedEntity::MLeader)
+                .map_err(|e| e.to_string()),
+            _ => {
+                return DecodedEntity::Unhandled {
+                    type_code,
+                    kind: raw.kind,
+                };
+            }
+        };
+    match result {
+        Ok(entity) => entity,
+        Err(message) => DecodedEntity::Error {
+            type_code,
+            kind: raw.kind,
+            message,
+        },
+    }
+}
 
 /// Decode a [`RawObject`] to a typed [`DecodedEntity`].
 ///
@@ -170,6 +248,10 @@ const OBJECT_TYPE_MLEADER: u16 = 493; // Custom class — varies, dispatch-only
 /// On decoder error, returns [`DecodedEntity::Error`] rather than
 /// propagating — the dispatcher intentionally does not abort a walk
 /// on a single bad entity.
+///
+/// For custom-class entities (type codes ≥ 500 like IMAGE, MLEADER,
+/// TABLE), see [`decode_from_raw_with_class_map`] which resolves the
+/// code via [`crate::classes::ClassMap`] before dispatching.
 pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
     let type_code = raw.type_code;
     let kind = raw.kind;
@@ -323,9 +405,6 @@ fn dispatch(
         OBJECT_TYPE_LEADER => leader::decode(cursor)
             .map(DecodedEntity::Leader)
             .map_err(|e| e.to_string()),
-        OBJECT_TYPE_IMAGE => image::decode(cursor, version)
-            .map(DecodedEntity::Image)
-            .map_err(|e| e.to_string()),
         OBJECT_TYPE_HATCH => hatch::decode(cursor, version)
             .map(DecodedEntity::Hatch)
             .map_err(|e| e.to_string()),
@@ -333,9 +412,10 @@ fn dispatch(
             .map(DecodedEntity::Viewport)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_SHAPE => return DecodedEntity::Unhandled { type_code, kind },
-        21..=27 => {
-            // DIMENSION family: 21=Ordinate, 22=Linear, 23=Aligned,
-            // 24=Angular3Pt, 25=Angular2Line, 26=Radius, 27=Diameter.
+        // DIMENSION family per ODA §5 Table 4:
+        //   0x14 ORDINATE, 0x15 LINEAR, 0x16 ALIGNED, 0x17 ANG_3PT,
+        //   0x18 ANG_2LN, 0x19 RADIUS, 0x1A DIAMETER.
+        OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             match dimension::DimensionKind::from_object_type_code(type_code) {
                 Some(dk) => dimension::decode(cursor, version, dk)
                     .map(DecodedEntity::Dimension)
@@ -343,6 +423,9 @@ fn dispatch(
                 None => return DecodedEntity::Unhandled { type_code, kind },
             }
         }
+        // IMAGE and MLEADER are custom classes (AcDb:Classes lookup) —
+        // their codes vary per-file, so they're handled in the custom-
+        // class dispatch pass (see task #96) not here.
         _ => return DecodedEntity::Unhandled { type_code, kind },
     };
 
@@ -359,12 +442,23 @@ fn dispatch(
 /// Summary of a dispatch run — honest bookkeeping for the README +
 /// CLI tools, so callers can report "decoded N / skipped M / errored K"
 /// instead of pretending every object succeeded.
+/// Cap on the number of error messages retained in a
+/// [`DispatchSummary`]. Beyond this point, the count is still tracked
+/// via [`DispatchSummary::errored`] but the message strings are
+/// discarded and [`DispatchSummary::errors_suppressed`] increments.
+/// This prevents unbounded `String` allocation on adversarial files.
+pub const MAX_RETAINED_ERRORS: usize = 1_000;
+
 #[derive(Debug, Default, Clone)]
 pub struct DispatchSummary {
     pub decoded: usize,
     pub unhandled: usize,
     pub errored: usize,
+    /// First [`MAX_RETAINED_ERRORS`] error (type_code, message) pairs.
+    /// Past that, only the count is kept.
     pub errors: Vec<(u16, String)>,
+    /// Count of error messages dropped after the retention cap.
+    pub errors_suppressed: usize,
 }
 
 impl DispatchSummary {
@@ -375,7 +469,11 @@ impl DispatchSummary {
                 type_code, message, ..
             } => {
                 self.errored += 1;
-                self.errors.push((*type_code, message.clone()));
+                if self.errors.len() < MAX_RETAINED_ERRORS {
+                    self.errors.push((*type_code, message.clone()));
+                } else {
+                    self.errors_suppressed += 1;
+                }
             }
             _ => self.decoded += 1,
         }

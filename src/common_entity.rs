@@ -140,8 +140,26 @@ pub fn read_common_entity_data(
     // -- Extended data loop --------------------------------------------------
     // Stream of <BS size, H appid, RC*size app-payload>. Loop
     // terminates when size == 0.
+    //
+    // Defensive cap: real XDATA payloads per entity rarely exceed a
+    // few hundred bytes per iteration. The `size` field is u16, so one
+    // iteration can read up to 64 KB. Bound total iterations at 256,
+    // giving a per-entity worst case of ~16 MB of XDATA reads — an
+    // order of magnitude past anything observed in real drawings but
+    // still bounded against adversarial streams that would otherwise
+    // spin the loop indefinitely (the previous implementation's cap
+    // was checked AFTER reading the payload, making it useless).
+    const MAX_XDATA_ITERATIONS: usize = 256;
     let mut had_extended = false;
+    let mut iterations = 0usize;
     loop {
+        if iterations >= MAX_XDATA_ITERATIONS {
+            return Err(crate::error::Error::SectionMap(format!(
+                "common entity XDATA loop exceeded {MAX_XDATA_ITERATIONS} iterations; \
+                 malformed or adversarial payload"
+            )));
+        }
+        iterations += 1;
         let size = c.read_bs_u()?;
         if size == 0 {
             break;
@@ -149,15 +167,9 @@ pub fn read_common_entity_data(
         had_extended = true;
         // Appid handle (may be absolute or offset).
         let _appid: Handle = c.read_handle()?;
-        // App-data payload: `size` raw chars.
+        // App-data payload: `size` raw chars (bounded above via iteration cap).
         for _ in 0..size {
             let _ = c.read_rc()?;
-        }
-        // Defensive stop: real files never have >1 KB of XDATA per
-        // entity, so we bail after 4 loops to keep malformed streams
-        // from spinning forever.
-        if had_extended && size as usize > 4096 {
-            break;
         }
     }
 
