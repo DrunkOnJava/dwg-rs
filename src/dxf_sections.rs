@@ -90,9 +90,26 @@ impl HeaderEntry {
 
 /// Emit a full HEADER section. Each entry produces `9 $NAME`
 /// followed by one or more value pairs depending on the variant.
+///
+/// `$ACADVER` is emitted automatically based on the writer's
+/// [`crate::dxf::DxfWriter::version`] target — the magic comes from
+/// [`crate::dxf::DxfVersion::acadver`]. Any `$ACADVER` entry the
+/// caller supplies in `vars` is silently skipped so the emitted
+/// magic always matches the writer's stored version.
 pub fn write_header_section(w: &mut DxfWriter, vars: &[HeaderEntry]) {
     w.begin_section("HEADER");
+    // Prepend $ACADVER from the writer's target version so the emitted
+    // magic is always consistent with the rest of the file (subclass-
+    // marker gating, group-code dialect, etc.).
+    let acadver = w.version().acadver();
+    w.write_string(9, "$ACADVER");
+    w.write_string(1, acadver);
     for var in vars {
+        // Skip any caller-supplied $ACADVER — we already emitted it
+        // from the writer's version and refuse to duplicate.
+        if var.name.eq_ignore_ascii_case("$ACADVER") {
+            continue;
+        }
         w.write_string(9, &var.name);
         match &var.value {
             HeaderValue::String(s) => w.write_string(1, s),
@@ -206,21 +223,31 @@ impl EntityRecord {
 }
 
 /// Emit an ENTITIES section containing the given records.
+///
+/// Subclass markers (group code `100 AcDb*`) are only emitted when the
+/// writer targets R13 or newer — `DxfVersion::R12` predates the
+/// `AcDbEntity` / `AcDbLine` / `AcDbCircle` markers and rejects files
+/// that contain them. See [`crate::dxf::DxfVersion::supports_subclass_markers`].
 pub fn write_entities_section(w: &mut DxfWriter, entities: &[EntityRecord]) {
+    let subclasses = w.version().supports_subclass_markers();
     w.begin_section("ENTITIES");
     for e in entities {
         match &e.geometry {
             EntityGeometry::Line(Curve::Line { a, b }) => {
                 w.write_entity_header("LINE", e.handle);
-                common_entity_header(w, &e.layer, e.aci);
-                w.write_string(100, "AcDbLine");
+                common_entity_header(w, &e.layer, e.aci, subclasses);
+                if subclasses {
+                    w.write_string(100, "AcDbLine");
+                }
                 w.write_point(10, *a);
                 w.write_point(11, *b);
             }
             EntityGeometry::Circle(Curve::Circle { center, radius, .. }) => {
                 w.write_entity_header("CIRCLE", e.handle);
-                common_entity_header(w, &e.layer, e.aci);
-                w.write_string(100, "AcDbCircle");
+                common_entity_header(w, &e.layer, e.aci, subclasses);
+                if subclasses {
+                    w.write_string(100, "AcDbCircle");
+                }
                 w.write_point(10, *center);
                 w.write_double(40, *radius);
             }
@@ -232,24 +259,32 @@ pub fn write_entities_section(w: &mut DxfWriter, entities: &[EntityRecord]) {
                 ..
             }) => {
                 w.write_entity_header("ARC", e.handle);
-                common_entity_header(w, &e.layer, e.aci);
-                w.write_string(100, "AcDbCircle");
+                common_entity_header(w, &e.layer, e.aci, subclasses);
+                if subclasses {
+                    w.write_string(100, "AcDbCircle");
+                }
                 w.write_point(10, *center);
                 w.write_double(40, *radius);
-                w.write_string(100, "AcDbArc");
+                if subclasses {
+                    w.write_string(100, "AcDbArc");
+                }
                 w.write_double(50, start_angle.to_degrees());
                 w.write_double(51, end_angle.to_degrees());
             }
             EntityGeometry::Point(p) => {
                 w.write_entity_header("POINT", e.handle);
-                common_entity_header(w, &e.layer, e.aci);
-                w.write_string(100, "AcDbPoint");
+                common_entity_header(w, &e.layer, e.aci, subclasses);
+                if subclasses {
+                    w.write_string(100, "AcDbPoint");
+                }
                 w.write_point(10, *p);
             }
             EntityGeometry::Polyline(path) => {
                 w.write_entity_header("LWPOLYLINE", e.handle);
-                common_entity_header(w, &e.layer, e.aci);
-                w.write_string(100, "AcDbPolyline");
+                common_entity_header(w, &e.layer, e.aci, subclasses);
+                if subclasses {
+                    w.write_string(100, "AcDbPolyline");
+                }
                 // Count line segments as vertices (+1 for start).
                 let n = path.segments.len();
                 let vertex_count = if n == 0 {
@@ -289,8 +324,14 @@ pub fn write_entities_section(w: &mut DxfWriter, entities: &[EntityRecord]) {
 /// accept entities without an explicit owner), `8` is the layer,
 /// `62` is the color, `370` is the lineweight (skipped — defaults
 /// to ByLayer).
-fn common_entity_header(w: &mut DxfWriter, layer: &str, aci: u8) {
-    w.write_string(100, "AcDbEntity");
+///
+/// `subclasses = true` (R13+) emits the canonical `100 AcDbEntity`
+/// marker; under R12 we omit it because that release predates
+/// subclass tagging.
+fn common_entity_header(w: &mut DxfWriter, layer: &str, aci: u8, subclasses: bool) {
+    if subclasses {
+        w.write_string(100, "AcDbEntity");
+    }
     w.write_string(8, layer);
     w.write_int(62, aci as i64);
     // Emit the RGB triplet as a comment for diagnostic diffing —
@@ -307,22 +348,34 @@ fn common_entity_header(w: &mut DxfWriter, layer: &str, aci: u8) {
 /// Emit a BLOCKS section containing the canonical `*Model_Space`
 /// and `*Paper_Space` blocks. Real block content is out of scope
 /// until the INSERT decoder + block expansion land (L5-05 / L4-15).
+///
+/// Under R12 the `100 AcDb*` subclass markers are omitted (R12 predates
+/// the subclass-tagging convention).
 pub fn write_blocks_section(w: &mut DxfWriter) {
+    let subclasses = w.version().supports_subclass_markers();
     w.begin_section("BLOCKS");
     for (name, layout_owner) in [("*Model_Space", "0"), ("*Paper_Space", "0")] {
         w.write_string(0, "BLOCK");
-        w.write_string(100, "AcDbEntity");
+        if subclasses {
+            w.write_string(100, "AcDbEntity");
+        }
         w.write_string(8, layout_owner);
-        w.write_string(100, "AcDbBlockBegin");
+        if subclasses {
+            w.write_string(100, "AcDbBlockBegin");
+        }
         w.write_string(2, name);
         w.write_int(70, 0);
         w.write_point(10, Point3D::new(0.0, 0.0, 0.0));
         w.write_string(3, name);
         w.write_string(1, "");
         w.write_string(0, "ENDBLK");
-        w.write_string(100, "AcDbEntity");
+        if subclasses {
+            w.write_string(100, "AcDbEntity");
+        }
         w.write_string(8, layout_owner);
-        w.write_string(100, "AcDbBlockEnd");
+        if subclasses {
+            w.write_string(100, "AcDbBlockEnd");
+        }
     }
     w.end_section();
 }
@@ -470,6 +523,88 @@ mod tests {
         assert!(s.contains("*Model_Space"));
         assert!(s.contains("*Paper_Space"));
         assert!(s.contains("ENDBLK"));
+    }
+
+    #[test]
+    fn header_section_emits_acadver_from_writer_version() {
+        // Default writer (R2018) → AC1032.
+        let mut w = DxfWriter::new();
+        write_header_section(&mut w, &[]);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("$ACADVER"));
+        assert!(s.contains("AC1032"));
+
+        // R12 writer → AC1009.
+        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
+        write_header_section(&mut w, &[]);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("$ACADVER"));
+        assert!(s.contains("AC1009"));
+        assert!(!s.contains("AC1032"));
+    }
+
+    #[test]
+    fn header_section_skips_caller_supplied_acadver() {
+        // Caller-supplied $ACADVER gets dropped in favor of the writer's
+        // version (prevents mismatched magic).
+        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R2000);
+        write_header_section(&mut w, &[HeaderEntry::string("$ACADVER", "AC9999")]);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("AC1015")); // R2000 magic
+        assert!(!s.contains("AC9999")); // caller's bogus value dropped
+    }
+
+    #[test]
+    fn r12_entities_section_omits_subclass_markers() {
+        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
+        write_entities_section(
+            &mut w,
+            &[EntityRecord::line(
+                "0",
+                7,
+                Point3D::new(0.0, 0.0, 0.0),
+                Point3D::new(1.0, 1.0, 0.0),
+            )],
+        );
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("LINE"));
+        // R12 predates the subclass-marker convention — not a single
+        // 100 AcDb* tag should appear.
+        assert!(!s.contains("AcDbLine"));
+        assert!(!s.contains("AcDbEntity"));
+    }
+
+    #[test]
+    fn r2018_entities_section_emits_subclass_markers() {
+        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R2018);
+        write_entities_section(
+            &mut w,
+            &[EntityRecord::line(
+                "0",
+                7,
+                Point3D::new(0.0, 0.0, 0.0),
+                Point3D::new(1.0, 1.0, 0.0),
+            )],
+        );
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("AcDbEntity"));
+        assert!(s.contains("AcDbLine"));
+    }
+
+    #[test]
+    fn r12_blocks_section_omits_subclass_markers() {
+        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
+        write_blocks_section(&mut w);
+        w.finish();
+        let s = w.take_output();
+        assert!(s.contains("*Model_Space"));
+        assert!(!s.contains("AcDbBlockBegin"));
+        assert!(!s.contains("AcDbBlockEnd"));
     }
 
     #[test]

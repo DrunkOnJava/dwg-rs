@@ -96,6 +96,7 @@ pub mod common_entity;
 pub mod crc;
 pub mod curve;
 pub mod dxf;
+pub mod dxf_convert;
 pub mod dxf_sections;
 pub mod entities;
 pub mod entity_geometry;
@@ -127,6 +128,7 @@ pub mod version;
 
 pub use bitcursor::BitCursor;
 pub use classes::{ClassDef, ClassMap};
+pub use dxf::{DxfVersion, DxfWriter};
 pub use error::{Error, Result};
 pub use handle_map::{HandleEntry, HandleMap};
 pub use header_vars::HeaderVars;
