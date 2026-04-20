@@ -19,12 +19,9 @@ fuzz_target!(|data: &[u8]| {
         _ => Version::R2018,
     };
     let payload = &data[1..];
-    let mut walker = dwg::ObjectWalker::new(payload, version);
-    // Bound the work to prevent runaway iteration.
-    for _ in 0..1024 {
-        match walker.next() {
-            Some(Ok(_)) => continue,
-            Some(Err(_)) | None => break,
-        }
-    }
+    // collect_all_lossy runs the full object-walker pipeline under
+    // the default WalkerLimits (bounded iteration) and never panics
+    // on adversarial input — all errors land in the ObjectWalkSummary.
+    let walker = dwg::ObjectWalker::new(payload, version);
+    let _ = walker.collect_all_lossy();
 });
