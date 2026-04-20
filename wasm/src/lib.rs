@@ -39,6 +39,7 @@ pub mod measure;
 pub mod no_upload;
 pub mod render;
 pub mod url_state;
+pub mod viewer;
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
