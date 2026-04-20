@@ -125,9 +125,9 @@ impl Version {
     /// The primary meaning callers rely on is **text encoding**: these
     /// versions store `TV` (variable text) and symbol-table entry names
     /// as UTF-16LE bit-streams, whereas R2004 and earlier use 8-bit
-    /// bytes. That single observation is load-bearing across
-    /// [`crate::tables::read_tv`], `block::decode`, and the attribute
-    /// decoders.
+    /// bytes. That single observation is load-bearing across the
+    /// `tables::read_tv` crate-private helper, `block::decode`, and
+    /// the attribute decoders.
     ///
     /// An earlier version of this docstring claimed the predicate
     /// corresponded to "`Sec_Mask` two-layer bitstream obfuscation,"
