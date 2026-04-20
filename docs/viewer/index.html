@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>dwg-rs viewer — pre-alpha</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:;">
+  <style>
+    :root {
+      --bg: #111;
+      --fg: #eee;
+      --fg-muted: #888;
+      --accent: #4af;
+      --card: #1a1a1a;
+    }
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      padding: 24px 32px;
+      border-bottom: 1px solid #222;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    header p {
+      margin: 4px 0 0;
+      color: var(--fg-muted);
+      font-size: 14px;
+    }
+    main {
+      padding: 24px 32px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+      min-height: calc(100vh - 90px);
+    }
+    aside {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    aside h2 {
+      margin-top: 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-muted);
+    }
+    #dropzone {
+      border: 2px dashed #333;
+      border-radius: 6px;
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    #dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(68, 170, 255, 0.05);
+    }
+    #dropzone input[type=file] {
+      display: none;
+    }
+    .file-info {
+      font-size: 13px;
+      color: var(--fg-muted);
+    }
+    .file-info span {
+      color: var(--fg);
+      font-family: ui-monospace, monospace;
+    }
+    #canvas-host {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 16px;
+      overflow: auto;
+    }
+    #canvas-host svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    .empty {
+      color: var(--fg-muted);
+      text-align: center;
+      padding: 60px 24px;
+    }
+    footer {
+      padding: 16px 32px;
+      color: var(--fg-muted);
+      font-size: 12px;
+      border-top: 1px solid #222;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    .err {
+      color: #f66;
+      padding: 8px 12px;
+      background: rgba(255, 0, 0, 0.08);
+      border-radius: 4px;
+      margin-top: 12px;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>dwg-rs viewer</h1>
+    <p>
+      Pre-alpha. Apache-2 clean-room Rust + WASM. Files loaded here
+      stay in your browser — nothing is uploaded.
+    </p>
+  </header>
+
+  <main>
+    <aside>
+      <h2>Load a drawing</h2>
+      <label id="dropzone">
+        <div id="dropzone-text">Drop a .dwg file here or click to browse</div>
+        <input type="file" id="file-input" accept=".dwg">
+      </label>
+      <div id="file-meta" class="file-info" style="margin-top: 16px; display:none;">
+        <div>Version: <span id="meta-version">—</span></div>
+        <div>Magic: <span id="meta-magic">—</span></div>
+        <div>Sections: <span id="meta-sections">—</span></div>
+        <div>Status: <span id="meta-status">—</span></div>
+      </div>
+      <div id="error-output"></div>
+    </aside>
+    <section id="canvas-host">
+      <div class="empty">
+        Drop a DWG file to see its structure.
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <a href="https://github.com/DrunkOnJava/dwg-rs">github.com/DrunkOnJava/dwg-rs</a>
+    · client-side only · no telemetry · pre-alpha
+  </footer>
+
+  <script type="module">
+    import init, { DwgFile, crateVersion, clientSideAttestation } from './pkg/dwg_wasm.js';
+
+    const $ = (id) => document.getElementById(id);
+    const dropzone = $('dropzone');
+    const fileInput = $('file-input');
+    const canvasHost = $('canvas-host');
+    const errorOutput = $('error-output');
+
+    (async () => {
+      try {
+        await init();
+        console.log('dwg-rs wasm:', crateVersion());
+        console.log(clientSideAttestation());
+      } catch (e) {
+        showError('wasm init failed: ' + e.message);
+      }
+    })();
+
+    ['dragenter', 'dragover'].forEach(evt =>
+      dropzone.addEventListener(evt, e => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      })
+    );
+    ['dragleave', 'drop'].forEach(evt =>
+      dropzone.addEventListener(evt, e => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+      })
+    );
+    dropzone.addEventListener('drop', e => {
+      const f = e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+    fileInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) handleFile(f);
+    });
+
+    async function handleFile(file) {
+      clearError();
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const f = DwgFile.open(bytes);
+        $('file-meta').style.display = 'block';
+        $('meta-version').textContent = f.versionName();
+        $('meta-magic').textContent = f.versionMagic();
+        $('meta-status').textContent = f.sectionMapStatus();
+        const sections = f.sections();
+        $('meta-sections').textContent = sections.length;
+        canvasHost.innerHTML = renderSectionList(f.versionName(), sections);
+      } catch (err) {
+        showError('Parse failed: ' + (err.message || err));
+      }
+    }
+
+    function renderSectionList(version, sections) {
+      const rows = sections.map(s =>
+        `<tr>
+          <td style="font-family:ui-monospace,monospace">${escape(s.name)}</td>
+          <td style="text-align:right">${s.size.toLocaleString()}</td>
+          <td style="font-family:ui-monospace,monospace">0x${s.offset.toString(16)}</td>
+          <td>${escape(s.kind)}</td>
+        </tr>`
+      ).join('');
+      return `
+        <h2 style="margin-top:0">Parsed ${escape(version)}</h2>
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid #333; color:#888;">
+              <th style="text-align:left; padding:6px 8px;">Section</th>
+              <th style="text-align:right; padding:6px 8px;">Size</th>
+              <th style="text-align:left; padding:6px 8px;">Offset</th>
+              <th style="text-align:left; padding:6px 8px;">Kind</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function escape(s) {
+      return String(s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+      );
+    }
+
+    function showError(msg) {
+      errorOutput.innerHTML = `<div class="err">${escape(msg)}</div>`;
+    }
+    function clearError() {
+      errorOutput.innerHTML = '';
+    }
+  </script>
+</body>
+</html>
