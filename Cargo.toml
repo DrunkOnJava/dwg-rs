@@ -76,6 +76,10 @@ harness = false
 name = "libredwg_compare"
 harness = false
 
+[[bench]]
+name = "write_path"
+harness = false
+
 [features]
 default = []
 # Opt-in feature bundle that pulls everything the four bundled CLI
