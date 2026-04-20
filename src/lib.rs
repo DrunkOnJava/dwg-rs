@@ -128,6 +128,6 @@ pub use limits::{ParseLimits, WalkerLimits};
 pub use metadata::{AppInfo, FileDepList, FileDependency, Preview, SummaryInfo};
 pub use object::{ObjectWalker, RawObject};
 pub use object_type::ObjectType;
-pub use reader::{DwgFile, ParseDiagnostics, SectionMapStatus};
+pub use reader::{DwgFile, ParseDiagnostics, SectionMapStatus, Summary};
 pub use section::{Section, SectionKind};
 pub use version::Version;
