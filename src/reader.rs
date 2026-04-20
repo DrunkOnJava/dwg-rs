@@ -15,6 +15,28 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fs;
 use std::path::Path;
 
+/// Diagnostic summary for a best-effort parse.
+///
+/// Returned by [`DwgFile::from_bytes_best_effort`]. Captures anything
+/// the parser noticed but didn't raise as a hard error — useful for
+/// exploratory CLIs, debugging corrupt files, or surfacing warnings
+/// in an IDE integration without interrupting normal decode.
+///
+/// Strict callers should use [`DwgFile::from_bytes_strict`] instead,
+/// which errors on any non-`Full` [`SectionMapStatus`] and reports
+/// the first problematic condition as a typed [`Error`].
+#[derive(Debug, Clone, Default)]
+pub struct ParseDiagnostics {
+    /// The [`SectionMapStatus`] the resulting [`DwgFile`] will report.
+    /// Duplicated here so callers who pass the diagnostics around
+    /// don't need a reference to the `DwgFile` to inspect it.
+    pub section_map_status: SectionMapStatus,
+    /// Free-form human-readable notes about the parse. Reserved for
+    /// future per-section diagnostics (CRC mismatches tolerated,
+    /// object-stream gaps filled, etc.). Empty in 0.1.0-alpha.1.
+    pub warnings: Vec<String>,
+}
+
 /// How the section list was derived — surfaces whether a file's
 /// section enumeration comes from a full section-map walk, a
 /// defensive stub fallback, or a synthetic placeholder for an
@@ -23,10 +45,11 @@ use std::path::Path;
 /// Expose via [`DwgFile::section_map_status`]. Callers that need to
 /// know whether [`DwgFile::sections`] is authoritative should branch
 /// on this before trusting the list.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum SectionMapStatus {
     /// R13-R15 flat locator OR R2004-family full section-map walk
     /// succeeded; the returned `sections` list is authoritative.
+    #[default]
     Full,
     /// R2004-family file, but the full section-map walk failed or
     /// returned zero entries. The crate fell back to a stub
@@ -161,6 +184,50 @@ impl DwgFile {
     /// synthetic placeholder for an unsupported format.
     pub fn section_map_status(&self) -> &SectionMapStatus {
         &self.section_map_status
+    }
+
+    /// Parse a byte buffer in **strict** mode. Returns `Err` if the
+    /// section map could not be fully walked (the returned
+    /// [`SectionMapStatus`] would not be `Full`).
+    ///
+    /// Use this when the caller needs to trust
+    /// [`DwgFile::sections`] as authoritative — for example, when
+    /// computing coverage metrics, or when feeding the section list
+    /// into an enforcement step that must not run on partial data.
+    ///
+    /// For exploratory or lenient use cases, prefer
+    /// [`from_bytes_best_effort`](Self::from_bytes_best_effort) or
+    /// the back-compat default [`from_bytes`](Self::from_bytes).
+    pub fn from_bytes_strict(bytes: Vec<u8>) -> Result<Self> {
+        let file = Self::from_bytes(bytes)?;
+        match file.section_map_status() {
+            SectionMapStatus::Full => Ok(file),
+            SectionMapStatus::Fallback { reason } => Err(Error::SectionMap(format!(
+                "strict parse refused — section map fell back: {reason}"
+            ))),
+            SectionMapStatus::Deferred { reason } => Err(Error::Unsupported {
+                feature: format!("strict parse refused — section map deferred: {reason}"),
+            }),
+        }
+    }
+
+    /// Parse a byte buffer in **best-effort** mode, returning the
+    /// resulting [`DwgFile`] alongside a [`ParseDiagnostics`]
+    /// describing anything the parser noticed but didn't hard-error
+    /// on.
+    ///
+    /// Preserves the existing [`from_bytes`](Self::from_bytes)
+    /// semantics — in particular, falling back to stub section
+    /// enumeration on an R2004 section-map failure and synthesizing
+    /// a placeholder for R2007 — but makes the fallback visible to
+    /// the caller.
+    pub fn from_bytes_best_effort(bytes: Vec<u8>) -> Result<(Self, ParseDiagnostics)> {
+        let file = Self::from_bytes(bytes)?;
+        let diagnostics = ParseDiagnostics {
+            section_map_status: file.section_map_status().clone(),
+            warnings: Vec::new(),
+        };
+        Ok((file, diagnostics))
     }
 
     /// Detected DWG format version.
