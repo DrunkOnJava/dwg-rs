@@ -100,6 +100,7 @@ jobs:
           cargo bench --bench object_walk -- --save-baseline "${BASELINE_NAME}"
           cargo bench --bench metadata_parse -- --save-baseline "${BASELINE_NAME}"
           cargo bench --bench libredwg_compare -- --save-baseline "${BASELINE_NAME}"
+          cargo bench --bench write_path -- --save-baseline "${BASELINE_NAME}"
 
       - name: Compare PR vs baseline
         if: github.event_name == 'pull_request'
