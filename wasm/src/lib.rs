@@ -37,6 +37,7 @@ pub mod layer_panel;
 pub mod linetype;
 pub mod measure;
 pub mod no_upload;
+pub mod render;
 pub mod url_state;
 
 use serde::Serialize;
