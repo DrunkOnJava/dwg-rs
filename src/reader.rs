@@ -315,6 +315,33 @@ impl DwgFile {
         Some(self.read_section_r2004(header, name))
     }
 
+    /// Read + decompress the named section like [`Self::read_section`],
+    /// but reject the result if its decompressed size exceeds
+    /// `max_bytes`. Use this when a caller needs a tighter per-call
+    /// cap than the file-wide [`crate::limits::OpenLimits::max_section_bytes`]
+    /// — for example when handling an untrusted upload that should
+    /// only ever yield a small section.
+    ///
+    /// Returns `None` when the section is not present (same as
+    /// [`Self::read_section`]). Returns [`Error::SectionMap`] with a
+    /// size-cap message when the decompressed size exceeds
+    /// `max_bytes` — the bytes are read into memory once to measure
+    /// them, then dropped.
+    pub fn read_section_with_limit(
+        &self,
+        name: &str,
+        max_bytes: usize,
+    ) -> Option<Result<Vec<u8>>> {
+        let header = self.r2004.as_ref()?;
+        Some(match self.read_section_r2004(header, name) {
+            Ok(bytes) if bytes.len() > max_bytes => Err(Error::SectionMap(format!(
+                "section {name:?} decompressed to {} bytes; per-call cap was {max_bytes} bytes",
+                bytes.len()
+            ))),
+            other => other,
+        })
+    }
+
     fn read_section_r2004(&self, header: &R2004Header, name: &str) -> Result<Vec<u8>> {
         let page_map = section_map::parse_page_map(&self.bytes, header)?;
         let descriptions = section_map::parse_section_info(&self.bytes, header, &page_map)?;
