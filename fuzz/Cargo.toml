@@ -67,6 +67,13 @@ test = false
 doc = false
 bench = false
 
+[[bin]]
+name = "rs_fec_decode"
+path = "fuzz_targets/rs_fec_decode.rs"
+test = false
+doc = false
+bench = false
+
 [profile.release]
 # cargo-fuzz compiles targets in release mode with sanitizers controlled
 # via RUSTFLAGS (-Z sanitizer=address, etc). We keep `debug = 1` so stack
