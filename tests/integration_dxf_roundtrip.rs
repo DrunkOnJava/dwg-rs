@@ -221,7 +221,7 @@ fn dxf_output_is_deterministic() {
     let Some(first) = convert_or_skip("line_2013.dwg", DxfVersion::R2018) else {
         return;
     };
-    let second = convert_file_to_dxf(&sample("line_2013.dwg"), DxfVersion::R2018)
+    let second = convert_file_to_dxf(sample("line_2013.dwg"), DxfVersion::R2018)
         .expect("second convert should succeed");
     assert_eq!(
         first, second,
@@ -234,13 +234,12 @@ fn dxf_output_is_deterministic() {
     // (We only guard against 2024..=2030 to keep the check stable for
     // future years; drawings legitimately embed historical dates.)
     for year in 2024..=2030 {
-        let ys = year.to_string();
         // Year can legitimately appear in $ACADVER magic ("AC1032") or
         // other code values, so only flag when it shows up next to
         // common date-like adjacent digits (e.g. "2026-04-20").
         let iso = format!("{year}-");
         assert!(
-            !first.contains(&iso),
+            !first.contains(iso.as_str()),
             "DXF output contains ISO-like date fragment {iso:?} — writer leaking a timestamp?"
         );
     }

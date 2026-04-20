@@ -515,6 +515,73 @@ pub fn resolve_dim_style(
 }
 
 // ---------------------------------------------------------------------------
+// L6-18 — model space vs paper space block-record naming
+// ---------------------------------------------------------------------------
+
+/// The canonical name of the model-space block record. Every DWG
+/// file carries exactly one BLOCK_HEADER with this name; all
+/// entities whose owner-chain terminates there live in model space.
+pub const MODEL_SPACE_BLOCK_NAME: &str = "*Model_Space";
+
+/// Prefix that every paper-space block record name starts with.
+/// The first paper-space layout is named `*Paper_Space` (no index
+/// suffix); additional layouts are `*Paper_Space0`, `*Paper_Space1`,
+/// and so on (AutoCAD's LAYOUT dialog assigns these in creation
+/// order).
+pub const PAPER_SPACE_BLOCK_PREFIX: &str = "*Paper_Space";
+
+/// Return `true` when `name` is the canonical model-space block
+/// record name. Case-sensitive by design — AutoCAD is case-sensitive
+/// on these magic names.
+pub fn is_model_space_block_name(name: &str) -> bool {
+    name == MODEL_SPACE_BLOCK_NAME
+}
+
+/// Return `true` when `name` identifies a paper-space block record:
+/// the bare `*Paper_Space` base layout, or any suffixed variant
+/// (`*Paper_Space0`, `*Paper_Space1`, ...). Case-sensitive.
+///
+/// This is the complement of [`is_model_space_block_name`] — an
+/// entity's owner-chain block record is either model space or paper
+/// space (no third option on legal input).
+pub fn is_paper_space_block_name(name: &str) -> bool {
+    if name == PAPER_SPACE_BLOCK_PREFIX {
+        return true;
+    }
+    // `*Paper_SpaceN` where N is one or more ASCII digits.
+    if let Some(rest) = name.strip_prefix(PAPER_SPACE_BLOCK_PREFIX) {
+        !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit())
+    } else {
+        false
+    }
+}
+
+/// Classifier for a block-record name. Falls back to
+/// [`BlockSpace::Custom`] for named blocks that are neither
+/// model-space nor paper-space (user-defined reusable block
+/// definitions — the "library" blocks inserted via INSERT).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockSpace {
+    /// The `*Model_Space` block.
+    Model,
+    /// A `*Paper_Space*` block (the base layout or any suffixed tab).
+    Paper,
+    /// A user-defined block (anything else).
+    Custom,
+}
+
+/// Classify a block-record name. See [`BlockSpace`].
+pub fn classify_block_name(name: &str) -> BlockSpace {
+    if is_model_space_block_name(name) {
+        BlockSpace::Model
+    } else if is_paper_space_block_name(name) {
+        BlockSpace::Paper
+    } else {
+        BlockSpace::Custom
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -524,6 +591,8 @@ mod tests {
     //! on the missing trailing-handle decoder: cycle detection,
     //! `max_handles` cap, empty-chain handling, and conversion from
     //! already-decoded table entries to the public info structs.
+    //! L6-18 block-name classification is pure string matching and
+    //! is exercised here too.
     //!
     //! End-to-end tests against real DWG fixtures live in
     //! `tests/integration_*.rs`; they will exercise `resolve_entity`
@@ -911,5 +980,41 @@ mod tests {
             Ok(Some(info)) => panic!("expected None or err for invalid handle; got {info:?}"),
             Err(e) => panic!("unexpected error variant: {e:?}"),
         }
+    }
+
+    // ---- L6-18: model space vs paper space classification ----
+
+    #[test]
+    fn model_space_name_matches() {
+        assert!(is_model_space_block_name("*Model_Space"));
+        assert!(!is_model_space_block_name("*model_space"));
+        assert!(!is_model_space_block_name("Model_Space"));
+        assert!(!is_model_space_block_name("*Paper_Space"));
+        assert!(!is_model_space_block_name(""));
+    }
+
+    #[test]
+    fn paper_space_name_matches_base_and_suffixed() {
+        assert!(is_paper_space_block_name("*Paper_Space"));
+        assert!(is_paper_space_block_name("*Paper_Space0"));
+        assert!(is_paper_space_block_name("*Paper_Space1"));
+        assert!(is_paper_space_block_name("*Paper_Space42"));
+        // Non-numeric suffix is NOT a paper-space block.
+        assert!(!is_paper_space_block_name("*Paper_SpaceAlpha"));
+        assert!(!is_paper_space_block_name("*Paper_Space_"));
+        assert!(!is_paper_space_block_name("*Paper_Space-1"));
+        assert!(!is_paper_space_block_name("*paper_space"));
+        assert!(!is_paper_space_block_name("*Model_Space"));
+        assert!(!is_paper_space_block_name(""));
+    }
+
+    #[test]
+    fn classify_block_name_covers_all_three_categories() {
+        assert_eq!(classify_block_name("*Model_Space"), BlockSpace::Model);
+        assert_eq!(classify_block_name("*Paper_Space"), BlockSpace::Paper);
+        assert_eq!(classify_block_name("*Paper_Space3"), BlockSpace::Paper);
+        assert_eq!(classify_block_name("MyCustomBlock"), BlockSpace::Custom);
+        assert_eq!(classify_block_name("DoorFrame_v2"), BlockSpace::Custom);
+        assert_eq!(classify_block_name(""), BlockSpace::Custom);
     }
 }
