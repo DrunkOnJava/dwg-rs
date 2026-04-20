@@ -23,3 +23,14 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# wasm-pack's bundled `wasm-opt` (binaryen) doesn't enable the
+# bulk-memory feature by default, but modern rustc (1.82+) emits
+# `memory.copy` / `memory.fill` instructions unconditionally. Without
+# `--enable-bulk-memory`, `wasm-opt -O` fails validation with
+# "Bulk memory operations require bulk memory". The override below
+# forwards the feature flag and keeps the `-O` optimization pass.
+#
+# See: https://github.com/rustwasm/wasm-pack/issues/1441
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
