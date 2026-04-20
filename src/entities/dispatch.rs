@@ -284,7 +284,7 @@ pub fn decode_from_raw_with_class_map(
         "IMAGE" | "RASTERIMAGE" => image::decode(&mut cursor, version)
             .map(DecodedEntity::Image)
             .map_err(|e| e.to_string()),
-        "MULTILEADER" | "MLEADER" => mleader::decode(&mut cursor)
+        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => mleader::decode(&mut cursor, version)
             .map(DecodedEntity::MLeader)
             .map_err(|e| e.to_string()),
         // SURFACE family + HELIX — type codes vary per-file, dispatched
