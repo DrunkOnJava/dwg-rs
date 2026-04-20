@@ -93,6 +93,7 @@ pub mod color;
 pub mod common_entity;
 pub mod crc;
 pub mod curve;
+pub mod dxf;
 pub mod entities;
 pub mod error;
 pub mod file_writer;
