@@ -8,6 +8,34 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Known — decoder-correctness regression discovered (task #97)
+
+Task #97 (validate decoders against real R2013 corpus) surfaced a
+deeper architectural gap than the dispatcher type-code bugs that
+#71-#96 closed:
+
+1. **Handle walk misses modelspace geometry.** The single-entity
+   R2013 samples (`line_2013.dwg`, `circle_2013.dwg`, `arc_2013.dwg`)
+   each decode 6 objects, all of which are empty `BLOCK`/`ENDBLK`
+   shells. The user-drawn LINE/CIRCLE/ARC is stored at a handle
+   reachable only through `BLOCK_HEADER → owned entities` — a
+   traversal the current reader does not perform.
+2. **Bit-cursor offset inside typed payloads is wrong on R2018.**
+   `sample_AC1032.dwg` is the one corpus file where typed entity
+   decoders fire on real data, and the results are garbage: LINE
+   endpoints with `z = 1.2e+225`, POINT positions with
+   `x = 4.4e+138`, CIRCLE centers with `z = -3.2e+113`. This
+   indicates the cursor is not positioned where the spec says it
+   should be after the common-entity preamble — either a bit-count
+   error earlier in the pipeline or a missed preamble field in the
+   R2018 layout.
+
+Four integration tests in `tests/r2013_entity_values.rs` pin the
+expected invariants. They are `#[ignore]`'d so `cargo test` stays
+green; `cargo test --release -- --ignored` reproduces the regression
+on demand. The "honest coverage" numbers below measure *dispatch
+success*, not *value correctness*.
+
 ## [0.1.0-alpha.1] — 2026-04-19
 
 First public pre-release. **Not production-ready.** See [README](./README.md)
