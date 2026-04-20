@@ -1,0 +1,77 @@
+name: WASM build
+
+# V-01 build pipeline check. Ensures the wasm-pack target stays
+# green as the parent crate evolves. Runs on every push + PR that
+# touches wasm/ or the parent crate's public surface.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wasm/**'
+      - 'src/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/wasm.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: wasm-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  wasm-build:
+    name: wasm-pack build --target ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [web, bundler, nodejs]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install stable toolchain with wasm32 target
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: wasm -> target
+          key: wasm-${{ matrix.target }}-${{ runner.os }}
+
+      - name: Install wasm-pack
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          wasm-pack --version
+
+      - name: Build
+        working-directory: wasm
+        run: wasm-pack build --target ${{ matrix.target }} --release
+
+      - name: Assert output present
+        working-directory: wasm
+        run: |
+          set -euo pipefail
+          test -f pkg/dwg_wasm_bg.wasm
+          test -f pkg/dwg_wasm.js
+          wc -c pkg/dwg_wasm_bg.wasm
+
+      - name: Upload pkg/
+        if: matrix.target == 'web'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dwg-wasm-pkg-web
+          path: wasm/pkg/
+          retention-days: 14
