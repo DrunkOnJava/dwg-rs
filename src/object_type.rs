@@ -264,6 +264,28 @@ impl ObjectType {
         )
     }
 
+    /// True for a symbol-table entry (Layer, LType, Style, ...).
+    ///
+    /// These objects are NOT drawing entities
+    /// ([`Self::is_entity`] returns `false`) but they DO have a
+    /// typed per-entry decoder in [`crate::tables`] and participate
+    /// in dispatch via [`crate::entities::DecodedEntity::Layer`]
+    /// and sibling variants.
+    pub fn is_table_entry(self) -> bool {
+        matches!(
+            self,
+            Self::Layer
+                | Self::Style
+                | Self::Ltype
+                | Self::View
+                | Self::Ucs
+                | Self::Vport
+                | Self::AppId
+                | Self::DimStyle
+                | Self::BlockHeader
+        )
+    }
+
     /// True for a *_CONTROL object (manages a symbol table).
     pub fn is_control(self) -> bool {
         matches!(

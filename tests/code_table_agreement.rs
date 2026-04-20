@@ -184,10 +184,14 @@ fn non_entity_codes_route_to_unhandled() {
     use dwg::entities::decode_from_raw;
     use dwg::object::RawObject;
 
+    // Codes that are neither drawing entities NOR symbol-table
+    // entries — dictionaries, control objects, layouts, xrecords.
+    // LAYER (0x33) was removed from this list because symbol-table
+    // entries now dispatch to their typed DecodedEntity variants
+    // (see `dispatch_table_entry` in src/entities/dispatch.rs).
     let non_entity_codes = [
         (0x2A, "DICTIONARY"),
         (0x32, "LAYER_CONTROL"),
-        (0x33, "LAYER"),
         (0x38, "LTYPE_CONTROL"),
         (0x4F, "XRECORD"),
         (0x52, "LAYOUT"),

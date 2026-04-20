@@ -71,8 +71,20 @@ pub enum DecodedEntity {
     Hatch(hatch::Hatch),
     MLeader(mleader::MLeader),
     Viewport(viewport::Viewport),
+    // Symbol-table entries — not drawing entities but worth
+    // surfacing as typed variants for callers that iterate
+    // DecodedEntity over the whole object stream.
+    Layer(crate::tables::layer::Layer),
+    Ltype(crate::tables::ltype::LType),
+    Style(crate::tables::style::Style),
+    View(crate::tables::view::View),
+    Ucs(crate::tables::ucs::Ucs),
+    VPort(crate::tables::vport::VPort),
+    AppId(crate::tables::appid::AppId),
+    DimStyle(crate::tables::dimstyle::DimStyle),
+    BlockRecord(crate::tables::block_record::BlockRecord),
     /// Object type this dispatcher doesn't decode (control objects,
-    /// table entries, unknown custom classes). The raw bytes remain
+    /// dictionaries, unknown custom classes). The raw bytes remain
     /// accessible on the originating [`RawObject`].
     Unhandled {
         type_code: u16,
@@ -121,6 +133,15 @@ impl DecodedEntity {
             // MLEADER is a custom class; see Image above.
             Self::MLeader(_) => 0,
             Self::Viewport(_) => OBJECT_TYPE_VIEWPORT,
+            Self::Layer(_) => 0x33,
+            Self::Ltype(_) => 0x39,
+            Self::Style(_) => 0x35,
+            Self::View(_) => 0x3D,
+            Self::Ucs(_) => 0x3F,
+            Self::VPort(_) => 0x41,
+            Self::AppId(_) => 0x43,
+            Self::DimStyle(_) => 0x45,
+            Self::BlockRecord(_) => 0x31,
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
     }
@@ -256,17 +277,77 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
     let type_code = raw.type_code;
     let kind = raw.kind;
 
-    // Short-circuit for unmistakably non-entity types.
-    if !raw.is_entity() {
+    // Short-circuit objects that are neither drawing entities NOR
+    // symbol-table entries (DICTIONARY, XRECORD, control objects,
+    // unknown custom classes).
+    if !raw.is_entity() && !kind.is_table_entry() {
         return DecodedEntity::Unhandled { type_code, kind };
     }
 
     match position_cursor_at_entity_body(raw, version) {
-        Ok(mut cursor) => dispatch(&mut cursor, type_code, kind, version),
+        Ok(mut cursor) => {
+            if kind.is_table_entry() {
+                dispatch_table_entry(&mut cursor, type_code, kind, version)
+            } else {
+                dispatch(&mut cursor, type_code, kind, version)
+            }
+        }
         Err(e) => DecodedEntity::Error {
             type_code,
             kind,
             message: format!("failed to position cursor: {e}"),
+        },
+    }
+}
+
+/// Dispatch a symbol-table entry to its per-type decoder.
+///
+/// Each table decoder internally calls
+/// [`crate::tables::read_table_entry_header`] for the shared
+/// table-entry preamble, so the cursor positioning here is the same
+/// as for drawing entities.
+fn dispatch_table_entry(
+    c: &mut BitCursor<'_>,
+    type_code: u16,
+    kind: ObjectType,
+    version: Version,
+) -> DecodedEntity {
+    let result: core::result::Result<DecodedEntity, String> = match kind {
+        ObjectType::Layer => crate::tables::layer::decode(c, version)
+            .map(DecodedEntity::Layer)
+            .map_err(|e| e.to_string()),
+        ObjectType::Ltype => crate::tables::ltype::decode(c, version)
+            .map(DecodedEntity::Ltype)
+            .map_err(|e| e.to_string()),
+        ObjectType::Style => crate::tables::style::decode(c, version)
+            .map(DecodedEntity::Style)
+            .map_err(|e| e.to_string()),
+        ObjectType::View => crate::tables::view::decode(c, version)
+            .map(DecodedEntity::View)
+            .map_err(|e| e.to_string()),
+        ObjectType::Ucs => crate::tables::ucs::decode(c, version)
+            .map(DecodedEntity::Ucs)
+            .map_err(|e| e.to_string()),
+        ObjectType::Vport => crate::tables::vport::decode(c, version)
+            .map(DecodedEntity::VPort)
+            .map_err(|e| e.to_string()),
+        ObjectType::AppId => crate::tables::appid::decode(c, version)
+            .map(DecodedEntity::AppId)
+            .map_err(|e| e.to_string()),
+        ObjectType::DimStyle => crate::tables::dimstyle::decode_partial(c, version)
+            .map(DecodedEntity::DimStyle)
+            .map_err(|e| e.to_string()),
+        ObjectType::BlockHeader => crate::tables::block_record::decode(c, version)
+            .map(DecodedEntity::BlockRecord)
+            .map_err(|e| e.to_string()),
+        _ => return DecodedEntity::Unhandled { type_code, kind },
+    };
+    match result {
+        Ok(decoded) => decoded,
+        Err(message) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message,
         },
     }
 }

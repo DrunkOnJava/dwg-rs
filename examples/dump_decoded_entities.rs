@@ -12,6 +12,12 @@
 //! machine-checkable subset of these invariants (finite coords,
 //! non-negative radii, 2D flag consistency).
 //!
+//! Kept separate from `examples/coverage_report.rs` by design: that
+//! example's audience is CI and humans wanting a corpus-wide
+//! summary; this example's audience is a human spot-checking a
+//! single file. Merging them would bury either signal in the
+//! other's output.
+//!
 //! ```bash
 //! cargo run --release --example dump_decoded_entities -- path/to/file.dwg
 //! cargo run --release --example dump_decoded_entities -- ../../samples/line_2013.dwg

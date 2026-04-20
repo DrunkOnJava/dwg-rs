@@ -233,9 +233,11 @@ proptest! {
         }
     }
 
-    /// Non-entity codes (DICTIONARY, XRECORD, LAYER, etc.) must
-    /// always return Unhandled — never an Error (which would mean the
-    /// dispatcher ran a per-entity decoder on non-entity bytes).
+    /// Non-entity, non-table-entry codes (DICTIONARY, XRECORD,
+    /// LAYER_CONTROL, etc.) must always return Unhandled — never an
+    /// Error. LAYER (0x33) and other symbol-table entries are
+    /// intentionally NOT in this list: they now dispatch to their
+    /// typed variants (Layer, Style, Ltype, ...).
     #[test]
     fn property_non_entity_codes_always_unhandled(
         payload in prop::collection::vec(any::<u8>(), 0..=256)
@@ -243,7 +245,6 @@ proptest! {
         for &code in &[
             0x2Au16, // DICTIONARY
             0x32,    // LAYER_CONTROL
-            0x33,    // LAYER
             0x38,    // LTYPE_CONTROL
             0x4F,    // XRECORD
             0x52,    // LAYOUT

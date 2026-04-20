@@ -6,6 +6,13 @@
 //! ```bash
 //! cargo run --release --example coverage_report -- path/to/corpus/
 //! ```
+//!
+//! This example intentionally does NOT dump per-entity field values.
+//! Its audience is CI (the coverage-smoke job calls it) and humans
+//! wanting a quick corpus-wide summary; printing every decoded
+//! value would bury the summary in noise. For per-entity field
+//! inspection, see the sibling example
+//! [`dump_decoded_entities`](../examples/dump_decoded_entities.rs).
 
 use dwg::{DwgFile, entities::DispatchSummary};
 use std::collections::BTreeMap;
