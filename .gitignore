@@ -1,5 +1,7 @@
 # Cargo build artifacts
 /target/
+# Nested target/ for out-of-workspace sub-crates (e.g. tools/synthetic-dwg).
+**/target/
 **/*.rs.bk
 
 # Cargo.lock is committed for reproducibility — this is a binary-producing

@@ -181,10 +181,10 @@ fn main() -> ExitCode {
     // Minimal arg parsing — we intentionally don't depend on clap so
     // this binary stays tiny and doesn't drag in the dwg crate's
     // `cli` feature set.
-    let mut args = env::args().skip(1);
+    let args = env::args().skip(1);
     let mut out_path: Option<PathBuf> = None;
     let mut read_back = false;
-    while let Some(arg) = args.next() {
+    for arg in args {
         match arg.as_str() {
             "-h" | "--help" => {
                 print_help();
