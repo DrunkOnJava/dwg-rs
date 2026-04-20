@@ -8,6 +8,100 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — rendering pipeline primitives (2026-04-20)
+
+Decoder-independent building blocks for the SVG / PDF / glTF / DXF
+export paths. These ship without waiting on the common-entity
+preamble fix (tracked below) so the downstream renderer work can
+proceed in parallel.
+
+- **`src/api.rs`**: `ParseMode { Strict, BestEffort }` enum,
+  `Decoded<T> { value, diagnostics, complete }` wrapper with
+  `complete()` / `partial()` / `map()`, `Warning { code, message,
+  bit_offset }`, and a `Diagnostics` accumulator with `warn` /
+  `warn_at` / `confidence(total)` / `is_clean`. Lays the API spine
+  for the strict/lossy discipline planned across every public
+  entry point.
+- **`src/geometry.rs`**: `Point2D` / `Point3D` inherent methods
+  (`add`, `sub`, `distance`, `lerp`, `new`), `VecOps` trait on
+  `Vec3D` (`scale` / `dot` / `cross` / `length` / `normalize`),
+  4×4 `Transform3` with `identity` / `translation` / `scale` /
+  `rotation_z` / `compose` / `transform_point` / `transform_vector`,
+  axis-aligned `BBox3` with empty-sentinel identity under union,
+  and an indexed `Mesh` container (shared vertex list + triangle
+  indices, `push_triangle` / `push_quad`).
+- **`src/curve.rs`**: unified `Curve` enum (`Line` / `Circle` /
+  `Arc` / `Ellipse` / `Polyline` / `Spline` / `Helix`) with
+  conservative `bounds()` per variant, and `Path { segments,
+  closed }` with `from_polyline` helper and union-of-segments
+  bounds.
+- **`src/color.rs`**: 256-entry ACI palette (`aci_to_rgb(u8)` →
+  `(u8, u8, u8)` and `aci_to_hex(u8)` → `#RRGGBB`). Provenance
+  noted in module docs.
+- **`src/svg.rs`**: string-based SVG 1.1 writer (`SvgDoc::new` /
+  `begin_layer` / `end_layer` / `push_curve` / `push_path` /
+  `finish`). `Style { stroke, stroke_width, fill, dashes }`. CAD
+  Y-up → SVG Y-down flip applied at the root `<g>`.
+- **`src/dxf.rs`**: group-code DXF writer (`DxfWriter::new`,
+  section balance enforced with `begin_section` / `end_section`,
+  typed `write_string` / `write_int` / `write_double` /
+  `write_point` / `write_handle` / `write_entity_header` /
+  `write_comment`, terminated by `finish`). Panics on misuse
+  (nested sections, finish-with-section-open, double-finish).
+- **`src/limits.rs`**: new `WalkerLimits` struct for graph
+  iteration (`max_handles`, `max_scan_bytes`, `max_block_nesting`)
+  with `safe` / `paranoid` / `permissive` profiles mirroring
+  `ParseLimits`.
+- **`src/handle_map.rs`**: `HandleMap::iter()`, `len()`,
+  `is_empty()`, and `IntoIterator for &HandleMap` so callers can
+  walk `(handle, offset)` pairs without directly touching the
+  `entries` field.
+
+### Added — forensic + external surfaces
+
+- **`examples/trace_common_entity.rs`**: forensic tracer that
+  prints every common-entity preamble field's bit position and
+  decoded value for the LINE at offset 11884 in `line_2013.dwg`.
+  The output is the starting point for the ODA §19.4.1 R2004+
+  cross-reference that closes the preamble-misalignment bug.
+- **`examples/dump_line_payload.rs`**: bit-walk of the LINE
+  payload (MC + object_type + handle) for manual verification
+  against the spec.
+- **`examples/test_h2_truncate.rs`**: empirical falsification of
+  H2 (data-stream boundary bleed) — confirms the preamble field
+  order itself is wrong, not a cursor-into-handle-stream bleed.
+- **README**: capability matrix ("parsing / metadata / entities /
+  geometry / write / IFC-equivalent" × shipped / alpha / pending)
+  at the top, rvt-rs sibling cross-link in Related Projects.
+- **CONTRIBUTING.md**: entity-decoder coverage is now the #1
+  most-wanted contribution.
+- **RELEASE.md**: SemVer commitment (with 0.x breakage window),
+  cut-a-release runbook, yank / backport / deprecation policies.
+- **docs/EXTENDING_DECODERS.md**: worked POINT example (struct,
+  decoder fn, dispatcher wiring, tests, defensive caps).
+- **cliff.toml**: git-cliff config for automated CHANGELOG
+  generation from conventional commits.
+- **`.github/ISSUE_TEMPLATE/corpus_submission.yml`**: licensed
+  public-corpus submission flow.
+- **`.github/ISSUE_TEMPLATE/unsupported_version.yml`**: AC1033+
+  version-not-supported intake.
+- **`fuzz/fuzz_targets/`**: three new libfuzzer harnesses
+  (`classmap_parse`, `handlemap_parse`, `header_vars`) exercising
+  all 8 supported versions.
+- **GitHub Discussions** enabled on the repo.
+
+### Changed
+
+- `#![deny(unsafe_code)]` → `#![forbid(unsafe_code)]` in
+  `src/lib.rs`. The crate ships with zero `unsafe`, so `forbid`
+  is satisfiable and makes the invariant a hard compile-time
+  error rather than a lint.
+- `lz77::decompress` is now documented to clamp its output at
+  256 MiB via `DecompressLimits::default()`; new regression test
+  pins the contract (`default_limits_cap_output_at_256_mib`) and
+  a compression-bomb test proves a 6-byte input claiming 1 TiB
+  stays bounded (`small_input_with_huge_expected_size_stays_bounded`).
+
 ### Known — decoder-correctness regression discovered (task #97)
 
 Task #97 (validate decoders against real R2013 corpus) surfaced a
