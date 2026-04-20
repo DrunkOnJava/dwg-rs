@@ -70,7 +70,7 @@ use crate::entities::Point3D;
 /// | `R2010`  | `AC1024`   | 2009         |                                                   |
 /// | `R2013`  | `AC1027`   | 2012         |                                                   |
 /// | `R2018`  | `AC1032`   | 2017         | Current default — widest reader acceptance        |
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum DxfVersion {
     R12,
     R14,
@@ -79,13 +79,8 @@ pub enum DxfVersion {
     R2007,
     R2010,
     R2013,
+    #[default]
     R2018,
-}
-
-impl Default for DxfVersion {
-    fn default() -> Self {
-        DxfVersion::R2018
-    }
 }
 
 impl DxfVersion {
