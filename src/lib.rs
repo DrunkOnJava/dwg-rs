@@ -119,6 +119,6 @@ pub use header_vars::HeaderVars;
 pub use metadata::{AppInfo, FileDepList, FileDependency, Preview, SummaryInfo};
 pub use object::{ObjectWalker, RawObject};
 pub use object_type::ObjectType;
-pub use reader::DwgFile;
+pub use reader::{DwgFile, SectionMapStatus};
 pub use section::{Section, SectionKind};
 pub use version::Version;

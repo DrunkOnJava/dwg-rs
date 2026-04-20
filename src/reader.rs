@@ -15,6 +15,33 @@ use byteorder::{ByteOrder, LittleEndian};
 use std::fs;
 use std::path::Path;
 
+/// How the section list was derived — surfaces whether a file's
+/// section enumeration comes from a full section-map walk, a
+/// defensive stub fallback, or a synthetic placeholder for an
+/// unsupported format.
+///
+/// Expose via [`DwgFile::section_map_status`]. Callers that need to
+/// know whether [`DwgFile::sections`] is authoritative should branch
+/// on this before trusting the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SectionMapStatus {
+    /// R13-R15 flat locator OR R2004-family full section-map walk
+    /// succeeded; the returned `sections` list is authoritative.
+    Full,
+    /// R2004-family file, but the full section-map walk failed or
+    /// returned zero entries. The crate fell back to a stub
+    /// enumeration synthesized from the R2004 header's known offset
+    /// fields. The `sections` list contains what could be
+    /// discovered, plus any known-name entries whose payload size
+    /// is unknown. Callers should treat this as advisory only.
+    Fallback { reason: String },
+    /// R2007 — spec §5 layout not yet implemented by this crate.
+    /// `sections` contains a single `_R2007_UNSUPPORTED` placeholder
+    /// that covers the whole post-header byte range; it is not
+    /// individually decodable.
+    Deferred { reason: String },
+}
+
 /// A parsed DWG file held entirely in memory.
 ///
 /// For Phase A we read the full file into a `Vec<u8>`. That is fine for
@@ -26,6 +53,7 @@ pub struct DwgFile {
     bytes: Vec<u8>,
     version: Version,
     sections: Vec<Section>,
+    section_map_status: SectionMapStatus,
     /// Populated for R2004 / R2010 / R2013 / R2018 (the R2004 family).
     r2004: Option<R2004Header>,
     /// Populated only for R13-R15 files.
@@ -63,17 +91,19 @@ impl DwgFile {
                 bytes,
                 version,
                 sections,
+                section_map_status: SectionMapStatus::Full,
                 r2004: None,
                 r13: Some(header),
                 r2007_common: None,
             })
         } else if version.is_r2004_family() {
             let header = R2004Header::parse(&bytes)?;
-            let sections = extract_r2004_sections(&bytes, &header)?;
+            let (sections, section_map_status) = extract_r2004_sections(&bytes, &header)?;
             Ok(Self {
                 bytes,
                 version,
                 sections,
+                section_map_status,
                 r2004: Some(header),
                 r13: None,
                 r2007_common: None,
@@ -112,11 +142,25 @@ impl DwgFile {
                 bytes,
                 version,
                 sections,
+                section_map_status: SectionMapStatus::Deferred {
+                    reason: "R2007 two-layer Sec_Mask section locator not yet implemented \
+                             (spec §5); placeholder covers the post-header byte range only"
+                        .to_string(),
+                },
                 r2004: None,
                 r13: None,
                 r2007_common: Some(common),
             })
         }
+    }
+
+    /// How the section list was derived — see [`SectionMapStatus`].
+    ///
+    /// Use this to distinguish an authoritative
+    /// [`DwgFile::sections`] list from a best-effort fallback or a
+    /// synthetic placeholder for an unsupported format.
+    pub fn section_map_status(&self) -> &SectionMapStatus {
+        &self.section_map_status
     }
 
     /// Detected DWG format version.
@@ -344,15 +388,38 @@ impl DwgFile {
 /// If the parse fails for any reason (e.g. corrupt file, format ahead of
 /// this implementation), we fall back to the Phase A stub enumeration so
 /// the file still opens with partial metadata.
-fn extract_r2004_sections(bytes: &[u8], header: &R2004Header) -> Result<Vec<Section>> {
-    // Try the full Section Map walk first.
-    if let Ok(full) = extract_r2004_sections_full(bytes, header) {
-        if !full.is_empty() {
-            return Ok(full);
+fn extract_r2004_sections(
+    bytes: &[u8],
+    header: &R2004Header,
+) -> Result<(Vec<Section>, SectionMapStatus)> {
+    // Try the full Section Map walk first; fall back to stub enumeration
+    // on error or empty result, recording the reason in SectionMapStatus.
+    match extract_r2004_sections_full(bytes, header) {
+        Ok(full) if !full.is_empty() => Ok((full, SectionMapStatus::Full)),
+        Ok(_) => {
+            let stub = extract_r2004_sections_stub(bytes, header)?;
+            Ok((
+                stub,
+                SectionMapStatus::Fallback {
+                    reason: "R2004 full section-map walk returned zero entries; \
+                             fell back to stub enumeration of known-named sections"
+                        .to_string(),
+                },
+            ))
+        }
+        Err(e) => {
+            let stub = extract_r2004_sections_stub(bytes, header)?;
+            Ok((
+                stub,
+                SectionMapStatus::Fallback {
+                    reason: format!(
+                        "R2004 full section-map walk failed ({e}); fell back to \
+                         stub enumeration"
+                    ),
+                },
+            ))
         }
     }
-    // Fall back to stub enumeration.
-    extract_r2004_sections_stub(bytes, header)
 }
 
 /// Phase B: full named-section enumeration via LZ77-decompressed page map
