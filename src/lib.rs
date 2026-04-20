@@ -102,6 +102,7 @@ pub mod entity_geometry;
 pub mod error;
 pub mod file_writer;
 pub mod geometry;
+pub mod gltf;
 pub mod graph;
 pub mod handle_map;
 pub mod header;
