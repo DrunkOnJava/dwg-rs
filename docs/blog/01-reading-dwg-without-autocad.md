@@ -214,8 +214,10 @@ we finish is frozen, tested, and doesn't need to be revisited when
 we go back to close the next layer."
 
 If you're building CAD tooling in Rust and want an Apache-2.0
-foundation that doesn't pull GPL-3 into your dependency graph or
+reader that doesn't pull GPL-3 into your dependency graph or
 require an ODA SDK membership, [dwg-rs is public on GitHub](https://github.com/DrunkOnJava/dwg-rs).
+It's pre-alpha; see the coverage matrix before committing a downstream
+to it.
 Contributions to the 0.2.0 milestone (per-entity decoders,
 handle-driven walk) are especially welcome.
 

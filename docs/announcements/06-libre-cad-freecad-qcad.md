@@ -1,6 +1,6 @@
 # Community post: LibreCAD / FreeCAD / QCAD forums
 
-**Title:** dwg-rs — permissive (Apache-2.0) Rust foundation for DWG read
+**Title:** dwg-rs — permissive (Apache-2.0) Rust reader for DWG, pre-alpha
 
 **Audience:** LibreCAD, FreeCAD, and QCAD community forums. Minor variants per-forum; this draft is the common trunk.
 
