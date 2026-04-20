@@ -130,6 +130,78 @@ pub fn section_page_checksum(seed: u32, data: &[u8]) -> u32 {
     (sum2 << 16) | (sum1 & 0xFFFF)
 }
 
+// ================================================================
+// Writer-side helpers (L12-02): symmetric inverse of the read-side
+// section CRC checks. Callers assemble a section payload, reserve
+// the CRC slot as zero bytes, compute the CRC over the surrounding
+// data, then overwrite the slot with the computed value.
+// ================================================================
+
+/// Compute and embed a DWG CRC-8 (16-bit output) into a section buffer.
+///
+/// `buf` is the in-progress section bytes; `crc_offset` is the byte
+/// offset at which the 2-byte little-endian CRC should be written.
+/// The CRC is computed over everything in `buf` EXCEPT the 2 slot
+/// bytes (which are treated as zero during computation — the standard
+/// "compute over zero-filled placeholder, then fill" convention).
+///
+/// Returns the computed CRC value that was written. Returns `None`
+/// when `crc_offset + 2 > buf.len()` — in that case the buffer is
+/// too small and no bytes are written.
+///
+/// The `seed` parameter is the CRC-8 initial state per spec §2.14.1:
+/// use 0 for the common case, or a section-specific seed (R13-R15
+/// locator seeds are in [`r13_locator_seed`]).
+pub fn embed_crc8(buf: &mut [u8], crc_offset: usize, seed: u16) -> Option<u16> {
+    if crc_offset + 2 > buf.len() {
+        return None;
+    }
+    // Zero the CRC slot for the compute pass (caller may have left
+    // arbitrary bytes there).
+    buf[crc_offset] = 0;
+    buf[crc_offset + 1] = 0;
+    // Compute CRC over the full buffer with the slot zeroed.
+    let crc = crc8(seed, buf);
+    // Write little-endian (matches spec §2.14.1 packing).
+    buf[crc_offset..crc_offset + 2].copy_from_slice(&crc.to_le_bytes());
+    Some(crc)
+}
+
+/// Compute and embed a CRC-32 (IEEE 802.3) into a section buffer.
+///
+/// Same pattern as [`embed_crc8`] but for the R2004+ file-header and
+/// R2018 encoded-section-header CRC slots. `crc_offset` names the
+/// first of 4 little-endian bytes.
+///
+/// Returns the computed CRC; returns `None` when `crc_offset + 4 >
+/// buf.len()`.
+pub fn embed_crc32(buf: &mut [u8], crc_offset: usize, seed: u32) -> Option<u32> {
+    if crc_offset + 4 > buf.len() {
+        return None;
+    }
+    buf[crc_offset..crc_offset + 4].copy_from_slice(&[0, 0, 0, 0]);
+    let crc = crc32(seed, buf);
+    buf[crc_offset..crc_offset + 4].copy_from_slice(&crc.to_le_bytes());
+    Some(crc)
+}
+
+/// R2004+ section-page header/payload checksum pair (spec §4.2).
+///
+/// Given the page header (with its checksum fields zeroed) and the
+/// compressed payload, returns `(header_checksum, payload_checksum)`.
+/// The page writer inserts `header_checksum` into the header's CRC
+/// slot and appends / records `payload_checksum` per the section
+/// container format.
+///
+/// This is just two [`section_page_checksum`] calls with a shared
+/// seed convention — exposed as one function so the writer call site
+/// reads cleanly.
+pub fn page_checksums(header_zeroed: &[u8], payload: &[u8]) -> (u32, u32) {
+    let header_cs = section_page_checksum(0, header_zeroed);
+    let payload_cs = section_page_checksum(header_cs, payload);
+    (header_cs, payload_cs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,5 +262,64 @@ mod tests {
         assert_eq!(a, b);
         // Non-zero for non-empty input.
         assert_ne!(a, 0);
+    }
+
+    // -------- L12-02: writer helpers --------
+
+    #[test]
+    fn embed_crc8_round_trips() {
+        // Build a section with a 2-byte CRC slot at offset 4, then
+        // verify that reading the slot + recomputing the CRC over the
+        // zeroed payload reproduces the embedded value.
+        let mut buf = vec![0xAA, 0xBB, 0xCC, 0xDD, 0xFF, 0xFF, 0x01, 0x02, 0x03];
+        let written = embed_crc8(&mut buf, 4, 0).expect("slot fits");
+        // Read back the embedded LE pair.
+        let embedded = u16::from_le_bytes([buf[4], buf[5]]);
+        assert_eq!(embedded, written);
+        // Reconstruct zero-filled buffer and re-verify the CRC.
+        let mut verify = buf.clone();
+        verify[4] = 0;
+        verify[5] = 0;
+        assert_eq!(crc8(0, &verify), written);
+    }
+
+    #[test]
+    fn embed_crc8_rejects_too_small_buffer() {
+        let mut buf = vec![0u8; 3];
+        assert!(embed_crc8(&mut buf, 2, 0).is_none());
+        // Exactly fits at offset 1.
+        let mut buf2 = vec![0u8; 3];
+        assert!(embed_crc8(&mut buf2, 1, 0).is_some());
+    }
+
+    #[test]
+    fn embed_crc32_round_trips_with_zeroed_slot() {
+        let mut buf = vec![0x01, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0xFF, 0xFF, 0x05];
+        let written = embed_crc32(&mut buf, 4, 0).expect("slot fits");
+        let embedded = u32::from_le_bytes(buf[4..8].try_into().unwrap());
+        assert_eq!(embedded, written);
+        let mut verify = buf.clone();
+        verify[4..8].fill(0);
+        assert_eq!(crc32(0, &verify), written);
+    }
+
+    #[test]
+    fn embed_crc32_rejects_too_small_buffer() {
+        let mut buf = vec![0u8; 5];
+        assert!(embed_crc32(&mut buf, 3, 0).is_none()); // only 2 bytes fit past 3
+        let mut buf2 = vec![0u8; 5];
+        assert!(embed_crc32(&mut buf2, 1, 0).is_some()); // 4 bytes fit at [1..5]
+    }
+
+    #[test]
+    fn page_checksums_chains_header_into_payload() {
+        // The payload checksum seeds from the header checksum, so
+        // changing the header changes the payload output even if
+        // payload bytes are identical.
+        let payload = b"identical payload";
+        let (h1, p1) = page_checksums(&[0u8; 16], payload);
+        let (h2, p2) = page_checksums(&[1u8; 16], payload);
+        assert_ne!(h1, h2);
+        assert_ne!(p1, p2);
     }
 }
