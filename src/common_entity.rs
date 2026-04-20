@@ -18,18 +18,21 @@
 //! B   graphics_present     -- if true, RL size + bytes follow
 //! BB  entmode              -- entity mode (see [`EntityMode`])
 //! BL  num_reactors
-//! B   no_xdictionary_handle
-//! B   binary_chain_present  (R2004+)
+//! B   no_xdictionary_handle (R2004+)
+//! B   has_ds_binary_data   (R2013+ — was misnamed "binary_chain_present")
 //! B   is_on_layer
 //! B   non_fixed_ltype
-//! BB  plotstyle_flag
-//! BB  material_flag         (R2007+)
-//! RC  shadow_flags          (R2007+)
-//! B   has_full_visualstyle  (R2010+)
-//! B   has_face_visualstyle  (R2010+)
-//! B   has_edge_visualstyle  (R2010+)
+//! CMC color                -- BS index + optional BL rgb + B name_flag + TV name
+//! BD  linetype_scale
+//! BB  ltype_flags
+//! BB  plotstyle_flag       (R2000+)
+//! BB  material_flag        (R2007+)
+//! RC  shadow_flags         (R2007+)
+//! B   has_full_visualstyle (R2010+)
+//! B   has_face_visualstyle (R2010+)
+//! B   has_edge_visualstyle (R2010+)
 //! BS  invisibility
-//! RC  lineweight            (R2000+)
+//! RC  lineweight           (R2000+)
 //! ```
 //!
 //! After the preamble comes the entity-specific payload, then
@@ -199,11 +202,50 @@ pub fn read_common_entity_data(
     // -- Layer + linetype markers -------------------------------------------
     let is_on_layer = c.read_b()?;
     let non_fixed_ltype = c.read_b()?;
+
+    // -- CMC entity color (§2.14) -------------------------------------------
+    // In R2004+: BS index, and if (index & 0xC000) != 0, a complex-color
+    // suffix (BL rgb, B name_flag, optional TV name). Default BYLAYER
+    // entities (most lines in real drawings) use BS tag 10 → value 0 →
+    // 2 bits, no suffix. We consume the suffix but discard; the surfaced
+    // entity color isn't exposed through CommonEntityData today because
+    // color resolution flows through the handle stream + layer table.
+    let color_index = c.read_bs_u()?;
+    if version.is_r2004_plus() && (color_index & 0xC000) != 0 {
+        let _rgb = c.read_bl()?;
+        let has_name = c.read_b()?;
+        if has_name {
+            // TV — length-prefixed UTF-8/UTF-16LE string. Skip it.
+            let name_len = c.read_bs_u()?;
+            // Strings are 8 bits per char for pre-R2007, 16 bits per char
+            // for R2007+. Consume conservatively.
+            let bits_per_char = if version.is_r2007_plus() { 16 } else { 8 };
+            for _ in 0..name_len {
+                for _ in 0..bits_per_char {
+                    let _ = c.read_b()?;
+                }
+            }
+        }
+    }
+
+    // -- BD linetype_scale (default 1.0 → BB tag 01, 2 bits) ----------------
+    let _linetype_scale = c.read_bd()?;
+
+    // -- BB ltype_flags (how layer/linetype handles are encoded) ------------
+    let _ltype_flags = c.read_bb()?;
+
     let plotstyle_flag = c.read_bb()?;
 
     // -- Material + shadow (R2007+) -----------------------------------------
+    // `shadow_flags` is 2 bits (BB) — the spec labels the field "RC" in
+    // §19.4.1 Table 54 but the actual on-disk encoding only uses 2 bits
+    // (cast_shadow, receive_shadow). Reading RC (8 bits) misaligns the
+    // entire post-preamble stream — we measured a 6-bit overshoot that
+    // caused every subsequent field to read garbage (see task #103).
+    // The `u8` width of `shadow_flags` on the struct is kept for ABI
+    // stability.
     let (material_flag, shadow_flags) = if version.is_r2007_plus() {
-        (c.read_bb()?, c.read_rc()?)
+        (c.read_bb()?, c.read_bb()?)
     } else {
         (0u8, 0u8)
     };
@@ -271,13 +313,20 @@ mod tests {
         // no_xdictionary = true, binary_chain = false (R2004+).
         w.write_b(true);
         w.write_b(false);
-        // is_on_layer, non_fixed_ltype, plotstyle_flag
+        // is_on_layer, non_fixed_ltype
         w.write_b(true);
         w.write_b(false);
+        // CMC color — BS index, BYLAYER (tag 10 → 2 bits, value 0)
+        w.write_bs(0);
+        // BD linetype_scale — 1.0 (tag 01 → 2 bits)
+        w.write_bd(1.0);
+        // BB ltype_flags
+        w.write_bb(0b00);
+        // plotstyle_flag
         w.write_bb(0b00);
         // material_flag, shadow_flags (R2007+)
         w.write_bb(0b00);
-        w.write_rc(0);
+        w.write_bb(0b00);
         // visualstyle full/face/edge (R2010+)
         w.write_b(false);
         w.write_b(false);
@@ -321,9 +370,15 @@ mod tests {
         w.write_b(true); // binary_chain
         w.write_b(true);
         w.write_b(true);
+        // CMC color — BYLAYER
+        w.write_bs(0);
+        // BD linetype_scale — 1.0
+        w.write_bd(1.0);
+        // BB ltype_flags
+        w.write_bb(0b00);
         w.write_bb(0b01);
         w.write_bb(0b10);
-        w.write_rc(0x03);
+        w.write_bb(0b11);
         w.write_b(false);
         w.write_b(false);
         w.write_b(false);
@@ -343,7 +398,7 @@ mod tests {
         assert!(ce.non_fixed_ltype);
         assert_eq!(ce.plotstyle_flag, 0b01);
         assert_eq!(ce.material_flag, 0b10);
-        assert_eq!(ce.shadow_flags, 0x03);
+        assert_eq!(ce.shadow_flags, 0b11);
         assert_eq!(ce.invisibility, 1);
         assert_eq!(ce.lineweight, 0x05);
     }

@@ -17,7 +17,7 @@
 //!
 //! ```
 //! use dwg::handle_allocator::HandleAllocator;
-//! let mut ha = HandleAllocator::new();
+//! let mut ha = HandleAllocator::starting_at(0x10);
 //! ha.reserve(0x10);
 //! ha.reserve(0x11);
 //! let a = ha.allocate();

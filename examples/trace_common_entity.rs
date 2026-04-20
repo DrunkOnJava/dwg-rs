@@ -110,17 +110,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let non_fixed_ltype = c.read_b()?;
     report(&mut c, "B non_fixed_ltype", format!("{non_fixed_ltype}"));
 
+    // CMC color (R2004+: BS index + optional complex suffix).
+    let color_index = c.read_bs_u()?;
+    report(
+        &mut c,
+        "BS CMC color_index",
+        format!("{color_index} (0x{color_index:04X})"),
+    );
+    if (color_index & 0xC000) != 0 {
+        let rgb = c.read_bl()?;
+        let has_name = c.read_b()?;
+        report(
+            &mut c,
+            "BL rgb + B name_flag (complex color)",
+            format!("rgb=0x{rgb:08X} has_name={has_name}"),
+        );
+    }
+
+    // BD linetype_scale.
+    let lts = c.read_bd()?;
+    report(&mut c, "BD linetype_scale", format!("{lts}"));
+
+    // BB ltype_flags.
+    let ltf = c.read_bb()?;
+    report(&mut c, "BB ltype_flags", format!("{ltf}"));
+
     let plotstyle = c.read_bb()?;
     report(&mut c, "BB plotstyle_flag", format!("{plotstyle}"));
 
     let material = c.read_bb()?; // R2007+
     report(&mut c, "BB material (R2007+)", format!("{material}"));
 
-    let shadow = c.read_rc()?; // R2007+
+    let shadow = c.read_bb()?; // R2007+ — try BB (2 bits) per some ODA revisions
     report(
         &mut c,
-        "RC shadow_flags (R2007+)",
-        format!("0x{shadow:02X}"),
+        "BB shadow_flags (R2007+) — trying 2-bit variant",
+        format!("{shadow}"),
     );
 
     let vs_full = c.read_b()?; // R2010+
