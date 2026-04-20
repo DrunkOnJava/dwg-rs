@@ -29,29 +29,29 @@
 //!
 //! # Why every test here is `#[ignore]`
 //!
-//! **These invariants FAIL on the current codebase.** The adversarial
-//! audit (#71-#96) closed the dispatcher type-code bugs, but a deeper
-//! architectural gap remains: the handle-driven object walk in
-//! [`dwg::reader::DwgFile::decoded_entities`] reaches only control
-//! objects (BlockControl, Dictionary, XRecord) and empty BLOCK/ENDBLK
-//! shells — it never reaches the user-drawn geometry inside the
-//! modelspace block. The geometry is stored at handle references
-//! chained from BLOCK_HEADER → owned entities, which this reader does
-//! not yet traverse.
+//! **These invariants FAIL on the current codebase.** Two known gaps
+//! remain after the 0.1.0-alpha.1 dispatcher fixes:
 //!
-//! Separately, on the one sample that **does** reach typed entity
-//! decoders (`sample_AC1032.dwg`), the decoded field values are
-//! implausible — LINE endpoints with z=1e+225, POINT positions with
-//! x=1e+138 — indicating the bit cursor is positioned wrong inside
-//! the object's payload. Likely causes: (a) the object-stream layout
-//! assumptions for R2018 don't match what the file actually uses,
-//! or (b) a bit-counting error earlier in the pipeline shifts every
-//! subsequent read.
+//! 1. The handle-driven object walk in
+//!    [`dwg::reader::DwgFile::decoded_entities`] reaches only control
+//!    objects (BlockControl, Dictionary, XRecord) and empty
+//!    BLOCK/ENDBLK shells — it never reaches the user-drawn geometry
+//!    inside the modelspace block. The geometry is stored at handle
+//!    references chained from BLOCK_HEADER → owned entities, which
+//!    this reader does not yet traverse.
+//! 2. On the one sample that **does** reach typed entity decoders
+//!    (`sample_AC1032.dwg`), the decoded field values are implausible
+//!    — LINE endpoints with z=1e+225, POINT positions with x=1e+138
+//!    — indicating the bit cursor is positioned wrong inside the
+//!    object's payload. Likely causes: (a) the object-stream layout
+//!    assumptions for R2018 don't match what the file actually uses,
+//!    or (b) a bit-counting error earlier in the pipeline shifts
+//!    every subsequent read.
 //!
-//! Each test is `#[ignore]`'d with a TODO pointing at task #97 so
-//! `cargo test --release -- --ignored` reveals the regression without
-//! failing the default `cargo test` run. Remove the `#[ignore]` when
-//! the underlying architecture lands and these invariants hold.
+//! Each test is `#[ignore]`'d so `cargo test --release -- --ignored`
+//! reveals the regression without failing the default `cargo test`
+//! run. Remove the `#[ignore]` when the underlying architecture
+//! lands and these invariants hold.
 
 use dwg::entities::DecodedEntity;
 use dwg::{DwgFile, Version};
