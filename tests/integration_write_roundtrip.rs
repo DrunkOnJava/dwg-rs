@@ -22,7 +22,10 @@ use dwg::version::Version;
 #[test]
 fn stage1_multi_section_roundtrip() {
     let sections: Vec<(&str, Vec<u8>)> = vec![
-        ("AcDb:Header", b"header payload with nulls\0\0\0\0and text".to_vec()),
+        (
+            "AcDb:Header",
+            b"header payload with nulls\0\0\0\0and text".to_vec(),
+        ),
         ("AcDb:SummaryInfo", vec![0x55u8; 512]),
         ("AcDb:Preview", vec![0xAAu8; 1_000]),
         ("AcDb:AppInfo", b"app\0info\0payload".to_vec()),
@@ -38,7 +41,8 @@ fn stage1_multi_section_roundtrip() {
 
     for b in &built {
         // Strip the 32-byte masked header to isolate the LZ77 stream.
-        let lz77_stream = &b.built.bytes[HEADER_SIZE..HEADER_SIZE + b.built.compressed_size as usize];
+        let lz77_stream =
+            &b.built.bytes[HEADER_SIZE..HEADER_SIZE + b.built.compressed_size as usize];
         let decompressed = lz77::decompress(lz77_stream, None)
             .unwrap_or_else(|e| panic!("{} failed to decompress: {e}", b.name));
         // Find the matching source payload by name and compare.
