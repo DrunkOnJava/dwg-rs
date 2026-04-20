@@ -39,6 +39,11 @@ serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
 proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "lz77"
+harness = false
 
 [features]
 default = []
