@@ -13,6 +13,7 @@
 //! | Object                   | Module                    | Spec             |
 //! |--------------------------|---------------------------|------------------|
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
+//! | ACAD_LAYOUT              | [`acad_layout`]           | §19.6.12 (L6-12) |
 //! | ACAD_MATERIAL            | [`acad_material`]         | §19.6.9 (L6-16)  |
 //! | ACAD_MLINESTYLE          | [`acad_mlinestyle`]       | §19.6.4 (L6-13)  |
 //! | ACAD_PLOTSETTINGS        | [`acad_plot_settings`]    | §19.6.6 (L6-14)  |
@@ -29,6 +30,7 @@
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
 
 pub mod acad_group;
+pub mod acad_layout;
 pub mod acad_material;
 pub mod acad_mlinestyle;
 pub mod acad_plot_settings;
