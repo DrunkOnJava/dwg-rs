@@ -889,27 +889,23 @@ mod tests {
     }
 
     // ------------------------------------------------------------
-    // L8-15 — HATCH → Paths (stub)
+    // L8-15 — HATCH → boundary Paths
     // ------------------------------------------------------------
 
-    /// Until `hatch_to_paths` walks the boundary-path tree and emits
-    /// geometry, a fully-populated HATCH still returns an empty path
-    /// list. Test pins the contract so a future implementer updates this
-    /// assertion when path geometry starts being produced.
-    #[test]
-    fn hatch_to_paths_is_empty_until_boundary_decoder_lands() {
-        let h = crate::entities::hatch::Hatch {
+    /// Build a minimal solid-fill [`Hatch`] with the caller's paths list.
+    fn stub_hatch(paths: Vec<crate::entities::hatch::HatchPath>) -> crate::entities::hatch::Hatch {
+        crate::entities::hatch::Hatch {
             gradient: None,
+            elevation: 0.0,
             extrusion: Vec3D {
                 x: 0.0,
                 y: 0.0,
                 z: 1.0,
             },
-            elevation: 0.0,
             pattern_name: "SOLID".into(),
             solid_fill: true,
             associative: false,
-            paths: Vec::new(),
+            paths,
             pattern_style: 0,
             pattern_angle: 0.0,
             pattern_scale: 1.0,
@@ -917,9 +913,116 @@ mod tests {
             pattern_lines: Vec::new(),
             pixel_size: 0,
             seed_points: Vec::new(),
-        };
+        }
+    }
+
+    /// A HATCH with zero paths yields an empty `Vec<Path>`.
+    #[test]
+    fn hatch_to_paths_empty_hatch() {
+        let h = stub_hatch(Vec::new());
         let paths = hatch_to_paths(&h);
         assert!(paths.is_empty());
+    }
+
+    /// A polyline boundary path with a semicircle bulge decodes to one
+    /// Line + one Arc segment.
+    #[test]
+    fn hatch_to_paths_polyline_with_bulge() {
+        use crate::entities::Point2D;
+        use crate::entities::hatch::{HatchPath, HatchPathSegments};
+        let hp = HatchPath {
+            flags: 0,
+            segments: HatchPathSegments::Polyline {
+                has_bulge: true,
+                is_closed: false,
+                vertices: vec![
+                    (Point2D { x: 0.0, y: 0.0 }, None),
+                    (Point2D { x: 1.0, y: 0.0 }, Some(1.0)), // semicircle to next
+                    (Point2D { x: 2.0, y: 0.0 }, None),
+                ],
+            },
+            boundary_handles: Vec::new(),
+        };
+        let h = stub_hatch(vec![hp]);
+        let paths = hatch_to_paths(&h);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].segments.len(), 2);
+        assert!(matches!(&paths[0].segments[0], Curve::Line { .. }));
+        assert!(matches!(&paths[0].segments[1], Curve::Arc { .. }));
+    }
+
+    /// Edge-list boundary path: LINE + ARC edges → path with those
+    /// [`Curve`] variants.
+    #[test]
+    fn hatch_to_paths_edges_line_and_arc() {
+        use crate::entities::Point2D;
+        use crate::entities::hatch::{HatchEdge, HatchPath, HatchPathSegments};
+        let hp = HatchPath {
+            flags: 0,
+            segments: HatchPathSegments::Edges(vec![
+                HatchEdge::Line {
+                    start: Point2D { x: 0.0, y: 0.0 },
+                    end: Point2D { x: 10.0, y: 0.0 },
+                },
+                HatchEdge::Arc {
+                    center: Point2D { x: 10.0, y: 5.0 },
+                    radius: 5.0,
+                    start_angle: -std::f64::consts::FRAC_PI_2,
+                    end_angle: std::f64::consts::FRAC_PI_2,
+                    counter_clockwise: true,
+                },
+            ]),
+            boundary_handles: Vec::new(),
+        };
+        let h = stub_hatch(vec![hp]);
+        let paths = hatch_to_paths(&h);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0].segments.len(), 2);
+        assert!(matches!(&paths[0].segments[0], Curve::Line { .. }));
+        match &paths[0].segments[1] {
+            Curve::Arc { radius, center, .. } => {
+                assert_eq!(*radius, 5.0);
+                assert_eq!(center.x, 10.0);
+            }
+            other => panic!("expected Arc, got {other:?}"),
+        }
+    }
+
+    /// Edge-list Ellipse carries center / major_axis / ratio through
+    /// to [`Curve::Ellipse`].
+    #[test]
+    fn hatch_to_paths_edges_ellipse() {
+        use crate::entities::Point2D;
+        use crate::entities::hatch::{HatchEdge, HatchPath, HatchPathSegments};
+        let hp = HatchPath {
+            flags: 0,
+            segments: HatchPathSegments::Edges(vec![HatchEdge::Ellipse {
+                center: Point2D { x: 1.0, y: 2.0 },
+                endpoint: Point2D { x: 3.0, y: 0.0 },
+                axis_ratio: 0.5,
+                start_angle: 0.0,
+                end_angle: std::f64::consts::TAU,
+                counter_clockwise: true,
+            }]),
+            boundary_handles: Vec::new(),
+        };
+        let h = stub_hatch(vec![hp]);
+        let paths = hatch_to_paths(&h);
+        assert_eq!(paths.len(), 1);
+        match &paths[0].segments[0] {
+            Curve::Ellipse {
+                center,
+                major_axis,
+                ratio,
+                ..
+            } => {
+                assert_eq!(center.x, 1.0);
+                assert_eq!(center.y, 2.0);
+                assert_eq!(major_axis.x, 3.0);
+                assert_eq!(*ratio, 0.5);
+            }
+            other => panic!("expected Ellipse, got {other:?}"),
+        }
     }
 
     // ------------------------------------------------------------
