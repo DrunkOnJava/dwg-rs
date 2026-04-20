@@ -75,10 +75,16 @@ jobs:
           set -euo pipefail
           # Install wabt for wasm-objdump (once per runner).
           sudo apt-get update && sudo apt-get install -y wabt
-          # Grep the wasm module for any network-capable import symbol.
-          # Matches the FORBIDDEN_IMPORT_SUBSTRINGS constant in
-          # src/no_upload.rs. If any match is found, fail the build.
-          if wasm-objdump -x pkg/dwg_wasm_bg.wasm \
+          # Grep the wasm module's IMPORT SECTION ONLY for any
+          # network-capable symbol. Matches the FORBIDDEN_IMPORT_SUBSTRINGS
+          # constant in src/no_upload.rs. `-j Import` restricts the dump
+          # to the Import section so the grep doesn't get fooled by the
+          # same token names legitimately appearing in the Data section
+          # (e.g. the human-readable attestation_text() string literal
+          # itself mentions `fetch`, `XMLHttpRequest`, and `WebSocket`).
+          IMPORT_DUMP=$(wasm-objdump -j Import -x pkg/dwg_wasm_bg.wasm)
+          echo "$IMPORT_DUMP"
+          if echo "$IMPORT_DUMP" \
              | grep -iE "fetch|xhr|XMLHttpRequest|WebSocket|sendBeacon|EventSource"; then
             echo "::error::V-19 client-side-only attestation FAILED: network symbol found in wasm import list"
             exit 1
