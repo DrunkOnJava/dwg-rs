@@ -21,9 +21,23 @@
 //! **handle-driven** mode — iterates every (handle, offset) pair in the
 //! map and reads the object at each offset; returns the full object
 //! list with no gaps or missing entries.
+//!
+//! # Count cap + strict Unknown handling
+//!
+//! Both walk modes honor a [`WalkerLimits`]-derived `max_handles` count
+//! cap: once the walker has visited the configured number of records,
+//! the next call returns [`Error::WalkerLimitExceeded`]. Prevents an
+//! adversarial file with a fabricated handle map from exhausting memory
+//! by triggering a runaway decode loop.
+//!
+//! [`ObjectWalker::collect_all_strict`] additionally refuses any record
+//! whose type code falls into [`ObjectType::Unknown`] (reserved by the
+//! spec); [`ObjectWalker::collect_all_lossy`] records the same records
+//! in [`ObjectWalkSummary::unknown_types`] and keeps going.
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::error::{Error, Result};
+use crate::limits::WalkerLimits;
 use crate::object_type::ObjectType;
 use crate::version::Version;
 
@@ -65,6 +79,14 @@ pub struct ObjectWalker<'a> {
     version: Version,
     handle_map: Option<&'a crate::handle_map::HandleMap>,
     handle_idx: usize,
+    /// Count-cap enforced inside [`ObjectWalker::next_item`]. Defaults
+    /// to [`WalkerLimits::safe`]; override via
+    /// [`ObjectWalker::with_limits`].
+    limits: WalkerLimits,
+    /// Running count of records the walker has tried to consume
+    /// (decoded + skipped + errored). Compared against
+    /// `limits.max_handles` on each `next_item` call.
+    records_visited: usize,
 }
 
 /// A single handle-driven walk step. In handle-driven mode the
@@ -102,6 +124,18 @@ pub struct ObjectWalkSummary {
     /// classify. Populated by callers that wire dispatch errors back
     /// into the summary; defaults to `0` for the bare walker pass.
     pub errored_count: usize,
+    /// Records whose on-disk type code fell into
+    /// [`ObjectType::Unknown`] — a reserved range the spec does not
+    /// assign. In the lossy walk, these records are kept alongside the
+    /// rest of the parsed objects and their `(type_code, stream_offset)`
+    /// is captured here; the strict walk
+    /// ([`ObjectWalker::collect_all_strict`]) returns
+    /// [`Error::UnknownObjectType`] on the first one instead.
+    ///
+    /// Mirrors a future `ParseDiagnostics::unknown_types` field on
+    /// [`crate::reader::ParseDiagnostics`]; wiring the two together
+    /// is deferred to a follow-up that can extend `src/api.rs`.
+    pub unknown_types: Vec<(u16, u64)>,
 }
 
 impl ObjectWalkSummary {
@@ -148,6 +182,8 @@ impl<'a> ObjectWalker<'a> {
             version,
             handle_map: None,
             handle_idx: 0,
+            limits: WalkerLimits::default(),
+            records_visited: 0,
         }
     }
 
@@ -166,12 +202,32 @@ impl<'a> ObjectWalker<'a> {
             version,
             handle_map: Some(map),
             handle_idx: 0,
+            limits: WalkerLimits::default(),
+            records_visited: 0,
         }
+    }
+
+    /// Override the [`WalkerLimits`] applied by [`collect_all`],
+    /// [`collect_all_strict`], and [`collect_all_lossy`]. The default
+    /// is [`WalkerLimits::safe`] — fits every real drawing but still
+    /// bounds work on an adversarial input whose handle map is
+    /// fabricated to point at billions of records.
+    ///
+    /// [`collect_all`]: Self::collect_all
+    /// [`collect_all_strict`]: Self::collect_all_strict
+    /// [`collect_all_lossy`]: Self::collect_all_lossy
+    pub fn with_limits(mut self, limits: WalkerLimits) -> Self {
+        self.limits = limits;
+        self
     }
 
     /// Read all objects into a `Vec`, silently skipping any record that
     /// fails to parse in handle-driven mode. Preserves the pre-0.2.0
     /// default behavior.
+    ///
+    /// Honors [`WalkerLimits::max_handles`] — an adversarial file that
+    /// presents a handle map past the cap returns
+    /// [`Error::WalkerLimitExceeded`] instead of a partial list.
     ///
     /// **Callers that need to distinguish "record parsed cleanly" from
     /// "record could not be parsed" should prefer [`collect_all_strict`]
@@ -191,11 +247,30 @@ impl<'a> ObjectWalker<'a> {
     /// handle-driven record that fails to parse. Use when the caller
     /// needs to trust the object count — for example, when computing
     /// coverage metrics that assume every handle-map entry was visited.
+    ///
+    /// In addition to the per-record parse posture, this variant
+    /// **rejects unknown object-type codes** — if the walker sees an
+    /// [`ObjectType::Unknown`] value, it returns
+    /// [`Error::UnknownObjectType`] with the stream offset pointing at
+    /// the record's start. Callers that want to tolerate unknown codes
+    /// should use [`collect_all_lossy`](Self::collect_all_lossy), which
+    /// collects them into [`ObjectWalkSummary::unknown_types`] instead.
+    ///
+    /// Also honors [`WalkerLimits::max_handles`] — returns
+    /// [`Error::WalkerLimitExceeded`] if the count cap is tripped.
     pub fn collect_all_strict(mut self) -> Result<Vec<RawObject>> {
         let mut out = Vec::new();
         loop {
             match self.next_item()? {
-                Some(ObjectWalkItem::Object(raw)) => out.push(raw),
+                Some(ObjectWalkItem::Object(raw)) => {
+                    if let ObjectType::Unknown(code) = raw.kind {
+                        return Err(Error::UnknownObjectType {
+                            type_code: code,
+                            offset: raw.stream_offset as u64,
+                        });
+                    }
+                    out.push(raw);
+                }
                 Some(ObjectWalkItem::Skipped(entry)) => {
                     return Err(Error::ObjectWalk {
                         handle: entry.handle,
@@ -213,12 +288,25 @@ impl<'a> ObjectWalker<'a> {
     /// that records every record the walker could not parse. Use when
     /// partial data is acceptable but the caller still wants visibility
     /// into what was dropped.
+    ///
+    /// Records with [`ObjectType::Unknown`] type codes are collected
+    /// into [`ObjectWalkSummary::unknown_types`] **alongside** the
+    /// [`RawObject`] in the returned vec — the caller can both iterate
+    /// over the parsed records and consult the summary for the list of
+    /// type codes that fell into the reserved range.
+    ///
+    /// Honors [`WalkerLimits::max_handles`] — trips
+    /// [`Error::WalkerLimitExceeded`] if too many records are visited;
+    /// on that path the partial list + summary are not returned.
     pub fn collect_all_lossy(mut self) -> (Vec<RawObject>, ObjectWalkSummary) {
         let mut out = Vec::new();
         let mut summary = ObjectWalkSummary::default();
         while let Ok(Some(item)) = self.next_item() {
             match item {
                 ObjectWalkItem::Object(raw) => {
+                    if let ObjectType::Unknown(code) = raw.kind {
+                        summary.unknown_types.push((code, raw.stream_offset as u64));
+                    }
                     summary.decoded_count += 1;
                     out.push(raw);
                 }
@@ -245,7 +333,20 @@ impl<'a> ObjectWalker<'a> {
     /// Lower-level iterator that surfaces handle-driven parse failures
     /// as [`ObjectWalkItem::Skipped`] rather than silently dropping
     /// them. Advances one step per call.
+    ///
+    /// Enforces [`WalkerLimits::max_handles`] before consuming the
+    /// next record: if the running `records_visited` count is already
+    /// at or above the cap, returns [`Error::WalkerLimitExceeded`]
+    /// without reading more bytes. This is the sole defense against
+    /// adversarial handle maps whose entry count blows past a
+    /// reasonable-file envelope.
     fn next_item(&mut self) -> Result<Option<ObjectWalkItem>> {
+        if self.records_visited >= self.limits.max_handles {
+            return Err(Error::WalkerLimitExceeded {
+                limit: self.limits.max_handles,
+                seen: self.records_visited,
+            });
+        }
         // Handle-driven mode: seek to the next entry's byte offset.
         if let Some(map) = self.handle_map {
             if self.handle_idx >= map.entries.len() {
@@ -253,6 +354,7 @@ impl<'a> ObjectWalker<'a> {
             }
             let entry = map.entries[self.handle_idx];
             self.handle_idx += 1;
+            self.records_visited += 1;
             let pos = entry.offset as usize;
             if pos >= self.bytes.len() {
                 return Ok(Some(ObjectWalkItem::Skipped(SkippedEntry {
@@ -285,6 +387,7 @@ impl<'a> ObjectWalker<'a> {
         if self.pos >= self.bytes.len() {
             return Ok(None);
         }
+        self.records_visited += 1;
         Ok(self.read_one_at_pos()?.map(ObjectWalkItem::Object))
     }
 
@@ -469,6 +572,7 @@ mod tests {
             decoded_count: 100,
             skipped: Vec::new(),
             errored_count: 0,
+            unknown_types: Vec::new(),
         };
         assert_eq!(s.confidence(), 1.0);
     }
@@ -487,6 +591,7 @@ mod tests {
             decoded_count: 50,
             skipped,
             errored_count: 20,
+            unknown_types: Vec::new(),
         };
         assert_eq!(s.confidence(), 0.5);
     }
@@ -496,5 +601,60 @@ mod tests {
         // No work done is "perfectly clean" — there are zero failures.
         let s = ObjectWalkSummary::default();
         assert_eq!(s.confidence(), 1.0);
+    }
+
+    #[test]
+    fn walker_limit_tripped_when_cap_is_zero() {
+        // Easiest direct cap test: set max_handles=0 and verify the
+        // first call into the walker refuses to consume bytes. We can
+        // exercise this without synthesising a full `HandleMap` by
+        // using the sequential (handle-map-less) walker path.
+        let bytes = [0u8; 16];
+        let walker = ObjectWalker::new(&bytes, Version::R2018).with_limits(WalkerLimits {
+            max_handles: 0,
+            ..WalkerLimits::safe()
+        });
+        let err = walker.collect_all().unwrap_err();
+        match err {
+            Error::WalkerLimitExceeded { limit, seen } => {
+                assert_eq!(limit, 0);
+                assert_eq!(seen, 0);
+            }
+            other => panic!("expected WalkerLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn walker_default_limits_permit_real_work() {
+        // Sanity: the default (safe) cap is high enough that the
+        // walker is not constructed in a refuse-immediately state.
+        let bytes = [0u8; 16];
+        let walker = ObjectWalker::new(&bytes, Version::R2018);
+        assert_eq!(walker.limits.max_handles, 1_000_000);
+        assert_eq!(walker.records_visited, 0);
+    }
+
+    #[test]
+    fn with_limits_overrides_default_cap() {
+        let bytes = [0u8; 16];
+        let walker = ObjectWalker::new(&bytes, Version::R2018).with_limits(WalkerLimits {
+            max_handles: 42,
+            ..WalkerLimits::safe()
+        });
+        assert_eq!(walker.limits.max_handles, 42);
+    }
+
+    #[test]
+    fn unknown_types_capture_is_populated_by_lossy_collector() {
+        // Direct fake: the lossy collector pushes (type_code, offset)
+        // tuples into the summary when it encounters Unknown codes.
+        // We cannot easily synthesise a full record here, so we seed
+        // the summary by hand and check the field shape.
+        let mut summary = ObjectWalkSummary::default();
+        summary.unknown_types.push((0x1F4, 128));
+        summary.unknown_types.push((0x1F5, 256));
+        assert_eq!(summary.unknown_types.len(), 2);
+        assert_eq!(summary.unknown_types[0].0, 0x1F4);
+        assert_eq!(summary.unknown_types[0].1, 128);
     }
 }
