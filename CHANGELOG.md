@@ -8,6 +8,31 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — R2013/R2018 common-entity preamble alignment (2026-04-20, #103)
+
+- **`src/common_entity.rs`** — Added the three missing preamble fields
+  between `non_fixed_ltype` and `plotstyle_flag` per ODA 5.4.1 §19.4.1
+  + libredwg reference: `CMC color` (BS color_index, minimal BYLAYER
+  path), `BD linetype_scale`, `BB ltype_flags`. Also changed
+  `shadow_flags` from RC (8 bits) to BB (2 bits) — the on-disk
+  encoding uses only 2 bits (cast_shadow + receive_shadow) even
+  though some spec revisions label the field "RC".
+  
+  Measured effect on `sample_AC1032.dwg` (R2018):
+  - `BS invisibility` now decodes as **0** (valid) instead of **-10207**
+  - LINE end-point `BD` deltas now decode to clean **1.0 / 0.0**
+    shortcut values instead of tiny subnormals
+  - 1 of 3 modelspace LINEs now passes the plausibility check (was 0/3)
+
+  Known residual gaps tracked as follow-ups to #103:
+  - `RD` start-point reads still produce ~6e+14 garbage on some LINEs
+    (the BD delta path aligns but the absolute-value RD before it is
+    still off by a few bits in some encodings)
+  - Complex-color CMC suffix (BL rgb + TV name) disabled — reintroducing
+    it over-consumed ENDBLK preamble bits on line_2013.dwg
+- **`src/handle_allocator.rs`** — Fix pre-existing doctest that had
+  stale assertions (Boy Scout while in the file).
+
 ### Added — Phase 12 write-path + Phase 13 WASM scaffolding (2026-04-20 late)
 
 **Write path — Stages 1 through foundations of 5:**
