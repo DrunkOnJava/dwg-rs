@@ -1166,6 +1166,7 @@ mod tests {
     // L8-15 — HATCH → boundary Paths
     // ------------------------------------------------------------
 
+    /// Build a minimal solid-fill [`Hatch`] with the caller's paths list.
     fn stub_hatch(paths: Vec<crate::entities::hatch::HatchPath>) -> crate::entities::hatch::Hatch {
         crate::entities::hatch::Hatch {
             gradient: None,
@@ -1189,6 +1190,7 @@ mod tests {
         }
     }
 
+    /// A HATCH with zero paths yields an empty `Vec<Path>`.
     #[test]
     fn hatch_to_paths_empty_hatch() {
         let h = stub_hatch(Vec::new());
@@ -1196,6 +1198,8 @@ mod tests {
         assert!(paths.is_empty());
     }
 
+    /// A polyline boundary path with a semicircle bulge decodes to one
+    /// Line + one Arc segment.
     #[test]
     fn hatch_to_paths_polyline_with_bulge() {
         use crate::entities::Point2D;
@@ -1207,7 +1211,7 @@ mod tests {
                 is_closed: false,
                 vertices: vec![
                     (Point2D { x: 0.0, y: 0.0 }, None),
-                    (Point2D { x: 1.0, y: 0.0 }, Some(1.0)),
+                    (Point2D { x: 1.0, y: 0.0 }, Some(1.0)), // semicircle to next
                     (Point2D { x: 2.0, y: 0.0 }, None),
                 ],
             },
@@ -1221,6 +1225,8 @@ mod tests {
         assert!(matches!(&paths[0].segments[1], Curve::Arc { .. }));
     }
 
+    /// Edge-list boundary path: LINE + ARC edges → path with those
+    /// [`Curve`] variants.
     #[test]
     fn hatch_to_paths_edges_line_and_arc() {
         use crate::entities::Point2D;
@@ -1256,6 +1262,8 @@ mod tests {
         }
     }
 
+    /// Edge-list Ellipse carries center / major_axis / ratio through
+    /// to [`Curve::Ellipse`].
     #[test]
     fn hatch_to_paths_edges_ellipse() {
         use crate::entities::Point2D;
