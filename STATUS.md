@@ -1,4 +1,4 @@
-# Status — 2026-04-20
+# Status — 2026-04-25
 
 A plain-text snapshot of what has shipped in this crate, organized
 by the task-tracker labels, so contributors can orient without
@@ -6,10 +6,11 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 645+ passing across all profiles, clippy + fmt clean.
+- **Lib tests:** 645+ passing in default/debug and release-all-features
+  profiles, clippy + fmt clean.
 - **WASM tests:** 39 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
-  goldens (3), fuzz-corpus regression (6), write-path Stage-1 (4),
+  goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-value regression (18).
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
@@ -89,7 +90,8 @@ scrolling the changelog.
 
 ### Writer (Phase 12)
 - `BitWriter` with write_b / bb / bs / bl / bll / bd / rc / rs /
-  rl / rd + position-bits fix + MC edge-case fix + try_write_3b.
+  rl / rd + position-bits fix + signed-MC i64::MIN edge-case fix +
+  try_write_3b.
 - LZ77 literal-only encoder.
 - Reed-Solomon (255, 239) encoder.
 - `WriterScaffold` for section-level framing.
@@ -104,6 +106,8 @@ scrolling the changelog.
 - Stage 3 page-map + Section Info assembly.
 - Stage 4 CRC splicing.
 - Stage 5 final byte buffer (`assemble_dwg_bytes`).
+- Experimental `DwgFile::to_bytes()` for R2004-family section
+  round-trips.
 
 ### WASM (Phase 13)
 - `wasm/` subcrate with wasm-bindgen + js-sys + serde-wasm-bindgen.
@@ -133,7 +137,7 @@ scrolling the changelog.
 - LibreDWG compat baseline bench (Q-04).
 - dhat memory profiling (Q-05).
 - Perf regression gate in CI (Q-06).
-- Release workflow with crates.io manual approval + 5 × binary
+- Release workflow with crates.io manual approval + 7 × binary
   matrix + PyPI scaffold (Q-07).
 - docs.rs build validation pre-release (Q-09).
 - Compatibility matrix landing page (Q-02).
@@ -149,11 +153,12 @@ scrolling the changelog.
 
 ### Security (SEC-series)
 - `DecompressLimits` + LZ77 output cap (SEC-01, 02, 03, 04).
-- `Error::DecompressLimitExceeded` variant (SEC-05).
+- `Error::Lz77OutputLimitExceeded` and
+  `Error::Lz77BackrefTooLong` variants (SEC-05).
 - Compressed-bomb defense test (SEC-06).
 - `OpenLimits` (file + section + decompress caps) (SEC-07, 08).
 - `read_section_with_limit` per-call byte cap (SEC-09).
-- Python bindings expose all caps as kwargs (SEC-10).
+- Python binding cap exposure remains pending with the PyO3 package (SEC-10).
 - `#![forbid(unsafe_code)]` crate-wide (SEC-11, 13).
 - `THREAT_MODEL.md` (SEC-30) + `CLEANROOM.md` (SEC-31).
 - Soft legal language (SEC-32).
@@ -166,6 +171,12 @@ scrolling the changelog.
 ## Pending — non-trivial work remaining
 
 These have genuine open scope requiring focused work, not stubs.
+
+- **Current real-file decode baseline:** the 2026-04-25
+  `examples/coverage_report.rs ../../samples` run reports 166 decoded,
+  1655 skipped, 460 errored, 7.3% aggregate coverage. This is the
+  practical product-readiness blocker even though synthetic decoder
+  tests are broad.
 
 - **#103 R2018 bit-cursor misalignment** (P0, partially traced to
   line.rs). Requires a 2nd R2013 corpus sample with known

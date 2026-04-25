@@ -65,9 +65,10 @@ use std::path::Path;
 /// payloads, emits a `Vec<NamedBuiltSection>` where each element is
 /// a framed 32-byte-aligned page.
 ///
-/// Does NOT emit a complete DWG file. Does NOT assemble a single
-/// buffer. The returned list is the *input* to Stages 2-5 of a future
-/// full writer. Until those stages ship, this type is useful for:
+/// Does NOT emit a complete DWG file by itself. The returned list is
+/// the deterministic section-page input consumed by
+/// [`assemble_dwg_bytes`] for the R2004-family full-file writer.
+/// This type is also useful for:
 /// - Round-trip testing per-section LZ77 + Sec_Mask framing.
 /// - Building custom writers that patch specific sections in-place
 ///   inside an existing valid DWG file.
@@ -76,8 +77,8 @@ pub struct WriterScaffold {
     sections: BTreeMap<String, Vec<u8>>,
     /// Per-section assigned 1-based number. Filled on `build()`.
     numbers: BTreeMap<String, u32>,
-    /// Target version — determines format layout decisions once
-    /// Stages 2-5 are implemented.
+    /// Target version — determines section framing and full-file
+    /// assembly layout decisions.
     pub version: Version,
 }
 

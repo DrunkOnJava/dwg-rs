@@ -1,25 +1,25 @@
-//! `dwg-write` — scaffolding CLI for the DWG write pipeline (L12-14).
+//! `dwg-write` — CLI for the DWG write pipeline (L12-14).
 //!
 //! # Honest scope
 //!
-//! This binary does **NOT** emit a valid DWG file today. The DWG
-//! writer is a five-stage pipeline (see [`dwg::file_writer`] module
-//! docs); only Stage 1 (section-level LZ77 + page framing + Sec_Mask
-//! masking) is implemented. Stages 2-5 — Section Page Map assembly,
-//! system-page emission, file-open header, and final byte-buffer
-//! composition — are tracked on the public roadmap.
+//! The DWG writer is a five-stage pipeline (see [`dwg::file_writer`]
+//! module docs). The pipeline can now assemble a complete R2004-family
+//! byte buffer that this crate's reader round-trips section-by-section.
+//! External CAD acceptance is still manual: CI does not run AutoCAD,
+//! BricsCAD, or LibreCAD, so `--dwg` output must be treated as
+//! experimental until independent application fixtures are added.
 //!
 //! What this CLI does today:
 //!   1. Read one or more named sections from disk (`--section NAME=PATH`).
 //!   2. Feed them through [`dwg::file_writer::WriterScaffold`] to
-//!      produce Stage-1 framed pages (32-byte aligned, Sec_Mask-
-//!      masked, LZ77-compressed).
+//!      produce framed pages (32-byte aligned, Sec_Mask-masked,
+//!      LZ77-compressed).
 //!   3. Emit a machine-readable JSON report describing each built
 //!      page: name, section number, compressed/decompressed sizes,
 //!      page offset, checksum.
-//!   4. Optionally write the concatenated Stage-1 bytes to an output
-//!      path — useful for round-trip testing per-section framing,
-//!      but **the result is NOT a valid DWG file**.
+//!   4. Optionally write either the concatenated section pages
+//!      (`--bytes`) or the assembled R2004-family DWG byte buffer
+//!      (`--dwg`).
 //!
 //! Section names must be in [`dwg::file_writer::KNOWN_SECTION_NAMES`]
 //! (the 16 ODA-spec'd `AcDb:*` names). Unknown names are rejected at
@@ -32,11 +32,12 @@
 //!   --section AcDb:Header=header.bin \
 //!   --section AcDb:SummaryInfo=summary.bin \
 //!   --report stage1.json \
-//!   [--bytes stage1.bin]
+//!   [--bytes stage-pages.bin] \
+//!   [--dwg assembled.dwg]
 //! ```
 
 use clap::Parser;
-use dwg::file_writer::{self, WriterScaffold};
+use dwg::file_writer::{self, WriterScaffold, assemble_dwg_bytes};
 use dwg::version::Version;
 use std::fs;
 use std::path::PathBuf;
@@ -45,16 +46,18 @@ use std::process::ExitCode;
 #[derive(Parser, Debug)]
 #[command(
     name = "dwg-write",
-    about = "Scaffolding CLI for DWG write pipeline (L12-14) — Stage 1 only",
+    about = "CLI for DWG write pipeline (L12-14)",
     version,
-    long_about = "DOES NOT emit a valid DWG file. Runs the Stage-1 \
-                  section-framing path and reports on the results. See \
-                  module docs in src/bin/dwg_write.rs for honest scope."
+    long_about = "Builds DWG section pages and can assemble an experimental \
+                  complete R2004-family DWG byte buffer with --dwg. External \
+                  CAD acceptance is not yet proven in CI; see module docs in \
+                  src/bin/dwg_write.rs for honest scope."
 )]
 struct Args {
     /// Target DWG version. One of R14, R2000, R2004, R2007, R2010,
-    /// R2013, R2018. Determines layout decisions once Stages 2-5
-    /// are implemented. Default: R2018.
+    /// R2013, R2018. Full byte-buffer assembly currently supports
+    /// the R2004 family except R2007's second Sec_Mask layer.
+    /// Default: R2018.
     #[arg(long, default_value = "R2018")]
     version: String,
 
@@ -63,16 +66,22 @@ struct Args {
     #[arg(long = "section", value_name = "NAME=PATH")]
     sections: Vec<String>,
 
-    /// Optional output path for the Stage-1 JSON report. If absent,
-    /// the report is written to stdout.
+    /// Optional output path for the section-page JSON report. If
+    /// absent, the report is written to stdout.
     #[arg(long)]
     report: Option<PathBuf>,
 
     /// Optional output path for concatenated Stage-1 bytes. WARNING:
-    /// the result is NOT a valid DWG — it's only the Stage-1 page
-    /// buffer. Useful for round-trip testing section framing.
+    /// this is only the section-page buffer, not a standalone DWG.
+    /// Useful for round-trip testing section framing.
     #[arg(long)]
     bytes: Option<PathBuf>,
+
+    /// Optional output path for an assembled R2004-family DWG byte
+    /// buffer. This crate's reader round-trips the sections; external
+    /// CAD application acceptance is not yet automated.
+    #[arg(long)]
+    dwg: Option<PathBuf>,
 }
 
 fn parse_version(s: &str) -> Option<Version> {
@@ -126,7 +135,9 @@ fn run(args: Args) -> anyhow::Result<()> {
     // JSON report (hand-written, no serde_json dep needed).
     let mut report = String::from("{\n  \"stage\": 1,\n  \"version\": \"");
     report.push_str(&args.version.to_uppercase());
-    report.push_str("\",\n  \"note\": \"NOT A VALID DWG FILE — Stage 1 only\",\n");
+    report.push_str(
+        "\",\n  \"note\": \"section pages built; use --dwg for assembled R2004-family bytes\",\n",
+    );
     report.push_str("  \"sections\": [\n");
     for (i, b) in built.iter().enumerate() {
         report.push_str("    {");
@@ -155,7 +166,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             file_writer::atomic_write(path, report.as_bytes())
                 .map_err(|e| anyhow::anyhow!("writing report to {}: {e}", path.display()))?;
             eprintln!(
-                "dwg-write: wrote {}-section Stage-1 report to {}",
+                "dwg-write: wrote {}-section page report to {}",
                 built.len(),
                 path.display()
             );
@@ -176,6 +187,18 @@ fn run(args: Args) -> anyhow::Result<()> {
             "dwg-write: wrote {} Stage-1 bytes (NOT A VALID DWG) to {}",
             concat.len(),
             bytes_path.display()
+        );
+    }
+
+    if let Some(dwg_path) = args.dwg.as_deref() {
+        let bytes = assemble_dwg_bytes(&built, version)
+            .map_err(|e| anyhow::anyhow!("assemble_dwg_bytes: {e}"))?;
+        file_writer::atomic_write(dwg_path, &bytes)
+            .map_err(|e| anyhow::anyhow!("writing DWG to {}: {e}", dwg_path.display()))?;
+        eprintln!(
+            "dwg-write: wrote {} assembled DWG bytes to {}",
+            bytes.len(),
+            dwg_path.display()
         );
     }
 

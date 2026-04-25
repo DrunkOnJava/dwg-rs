@@ -17,28 +17,30 @@
 
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
-Empirical entity-decode coverage as measured by
+Empirical entity-decode coverage as measured on 2026-04-25 by
 [`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
-19-file `nextgis/dwg_samples` corpus + a 1 MB AC1032 file, after the
-dimension-subtype fix (task #71):
+local `samples/` set:
 
-| Version | Files tested | Entities attempted | Decoded | Errored | Success rate |
-|---------|--------------|--------------------|---------|---------|--------------|
-| R14 / R2000 / R2007 | 7 | 0 | 0 | 0 | not supported (no handle-map for this layout yet) |
-| R2004 (AC1018)      | 3 | 7 per file | 0 | 7 | **0 %** |
-| R2010 (AC1024)      | 3 | 7 per file | 3 | 4 | **43 %** |
-| R2013 (AC1027)      | 3 | 7 per file | 6 | 1 | **86 %** |
-| R2018 (AC1032)      | 1 | 306 attempted (of 745 objects; 439 are non-entity controls/dictionaries) | 66 | 240 | **22 %** |
-| **Aggregate** | **19** | **369 entities attempted** | **93** | **276** | **25 %** |
+| Version | Files tested | Decoded | Skipped | Errored | Success rate |
+|---------|--------------|---------|---------|---------|--------------|
+| R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
+| R2004 (AC1018)      | 3 | 15 | 522 | 60 | **2.5 %** |
+| R2010 (AC1024)      | 3 | 18 | 474 | 51 | **3.3 %** |
+| R2013 (AC1027)      | 3 | 30 | 327 | 39 | **7.6 %** |
+| R2018 (AC1032)      | 1 | 103 | 332 | 310 | **13.8 %** |
+| **Aggregate** | **19** | **166** | **1655** | **460** | **7.3 %** |
 
 Per-entity-type error concentration in the R2018 sample (where most real data is):
 
 | Type code | DXF name | Occurrences as error |
 |-----------|----------|-----------------------|
-| 0x13 (19) | `LINE` | 82 |
+| 0x13 (19) | `LINE` | 83 |
+| 0x05 (5) | unknown / table-dependent | 47 |
+| 0x31 (49) | unknown / table-dependent | 39 |
 | 0x2C (44) | `MTEXT` | 33 |
-| 0x1B (27) | `POINT` | 26 |
-| ... | (long tail) | 99 |
+| 0x39 (57) | unknown / table-dependent | 30 |
+| 0x1B (27) | `POINT` | 29 |
+| ... | (long tail) | 199 |
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
 are verified against hand-crafted synthetic input (193 unit + proptest + sample tests pass)
@@ -58,20 +60,20 @@ crate doesn't yet fully model. This is the gap between "decoder functions exist"
 | Section Page Map + Section Info | ✓ shipped | Plus fallback path via `SectionMapStatus` |
 | Sec_Mask layer-1 (R2004 family) | ✓ shipped | Layer-2 R2007 bookkeeping deferred |
 | CRC-8 + CRC-32 verification | ✓ shipped | — |
-| Reed-Solomon (255,239) FEC decoder | ✓ shipped | Encoder pending (#109) |
+| Reed-Solomon (255,239) FEC | ✓ shipped | Decoder + writer-side encoder; read-side fallback wiring pending (#109) |
 | Metadata (SummaryInfo / AppInfo / Preview / FileDepList) | ✓ shipped | UTF-16 auto-detect, PNG thumbnail carve |
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | 27 types defined; R2013 best ~86%, real-file coverage gap (#103) |
-| Entity graph (owner / reactors / blocks / layers) | ⏳ pending | Phase 5 of roadmap |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~7.3% (#103) |
+| Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ✓ dispatch shipped | Content-field decode pending |
-| SVG / PDF export | ⏳ pending | Phase 9 of roadmap |
-| DXF writer | ⏳ pending | Phase 11 of roadmap |
-| DWG writer | ⚠ scaffold only | Stage 1 of 5; #105–#108 track the remainder |
-| glTF 3D export | ⏳ pending | Phase 10 of roadmap |
-| WASM viewer | ⏳ pending | Phase 13 of roadmap |
-| Python bindings | ⏳ pending | No PyO3 crate yet |
+| SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
+| DXF writer | ⚠ alpha | Writer exists for R12..R2018 targets; DXF parser is not implemented |
+| DWG writer | ⚠ alpha | `DwgFile::to_bytes()` and R2004-family byte assembly exist; external CAD acceptance not automated |
+| glTF 3D export | ⚠ alpha | glTF/GLB writer exists; surface tessellation remains approximate |
+| WASM viewer | ⚠ partial | Core APIs and 2D viewer pieces exist; selection/progressive/3D APIs still stubbed |
+| Python bindings | ⏳ pending | Stub module only; no usable PyO3 package yet |
 
 ✓ shipped · ⚠ alpha/partial · ⏳ pending
 
@@ -94,8 +96,10 @@ The container layer is the most mature part of the crate and is covered by the t
   handles, and raw payload bytes — this part works on R2018 (745 objects enumerated
   cleanly from the sample) and gives you enough to build your own per-version entity
   dispatcher if you need one sooner than 0.2.0 ships
-- Partial write path: bit-writer + LZ77 literal-only encoder + per-section framer
-  with Sec_Mask and CRC; the file-level `WriterScaffold` scaffold is stage 1 of 5
+- Experimental R2004-family write path: bit-writer + LZ77 literal-only encoder,
+  section framer, Sec_Mask, CRC, page-map/section-info assembly, and final
+  byte-buffer assembly via `DwgFile::to_bytes()` /
+  `file_writer::assemble_dwg_bytes`
 
 ### Hard-no list — what dwg-rs does NOT do today
 
@@ -103,7 +107,9 @@ The container layer is the most mature part of the crate and is covered by the t
 - R14 / R2000 object-stream walking (different layout from R2004-family; not yet implemented).
 - R2007 section payloads (layer-1 Sec_Mask shipped, layer-2 bit-rotation scaffolded only).
 - Full HATCH boundary path tree, full MLEADER leader-line list, full 75-field DIMSTYLE.
-- `DwgFile::to_bytes()` — scaffolded, stages 2–5 (page-map + section-info + system-page + file-open-header rebuild) are a future release.
+- Byte-identical DWG round-trips or automated external CAD application
+  acceptance for `DwgFile::to_bytes()` output.
+- A non-technical end-user application, installer, or drag-and-drop GUI.
 
 ## Install
 

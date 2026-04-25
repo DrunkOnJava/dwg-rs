@@ -1,18 +1,12 @@
-//! Stage-1 write path round-trip test (L12-12, partial).
+//! Write-path round-trip tests (L12-12).
 //!
-//! Full writer round-trip ("read a DWG, write it back, re-read, assert
-//! semantic equality") requires Stages 2-5 of the writer pipeline
-//! which are tracked but not yet implemented. This test exercises
-//! the *Stage-1* round-trip: for each named section, the writer's
-//! `build_section` path should produce bytes that decompress back
-//! bit-for-bit to the input.
-//!
-//! When Stages 2-5 land, a second test in this file will read one
-//! of the bundled sample DWGs, write it back through the full
-//! pipeline, and compare section-by-section with the original —
-//! that's the full L12-12 acceptance gate.
+//! These tests cover both the section-page framing path and the
+//! full in-crate R2004-family byte-buffer assembly path. They prove
+//! this crate's reader can recover the emitted sections; external CAD
+//! application acceptance remains a separate manual compatibility gate.
 
-use dwg::file_writer::WriterScaffold;
+use dwg::DwgFile;
+use dwg::file_writer::{WriterScaffold, assemble_dwg_bytes};
 use dwg::lz77;
 use dwg::section_writer::HEADER_SIZE;
 use dwg::version::Version;
@@ -117,6 +111,67 @@ fn stage1_pages_are_32_byte_aligned() {
             page_len % 32,
             0,
             "page size {page_len} for payload_size={payload_size} is not 32-byte aligned"
+        );
+    }
+}
+
+#[test]
+fn assembled_r2004_family_bytes_roundtrip_sections() {
+    let sections: Vec<(&str, Vec<u8>)> = vec![
+        ("AcDb:Header", vec![0x11u8; 128]),
+        (
+            "AcDb:SummaryInfo",
+            b"title\0subject\0author\0keywords\0comments\0".to_vec(),
+        ),
+        ("AcDb:Preview", vec![0xAAu8; 256]),
+    ];
+
+    let mut scaffold = WriterScaffold::new(Version::R2018);
+    for (name, payload) in &sections {
+        scaffold.add_section(*name, payload.clone());
+    }
+
+    let built = scaffold.build_sections().expect("build_sections succeeds");
+    let bytes = assemble_dwg_bytes(&built, Version::R2018).expect("assemble_dwg_bytes succeeds");
+    let file = DwgFile::from_bytes(bytes).expect("assembled bytes reopen");
+
+    for (name, expected) in sections {
+        let actual = file
+            .read_section(name)
+            .unwrap_or_else(|| panic!("{name} section should exist"))
+            .unwrap_or_else(|e| panic!("{name} should read cleanly: {e}"));
+        assert_eq!(actual, expected, "{name} did not round-trip");
+    }
+}
+
+#[test]
+fn dwg_file_to_bytes_roundtrips_sections() {
+    let sections: Vec<(&str, Vec<u8>)> = vec![
+        ("AcDb:Header", vec![0x22u8; 128]),
+        ("AcDb:Classes", vec![0x33u8; 192]),
+        ("AcDb:Handles", vec![0x44u8; 224]),
+    ];
+
+    let mut scaffold = WriterScaffold::new(Version::R2018);
+    for (name, payload) in &sections {
+        scaffold.add_section(*name, payload.clone());
+    }
+    let built = scaffold.build_sections().expect("build_sections succeeds");
+    let first_bytes =
+        assemble_dwg_bytes(&built, Version::R2018).expect("assemble_dwg_bytes succeeds");
+    let file = DwgFile::from_bytes(first_bytes).expect("assembled bytes reopen");
+
+    let second_bytes = file.to_bytes().expect("DwgFile::to_bytes succeeds");
+    let reopened = DwgFile::from_bytes(second_bytes).expect("to_bytes output reopens");
+
+    for (name, expected) in sections {
+        let actual = reopened
+            .read_section(name)
+            .unwrap_or_else(|| panic!("{name} section should exist"))
+            .unwrap_or_else(|e| panic!("{name} should read cleanly: {e}"));
+        assert_eq!(
+            actual, expected,
+            "{name} did not round-trip through to_bytes"
         );
     }
 }

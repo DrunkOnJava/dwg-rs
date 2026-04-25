@@ -98,6 +98,11 @@ pub enum Error {
     #[error("invalid 3B value {value}; representable: {{0, 2, 6, 7}} (spec §2.1)")]
     Invalid3B { value: u8 },
 
+    /// The signed modular-char decoder produced a magnitude that cannot
+    /// be represented by this crate's `i64` return type.
+    #[error("signed modular char value {value} with negate={negate} is outside the i64 range")]
+    SignedModularCharOverflow { value: u64, negate: bool },
+
     /// A feature is known to exist in the file format but is not yet
     /// implemented by this crate. Surfaces instead of producing
     /// misaligned output from a best-effort partial decode.

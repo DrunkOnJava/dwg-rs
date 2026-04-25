@@ -115,12 +115,8 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           cp README.md LICENSE CHANGELOG.md SECURITY.md dist/
-          # Five CLI binaries defined in Cargo.toml as of 0.1.0-alpha:
-          # dwg-info, dwg-corpus, dwg-dump, dwg-convert, dwg-to-dxf.
-          # `dwg-to-gltf` is NOT wired as a [[bin]] — only the
-          # `examples/gltf_demo.rs` smoke test exists today. If that
-          # changes, add a corresponding copy line here.
-          BINS="dwg-info dwg-corpus dwg-dump dwg-convert dwg-to-dxf"
+          # CLI binaries defined in Cargo.toml as of 0.1.0-alpha.1.
+          BINS="dwg-info dwg-corpus dwg-dump dwg-convert dwg-to-dxf dwg-to-gltf dwg-write"
           if [ "${{ matrix.archive }}" = "zip" ]; then
             for b in $BINS; do
               cp "target/${{ matrix.target }}/release/${b}.exe" dist/

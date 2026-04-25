@@ -18,7 +18,7 @@
 //!
 //! The section list terminates with a size-0 header.
 
-use crate::bitcursor::BitCursor;
+use crate::bitcursor::{BitCursor, signed_modular_char_value};
 use crate::bitwriter::BitWriter;
 use crate::error::{Error, Result};
 use crate::version::Version;
@@ -302,8 +302,7 @@ fn read_signed_mc(r: &mut BitCursor<'_>) -> Result<i64> {
             break;
         }
     }
-    let sv = value as i64;
-    Ok(if negate { -sv } else { sv })
+    signed_modular_char_value(value, negate)
 }
 
 #[cfg(test)]

@@ -87,9 +87,8 @@ default = []
 # NOT need this; pure-library users get `thiserror` + `byteorder`
 # and nothing else.
 cli = ["dep:anyhow", "dep:clap", "dep:serde", "dep:serde_json"]
-# Emit per-iteration eprintln! traces from the LZ77 decoder. Only enable
-# for debugging; unconditional tracing would wreck performance and flood
-# stderr on healthy files.
+# Compile in per-iteration LZ77 decoder tracing. Runtime output still
+# requires `DWG_LZ77_TRACE=1`; this keeps `--all-features` builds quiet.
 lz77-trace = []
 # Install `dhat::Alloc` as the global allocator in
 # `examples/dhat_profile.rs`. Turned off by default so the example's

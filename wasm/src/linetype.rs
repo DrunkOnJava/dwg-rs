@@ -28,29 +28,23 @@ pub fn linetype_to_dasharray(pattern: &[f64]) -> String {
     }
     let mut out = String::new();
     let mut first = true;
-    let mut last_was_dash = false; // track alternation for dot expansion
     for &v in pattern {
+        if first && v < 0.0 {
+            out.push('0');
+            first = false;
+        }
         if !first {
             out.push(' ');
         }
         first = false;
         if v > 0.0 {
-            // Dash.
             out.push_str(&format_length(v));
-            last_was_dash = true;
         } else if v < 0.0 {
-            // Gap.
             out.push_str(&format_length(-v));
-            last_was_dash = false;
         } else {
             // Dot — SVG has no dedicated dot, emit a tiny dash.
             out.push_str("0.001");
-            last_was_dash = true;
         }
-        // Suppress unused-variable lint — the flag is maintained
-        // so a future "must start with dash" fix-up pass can branch
-        // on it if needed.
-        let _ = last_was_dash;
     }
     out
 }
@@ -86,6 +80,11 @@ mod tests {
     fn simple_dashed_pattern() {
         // 0.5 dash, 0.25 gap
         assert_eq!(linetype_to_dasharray(&[0.5, -0.25]), "0.5 0.25");
+    }
+
+    #[test]
+    fn gap_first_pattern_prepends_zero_dash() {
+        assert_eq!(linetype_to_dasharray(&[-0.25, 0.5]), "0 0.25 0.5");
     }
 
     #[test]

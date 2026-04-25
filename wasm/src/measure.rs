@@ -50,7 +50,7 @@ pub fn measure_distance_3d(
 /// polygon), or if the input length is odd (malformed coord pair).
 #[wasm_bindgen(js_name = "measurePolygonArea")]
 pub fn measure_polygon_area(xys: &[f64]) -> f64 {
-    if xys.len() < 6 || xys.len() % 2 != 0 {
+    if xys.len() < 6 || !xys.len().is_multiple_of(2) {
         return 0.0;
     }
     let n = xys.len() / 2;
@@ -71,7 +71,7 @@ pub fn measure_polygon_area(xys: &[f64]) -> f64 {
 /// (odd-length) input.
 #[wasm_bindgen(js_name = "measurePolylineLength")]
 pub fn measure_polyline_length(xys: &[f64]) -> f64 {
-    if xys.len() < 4 || xys.len() % 2 != 0 {
+    if xys.len() < 4 || !xys.len().is_multiple_of(2) {
         return 0.0;
     }
     let n = xys.len() / 2;

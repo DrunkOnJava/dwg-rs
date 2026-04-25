@@ -19,6 +19,14 @@
 
 use crate::error::{Error, Result};
 
+#[cfg(feature = "lz77-trace")]
+fn lz77_trace_enabled() -> bool {
+    use std::sync::OnceLock;
+
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("DWG_LZ77_TRACE").is_some())
+}
+
 /// Safety limits for LZ77 decompression.
 ///
 /// The DWG LZ77 stream format has no intrinsic size declaration in the
@@ -116,10 +124,12 @@ pub fn decompress_with_limits(
         let op_pos = r.pos;
         let op1 = r.read()?;
         #[cfg(feature = "lz77-trace")]
-        eprintln!(
-            "[lz77] iter op_pos={op_pos} op1=0x{op1:02x} out_len={}",
-            out.len()
-        );
+        if lz77_trace_enabled() {
+            eprintln!(
+                "[lz77] iter op_pos={op_pos} op1=0x{op1:02x} out_len={}",
+                out.len()
+            );
+        }
         // The spec text at §4.7 documents offsets as "+0x3FFF" (long) / "+0"
         // (short), but empirical cross-check against AutoCAD-produced files
         // shows offsets are 1-indexed: every class adds one more than the
@@ -179,10 +189,12 @@ pub fn decompress_with_limits(
         };
 
         #[cfg(feature = "lz77-trace")]
-        eprintln!(
-            "[lz77]   cb={comp_bytes} off={comp_offset} lit={lit_count} pre_out_len={}",
-            out.len()
-        );
+        if lz77_trace_enabled() {
+            eprintln!(
+                "[lz77]   cb={comp_bytes} off={comp_offset} lit={lit_count} pre_out_len={}",
+                out.len()
+            );
+        }
 
         // Back-reference copy. `comp_offset` of 0 would be an infinite
         // loop since there's no forward-motion; spec doesn't explicitly

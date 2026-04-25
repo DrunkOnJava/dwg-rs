@@ -7,6 +7,7 @@
 use crate::cipher;
 use crate::crc;
 use crate::error::{Error, Result};
+use crate::file_writer::{WriterScaffold, assemble_dwg_bytes, validate_section_name};
 use crate::header::{CommonHeader, R13R15Header, R2004Header};
 use crate::section::{Section, SectionKind};
 use crate::section_map;
@@ -313,6 +314,58 @@ impl DwgFile {
     pub fn read_section(&self, name: &str) -> Option<Result<Vec<u8>>> {
         let header = self.r2004.as_ref()?;
         Some(self.read_section_r2004(header, name))
+    }
+
+    /// Re-assemble this file's readable sections into a DWG byte buffer.
+    ///
+    /// This is an experimental R2004-family write path. It proves an
+    /// in-crate section round-trip (`DwgFile::from_bytes(file.to_bytes()?)`
+    /// can read the same section payloads), but it does not promise
+    /// byte-identical reproduction of the source file or acceptance by
+    /// external CAD applications.
+    ///
+    /// Returns [`Error::Unsupported`] for R14/R2000/R2007, and
+    /// [`Error::SectionMap`] if the section list came from a fallback or
+    /// deferred parse rather than an authoritative section map.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        if !self.version.is_r2004_family() {
+            return Err(Error::Unsupported {
+                feature: format!(
+                    "DwgFile::to_bytes supports the R2004-family writer only; \
+                     {} requires a different file layout",
+                    self.version
+                ),
+            });
+        }
+
+        match self.section_map_status() {
+            SectionMapStatus::Full => {}
+            SectionMapStatus::Fallback { reason } => {
+                return Err(Error::SectionMap(format!(
+                    "to_bytes refused advisory fallback section map: {reason}"
+                )));
+            }
+            SectionMapStatus::Deferred { reason } => {
+                return Err(Error::SectionMap(format!(
+                    "to_bytes refused deferred section map: {reason}"
+                )));
+            }
+        }
+
+        let mut scaffold = WriterScaffold::new(self.version);
+        for section in self.sections() {
+            validate_section_name(&section.name)?;
+            let bytes = self.read_section(&section.name).ok_or_else(|| {
+                Error::SectionMap(format!(
+                    "section {:?} is listed but is not readable by name",
+                    section.name
+                ))
+            })??;
+            scaffold.add_section(section.name.clone(), bytes);
+        }
+
+        let built = scaffold.build_sections()?;
+        assemble_dwg_bytes(&built, self.version)
     }
 
     /// Read + decompress the named section like [`Self::read_section`],

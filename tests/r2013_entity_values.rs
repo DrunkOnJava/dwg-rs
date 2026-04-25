@@ -32,21 +32,17 @@
 //! **These invariants FAIL on the current codebase.** Two known gaps
 //! remain after the 0.1.0-alpha.1 dispatcher fixes:
 //!
-//! 1. The handle-driven object walk in
-//!    [`dwg::reader::DwgFile::decoded_entities`] reaches only control
-//!    objects (BlockControl, Dictionary, XRecord) and empty
-//!    BLOCK/ENDBLK shells — it never reaches the user-drawn geometry
-//!    inside the modelspace block. The geometry is stored at handle
-//!    references chained from BLOCK_HEADER → owned entities, which
-//!    this reader does not yet traverse.
-//! 2. On the one sample that **does** reach typed entity decoders
-//!    (`sample_AC1032.dwg`), the decoded field values are implausible
-//!    — LINE endpoints with z=1e+225, POINT positions with x=1e+138
-//!    — indicating the bit cursor is positioned wrong inside the
-//!    object's payload. Likely causes: (a) the object-stream layout
-//!    assumptions for R2018 don't match what the file actually uses,
-//!    or (b) a bit-counting error earlier in the pipeline shifts
-//!    every subsequent read.
+//! 1. The handle-driven object walk reaches fixed entity records in
+//!    the R2013 samples, but common-entity/body alignment is still
+//!    wrong. The LINE/CIRCLE/ARC records return dispatcher errors
+//!    instead of typed geometry.
+//! 2. On the AC1032 sample, some typed entity decoders do return
+//!    geometry, but field values are implausible — LINE endpoints
+//!    with magnitudes like 1e+290 — indicating the bit cursor is
+//!    positioned wrong inside the object's payload. Likely causes:
+//!    (a) the object-stream data/string/handle-stream split is not
+//!    modeled correctly for R2010+, or (b) a bit-counting error in
+//!    the common entity preamble shifts every subsequent read.
 //!
 //! Each test is `#[ignore]`'d so `cargo test --release -- --ignored`
 //! reveals the regression without failing the default `cargo test`
@@ -81,8 +77,8 @@ fn is_plausible_coord(v: f64) -> bool {
 // ================================================================
 
 #[test]
-#[ignore = "#97: handle walk doesn't reach modelspace geometry — file only \
-            produces BLOCK/ENDBLK/control objects"]
+#[ignore = "#97: R2013 LINE record is reached, but common/body alignment still \
+            errors before a typed LINE is returned"]
 fn r2013_line_sample_decodes_a_line() {
     let Some(file) = open_if_present("line_2013.dwg") else {
         return;
@@ -108,7 +104,7 @@ fn r2013_line_sample_decodes_a_line() {
 }
 
 #[test]
-#[ignore = "#97: handle walk doesn't reach modelspace geometry"]
+#[ignore = "#97: R2013 CIRCLE record alignment still errors before typed geometry"]
 fn r2013_circle_sample_decodes_a_circle() {
     let Some(file) = open_if_present("circle_2013.dwg") else {
         return;
@@ -125,7 +121,7 @@ fn r2013_circle_sample_decodes_a_circle() {
 }
 
 #[test]
-#[ignore = "#97: handle walk doesn't reach modelspace geometry"]
+#[ignore = "#97: R2013 ARC record alignment still errors before typed geometry"]
 fn r2013_arc_sample_decodes_an_arc() {
     let Some(file) = open_if_present("arc_2013.dwg") else {
         return;
@@ -143,9 +139,9 @@ fn r2013_arc_sample_decodes_an_arc() {
 // ================================================================
 
 #[test]
-#[ignore = "#97: sample_AC1032 decodes LINE/POINT/CIRCLE but with \
-            implausible coordinate magnitudes (1e+138, 1e+225, 1e+305) \
-            indicating bit-cursor offset error inside object payloads"]
+#[ignore = "#97: sample_AC1032 decodes some LINE/CIRCLE/POINT records, but \
+            some coordinates have implausible magnitudes, indicating \
+            bit-cursor offset error inside object payloads"]
 fn all_decoded_geometry_has_plausible_coordinates() {
     // Pick every version that supports handle walking.
     let samples = [

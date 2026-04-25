@@ -32,6 +32,19 @@
 
 use crate::error::{Error, Result};
 
+pub(crate) fn signed_modular_char_value(value: u64, negate: bool) -> Result<i64> {
+    if negate {
+        if value == (1_u64 << 63) {
+            return Ok(i64::MIN);
+        }
+        let magnitude =
+            i64::try_from(value).map_err(|_| Error::SignedModularCharOverflow { value, negate })?;
+        Ok(-magnitude)
+    } else {
+        i64::try_from(value).map_err(|_| Error::SignedModularCharOverflow { value, negate })
+    }
+}
+
 /// Bit-level cursor over a byte slice.
 ///
 /// Tracks a byte index and a within-byte bit index. Methods read primitive
@@ -322,8 +335,7 @@ impl<'a> BitCursor<'a> {
                 break; // defensive: don't overflow
             }
         }
-        let sv = value as i64;
-        Ok(if negate { -sv } else { sv })
+        signed_modular_char_value(value, negate)
     }
 
     // ================================================================
