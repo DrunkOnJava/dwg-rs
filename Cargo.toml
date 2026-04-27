@@ -33,7 +33,7 @@ exclude = [
 [dependencies]
 # Library-only runtime dependencies — these are pulled by anything
 # that uses `dwg` as a crate dependency.
-thiserror = "1"
+thiserror = "2"
 byteorder = "1"
 
 # CLI-only dependencies — gated behind the `cli` feature so library
