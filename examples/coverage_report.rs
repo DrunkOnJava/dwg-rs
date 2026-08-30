@@ -97,11 +97,21 @@ fn main() -> ExitCode {
         for (tc, _msg) in &summary.errors {
             type_histo.entry(*tc).or_default().2 += 1;
         }
+        // Custom(N) codes mean nothing on their own — the DXF class
+        // name comes from this file's AcDb:Classes table, so an
+        // unhandled custom object is only honest when it is named.
+        let class_map = file.class_map().and_then(std::result::Result::ok);
         for entity in &entities {
             if let DecodedEntity::Unhandled { type_code, kind } = entity {
-                *unhandled_histo
-                    .entry(format!("{kind} (0x{type_code:04X})"))
-                    .or_default() += 1;
+                // Custom class numbers are per-file, so an aggregate
+                // histogram keys them by name alone; built-in codes
+                // keep their code because it is stable across files.
+                let label = class_map
+                    .as_ref()
+                    .and_then(|m| m.by_type_code(*type_code))
+                    .map(|d| format!("{} (custom class)", d.dxf_class_name))
+                    .unwrap_or_else(|| format!("{kind} (0x{type_code:04X})"));
+                *unhandled_histo.entry(label).or_default() += 1;
             }
         }
         totals.decoded += summary.decoded;

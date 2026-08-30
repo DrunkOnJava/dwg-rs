@@ -19,24 +19,54 @@
 //! [20..24]  RL  (R2010+) unknown, observed 0
 //! [24..28]  RL  (R2010+) size of the class data area, in bits
 //! -- bit stream starts here: byte 20 on R2004, byte 28 on R2010+ --
-//!   BS   max_class_number
-//!   RC   unknown
-//!   RC   unknown
+//!   BL   max_class_number
 //!   B    unknown
 //!   // then one record per custom class:
 //!   BS   class_number
 //!   BS   version / proxy flags
-//!   TV   app_name
-//!   TV   cpp_class_name
-//!   TV   dxf_class_name
+//!   TV   app_name          -- inline pre-R2007, string block from R2007
+//!   TV   cpp_class_name    -- inline pre-R2007, string block from R2007
+//!   TV   dxf_class_name    -- inline pre-R2007, string block from R2007
 //!   B    was_a_proxy
 //!   BS   item_class_id  (0x1F2 proxy entity, 0x1F3 proxy object)
 //!   BL   num_objects           -- R2004+
-//!   BS   dwg_version           -- R2004+
-//!   BS   maintenance_version   -- R2004+
+//!   BL   dwg_version           -- R2004+
+//!   BL   maintenance_version   -- R2004+
 //!   BL   unknown               -- R2004+
 //!   BL   unknown               -- R2004+
 //! ```
+//!
+//! # The spec states this record two different ways; the bytes pick one
+//!
+//! The ODA Open Design Specification v5.4.1 describes the class table
+//! twice, and the two descriptions disagree on three fields:
+//!
+//! | Field | §10.2 (R18+) | §5.8 (R2007) |
+//! |---|---|---|
+//! | `max_class_number` | `BS` + `RC 0x00` + `RC 0x00` | `BL` |
+//! | `dwg_version` | `BS` | `BL` |
+//! | `maintenance_version` | `BS` | `BL` |
+//!
+//! §5.8 is the one the bytes agree with, and the two readings are
+//! *bit-identical* for most values, which is why the disagreement went
+//! unnoticed until `sample_AC1032.dwg`:
+//!
+//! - `BS` and `BL` share the 2-bit tag alphabet (`01` → one byte,
+//!   `10` → zero). They diverge only on tag `00`, where `BS` consumes a
+//!   16-bit `RS` and `BL` a 32-bit `RL`.
+//! - `BS max_class_number` + two `RC`s consumes 2 + 16 + 16 = 34 bits;
+//!   `BL max_class_number` with tag `00` consumes 2 + 32 = 34 bits over
+//!   the same four little-endian bytes. Identical whenever the value
+//!   exceeds 255, which every real `max_class_number` (≥ 500) does.
+//!
+//! So the §10.2 reading survives on any file whose class records all
+//! carry `dwg_version ≤ 255` and `maintenance_version ≤ 255`. On
+//! `sample_AC1032.dwg` four classes — MLEADERSTYLE (508),
+//! ACDBDETAILVIEWSTYLE (516), WIPEOUT (520) and MULTILEADER (526) —
+//! record `dwg_version = 33`, `maintenance_version = 329`. Reading
+//! that `BL` as a `BS` consumes 18 bits instead of 34 and loses 16
+//! bits of alignment per occurrence, which is the drift reported in
+//! issue #37.
 //!
 //! # Why the header length is measured, not assumed
 //!
@@ -50,18 +80,47 @@
 //!
 //! The offsets above are read off the bytes:
 //!
-//! | File | Bytes 16.. | First bits after the header | Decodes to |
+//! | File | Bytes 16.. | First bits after the header | `BL` decodes to |
 //! |---|---|---|---|
-//! | `arc_2004.dwg` (AC1018) | `86 02 00 00` then `3F 40 40 00 …` | `00` + `1111110100000001` | `BS` = 509 |
-//! | `arc_2010.dwg` (AC1024) | `42 04 00 00 00 00 00 00 0A 22 00 00` then `3F 40 40 00 …` | same | `BS` = 509 |
-//! | `arc_2013.dwg` (AC1027) | `D9 03 00 00 00 00 00 00 C3 1E 00 00` then `3F 00 40 00 …` | `00` + `1111110000000001` | `BS` = 508 |
-//! | `sample_AC1032.dwg` (AC1032) | `66 18 00 00 00 00 00 00 2A C3 00 00` then `09 40 80 00 …` | `00` + `0010010100000010` | `BS` = 549 |
+//! | `arc_2004.dwg` (AC1018) | `86 02 00 00` then `3F 40 40 00 …` | `00` + `FD 01 00 00` | 509 |
+//! | `arc_2010.dwg` (AC1024) | `42 04 00 00 00 00 00 00 0A 22 00 00` then `3F 40 40 00 …` | same | 509 |
+//! | `arc_2013.dwg` (AC1027) | `D9 03 00 00 00 00 00 00 C3 1E 00 00` then `3F 00 40 00 …` | `00` + `FC 01 00 00` | 508 |
+//! | `sample_AC1032.dwg` (AC1032) | `66 18 00 00 00 00 00 00 2A C3 00 00` then `09 40 80 00 …` | `00` + `25 02 00 00` | 549 |
 //!
 //! and every one of those matches the highest `Custom(N)` type code the
 //! object stream of that file actually uses (508 / 508 / 507 / 547).
 //! Continuing to parse from there yields class numbers that run
 //! 500, 501, 502, … consecutively up to `max_class_number - 1`, which is
 //! the check [`ClassMap::parse`] applies before accepting a table.
+//!
+//! # The record count and the string block corroborate each other
+//!
+//! On R2007+ the three names of every record live in one string block
+//! that follows the last record, so a record list that stops one bit
+//! early pairs every name with the wrong class. Three independent
+//! measurements agree that reading exactly
+//! `max_class_number - 500 + 1` records with the field list above
+//! lands on the first bit of that block:
+//!
+//! | File | records | last record ends | string block ends | `AcDb:Classes` string-stream end bit |
+//! |---|---|---|---|---|
+//! | `arc_2010.dwg` | 10 | 877 | 8665 | 8682 = `size_in_bits` (8714) − 32 |
+//! | `arc_2013.dwg` | 9 | 788 | 7826 | 7843 = `size_in_bits` (7875) − 32 |
+//! | `sample_AC1032.dwg` | 50 | 4093 | 49897 | 49930 = `size_in_bits` (49962) − 32 |
+//!
+//! (bit offsets relative to the start of the bit stream.) The
+//! right-hand column is the §19.4.1 string-stream trailer: its
+//! terminating bit is set in all three files, and its length word
+//! reads 7788 / 7038 / 45804 bits — exactly the span between the end
+//! of the last record and the end of the last string in each file.
+//! `sample_AC1032.dwg` exercises the two-word form
+//! (`0xB2EC` has bit 15 set, second word 1 →
+//! `(0xB2EC & 0x7FFF) | (1 << 15) = 45804`).
+//!
+//! The parser does not need the trailer — the record count comes from
+//! `max_class_number` and the strings follow the records directly —
+//! but it is the strongest available check that the field list above
+//! is the real one, so `examples/probe_class_layout.rs` prints it.
 //!
 //! R2007 (`AC1021`) is not in the table above because this crate cannot
 //! read that release's sections yet (`STATUS.md` #110); its header is
@@ -95,6 +154,15 @@ pub struct ClassDef {
     /// 0x1F2 → proxy entity, 0x1F3 → proxy object, anything else is
     /// a vendor-specific dynamic class (IMAGE, TABLE, MLEADER, ...).
     pub item_class_id: u16,
+    /// Number of objects of this class in the drawing (DXF group 91).
+    /// Zero on pre-R2004 files, which do not record it.
+    pub num_objects: u32,
+    /// Release code of the AutoCAD build that last wrote this class
+    /// definition (20 = R2000 … 33 = R2018). Zero pre-R2004.
+    pub dwg_version: u32,
+    /// Maintenance-release counter of that build. Zero pre-R2004, and
+    /// the field that overflows a `BS` on R2018 — see the module docs.
+    pub maintenance_version: u32,
 }
 
 /// Parsed custom class table.
@@ -130,11 +198,13 @@ impl ClassMap {
         ) as usize;
 
         let mut c = BitCursor::new(&bytes[bit_start..]);
-        let Ok(max_class_number) = c.read_bs_u() else {
+        // §5.8: `BL max_class_number` then one unknown `B`. §10.2
+        // spells the same 34 bits as `BS` + `RC 0x00` + `RC 0x00`; see
+        // the module docs for why only `BL` generalises.
+        let Ok(max_class_number) = c.read_bl_u() else {
             return Ok(Self::default());
         };
-        // Two unknown RCs and one unknown B close the class-list header.
-        if c.read_rc().is_err() || c.read_rc().is_err() || c.read_b().is_err() {
+        if c.read_b().is_err() {
             return Ok(Self::default());
         }
 
@@ -164,7 +234,7 @@ impl ClassMap {
             .enumerate()
             .all(|(i, d)| d.class_number as usize == FIRST_CUSTOM_CLASS_NUMBER as usize + i);
         Ok(Self {
-            max_class_number: u32::from(max_class_number),
+            max_class_number,
             classes: if consecutive { classes } else { Vec::new() },
         })
     }
@@ -197,9 +267,11 @@ fn read_inline_class_record(c: &mut BitCursor<'_>, version: Version) -> Option<C
     let dxf_class_name = read_tv(c, version).ok()?;
     let was_a_proxy = c.read_b().ok()?;
     let item_class_id = c.read_bs_u().ok()?;
-    if version.is_r2004_plus() {
-        read_r2004_record_tail(c)?;
-    }
+    let tail = if version.is_r2004_plus() {
+        read_r2004_record_tail(c)?
+    } else {
+        RecordTail::default()
+    };
     if app_name.is_empty() && cpp_class_name.is_empty() && dxf_class_name.is_empty() {
         return None;
     }
@@ -211,6 +283,9 @@ fn read_inline_class_record(c: &mut BitCursor<'_>, version: Version) -> Option<C
         dxf_class_name,
         was_a_proxy,
         item_class_id,
+        num_objects: tail.num_objects,
+        dwg_version: tail.dwg_version,
+        maintenance_version: tail.maintenance_version,
     })
 }
 
@@ -229,11 +304,18 @@ fn read_inline_class_record(c: &mut BitCursor<'_>, version: Version) -> Option<C
 /// order, and the 28th read is junk. `arc_2010.dwg` agrees with ten
 /// records, 500..=509.
 ///
-/// `sample_AC1032.dwg` (R2018) declares 50 records but its ninth record
-/// does not decode with this field list — see `STATUS.md`. This
-/// function returns what it read; [`ClassMap::parse`]'s consecutiveness
-/// check then rejects the short list rather than pairing 9 records with
-/// strings meant for 50.
+/// `sample_AC1032.dwg` (R2018) declares 50 records; with
+/// `maintenance_version` read as the `BL` §5.8 specifies, all 50
+/// decode as 500..=549 and the 150 strings that follow read
+/// `ACDBDICTIONARYWDFLT`, `ACDBPLACEHOLDER`, `LAYOUT`,
+/// `DICTIONARYVAR`, `TABLESTYLE`, `MATERIAL`, `VISUALSTYLE`, `SCALE`,
+/// `MLEADERSTYLE`, … `ACDBPERSSUBENTMANAGER` — the last string ending
+/// exactly on the section's string-stream boundary.
+///
+/// A short read means the string block does not start where this
+/// function is about to look, so the names would be paired with the
+/// wrong classes; the function then reports nothing rather than a
+/// desynchronised list.
 fn read_split_stream_classes(c: &mut BitCursor<'_>, expected: usize) -> Vec<ClassDef> {
     let mut classes = Vec::with_capacity(expected.min(64));
     for _ in 0..expected {
@@ -269,7 +351,7 @@ fn read_split_stream_class_record(c: &mut BitCursor<'_>) -> Option<ClassDef> {
     let version_flag = c.read_bs().ok()?;
     let was_a_proxy = c.read_b().ok()?;
     let item_class_id = c.read_bs_u().ok()?;
-    read_r2004_record_tail(c)?;
+    let tail = read_r2004_record_tail(c)?;
     Some(ClassDef {
         class_number,
         version: version_flag,
@@ -278,18 +360,34 @@ fn read_split_stream_class_record(c: &mut BitCursor<'_>) -> Option<ClassDef> {
         dxf_class_name: String::new(),
         was_a_proxy,
         item_class_id,
+        num_objects: tail.num_objects,
+        dwg_version: tail.dwg_version,
+        maintenance_version: tail.maintenance_version,
     })
 }
 
-/// `BL num_objects`, `BS dwg_version`, `BS maintenance_version` and two
-/// unknown `BL`s — the five fields R2004 added to every class record.
-fn read_r2004_record_tail(c: &mut BitCursor<'_>) -> Option<()> {
-    let _num_objects = c.read_bl_u().ok()?;
-    let _dwg_version = c.read_bs().ok()?;
-    let _maintenance_version = c.read_bs().ok()?;
+/// The three carried values of the five-field record tail R2004 added.
+#[derive(Default)]
+struct RecordTail {
+    num_objects: u32,
+    dwg_version: u32,
+    maintenance_version: u32,
+}
+
+/// `BL num_objects`, `BL dwg_version`, `BL maintenance_version` and two
+/// unknown `BL`s — the five fields R2004 added to every class record
+/// (§5.8). The two trailing unknowns are 0 on every file measured.
+fn read_r2004_record_tail(c: &mut BitCursor<'_>) -> Option<RecordTail> {
+    let num_objects = c.read_bl_u().ok()?;
+    let dwg_version = c.read_bl_u().ok()?;
+    let maintenance_version = c.read_bl_u().ok()?;
     let _unknown1 = c.read_bl().ok()?;
     let _unknown2 = c.read_bl().ok()?;
-    Some(())
+    Some(RecordTail {
+        num_objects,
+        dwg_version,
+        maintenance_version,
+    })
 }
 
 // TV string reading is delegated to `crate::tables::read_tv`, which
@@ -316,8 +414,8 @@ fn read_r2004_record_tail(c: &mut BitCursor<'_>) -> Option<()> {
 // [20..] / [28..]                  — the bit-packed class list
 // ```
 //
-// The bit-packed list opens with `BS max_class_number`, two unknown
-// `RC`s and one unknown `B`, then one record per class. Pre-R2007 a
+// The bit-packed list opens with `BL max_class_number` and one unknown
+// `B`, then one record per class. Pre-R2007 a
 // record carries its three `TV`s inline; from R2007 the non-string
 // fields of every record come first and the `3 × N` strings follow as a
 // block, in record order. A trailing CRC-8 (§2.14.1, seed 0xC0C1)
@@ -361,11 +459,12 @@ fn class_list_max(classes: &ClassMap) -> u16 {
         .unwrap_or_else(|| classes.max_class_number.min(u32::from(u16::MAX)) as u16)
 }
 
-/// Write the five fields R2004 added to every class record, all zero.
-fn write_r2004_record_tail(w: &mut BitWriter) {
-    w.write_bl(0); // num_objects
-    w.write_bs(0); // dwg_version
-    w.write_bs(0); // maintenance_version
+/// Write the five fields R2004 added to every class record — the
+/// inverse of [`read_r2004_record_tail`], all five as `BL` per §5.8.
+fn write_r2004_record_tail(w: &mut BitWriter, def: &ClassDef) {
+    w.write_bl_u(def.num_objects);
+    w.write_bl_u(def.dwg_version);
+    w.write_bl_u(def.maintenance_version);
     w.write_bl(0); // unknown
     w.write_bl(0); // unknown
 }
@@ -374,15 +473,25 @@ fn write_r2004_record_tail(w: &mut BitWriter) {
 ///
 /// `writer` is used for internal bit-packing; the returned `Vec<u8>` is
 /// the fully-assembled section bytes ready for LZ77 compression by the
-/// section writer. The 16-byte sentinel, 4-byte size-in-bits header,
-/// 4-byte `max_class_number`, and trailing CRC-8 are included; the
-/// caller composes this with the R2004+ page framing layer.
+/// section writer. The 16-byte sentinel, the byte-aligned size header
+/// and the trailing CRC-8 are included; the caller composes this with
+/// the R2004+ page framing layer.
 ///
 /// The internal `writer` argument is there purely so the function
 /// signature matches the write-path convention used by the element
 /// encoders (`trait ElementEncoder`) — the actual class bytes are
 /// produced in a fresh [`BitWriter`] and then prefixed / suffixed by
-/// the sentinel, size header, max-class-number, and CRC.
+/// the sentinel, size header, and CRC.
+///
+/// # Not a byte-exact AutoCAD emitter
+///
+/// This is the inverse of [`ClassMap::parse`], not a reproduction of
+/// what AutoCAD writes. Two known differences on R2007+: the
+/// `size in bits` header is written as the bit length of the class
+/// data alone, where real files carry that length plus 32 (see the
+/// module docs), and the §19.4.1 string-stream trailer that real files
+/// append after the string block is not emitted. Neither is read back
+/// by [`ClassMap::parse`], so the round trip is exact.
 ///
 /// # CRC
 ///
@@ -397,9 +506,7 @@ pub fn write_class_map(
     use crate::crc::crc8;
 
     let mut inner = BitWriter::new();
-    inner.write_bs_u(class_list_max(classes));
-    inner.write_rc(0); // unknown
-    inner.write_rc(0); // unknown
+    inner.write_bl_u(u32::from(class_list_max(classes)));
     inner.write_b(true); // unknown
     if version.is_r2007_plus() {
         for def in &classes.classes {
@@ -407,7 +514,7 @@ pub fn write_class_map(
             inner.write_bs(def.version);
             inner.write_b(def.was_a_proxy);
             inner.write_bs_u(def.item_class_id);
-            write_r2004_record_tail(&mut inner);
+            write_r2004_record_tail(&mut inner, def);
         }
         for def in &classes.classes {
             write_tv(&mut inner, &def.app_name, version);
@@ -424,7 +531,7 @@ pub fn write_class_map(
             inner.write_b(def.was_a_proxy);
             inner.write_bs_u(def.item_class_id);
             if version.is_r2004_plus() {
-                write_r2004_record_tail(&mut inner);
+                write_r2004_record_tail(&mut inner, def);
             }
         }
     }
@@ -521,6 +628,9 @@ mod tests {
                     dxf_class_name: "TABLE".to_string(),
                     was_a_proxy: false,
                     item_class_id: 0x1F2,
+                    num_objects: 3,
+                    dwg_version: 25,
+                    maintenance_version: 20,
                 },
                 ClassDef {
                     class_number: 501,
@@ -530,6 +640,11 @@ mod tests {
                     dxf_class_name: "WIPEOUT".to_string(),
                     was_a_proxy: true,
                     item_class_id: 0x1F2,
+                    // The R2018 drift value: > 255, so this field's `BL`
+                    // takes the 32-bit tag-`00` form a `BS` misreads.
+                    num_objects: 1,
+                    dwg_version: 33,
+                    maintenance_version: 329,
                 },
             ],
         }
@@ -554,6 +669,60 @@ mod tests {
         assert_eq!(parsed.max_class_number, 501);
         assert_eq!(parsed.classes, map.classes);
         assert_eq!(parsed.by_type_code(501).unwrap().dxf_class_name, "WIPEOUT");
+    }
+
+    /// Issue #37 in one fixture: a `maintenance_version` above 255
+    /// encodes as a tag-`00` `BL` (2 + 32 bits). Reading it as a `BS`
+    /// consumes 2 + 16 and loses sixteen bits of alignment, which on
+    /// `sample_AC1032.dwg` desynchronised the class list at record 9
+    /// and dropped all 50 classes.
+    ///
+    /// The fixture puts the oversized field in the *first* of three
+    /// records so a `BS` reader cannot reach record 2 at all.
+    #[test]
+    fn parse_reads_a_maintenance_version_wider_than_a_byte() {
+        let map = ClassMap {
+            max_class_number: 502,
+            classes: (0..3)
+                .map(|i| ClassDef {
+                    class_number: 500 + i,
+                    version: 0,
+                    app_name: "ACDB_MLEADERSTYLE_CLASS".to_string(),
+                    cpp_class_name: "AcDbMLeaderStyle".to_string(),
+                    dxf_class_name: "MLEADERSTYLE".to_string(),
+                    was_a_proxy: false,
+                    item_class_id: 0x1F3,
+                    num_objects: 2,
+                    dwg_version: 33,
+                    maintenance_version: if i == 0 { 329 } else { 42 },
+                })
+                .collect(),
+        };
+        for version in [Version::R2004, Version::R2018] {
+            let mut w = BitWriter::new();
+            let bytes = write_class_map(&map, &mut w, version).unwrap();
+            let parsed = ClassMap::parse(&bytes, version).unwrap();
+            assert_eq!(parsed.classes.len(), 3, "{version}");
+            assert_eq!(parsed.classes, map.classes, "{version}");
+            assert_eq!(parsed.classes[0].maintenance_version, 329, "{version}");
+            assert_eq!(parsed.classes[2].class_number, 502, "{version}");
+        }
+    }
+
+    /// The record tail's three carried values survive the round trip —
+    /// `num_objects` is the count this crate cross-checks against the
+    /// object stream when validating that the table is located right.
+    #[test]
+    fn write_class_map_round_trips_the_record_tail_values() {
+        let map = sample_map();
+        let mut w = BitWriter::new();
+        let bytes = write_class_map(&map, &mut w, Version::R2018).unwrap();
+        let parsed = ClassMap::parse(&bytes, Version::R2018).unwrap();
+        let wipeout = parsed.by_type_code(501).unwrap();
+        assert_eq!(wipeout.num_objects, 1);
+        assert_eq!(wipeout.dwg_version, 33);
+        assert_eq!(wipeout.maintenance_version, 329);
+        assert_eq!(parsed.by_type_code(500).unwrap().num_objects, 3);
     }
 
     /// A table whose class numbers do not run consecutively from 500

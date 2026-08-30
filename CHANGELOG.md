@@ -8,6 +8,65 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — the R2018 `AcDb:Classes` record layout (2026-08-30, closes #37)
+
+- **`dwg_version` and `maintenance_version` are `BL`, not `BS`.** The
+  ODA v5.4.1 spec states the class record twice and the two statements
+  disagree: §10.2 (R18+) gives `BS max_class_number` + `RC 0x00` +
+  `RC 0x00`, `BS dwg_version`, `BS maintenance_version`; §5.8 (R2007)
+  gives `BL` for all three. The bytes side with §5.8. `BS` and `BL`
+  are bit-identical on tags `10` (2 bits, zero) and `01` (10 bits, one
+  byte) and differ only on tag `00`, where `BS` takes an 18-bit `RS`
+  and `BL` a 34-bit `RL` — so the §10.2 reading survives every file
+  whose classes keep both version fields under 256.
+- **`sample_AC1032.dwg` is the first file that does not.** Four of its
+  classes — MLEADERSTYLE (508), ACDBDETAILVIEWSTYLE (516), WIPEOUT
+  (520), MULTILEADER (526) — record `dwg_version = 33`,
+  `maintenance_version = 329`, making those records 113 bits wide
+  where every other record on the file is 57-89. Reading the 329 as a
+  `BS` lost 16 bits at record 8; record 9 then hit the reserved `11`
+  `BL` tag, the consecutiveness check discarded the whole table, and
+  all 194 `Custom(N)` objects on the file fell through to
+  `Unhandled`. All 50 classes (500..=549) now decode.
+- **Corroborated three ways.** With the corrected list, exactly
+  `max_class_number - 500 + 1` records decode with consecutive class
+  numbers on `arc_2010` / `arc_2013` / `sample_AC1032`; the `3 × N`
+  strings that follow end precisely at the section's §19.4.1
+  string-stream trailer (length words 7788 / 7038 / 45804 bits, each
+  equal to the measured span); and the `num_objects` field the record
+  tail now carries matches the object walk exactly on the high-count
+  classes (VISUALSTYLE 240/240, SCALE 186/186, MLEADERSTYLE 11/11,
+  TABLESTYLE 10/10). Evidence table in `ARCHITECTURE.md` §7e.
+- **`ClassDef` gained `num_objects`, `dwg_version` and
+  `maintenance_version`**, and `write_class_map` now round-trips them
+  instead of writing zeros — the writer stays the exact inverse of the
+  parser, including the oversized-`BL` case, which a new
+  BitWriter-built test pins on both layouts.
+- **`examples/probe_class_layout.rs`** is the reproducer: per-field bit
+  offsets, record widths, resolved class names and the string-stream
+  trailer arithmetic for any R2004+ file.
+- **`examples/coverage_report.rs`** now names custom classes in its
+  unhandled histogram (`VISUALSTYLE (custom class)` rather than
+  `CUSTOM(502) (0x01F6)`); a class number is per-file, so the name is
+  the only meaningful aggregate key.
+
+Measured on the 19-file local corpus, `examples/coverage_report.rs`:
+
+| Corpus slice | Before | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 489 / 108 / 0 / 81.9 % | 489 / 108 / 0 / 81.9 % |
+| R2010 (AC1024) × 3 | 438 / 105 / 0 / 80.7 % | 438 / 105 / 0 / 80.7 % |
+| R2013 (AC1027) × 3 | 291 / 105 / 0 / 73.5 % | 291 / 105 / 0 / 73.5 % |
+| R2018 (AC1032) × 1 | 488 / 231 / 26 / 65.5 % | **533 / 166 / 46 / 71.5 %** |
+| **Aggregate** | **1706 / 549 / 26 / 74.8 %** | **1751 / 484 / 46 / 76.8 %** |
+
+65 R2018 records left *skipped*: 45 now decode (its 33 SCALE among
+them) and 20 now reach a decoder and fail — MULTILEADER (10), MESH
+(3), ACAD_TABLE (2), plus WIPEOUT, IMAGE, IMAGEDEF, ACDBDICTIONARYWDFLT
+and DICTIONARYVAR — almost all with "Bit cursor exhausted" inside the
+common entity preamble, i.e. the R2007+ preamble gap tracked under
+#103. Those 20 were always broken; the class table was hiding them.
+
 ### Fixed — non-entity objects were unreachable and read `TV` inline (2026-08-30, #103, closes #33, closes #32)
 
 - **No non-entity object was dispatched at all.** `decode_from_raw`

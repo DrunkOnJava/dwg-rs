@@ -27,23 +27,30 @@ local `samples/` set:
 | R2004 (AC1018)      | 3 | 489 | 108 | 0 | **81.9 %** |
 | R2010 (AC1024)      | 3 | 438 | 105 | 0 | **80.7 %** |
 | R2013 (AC1027)      | 3 | 291 | 105 | 0 | **73.5 %** |
-| R2018 (AC1032)      | 1 | 488 | 231 | 26 | **65.5 %** |
-| **Aggregate** | **19** | **1706** | **549** | **26** | **74.8 %** |
+| R2018 (AC1032)      | 1 | 533 | 166 | 46 | **71.5 %** |
+| **Aggregate** | **19** | **1751** | **484** | **46** | **76.8 %** |
 
 Per-entity-type error concentration in the measured corpus:
 
 | Type code | DXF name | Occurrences as error |
 |-----------|----------|-----------------------|
+| 526 | `MULTILEADER` (custom class) | 10 |
 | 0x4E (78) | `HATCH` | 5 |
+| 517 | `MESH` (custom class) | 3 |
 | 0x39 (57) | `LTYPE` | 3 |
 | 0x07 (7) | `INSERT` | 3 |
 | 0x1A (26) | `DIMENSION` (diameter) | 2 |
 | 0x24 (36) | `SPLINE` | 2 |
-| 0x2C (44) | `MTEXT` | 1 |
-| ... | (long tail) | 8 |
+| 523 | `ACAD_TABLE` (custom class) | 2 |
+| ... | (long tail, 1 each) | 16 |
 
-All 24 remaining errors are in the single R2018 file. Every R2004, R2010 and
-R2013 sample now decodes with **zero** errors.
+All 46 remaining errors are in the single R2018 file. Every R2004, R2010 and
+R2013 sample now decodes with **zero** errors. The error count rose from 26
+when the R2018 `AcDb:Classes` table started resolving: 65 records left
+*skipped*, 45 of them decoding and the other 20 now reaching a decoder and
+failing (mostly in the common entity preamble). Surfacing those 20 is honest
+reporting of a real gap, not a regression — they were always broken, they
+were previously invisible.
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
 are verified against hand-crafted synthetic input, and the R2013/R2018
@@ -81,7 +88,7 @@ real-file decode gap is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~74.8% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~76.8% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -265,8 +272,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 74.8 %
-aggregate / 65.5 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 76.8 %
+aggregate / 71.5 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety
