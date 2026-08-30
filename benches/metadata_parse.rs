@@ -30,8 +30,9 @@
 //! because it has all three sections populated. If the sample is
 //! absent the benches are skipped silently.
 
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use dwg::DwgFile;
+use std::hint::black_box;
 use std::path::PathBuf;
 
 fn sample_path(name: &str) -> Option<PathBuf> {

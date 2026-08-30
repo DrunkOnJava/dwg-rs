@@ -33,8 +33,9 @@
 //! matches the skip-when-absent convention used by the integration
 //! tests in `tests/corpus_roundtrip.rs` and `tests/samples.rs`.
 
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use dwg::DwgFile;
+use std::hint::black_box;
 use std::path::PathBuf;
 
 /// Resolve `../../samples/<name>` relative to the crate manifest, the

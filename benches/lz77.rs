@@ -18,8 +18,9 @@
 //! regressions to the discussion; use `cargo bench -- --save-baseline
 //! <name>` to pin a reference point across branches.
 
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use dwg::lz77;
+use std::hint::black_box;
 
 /// Build a literal-only stream of `n_literal_bytes` bytes wrapped by
 /// the DWG LZ77 "literal length" prefix and `0x11` terminator.
