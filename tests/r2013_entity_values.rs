@@ -384,3 +384,235 @@ fn sample_ac1032_recovers_simple_modern_ltype_names() {
     assert_eq!(continuous.alignment, b'A');
     assert!(continuous.dashes.is_empty());
 }
+
+/// R2007+ STYLE records must recover their name and font file names
+/// from the object's string stream (ODA v5.4.1 §19.1).
+#[test]
+fn sample_ac1032_recovers_modern_style_fonts() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    assert_eq!(file.version(), Version::R2018);
+
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let styles = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::Style(style) => Some(style),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        styles.len() >= 5,
+        "expected the whole STYLE table to decode; got {}",
+        styles.len()
+    );
+
+    let standard = styles
+        .iter()
+        .find(|s| s.header.name == "Standard")
+        .expect("Standard STYLE should decode");
+    assert_eq!(standard.font_filename, "arial.ttf");
+    assert!(standard.bigfont_filename.is_empty());
+    assert_eq!(standard.width_factor, 1.0);
+    assert_eq!(standard.oblique_angle, 0.0);
+    assert!(!standard.is_shape_file());
+    assert!(!standard.is_vertical());
+
+    // A shape-file STYLE has no name; only its .shx font identifies it.
+    assert!(
+        styles
+            .iter()
+            .any(|s| s.header.name.is_empty() && s.font_filename == "ltypeshp.shx"),
+        "expected the ltypeshp.shx shape-file STYLE; got {:?}",
+        styles
+            .iter()
+            .map(|s| (&s.header.name, &s.font_filename))
+            .collect::<Vec<_>>()
+    );
+}
+
+/// The R2018 sample names its layers after the state they encode, so
+/// the decoded `values` word can be checked against the name.
+#[test]
+fn sample_ac1032_recovers_modern_layer_state() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let layers = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::Layer(layer) => Some(layer),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let by_name = |name: &str| {
+        layers
+            .iter()
+            .find(|l| l.header.name == name)
+            .unwrap_or_else(|| {
+                panic!(
+                    "missing LAYER {name:?}; decoded: {:?}",
+                    layers.iter().map(|l| &l.header.name).collect::<Vec<_>>()
+                )
+            })
+    };
+
+    assert!(by_name("0").is_plottable());
+    assert!(by_name("Layer_Freeze").is_frozen());
+    assert!(!by_name("Layer1").is_frozen());
+    assert!(!by_name("Layer_NoPlot").is_plottable());
+    assert!(!by_name("Defpoints").is_plottable());
+    assert_eq!(by_name("Layer_color_80").color_index, 80);
+    // Lineweight index 9 == 0.35 mm, 11 == 0.50 mm.
+    assert_eq!(by_name("Layer_lw_035").lineweight, 9);
+    assert_eq!(by_name("Layer_lw_050").lineweight, 11);
+    // ByLayer/default sentinel.
+    assert_eq!(by_name("Layer1").lineweight, 31);
+}
+
+/// R2007+ DIMSTYLE must decode its whole field body, which is how the
+/// string-stream invariant verifies it.
+#[test]
+fn sample_ac1032_recovers_modern_dimstyle_variables() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let styles = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::DimStyle(d) => Some(d),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let iso = styles
+        .iter()
+        .find(|d| d.header.name == "ISO-25")
+        .expect("ISO-25 DIMSTYLE should decode");
+    assert!(approx_eq(iso.dimscale, 1.0));
+    assert!(approx_eq(iso.dimasz, 2.5));
+    assert!(approx_eq(iso.dimexo, 0.625));
+    assert!(approx_eq(iso.dimexe, 1.25));
+    assert!(approx_eq(iso.dimtxt, 2.5));
+    assert!(approx_eq(iso.dimcen, 2.5));
+    assert!(approx_eq(iso.dimlfac, 1.0));
+    assert_eq!(iso.dimtad, 1);
+
+    assert!(
+        styles.iter().any(|d| d.header.name == "custom_dim_style"),
+        "the AcDs-binary-data DIMSTYLE should decode too"
+    );
+}
+
+/// R2007+ VPORT must decode the whole viewport body, including the
+/// screen rectangle and the grid/snap block.
+#[test]
+fn sample_ac1032_recovers_modern_active_vport() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let vport = entities
+        .iter()
+        .find_map(|e| match e {
+            DecodedEntity::VPort(v) if v.header.name == "*Active" => Some(v),
+            _ => None,
+        })
+        .expect("*Active VPORT should decode");
+    assert!(approx_eq(vport.lower_left.x, 0.0));
+    assert!(approx_eq(vport.lower_left.y, 0.0));
+    assert!(approx_eq(vport.upper_right.x, 1.0));
+    assert!(approx_eq(vport.upper_right.y, 1.0));
+    assert!(approx_eq(vport.lens_length, 50.0));
+    assert!(approx_eq(vport.view_direction.z, 1.0));
+    assert!(approx_eq(vport.grid_spacing.x, vport.snap_spacing.x));
+    assert!(vport.grid_spacing.x > 0.0);
+}
+
+/// R2007+ TEXT must read its string from the string stream, and its
+/// height as a raw `RD`.
+#[test]
+fn sample_ac1032_recovers_modern_text_strings() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let texts = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::Text(t) => Some(t),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        texts.len() >= 20,
+        "expected the TEXT population to decode; got {}",
+        texts.len()
+    );
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.text == "Hello this is a single line text"),
+        "expected the sample's authored TEXT string; got {:?}",
+        texts.iter().map(|t| &t.text).take(5).collect::<Vec<_>>()
+    );
+    for t in &texts {
+        assert!(is_plausible_coord(t.insertion_point.x));
+        assert!(is_plausible_coord(t.insertion_point.y));
+        assert!(
+            t.height.is_finite() && t.height > 0.0,
+            "height {}",
+            t.height
+        );
+    }
+}
+
+/// Single-line ATTRIB / ATTDEF must recover value, tag and prompt from
+/// the string stream, in that order.
+#[test]
+fn sample_ac1032_recovers_modern_attribute_tags() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+
+    let attribs = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::Attrib(a) => Some(a),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        attribs
+            .iter()
+            .any(|a| a.tag == "ATTINFO" && a.text.text == "17"),
+        "expected ATTINFO=17; got {:?}",
+        attribs
+            .iter()
+            .map(|a| (&a.tag, &a.text.text))
+            .collect::<Vec<_>>()
+    );
+
+    let attdefs = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::AttDef(a) => Some(a),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        attdefs
+            .iter()
+            .any(|a| a.tag == "ATTINFO" && a.prompt == "Enter number:"),
+        "expected the ATTINFO prompt; got {:?}",
+        attdefs
+            .iter()
+            .map(|a| (&a.tag, &a.prompt))
+            .collect::<Vec<_>>()
+    );
+}
