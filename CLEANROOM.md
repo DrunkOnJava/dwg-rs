@@ -197,3 +197,42 @@ record, and every field name and type in
 "§19.6.4 (L6-13)" citation that module previously carried is withdrawn
 — the spec has no §19.6 chapter — along with the `BS`-where-the-spec-
 prints-`CMC` reading that came with it.
+
+## 2026-08-30 — ACIS entity record (ODA spec §20.4.41 + §24)
+
+The PR for #61 decodes the whole `REGION` / `3DSOLID` / `BODY` record.
+Both halves of it come from the freely-redistributable ODA *Open Design
+Specification for .dwg files* v5.4.1 and from the corpus bytes:
+
+- **§20.4.41 REGION (37) / 3DSOLID (38) / BODY (39)** prescribes the
+  record in one table for all three entities — the ACIS envelope
+  (`ACIS empty` bit, unknown bit, `BS` version, the version-1 block
+  loop), the wireframe / point / isoline block with its wire and
+  silhouette structures, the second `ACIS empty` bit, and the R2007+
+  trailing `BL`. Every field name and type in
+  `src/entities/modeler.rs`, `three_d_solid.rs`, `region.rs` and
+  `body.rs` comes from that table, including the spec's own gloss
+  "Normally 1" on the second empty bit. Two departures the previous
+  code carried — a missing `B unknown` bit and a fabricated
+  `B has_more_blocks` flag inside the block loop — are corrected
+  *toward* the spec, not away from it.
+- **§24.2.2.3** supplies the semantics of the R2013+ shape: "For each
+  ACIS entity (REGION, 3DSOLID), a data record is created with the SAB
+  stream of the object." That is why the three corpus records carry no
+  inline envelope.
+
+The R2013+ data-store block that follows — seven bits, sixteen bytes,
+a `BL` — is **measured**, not borrowed: it is the residue between the
+end of the §20.4.41 grammar and each record's own data-stream boundary,
+and the sixteen bytes are identified as a revision GUID because they are
+a valid RFC-4122 version-4 UUID on all three records at the one
+alignment that fits. The seven bits are labelled `unknown_*`; only their
+width is claimed. The slot names that are claimed — point, isolines,
+wires, silhouettes, revision GUID — are the spec's own vocabulary plus
+the one word the UUID structure earns.
+
+The `has AcDs binary data` width settled in the same PR (#54) is
+likewise measured from the corpus's own boundaries: 0 bits on the
+entity path, with the 16 bits four R2018 LAYOUT records need relocated
+into LAYOUT's own field list. No third-party implementation was
+consulted for either.

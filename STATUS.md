@@ -6,17 +6,17 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 734 passing in default/debug and release-all-features
+- **Lib tests:** 741 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 2,259 decoded / 119 skipped /
+- **Current real-file decode coverage:** 2,262 decoded / 116 skipped /
   **0 errored** / 95.0% on the local 19-file `samples/` corpus. The
   R2018 `sample_AC1032.dwg` sample is 762 / 80 / 0 / 90.5%. **No file
   in the corpus has a single errored record.** Per version:
-  R2004 97.5%, R2010 97.8%, R2013 97.0%, R2018 90.5%. What remains is
+  R2004 97.5%, R2010 97.8%, R2013 97.0%, R2018 90.9%. What remains is
   the *skipped* column — types with no decoder at all — not records
   that decode wrongly.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
@@ -59,7 +59,10 @@ scrolling the changelog.
 - DIMENSION base + linear / aligned / radial / diameter /
   angular 2-line / angular 3-point / ordinate subclass decoders.
 - MESH (subdivision) / POLYFACE MESH / POLYGON MESH.
-- 3DFACE, 3DSOLID (SAT passthrough), REGION, BODY.
+- 3DFACE, and the three §20.4.41 ACIS entities — 3DSOLID, REGION,
+  BODY — with the full record (ACIS envelope, wireframe/isoline block,
+  the R2007+ trailing `BL` and the R2013+ data-store revision GUID),
+  closing on all three corpus records (ARCHITECTURE.md §7h).
 - SURFACE: extruded / revolved / swept / lofted.
 - CAMERA, LIGHT, SUN, HELIX.
 - IMAGE / IMAGEDEF, UNDERLAY (PDF/DWF/DGN), GEODATA.
@@ -212,8 +215,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 2259 decoded,
-  119 skipped, 0 errored, 95.0% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 2262 decoded,
+  116 skipped, 0 errored, 95.1% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
@@ -236,17 +239,17 @@ These have genuine open scope requiring focused work, not stubs.
   (ARCHITECTURE.md §7d.4) but a single record per corpus file cannot
   pin the token sequence inside its cell-style blocks.
 
-- **#54 the R2013+ `has AcDs binary data` marker on *entities*.**
-  `objects/modern.rs` consumes 16 bits after the flag (measured on the
-  four LAYOUTs of `sample_AC1032.dwg`), `tables/modern.rs` consumes an
-  `RC`, and `common_entity.rs` consumes nothing. Exactly three entity
-  records in the corpus set the bit — 3DSOLID `0xD65` and `0xD6A` and
-  REGION `0xD69` — and all three are ACIS pass-through decoders whose
-  field lists this crate does not close, so they cannot arbitrate the
-  width either. None of the 39 records fixed in the residual-entity
-  pass sets the bit, so the reading did not matter for any of them.
-  Settling it still needs a file with a flag-setting record of a type
-  whose field list closes.
+- **#54 the R2013+ `has AcDs binary data` marker — settled.** The
+  three ACIS entity records that set the bit (3DSOLID `0xD65` /
+  `0xD6A`, REGION `0xD69` of `sample_AC1032.dwg`) now have a field
+  list that closes, and it closes only with **zero** bits consumed
+  after the flag. `common_entity.rs` and `objects/modern.rs` agree on
+  that reading; the 16 bits four LAYOUT records need moved into
+  `objects/acad_layout.rs` as LAYOUT's own data-store block.
+  `tables/modern.rs` keeps its `RC` — that path also omits the
+  `BL num_reactors` the object path reads, so its bit accounting has a
+  second unresolved variable (see the next item) and was left alone.
+  Evidence: ARCHITECTURE.md §7h, `examples/probe_acis_records.rs`.
 
 - **R2007+ symbol-table common object prefix.** `tables/modern.rs`
   omits the `BL num_reactors` that `objects/modern.rs` measured as

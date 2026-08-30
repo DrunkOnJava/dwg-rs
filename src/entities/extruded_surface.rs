@@ -67,7 +67,7 @@ mod tests {
         let mut w = BitWriter::new();
         let blob = SatBlob {
             empty: false,
-            version: 2,
+            version: 1,
             bytes: b"DUMMY SAT BYTES".to_vec(),
         };
         write_sat_blob(&mut w, &blob);

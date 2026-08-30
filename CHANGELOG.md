@@ -69,6 +69,8 @@ Measured coverage on the local 19-file corpus, before → after:
 | R2018 (AC1032) | 762 → 762 | 80 → 80 | 0 → 0 | 90.5 % → **90.5 %** |
 | **Aggregate** | **2187 → 2259** | **191 → 119** | **0 → 0** | 92.0 % → **95.0 %** |
 
+(Re-measured on `main` after #67 (ACIS record) with this change merged: R2018 765 / 77 / 0 / 90.9 %, aggregate **2262 / 116 / 0 / 95.1 %**.)
+
 ### Added — MLINESTYLE (§20.4.73) and three style classes the spec does not prescribe (2026-08-30, closes #55)
 
 `MLINESTYLE`, `MLEADERSTYLE`, `ACDBDETAILVIEWSTYLE` and

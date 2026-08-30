@@ -1794,6 +1794,8 @@ mod tests {
             acis_empty: true,
             version: None,
             sat_blob: None,
+            in_data_store: false,
+            tail: None,
         };
         let m = three_d_solid_to_mesh(&s).unwrap();
         assert!(m.vertices.is_empty());
@@ -1804,8 +1806,10 @@ mod tests {
     fn three_d_solid_to_mesh_with_blob_returns_empty_mesh() {
         let s = crate::entities::three_d_solid::ThreeDSolid {
             acis_empty: false,
-            version: Some(70),
+            version: Some(1),
             sat_blob: Some(b"some opaque ACIS bytes".to_vec()),
+            in_data_store: false,
+            tail: None,
         };
         let m = three_d_solid_to_mesh(&s).unwrap();
         assert!(m.vertices.is_empty());
