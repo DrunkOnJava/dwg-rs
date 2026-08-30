@@ -489,6 +489,8 @@ cargo run --release --example probe_field_list -- \
 
 ### 7d.1a The same object one generation earlier — VISUALSTYLE on R2004
 
+(§7d.1b below shows this same list also covers R14, R2000 and R2007.)
+
 R2004 stores the same 24 styles *without* the per-property flags, with
 one fewer property and in a visibly different order, so the R2010 list
 misses its `RL` object-data-size boundary by hundreds of bits. Deriving
@@ -533,13 +535,91 @@ documents that explicitly, names the three properties R2010 places
 there (all of which decode zero), and surfaces the run's leading byte
 as `edge_unknown_byte` rather than inventing a name for it.
 
-R2007 stays undecoded, and not for want of a field list: the container
-parse returns `SectionMapStatus::Deferred` for `AC1021` and
-`string_stream::data_section_end` locates the split-stream trailer from
-a leading `MC` field only R2010+ writes, so no R2007 object of any type
-reaches a decoder. `objects::acad_visual_style` returns
-`Error::Unsupported` for that band and the dispatcher maps it to
-`Unhandled`.
+### 7d.1b One field list, four releases — VISUALSTYLE on R14, R2000 and R2007 (2026-08-30, #73)
+
+#110/#104 made the R14 / R2000 / R2007 object walk work, and their
+VISUALSTYLE records reached a decoder for the first time. Neither
+shipped list closed on any of the 216, and the issue opened on the
+obvious reading: a third generation of the layout. The measured answer
+is narrower and better. **There is no third generation.** R14, R2000,
+R2004 and R2007 write one field list — §7d.1a's flag-less 30 — and the
+216 records miss the boundary for two reasons that have nothing to do
+with the field order.
+
+**First, the corpus.** Every one of the nineteen files holds exactly 24
+VISUALSTYLE records, R14 included, so the built-in styles are not a
+2007-era addition and the 216 split 72 / 72 / 72 across R14 / R2000 /
+R2007 — not, as the issue allowed for, 108 / 108 / 0.
+`examples/probe_visualstyle_layout.rs` with no `--spec` is the census.
+
+**Second, §2.11.** Before R2004 a colour is the bare `BS` index; the
+`BL` true-colour word and `RC` colour byte are R2004's addition. Five
+colour slots × 40 bits is most of the 154-to-170-bit gap between an
+R2000 record and its R2004 counterpart. Read the colours the older way
+and the *same* 30 fields land all 144 records of the six R14 / R2000
+files exactly on their boundary — delta 0, 144 of 144. The two bands
+are bit-identical in shape: the 24 records of an R14 file give the same
+budget list as the 24 of the R2000 file built from the same drawing.
+
+The colour change is also where the corroboration gets interesting,
+because the two encodings have to agree *through* the change, and they
+do, on all 144 records:
+
+| Style / slot | R2004 `CMC` | R14 / R2000 index |
+|---|---|---|
+| every face mono colour but `ColorChange` | `0xC2FFFFFF` | `7` |
+| `ColorChange` face + edge colour | `0xC2808080` | `8` (ACI dark grey) |
+| `Shaded` silhouette colour | `0xC2787878` | `8` |
+| obscured colour, 22 of 24 styles | `0xC8000000` ("none") | `257` |
+| obscured colour, `Shades of Gray` + `Sketchy` | `0xC3000007` | `7` |
+
+`internal_style_type` (`0` `Flat` … `27` `Shaded`), the signed
+`face_opacity` (`-0.6`, `+0.5` on `X-Ray`), `edge_crease_angle`
+(`40` / `179` / `1`), the `BL display_brightness` (`-50` `Dim`, `50`
+`Brighten`, `0` elsewhere) and the final-bit `is_internal_use_only`
+ten/fourteen split all agree with R2004 record for record.
+
+**R2007 adds exactly one slot.** It keeps the R2004 colour form, so
+with the R2004 list its records land **2 bits short** on all 72 — and
+the leftover bits are `10` followed by `is_internal_use_only`, i.e.
+`101` on the fourteen hidden styles and `100` on the ten listed ones,
+on every record of all three files. One more 2-bit read before that
+final `B` closes all 72.
+
+The slot's position is measured, not chosen, and `Dim` is what measures
+it: it is the one record whose `display_brightness` is not the 2-bit
+zero form but the full 34-bit `BL` holding `-50`, so it discriminates
+placements the other 23 cannot. Putting the slot before
+`display_brightness` closes 23 of 24 and fails on `Dim`; putting it in
+the head fails on all 24; putting it after `is_internal_use_only` fails
+on all 24. What is *not* determined is the slot's token type or its
+side of `display_shadow_type` — both are two bits reading `0` on all
+72 records — so the module surfaces it as `display_unknown_short`
+rather than guessing a name, the same way it treats the R2004 13-bit
+constant run. It is not R2010's `BS format_version`: that decodes `2`,
+this decodes `0`.
+
+**On the limits of a width-only search.** `probe_visualstyle_layout
+--search` measures every one-token neighbour of a candidate list
+(insert / delete / substitute over `B BS BL BD RC CMC`) against every
+record at once. On R2007 it reports 33 neighbours that also close; on
+the R14 / R2000 band, 64. Every one is an encoding alias rather than a
+rival layout — pre-R2004 a colour *is* a `BS`, and `BS` / `BL` / `BD`
+share bit-prefix grammar so they coincide on the small-value forms
+these records use. Width evidence alone cannot separate them. The
+cross-release value agreement above is what does, and saying so is the
+point: the search narrows the field, the values pick the answer.
+
+The net effect on the corpus is 216 records moving from *unhandled* to
+*decoded*, VISUALSTYLE leaving the unhandled histogram entirely, and no
+change to the nine errors:
+
+| Corpus slice | Before (`6cc9b13`) | After |
+|---|---|---|
+| R14 (AC1014) × 3 | 426 / 450 / 0 / 48.6 % | **498 / 378 / 0 / 56.8 %** |
+| R2000 (AC1015) × 3 | 534 / 99 / 0 / 84.4 % | **606 / 27 / 0 / 95.7 %** |
+| R2007 (AC1021) × 3 | 462 / 96 / 0 / 82.8 % | **534 / 24 / 0 / 95.7 %** |
+| **Aggregate (19 files)** | **3695 / 741 / 9 / 83.1 %** | **3911 / 525 / 9 / 88.0 %** |
 
 ### 7d.2 Checking a field list the spec *does* carry — LAYOUT
 

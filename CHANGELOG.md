@@ -8,6 +8,90 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — VISUALSTYLE on R14, R2000 and R2007: one field list, four releases (2026-08-30, closes #73)
+
+#72 made the R14 / R2000 / R2007 object walk work and their 216
+VISUALSTYLE records reached a decoder for the first time. Neither
+shipped field list closed on any of them, and #73 opened on the obvious
+reading — a third generation of the layout. **There is not one.** All
+four pre-R2010 releases write the same 30 flag-less fields in the same
+order; the 216 misses have two causes that are not field order.
+
+- **The record distribution, measured first.** Every one of the
+  nineteen corpus files holds exactly 24 VISUALSTYLE records, R14
+  included — so the built-in styles are not a 2007-era addition and the
+  216 split **72 / 72 / 72** across R14 / R2000 / R2007, not 108 / 108
+  / 0. `examples/probe_visualstyle_layout.rs` with no `--spec` is the
+  census.
+- **R14 and R2000: §2.11's older colour form.** Before R2004 a colour
+  is the bare `BS` index; the `BL` true-colour word and `RC` colour
+  byte are R2004's addition, and five colour slots account for most of
+  the gap. Read the colours that way and the same 30 fields land **all
+  144 records** of the six R14 / R2000 files exactly on their boundary,
+  delta 0. The two bands are bit-identical in shape — an R14 file and
+  the R2000 file built from the same drawing give the same 24 budgets
+  (388, 476, 412, 500, 396, 444, 428, 484, 508, 436, 420, 436, 420,
+  452, 452, 460, 540, 484, 412, 524, 428, 436, 452, 460 bits).
+- **The two colour encodings agree through the change.** Where R2004
+  writes the "none" method `0xC8000000`, R14 / R2000 write index `257`;
+  where R2004 writes `0xC3000007` they write index `7`; and where
+  `ColorChange` writes the grey `0xC2808080` for its face and edge
+  colour and `Shaded` writes `0xC2787878` for its silhouette, they
+  write ACI index `8` — in exactly those three slots of exactly those
+  two records. `internal_style_type` (`0` `Flat` … `27` `Shaded`), the
+  signed `face_opacity` (`-0.6`, `+0.5` on `X-Ray`),
+  `edge_crease_angle` (`40` / `179` / `1`), the `BL`
+  `display_brightness` (`-50` / `50` / `0`) and the final-bit
+  ten-of-twenty-four `is_internal_use_only` split all agree with R2004
+  record for record.
+- **R2007: the same list plus one 2-bit slot.** R2007 keeps the R2004
+  colour form and lands 2 bits short on all 72 records; the leftover
+  bits are `10` then `is_internal_use_only` — `101` on the fourteen
+  hidden styles, `100` on the ten listed ones, on every record of all
+  three files. One more 2-bit read before that final `B` closes all 72,
+  delta 0. `Dim` pins the position: it is the one record whose
+  `display_brightness` is the full 34-bit `BL` rather than the 2-bit
+  zero form, and putting the slot before the brightness closes 23 of 24
+  and fails on exactly `Dim`. Putting it in the head, or after
+  `is_internal_use_only`, fails on all 24.
+- **What is declined.** The new slot's token type and its side of
+  `display_shadow_type` are not determined — both are two bits reading
+  `0` on all 72 records — so it is surfaced as
+  `AcadVisualStyle::display_unknown_short` rather than named after a
+  guess. It is not R2010's `BS format_version`, which decodes `2`.
+- **On width-only searches.** `probe_visualstyle_layout --search`
+  measures every one-token neighbour (insert / delete / substitute over
+  `B BS BL BD RC CMC`) against every record at once. It reports 33
+  closing neighbours on R2007 and 64 on the R14 / R2000 band, all of
+  them encoding aliases rather than rival layouts: pre-R2004 a colour
+  *is* a `BS`, and `BS` / `BL` / `BD` coincide on the small-value forms
+  these records use. Width alone does not pick the layout; the
+  cross-release value agreement does.
+- `examples/probe_visualstyle_layout.rs` is new — census, joint-boundary
+  check and uniqueness search over every VISUALSTYLE record of every
+  file named on the command line.
+- `tests/samples.rs` gains a corpus-gated pin over all 456 records: 24
+  per file, the ten/fourteen internal-use split, the dense `0`…`27`
+  enumeration, `X-Ray`'s opacity, the crease angles, the brightness
+  triple and `ColorChange`'s grey in both encodings.
+- Six new BitWriter tests in `objects::acad_visual_style`, one per band
+  boundary: an R14 record closing on the `RL` inside its own common
+  object data, an R2000 record closing on bare-index colours, an R2007
+  record closing on its string stream, and three negative directions.
+
+**Measured effect** on the 19-file corpus
+(`examples/coverage_report.rs`):
+
+| Corpus slice | Before (`6cc9b13`) | After |
+|---|---|---|
+| R14 (AC1014) × 3 | 426 / 450 / 0 / 48.6 % | **498 / 378 / 0 / 56.8 %** |
+| R2000 (AC1015) × 3 | 534 / 99 / 0 / 84.4 % | **606 / 27 / 0 / 95.7 %** |
+| R2007 (AC1021) × 3 | 462 / 96 / 0 / 82.8 % | **534 / 24 / 0 / 95.7 %** |
+| **Aggregate** | **3695 / 741 / 9 / 83.1 %** | **3911 / 525 / 9 / 88.0 %** |
+
+VISUALSTYLE leaves the unhandled histogram entirely; XRECORD (345) is
+now the largest unmatched class. The error count is unchanged at nine.
+
 ### Fixed — the BLOCK_HEADER name is a stem; the BLOCK sentinel is the authority (2026-08-30, closes #70)
 
 `BLOCK_RECORD` decoded `*D` / `*T` / `*Paper_Space` where the adjacent

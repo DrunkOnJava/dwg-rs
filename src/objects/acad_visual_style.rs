@@ -1,5 +1,6 @@
 //! ACAD_VISUALSTYLE object — named display style (face lighting model,
-//! edge rendering, silhouette, shadows). R2004 and newer.
+//! edge rendering, silhouette, shadows). Every release this crate reads
+//! ships the same 24 built-in styles, R14 included.
 //!
 //! # There is no spec prescription for this object
 //!
@@ -99,16 +100,19 @@
 //! not independently corroborated by this crate. Treat them as labels
 //! for slots whose layout is proven, not as verified semantics.
 //!
-//! # The wire shape — measured, R2004 (the flag-less generation)
+//! # The wire shape — measured, R14 through R2007 (the flag-less generation)
 //!
 //! `arc_2004.dwg` stores the same 24 shipped styles with **no**
 //! per-property flags, one fewer property, and a visibly different
 //! order. This is the list that lands all 24 records of each of
 //! `arc_2004.dwg`, `circle_2004.dwg` and `line_2004.dwg` exactly on
-//! their `RL` object-data-size boundary — 72 records, delta 0:
+//! their `RL` object-data-size boundary — 72 records, delta 0 — and,
+//! with the two release-band adjustments described below, all 24
+//! records of each of the six R14 / R2000 files and the three R2007
+//! files as well. 216 further records, delta 0:
 //!
 //! ```text
-//! TV   description                  -- inline on R2004, string stream on R2007
+//! TV   description                  -- inline to R2004, string stream on R2007
 //! BS   internal_style_type          BS  face_lighting_model
 //! BS   face_lighting_quality        BS  face_color_mode
 //! BD   face_opacity                 BD  face_specular
@@ -124,6 +128,7 @@
 //! B    edge_hide_precision          BS  edge_isoline_count
 //! BS   edge_intersection_linetype   BS  edge_style_apply
 //! BL   display_brightness           BS  display_shadow_type
+//! BS   display_unknown_short         -- R2007 only, 2 bits, always 0
 //! B    is_internal_use_only
 //! ```
 //!
@@ -207,6 +212,104 @@
 //! reading, and a future R2004 file with a non-default halo gap or
 //! isoline count would settle them.
 //!
+//! ## R14 and R2000 — the same list, with §2.11's older colour form
+//!
+//! dwg-rs#73 opened as "a third generation exists": once #72 made the
+//! R14 / R2000 / R2007 object walk work, their VISUALSTYLE records were
+//! visible for the first time and neither shipped list closed on any of
+//! them. The measured answer is narrower than a third generation. R14
+//! and R2000 write the **same 30 fields in the same order** as R2004,
+//! and the whole difference is §2.11: before R2004 a colour is the bare
+//! `BS` index, without the `BL` true-colour word and `RC` colour byte
+//! that R2004 added. Read the five colour slots that way and the list
+//! lands **all 144 records** of `arc_R14.dwg`, `circle_R14.dwg`,
+//! `line_R14.dwg`, `arc_2000.dwg`, `circle_2000.dwg` and
+//! `line_2000.dwg` exactly on their boundary — delta 0, 144 of 144.
+//! (On R14 that boundary is the `RL` object-data-size that release
+//! writes inside the common object data rather than in the object
+//! prologue; the crate-internal `objects::modern` already recovers it.)
+//!
+//! The two bands are bit-for-bit the same shape: the 24 records of an
+//! R14 file and the 24 of the R2000 file built from the same drawing
+//! give the *identical* budget list — 388, 476, 412, 500, 396, 444,
+//! 428, 484, 508, 436, 420, 436, 420, 452, 452, 460, 540, 484, 412,
+//! 524, 428, 436, 452, 460 bits.
+//!
+//! Every value cross-checks against the same style on R2004, where the
+//! layout was already proven, with the two colour encodings mapping
+//! one-to-one:
+//!
+//! - `internal_style_type` agrees on all 24 — `0` `Flat`, `1`
+//!   `FlatWithEdges`, `2` `Gouraud`, `3` `GouraudWithEdges`, `4`
+//!   `2dWireframe`, `7` `Basic`, `9` `Conceptual` … `27` `Shaded`;
+//! - `face_opacity` is `-0.6` on twenty-three styles and `+0.5` on
+//!   `X-Ray`, sign included, exactly as on R2004;
+//! - `edge_crease_angle` is `40` on `Hidden`, `Shades of Gray` and
+//!   `Sketchy`, `179` on `Conceptual`, `1` elsewhere;
+//! - `display_brightness` is the same `BL` — `-50` on `Dim`, `50` on
+//!   `Brighten`, `0` on the other twenty-two;
+//! - `is_internal_use_only`, the record's final bit, splits the styles
+//!   into the same ten the Visual Styles Manager lists and the same
+//!   fourteen it hides;
+//! - the colours agree *through* the encoding change. Where R2004
+//!   writes the "none" method `0xC8000000`, R14 / R2000 write index
+//!   `257`; where R2004 writes `0xC3000007` they write index `7`; and
+//!   where `ColorChange` writes the grey `0xC2808080` for its face and
+//!   edge colour and `Shaded` writes `0xC2787878` for its silhouette,
+//!   R14 / R2000 write index `8` — the ACI dark grey — in exactly those
+//!   three slots of exactly those two records. `edge_obscured_color` is
+//!   `257` everywhere except `Shades of Gray` and `Sketchy`, which are
+//!   `7`; R2004 is `0xC8000000` everywhere except those same two, which
+//!   are `0xC3000007`.
+//!
+//! Because the pre-R2004 colour form *is* a `BS`, a width-only search
+//! cannot tell a colour slot from a plain `BS` on this band, and the
+//! `BS` / `BL` / `BD` codes coincide on the small-value forms these
+//! records use. Running `examples/probe_visualstyle_layout` with
+//! `--search` over the 144 records reports 64 one-token neighbours that
+//! also close, every one of them such an alias or an `RC`-plus-short-form
+//! rewrite of a single `BS`. The width evidence alone does not pick
+//! between them; the value agreement above does, and it is the reason
+//! this module reads the list it reads.
+//!
+//! ## R2007 — the same list plus one 2-bit slot
+//!
+//! R2007 keeps the R2004 colour form and adds exactly one slot. With
+//! the R2004 list its records land **2 bits short** on all 72, and the
+//! bits left over are `10` followed by `is_internal_use_only` — `101`
+//! on the fourteen hidden styles and `100` on the ten listed ones, on
+//! every record of all three R2007 files. Reading one more 2-bit slot
+//! before that final `B` closes all 72, delta 0.
+//!
+//! The slot's position is pinned, not chosen. `Dim` is the one record
+//! whose `display_brightness` is not the 2-bit zero form — it is the
+//! full 34-bit `BL` holding `-50` — so it discriminates placements that
+//! the other twenty-three cannot:
+//!
+//! - putting the slot **before** `display_brightness` closes 23 of 24
+//!   records of `arc_2007.dwg` and fails on `Dim`;
+//! - putting it in the head, after `internal_style_type`, fails on all
+//!   24 — the colour words stop being colour words;
+//! - putting it **after** `is_internal_use_only` fails on all 24;
+//! - `--search` over the 72 records finds no insertion, deletion or
+//!   substitution that removes the slot and still closes.
+//!
+//! What is *not* determined is the slot's token type or its side of
+//! `display_shadow_type`. Both slots are two bits reading `0` on all 72
+//! records, so `BS` / `BL` / `BD` all fit and the two are
+//! interchangeable in the field list. The width is evidence; the
+//! reading is a reading, so the value is surfaced as
+//! [`AcadVisualStyle::display_unknown_short`] rather than given a
+//! plausible-sounding name. R2010 has no counterpart in this position —
+//! its head instead gained a `BS format_version` decoding `2`, which
+//! this slot is not: it decodes `0` on every R2007 record measured.
+//!
+//! Everything else on R2007 agrees with R2004 value for value on all 24
+//! styles, `ColorChange`'s `0xC2808080` face and edge colours and
+//! `Shaded`'s `0xC2787878` silhouette included, and `face_specular` is
+//! `+30` on exactly the seven face-shading styles and `-30` on the
+//! other seventeen — the same sign rule R2004 shows.
+//!
 //! # Naming
 //!
 //! The field **types, widths and order** above are measured. The
@@ -220,25 +323,20 @@
 //!
 //! | Release | Status |
 //! |---|---|
-//! | R14 / R2000 / R2007 | a third layout, not yet measured — [`Error::Unsupported`]; see below |
-//! | R2004 | 30 flag-less fields — closes on all 72 records of the three `*_2004.dwg` files |
+//! | R14 / R2000 | 30 flag-less fields, §2.11 bare-`BS` colours — closes on all 144 records of the six `*_R14.dwg` / `*_2000.dwg` files |
+//! | R2004 | the same 30 fields with `CMC` colours — closes on all 72 records of the three `*_2004.dwg` files |
+//! | R2007 | the same list plus one 2-bit slot before `is_internal_use_only` — closes on all 72 records of the three `*_2007.dwg` files |
 //! | R2010 | 28 `(value, flag)` properties — closes on all 24 records of `arc_2010.dwg` |
 //! | R2013 / R2018 | 58 properties — closes on all 24 records of `arc_2013.dwg` and all 24 of `sample_AC1032.dwg` |
 //!
-//! **The three earliest bands write a layout that is neither of these.**
-//! Until #104/#110 their records never reached a decoder, so the
-//! question could not be asked. It can now, and the answer is negative:
-//! run the R2004 flag-less list against the 24 VISUALSTYLE records of
-//! each of the nine `*_R14.dwg` / `*_2000.dwg` / `*_2007.dwg` files and
-//! **all 216** miss their data-stream boundary. That is 216 records of
-//! evidence that a third field list exists, and none at all about what
-//! it is, so this module returns [`Error::Unsupported`] for those
-//! releases rather than shipping a reading no byte confirms. They are
-//! the single largest entry in the *unhandled* column of
-//! `examples/coverage_report.rs`.
+//! Every corpus file holds 24 VISUALSTYLE records — R14 included, so
+//! the built-in styles are not a 2007-era addition — and all 456 of the
+//! 19-file corpus now decode. The 216 records of the R14 / R2000 /
+//! R2007 bands were the single largest entry in the *unhandled* column
+//! of `examples/coverage_report.rs` until dwg-rs#73.
 
 use crate::bitcursor::BitCursor;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::objects::modern;
 use crate::version::Version;
 
@@ -363,6 +461,12 @@ pub struct AcadVisualStyle {
     pub display_brightness: f64,
     /// Display property (positional name): shadow type.
     pub display_shadow_type: i16,
+    /// R2007 only: the extra 2-bit slot R2007 writes between
+    /// `display_shadow_type` and `is_internal_use_only`. `0` on every
+    /// corpus record, with no counterpart on any other release — see
+    /// the module docs. Always `0` on the releases that have no such
+    /// slot.
+    pub display_unknown_short: i16,
     /// The `BS` flag of each property above, in wire order.
     pub property_flags: Vec<i16>,
     /// R2013+ tail: 30 further `(value, flag)` pairs. Their widths are
@@ -487,38 +591,43 @@ const R2013_TAIL: [TailKind; 30] = [
 /// taking its `TV` fields from the R2007+ string stream and checking
 /// that the data fields end exactly on the data-stream boundary.
 ///
-/// R2004 uses the flag-less field list, R2010 and newer the
-/// `(value, flag)` one. Returns [`Error::Unsupported`] for R2007 and
-/// earlier — see the module docs for why neither band can be measured.
+/// R14 through R2007 use the flag-less field list, R2010 and newer the
+/// `(value, flag)` one. Every release this crate reads has a measured
+/// layout, so no version is declined.
 ///
-/// The R14 / R2000 / R2007 bands were tried against the R2004 list once
-/// their object walk landed: all 24 VISUALSTYLE records of every one of
-/// those nine corpus files miss their data-stream boundary under it, so
-/// those releases carry a third layout that is still unmeasured. The
-/// records stay unhandled rather than decoded from a list that does not
-/// close.
+/// The flag-less list is one field order across four releases, with two
+/// band adjustments the module docs derive: colours are the §2.11 bare
+/// `BS` index before R2004 and the `CMC` triple from R2004 on, and
+/// R2007 alone writes one further 2-bit slot before the record's final
+/// `B`. It closes on all 288 flag-less records of the corpus.
 pub fn decode_object(
     payload: &[u8],
     body_start: usize,
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<AcadVisualStyle> {
-    match version {
-        Version::R2004 => decode_legacy(payload, body_start, inline_data_end, version),
-        _ if version.is_r2010_plus() => {
-            decode_paired(payload, body_start, inline_data_end, version)
-        }
-        _ => Err(Error::Unsupported {
-            feature: format!(
-                "ACAD_VISUALSTYLE layout is determined for R2004 and R2010 or newer; got {}",
-                version.release()
-            ),
-        }),
+    if version.is_r2010_plus() {
+        return decode_paired(payload, body_start, inline_data_end, version);
     }
+    decode_legacy(payload, body_start, inline_data_end, version)
 }
 
-/// Read one `CMC` outside the `(value, flag)` reader.
-fn read_color(c: &mut BitCursor<'_>) -> Result<VisualStyleColor> {
+/// Read one colour slot of the flag-less list.
+///
+/// §2.11 gives the colour two forms and the release picks one: from
+/// R2004 it is the `CMC` triple `BS` index, `BL` true-colour word, `RC`
+/// colour byte; before R2004 it is the bare `BS` index alone, and the
+/// other two members stay `0`. See the module docs for the 144 R14 /
+/// R2000 records that measure the older form and the value agreement
+/// that maps one encoding onto the other.
+fn read_color(c: &mut BitCursor<'_>, version: Version) -> Result<VisualStyleColor> {
+    if !version.is_r2004_plus() {
+        return Ok(VisualStyleColor {
+            index: c.read_bs_u()?,
+            rgb: 0,
+            color_byte: 0,
+        });
+    }
     let (index, rgb, color_byte) = crate::tables::modern::read_cmc_full(c)?;
     Ok(VisualStyleColor {
         index,
@@ -527,7 +636,8 @@ fn read_color(c: &mut BitCursor<'_>) -> Result<VisualStyleColor> {
     })
 }
 
-/// The R2004 field list — 30 fields, no per-property flags.
+/// The flag-less field list — 30 fields, no per-property flags, R14
+/// through R2007.
 fn decode_legacy(
     payload: &[u8],
     body_start: usize,
@@ -543,21 +653,21 @@ fn decode_legacy(
     let face_color_mode = c.read_bs()?;
     let face_opacity = c.read_bd()?;
     let face_specular = c.read_bd()?;
-    let face_mono_color = read_color(c)?;
+    let face_mono_color = read_color(c, version)?;
     let face_modifier = c.read_bs()?;
     let edge_model = c.read_bs()?;
     let edge_style = c.read_bs()?;
-    let edge_intersection_color = read_color(c)?;
-    let edge_obscured_color = read_color(c)?;
+    let edge_intersection_color = read_color(c, version)?;
+    let edge_obscured_color = read_color(c, version)?;
     let edge_obscured_linetype = c.read_bs()?;
     let edge_crease_angle = c.read_bd()?;
     let edge_modifier = c.read_bs()?;
-    let edge_color = read_color(c)?;
+    let edge_color = read_color(c, version)?;
     let edge_opacity = c.read_bd()?;
     let edge_width = c.read_bs()?;
     let edge_overhang = c.read_bs()?;
     let edge_jitter = c.read_bs()?;
-    let edge_silhouette_color = read_color(c)?;
+    let edge_silhouette_color = read_color(c, version)?;
     let edge_silhouette_width = c.read_bs()?;
     // The constant 13-bit run — only its total width is evidence.
     let edge_unknown_byte = c.read_rc()?;
@@ -568,6 +678,13 @@ fn decode_legacy(
     let edge_style_apply = c.read_bs()?;
     let display_brightness = f64::from(c.read_bl()?);
     let display_shadow_type = c.read_bs()?;
+    // R2007 alone writes one more 2-bit slot here. It is the whole
+    // difference between the R2004 and R2007 records.
+    let display_unknown_short = if matches!(version, Version::R2007) {
+        c.read_bs()?
+    } else {
+        0
+    };
     let is_internal_use_only = c.read_b()?;
 
     split.finish("VISUALSTYLE")?;
@@ -606,6 +723,7 @@ fn decode_legacy(
         edge_style_apply,
         display_brightness,
         display_shadow_type,
+        display_unknown_short,
         property_flags: Vec::new(),
         extended: Vec::new(),
         trailing_strings: trailing_strings(&mut split),
@@ -720,6 +838,7 @@ fn decode_paired(
         edge_style_apply,
         display_brightness,
         display_shadow_type,
+        display_unknown_short: 0,
         property_flags,
         extended,
         trailing_strings,
@@ -842,30 +961,46 @@ mod tests {
         crate::string_stream::tests::build_payload(&bits, &["Flat", "strokes_ogs.tif"])
     }
 
-    /// The R2004 field list: 30 fields, no flags, `is_internal_use_only`
-    /// last. Mirrors the module's measured table.
-    fn write_legacy_properties(w: &mut BitWriter) {
+    /// Write one colour in the form `version` uses: the `CMC` triple
+    /// from R2004, the bare `BS` index before it (§2.11).
+    fn color(w: &mut BitWriter, version: Version, index: u16, rgb: u32, color_byte: u8) {
+        w.write_bs_u(index);
+        if version.is_r2004_plus() {
+            w.write_bl_u(rgb);
+            w.write_rc(color_byte);
+        }
+    }
+
+    /// The flag-less field list: 30 fields, no flags, R2007's extra
+    /// 2-bit slot, `is_internal_use_only` last. Mirrors the module's
+    /// measured table for every release from R14 to R2007.
+    ///
+    /// The colour arguments carry both encodings of the same colour, so
+    /// one table serves both bands: `ColorChange`'s grey is
+    /// `0xC2808080` from R2004 and ACI index `8` before it, and the
+    /// "none" method `0xC8000000` is index `257`.
+    fn write_legacy_properties(w: &mut BitWriter, version: Version) {
         w.write_bs(0); // internal_style_type
         w.write_bs(2); // face_lighting_model
         w.write_bs(1); // face_lighting_quality
         w.write_bs(1); // face_color_mode
-        w.write_bd(-0.6); // face_opacity — signed on R2004
+        w.write_bd(-0.6); // face_opacity — signed on the flag-less list
         w.write_bd(30.0); // face_specular
-        cmc(w, 0, 0xC2FF_FFFF, 0); // face_mono_color
+        color(w, version, 7, 0xC2FF_FFFF, 0); // face_mono_color
         w.write_bs(2); // face_modifier
         w.write_bs(0); // edge_model
         w.write_bs(0); // edge_style
-        cmc(w, 0, 0xC300_0007, 0); // edge_intersection_color
-        cmc(w, 0, 0xC800_0000, 0); // edge_obscured_color
+        color(w, version, 7, 0xC300_0007, 0); // edge_intersection_color
+        color(w, version, 257, 0xC800_0000, 0); // edge_obscured_color
         w.write_bs(1); // edge_obscured_linetype
         w.write_bd(1.0); // edge_crease_angle
         w.write_bs(8); // edge_modifier
-        cmc(w, 0, 0xC300_0007, 0); // edge_color
+        color(w, version, 7, 0xC300_0007, 0); // edge_color
         w.write_bd(1.0); // edge_opacity
         w.write_bs(1); // edge_width
         w.write_bs(6); // edge_overhang
         w.write_bs(2); // edge_jitter
-        cmc(w, 0, 0xC300_0007, 0); // edge_silhouette_color
+        color(w, version, 7, 0xC300_0007, 0); // edge_silhouette_color
         w.write_bs(5); // edge_silhouette_width
         w.write_rc(0); // the constant run's leading byte
         w.write_bs(0); // edge_halo_gap
@@ -873,27 +1008,144 @@ mod tests {
         w.write_bs(0); // edge_isoline_count
         w.write_bs(1); // edge_intersection_linetype
         w.write_bs(13); // edge_style_apply
-        w.write_bl(-50); // display_brightness — a BL on R2004
+        w.write_bl(-50); // display_brightness — a BL on the flag-less list
         w.write_bs(0); // display_shadow_type
+        if matches!(version, Version::R2007) {
+            w.write_bs(0); // display_unknown_short — R2007 only
+        }
         w.write_b(true); // is_internal_use_only
     }
 
-    /// An R2004 record: inline `TV`, inline layout, `RL`-style boundary.
-    fn build_r2004() -> (Vec<u8>, usize) {
-        let mut body = modern::tests::r2004_object_prefix(1);
+    /// An R2000 or R2004 record: inline `TV`, inline layout, and the
+    /// object prologue's `RL` object-data-size as the boundary. R2000
+    /// predates the xdictionary-missing flag R2004 added to the common
+    /// object data.
+    /// `fields` selects which release's field list the body carries, so
+    /// a test can hand one release's decoder another release's bytes.
+    fn build_inline_with(version: Version, fields: Version) -> (Vec<u8>, usize) {
+        let mut body = BitWriter::new();
+        body.write_bs_u(0); // EED terminator
+        body.write_bl(1); // num_reactors
+        if version.is_r2004_plus() {
+            body.write_b(true); // no xdictionary
+        }
         modern::tests::write_inline_tv(&mut body, "Flat");
-        write_legacy_properties(&mut body);
+        write_legacy_properties(&mut body, fields);
         let end = body.position_bits();
         (body.into_bytes(), end)
     }
 
+    fn build_inline(version: Version) -> (Vec<u8>, usize) {
+        build_inline_with(version, version)
+    }
+
+    fn build_r2004() -> (Vec<u8>, usize) {
+        build_inline(Version::R2004)
+    }
+
+    /// An R14 record: the object-data size in bits lives *inside* the
+    /// common object data, between the EED chain and the reactor count,
+    /// so the record carries its own boundary and the caller passes
+    /// none. The body is written twice because the `RL` has to hold the
+    /// length of what follows it.
+    fn build_r14() -> Vec<u8> {
+        let write = |size: u32| {
+            let mut body = BitWriter::new();
+            body.write_bs_u(0); // EED terminator
+            body.write_rl(size); // R13/R14 object-data size in bits
+            body.write_bl(1); // num_reactors
+            modern::tests::write_inline_tv(&mut body, "Flat");
+            write_legacy_properties(&mut body, Version::R14);
+            body
+        };
+        let end = write(0).position_bits() as u32;
+        write(end).into_bytes()
+    }
+
+    /// An R2007 record: §19.1's object prologue writes a `BS` object
+    /// type then the `RL` end of the data + string area, the `TV`
+    /// fields live in the string stream, and the area closes with the
+    /// string-stream size and the *strings present* flag.
+    fn build_r2007(fields: Version, strings: &[&str]) -> (Vec<u8>, usize) {
+        let mut sw = BitWriter::new();
+        for s in strings {
+            sw.write_bs_u(s.encode_utf16().count() as u16);
+            for unit in s.encode_utf16() {
+                sw.write_rc((unit & 0xFF) as u8);
+                sw.write_rc((unit >> 8) as u8);
+            }
+        }
+        let string_bits = sw.position_bits();
+        let string_bytes = sw.into_bytes();
+
+        let mut body = BitWriter::new();
+        body.write_bs_u(0); // EED terminator
+        body.write_bl(1); // num_reactors
+        body.write_b(true); // no xdictionary
+        write_legacy_properties(&mut body, fields);
+        let body_bits = crate::string_stream::tests::bits_of(&body);
+
+        // `BS` object type (2 bits for the 0 form) + `RL` = 34 bits.
+        let body_start = 34;
+        let section_end = body_start + body_bits.len() + string_bits + 17;
+
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // object type
+        w.write_rl(section_end as u32);
+        for bit in &body_bits {
+            w.write_b(*bit);
+        }
+        for i in 0..string_bits {
+            let byte = string_bytes[i / 8];
+            w.write_b((byte >> (7 - (i % 8))) & 1 != 0);
+        }
+        w.write_rs(string_bits as i16);
+        w.write_b(true); // strings present
+        while w.position_bits() % 8 != 0 {
+            w.write_b(false);
+        }
+        (w.into_bytes(), body_start)
+    }
+
+    /// R14 carries its own boundary and reads colours as bare indices;
+    /// the same field list closes on it.
     #[test]
-    fn rejects_pre_r2004() {
-        let payload = build(Version::R2018);
-        let err = decode_object(&payload, 8, None, Version::R2000).unwrap_err();
-        assert!(
-            matches!(&err, Error::Unsupported { feature } if feature.contains("ACAD_VISUALSTYLE"))
-        );
+    fn r14_visual_style_closes_on_the_rl_in_its_common_object_data() {
+        let payload = build_r14();
+        let style = decode_object(&payload, 0, None, Version::R14).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        assert!(style.is_internal_use_only);
+        // Pre-R2004 colours are the bare index; no true-colour word.
+        assert_eq!(style.face_mono_color.index, 7);
+        assert_eq!(style.face_mono_color.rgb, 0);
+        assert_eq!(style.edge_obscured_color.index, 257);
+        assert!((style.display_brightness + 50.0).abs() < 1e-12);
+        assert_eq!(style.display_unknown_short, 0);
+        assert!(style.property_flags.is_empty());
+    }
+
+    /// R2000 uses the same field list as R14 but takes its boundary
+    /// from the object prologue, and has no xdictionary-missing flag.
+    #[test]
+    fn r2000_visual_style_closes_with_bare_index_colours() {
+        let (payload, end) = build_inline(Version::R2000);
+        let style = decode_object(&payload, 0, Some(end), Version::R2000).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.face_mono_color.index, 7);
+        assert_eq!(style.edge_obscured_color.index, 257);
+        assert_eq!(style.edge_silhouette_color.index, 7);
+        assert_eq!(style.edge_style_apply, 13);
+        assert!(style.is_internal_use_only);
+    }
+
+    /// The R2004 colour form is 34 bits wider per colour than the R14 /
+    /// R2000 one, so five colour slots put an R2000 body 170 bits short
+    /// of the R2004 reading and the boundary check has to reject it.
+    #[test]
+    fn r2000_body_rejected_by_the_r2004_colour_form() {
+        let (payload, end) = build_inline(Version::R2000);
+        assert!(decode_object(&payload, 0, Some(end), Version::R2004).is_err());
     }
 
     #[test]
@@ -929,16 +1181,39 @@ mod tests {
         assert!(decode_object(&payload, 0, Some(end), Version::R2010).is_err());
     }
 
-    /// R2007 is declined, and the decline is an `Unsupported` — so a
-    /// dispatched R2007 record lands in the Unhandled bucket rather than
-    /// being reported as a broken record.
+    /// R2007 takes its `TV` from the string stream and writes one more
+    /// 2-bit slot than R2004 before the record's final `B`.
     #[test]
-    fn rejects_r2007() {
-        let (payload, end) = build_r2004();
-        let err = decode_object(&payload, 0, Some(end), Version::R2007).unwrap_err();
-        assert!(
-            matches!(&err, Error::Unsupported { feature } if feature.contains("ACAD_VISUALSTYLE"))
-        );
+    fn r2007_split_stream_visual_style_closes_on_its_string_stream() {
+        let (payload, body_start) = build_r2007(Version::R2007, &["Flat"]);
+        let style = decode_object(&payload, body_start, None, Version::R2007).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        assert_eq!(style.face_mono_color.method(), 0xC2);
+        assert_eq!(style.edge_obscured_color.method(), 0xC8);
+        assert!((style.display_brightness + 50.0).abs() < 1e-12);
+        assert_eq!(style.display_shadow_type, 0);
+        assert_eq!(style.display_unknown_short, 0);
+        assert!(style.is_internal_use_only);
+        assert!(style.property_flags.is_empty());
+    }
+
+    /// The extra slot is not optional: an R2007-shaped record whose
+    /// body carries the R2004 field list ends two bits short of its
+    /// string stream, and the boundary check has to reject that rather
+    /// than return a plausible struct.
+    #[test]
+    fn r2007_body_without_the_extra_slot_is_rejected() {
+        let (payload, body_start) = build_r2007(Version::R2004, &["Flat"]);
+        assert!(decode_object(&payload, body_start, None, Version::R2007).is_err());
+    }
+
+    /// …and the converse: a body that *does* carry the extra slot must
+    /// not satisfy the R2004 field list, which is two bits shorter.
+    #[test]
+    fn r2004_body_rejected_when_it_carries_the_r2007_slot() {
+        let (payload, end) = build_inline_with(Version::R2004, Version::R2007);
+        assert!(decode_object(&payload, 0, Some(end), Version::R2004).is_err());
     }
 
     #[test]
