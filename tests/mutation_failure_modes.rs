@@ -96,19 +96,19 @@ fn bitcursor_exhaustion_errors() {
     assert!(c.read_bs().is_err());
 }
 
-/// BitWriter try_write_3b rejects values outside the representable
-/// set. Required because the panicking write_3b would crash the
-/// writer side on malformed callers.
+/// BitWriter try_write_3b rejects values above 7, which the three-bit
+/// code cannot hold. Required because the panicking write_3b would
+/// crash the writer side on malformed callers.
 #[test]
 fn bitwriter_try_write_3b_rejects_out_of_range() {
-    for bad in [1u8, 3, 4, 5, 8, 15, 100, 255] {
+    for bad in [8u8, 9, 15, 100, 255] {
         let mut w = BitWriter::new();
         assert!(w.try_write_3b(bad).is_err(), "bad={bad}");
     }
 }
 
 /// BitWriter write_bll must reject values requiring more than 56
-/// bits of storage; BLL's 3B prefix-coded length tops out at 7 bytes.
+/// bits of storage; BLL's three-bit byte count tops out at 7 bytes.
 #[test]
 fn bitwriter_write_bll_rejects_above_56_bits() {
     let mut w = BitWriter::new();

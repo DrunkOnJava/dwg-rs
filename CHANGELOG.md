@@ -8,6 +8,75 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — the R2010+ entity graphics-preview block is sized by a `BLL` (2026-08-30, closes #42)
+
+- **The common entity preamble's graphics-preview size is an `RL` up to
+  R2007 and a `BLL` (§2.4) from R2010 on.** Reading it as an `RL` on
+  R2018 produced preview sizes in the millions of bytes for records only
+  a few hundred bytes long, and the preamble ran off the end of the
+  record: `Bit cursor exhausted: wanted 8 bits, 3 bits remain`, before
+  any entity-specific field. That was all 20 errors #41 newly surfaced
+  on `sample_AC1032.dwg` — MULTILEADER (10), MESH (3), ACAD_TABLE (2),
+  WIPEOUT, IMAGE.
+- **Custom classes are a correlation, not a cause.** AutoCAD writes
+  proxy graphics for entities whose class it does not implement
+  natively, so the `graphics present` flag is set on exactly the
+  custom-class records and clear on LINE / TEXT / MTEXT. The preamble
+  itself is identical for both; the graphics branch was simply never
+  exercised without one. Nothing in the class record — `was_a_proxy`,
+  `is_an_entity`, proxy flags — changes the field list.
+- **`3B` is three raw bits, not a stop-at-zero prefix code.** The old
+  reading could only produce `{0, 2, 6, 7}`, a set with no way to say
+  "one byte". The bytes require exactly that: the IMAGE at handle
+  `0x662` and the WIPEOUT at `0x44D` both write `001` + `0x8C` = 140
+  bytes of preview; MULTILEADER `0x66E` writes `010` + `0x50 0x03` =
+  848; MESH `0x343` writes 9512. Every one of those lands the rest of
+  the preamble on fields matching the values every plain entity in the
+  same file carries (`entmode = 2`, `num_reactors = 0`,
+  `no_xdictionary`, colour `0x0100`, linetype scale `1.0`,
+  `invisibility = 0`, `lineweight = 0x1D`). `BitWriter::write_bll` now
+  emits the exact byte count instead of rounding up to a representable
+  prefix length.
+- New probe `examples/probe_entity_preamble.rs` traces every entity's
+  preamble under both readings and prints the bits left to the record's
+  data boundary.
+
+### Fixed — IMAGE / WIPEOUT / MESH bodies on R2018 (2026-08-30)
+
+- **An IMAGE clip boundary of type 1 (rectangle) carries no vertex
+  count.** The two corners follow the boundary type directly. The `BL`
+  the decoder read there consumed the first 34 bits of the `-0.5`
+  corner of `sample_AC1032.dwg`'s IMAGE, silently returning a wrong
+  rectangle and overrunning the record. The polygon form (type 2) does
+  carry the count — the WIPEOUT on the same file reads `4` there,
+  followed by four `RD2` vertices that end one bit before its data
+  boundary.
+- **WIPEOUT stores a raster-image record.** The two records are
+  bit-identical for their first 175 bits, and decoding the WIPEOUT with
+  the IMAGE field list closes it exactly on its boundary. The previous
+  WIPEOUT field list (`BL clip_state`, `BS` count, `BD2` vertices,
+  `B show_clipped`, three `RC`s) matched no part of those bytes — it was
+  decoding the graphics-preview payload as geometry.
+  `entities::wipeout::Wipeout` is now an alias for
+  `entities::image::Image` and `wipeout::decode` takes a `Version`.
+- **A MESH's face-list count is a count of `BL` entries, not of
+  faces**, and edge endpoints are `BL`, not `BS`. Both real MESH
+  records now decode: 62 vertices / 336 face-list entries / 72 faces /
+  132 edges and 64 / 320 / 64 / 128, with Euler characteristics 2 and 0
+  — the independent check that the lists were read at the right
+  offsets. The crease array has its own `BL` count. `decode` now
+  rejects any face index or edge endpoint outside the vertex cage.
+  Three bits before the data boundary are left unread and documented
+  rather than guessed: both records hold `100` there.
+- `Mesh::edges` is now `Vec<(u32, u32)>`.
+
+### Changed
+
+- `examples/coverage_report.rs` names the type in its error histogram,
+  resolving custom classes through the file's `AcDb:Classes` table the
+  way the unhandled histogram already did (closes #16).
+
+
 ### Added — ACAD_VISUALSTYLE decodes and dispatches on R2010+ (2026-08-30, #38)
 
 - **The ODA spec carries no prescription for this object.** §20.4 runs
@@ -84,6 +153,8 @@ Measured on the 19-file local corpus, `examples/coverage_report.rs`:
 | R2013 (AC1027) × 3 | 291 / 105 / 0 / 73.5 % | **363 / 33 / 0 / 91.7 %** |
 | R2018 (AC1032) × 1 | 533 / 166 / 46 / 71.5 % | **557 / 142 / 46 / 74.8 %** |
 | **Aggregate** | **1751 / 484 / 46 / 76.8 %** | **1919 / 316 / 46 / 84.1 %** |
+
+Re-measured on `main` after #46 (graphics-preview BLL fix) with this change merged: R2018 561 / 145 / 39 / 75.3 %, aggregate **1923 / 319 / 39 / 84.3 %**.
 
 168 of the corpus's 240 VISUALSTYLE records now decode — the 72 on the
 three R2004 files are the remainder.

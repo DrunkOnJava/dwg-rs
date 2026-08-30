@@ -12,7 +12,7 @@
 //! |------|------------------------|-----------|
 //! | §2.0 | [`BitCursor::read_b`]      | single bit → bool |
 //! | §2.0 | [`BitCursor::read_bb`]     | two-bit code 0..3 |
-//! | §2.1 | [`BitCursor::read_3b`]     | 1-3 bits, variable-length 0..7 |
+//! | §2.1 | [`BitCursor::read_3b`]     | three raw bits, 0..=7 |
 //! | §2.2 | [`BitCursor::read_bs`]     | bitshort: 00=16-bit / 01=8-bit / 10=0 / 11=256 |
 //! | §2.3 | [`BitCursor::read_bl`]     | bitlong: 00=32-bit / 01=8-bit / 10=0 / 11=reserved |
 //! | §2.4 | [`BitCursor::read_bll`]    | bitlonglong: 3-bit length + that many LE bytes |
@@ -156,24 +156,26 @@ impl<'a> BitCursor<'a> {
     }
 
     // ================================================================
-    // §2.1 — 3B (1 to 3 bits; used from R24 onward for entmode-like fields)
+    // §2.1 — 3B (three bits; the byte-count prefix of a BLL, R24+)
     //
-    // "Keep reading bits until a zero bit is encountered or until the 3rd
-    //  bit is read, whatever comes first. Each time a bit is read, shift
-    //  the previously read bits to the left. Result is 0-7."
+    // Measured, not assumed. The earlier reading here was a prefix code
+    // that stopped at the first zero bit, so it could only produce
+    // {0, 2, 6, 7} — a set that cannot express a one-byte BLL. The one
+    // place this crate reads a real `BLL` from a real file is the
+    // R2010+ entity graphics-preview size (§19.4.1), and on
+    // `sample_AC1032.dwg` those fields require lengths of exactly 1 and
+    // 2 bytes: the IMAGE at handle 0x662 stores `001` + `0x8C` = 140
+    // bytes of preview, the MULTILEADER at handle 0x66E stores
+    // `010` + `0x50 0x03` = 848 bytes. Both land the rest of the
+    // preamble on a byte-aligned boundary whose entity-mode, colour,
+    // linetype-scale and lineweight fields match every other entity in
+    // the file. A prefix-coded read of the same bits yields length 0 and
+    // desynchronises the record — see `examples/probe_entity_preamble.rs`.
     // ================================================================
 
-    /// Reads a `3B` (1- to 3-bit length prefix, R24+).
+    /// Reads a `3B` (three raw bits, `0..=7`) — the byte-count prefix of a `BLL`.
     pub fn read_3b(&mut self) -> Result<u8> {
-        let mut result: u8 = 0;
-        for _ in 0..3 {
-            let bit = self.read_bits(1)? as u8;
-            result = (result << 1) | bit;
-            if bit == 0 {
-                break;
-            }
-        }
-        Ok(result)
+        Ok(self.read_bits(3)? as u8)
     }
 
     // ================================================================
@@ -624,16 +626,20 @@ mod tests {
 
     // §2.1 — 3B
     #[test]
-    fn read_3b_stops_at_zero() {
-        // "0..." → 0
-        let bytes = [0b0000_0000];
-        assert_eq!(BitCursor::new(&bytes).read_3b().unwrap(), 0);
-        // "10..." → 10 → 2
-        let bytes = [0b1000_0000];
-        assert_eq!(BitCursor::new(&bytes).read_3b().unwrap(), 0b10);
-        // "111..." → 7
-        let bytes = [0b1110_0000];
-        assert_eq!(BitCursor::new(&bytes).read_3b().unwrap(), 0b111);
+    fn read_3b_is_three_raw_bits() {
+        for value in 0u8..=7 {
+            let bytes = [value << 5];
+            assert_eq!(
+                BitCursor::new(&bytes).read_3b().unwrap(),
+                value,
+                "value={value}"
+            );
+        }
+        // Three bits, always — the next read starts at bit 3.
+        let bytes = [0b0011_1111];
+        let mut c = BitCursor::new(&bytes);
+        assert_eq!(c.read_3b().unwrap(), 0b001);
+        assert_eq!(c.position_bits(), 3);
     }
 
     // Byte alignment between objects, per §2.14.
