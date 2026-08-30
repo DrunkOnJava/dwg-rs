@@ -96,6 +96,8 @@ pub struct ObjectWalker<'a> {
     /// (decoded + skipped + errored). Compared against
     /// `limits.max_handles` on each `next_item` call.
     records_visited: usize,
+    /// Accumulator behind [`ObjectWalkSummary::handle_mismatches`].
+    handle_mismatches: Vec<(u64, u64, u64)>,
 }
 
 /// A single handle-driven walk step. In handle-driven mode the
@@ -145,6 +147,17 @@ pub struct ObjectWalkSummary {
     /// [`crate::reader::ParseDiagnostics`]; wiring the two together
     /// is deferred to a follow-up that can extend `src/api.rs`.
     pub unknown_types: Vec<(u16, u64)>,
+    /// Handle-driven mode only: records whose own handle field
+    /// disagreed with the handle the `AcDb:Handles` map paired with
+    /// that offset, as `(map_handle, record_handle, stream_offset)`.
+    ///
+    /// Every object repeats its handle inside its own record, so this
+    /// is a self-checking oracle for the handle map: a non-empty list
+    /// means the map's address space and the object stream disagree,
+    /// which is exactly the failure #43/#44 tracked. The record is
+    /// still yielded (with the map's handle, as before) — the
+    /// disagreement is reported, not enforced.
+    pub handle_mismatches: Vec<(u64, u64, u64)>,
 }
 
 impl ObjectWalkSummary {
@@ -194,6 +207,7 @@ impl<'a> ObjectWalker<'a> {
             handle_idx: 0,
             limits: WalkerLimits::default(),
             records_visited: 0,
+            handle_mismatches: Vec::new(),
         }
     }
 
@@ -214,6 +228,7 @@ impl<'a> ObjectWalker<'a> {
             handle_idx: 0,
             limits: WalkerLimits::default(),
             records_visited: 0,
+            handle_mismatches: Vec::new(),
         }
     }
 
@@ -323,6 +338,7 @@ impl<'a> ObjectWalker<'a> {
                 ObjectWalkItem::Skipped(entry) => summary.skipped.push(entry),
             }
         }
+        summary.handle_mismatches = std::mem::take(&mut self.handle_mismatches);
         (out, summary)
     }
 }
@@ -379,6 +395,13 @@ impl<'a> ObjectWalker<'a> {
             self.pos = pos;
             return match self.read_one_at_pos() {
                 Ok(Some(mut raw)) => {
+                    // Every record repeats its own handle; a mismatch
+                    // against the map means the map's address space is
+                    // wrong, not that this record is (#43/#44).
+                    if raw.handle.value != entry.handle {
+                        self.handle_mismatches
+                            .push((entry.handle, raw.handle.value, entry.offset));
+                    }
                     raw.handle.value = entry.handle;
                     Ok(Some(ObjectWalkItem::Object(raw)))
                 }
@@ -633,6 +656,7 @@ mod tests {
             skipped: Vec::new(),
             errored_count: 0,
             unknown_types: Vec::new(),
+            handle_mismatches: Vec::new(),
         };
         assert_eq!(s.confidence(), 1.0);
     }
@@ -652,6 +676,7 @@ mod tests {
             skipped,
             errored_count: 20,
             unknown_types: Vec::new(),
+            handle_mismatches: Vec::new(),
         };
         assert_eq!(s.confidence(), 0.5);
     }

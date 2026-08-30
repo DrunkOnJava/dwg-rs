@@ -46,6 +46,10 @@ pub struct SectionDescription {
     pub page_count: u32,
     /// Max decompressed size of a single page of this section (usually 0x7400).
     pub max_decomp_page_size: u32,
+    /// The undocumented u32 at offset 0x10 of the description record.
+    /// Surfaced for diagnostics (`examples/probe_section_pages.rs`);
+    /// the reader does not branch on it.
+    pub unknown: u32,
     /// Compression flag: 1 = uncompressed, 2 = LZ77.
     pub compressed: u32,
     /// ID used to cross-reference the Section Page Map.
@@ -379,7 +383,7 @@ fn decode_section_descriptions(data: &[u8]) -> Result<Vec<SectionDescription>> {
         let size = LittleEndian::read_u64(&data[cursor..cursor + 8]);
         let page_count = LittleEndian::read_u32(&data[cursor + 8..cursor + 12]);
         let max_decomp = LittleEndian::read_u32(&data[cursor + 12..cursor + 16]);
-        let _unknown = LittleEndian::read_u32(&data[cursor + 16..cursor + 20]);
+        let unknown = LittleEndian::read_u32(&data[cursor + 16..cursor + 20]);
         let compressed = LittleEndian::read_u32(&data[cursor + 20..cursor + 24]);
         let section_id = LittleEndian::read_u32(&data[cursor + 24..cursor + 28]);
         let encrypted = LittleEndian::read_u32(&data[cursor + 28..cursor + 32]);
@@ -412,6 +416,7 @@ fn decode_section_descriptions(data: &[u8]) -> Result<Vec<SectionDescription>> {
             size,
             page_count,
             max_decomp_page_size: max_decomp,
+            unknown,
             compressed,
             section_id,
             encrypted,

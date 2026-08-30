@@ -1153,13 +1153,17 @@ mod tests {
         }
 
         // Without the RL the handle is misread and the walk overruns.
+        // The counter-nibble gate (#51) now rejects the misread handle
+        // one field earlier than the entity body used to; either way
+        // the misaligned read must not yield a LINE.
         let mut misaligned = BitCursor::new(&raw.raw);
         misaligned.read_bs_u().unwrap();
-        misaligned.read_handle().unwrap();
-        assert!(
+        let misaligned_result = misaligned.read_handle().and_then(|_| {
             crate::common_entity::read_common_entity_data(&mut misaligned, Version::R2004)
                 .and_then(|_| line::decode(&mut misaligned))
-                .is_err(),
+        });
+        assert!(
+            misaligned_result.is_err(),
             "skipping the RL obj_size must not decode as a valid LINE"
         );
     }

@@ -153,4 +153,21 @@ pub enum Error {
         /// Byte offset into the decompressed `AcDb:AcDbObjects` stream.
         offset: u64,
     },
+
+    /// A handle reference (spec §2.13) declared more than 8 value
+    /// bytes. The counter nibble can encode 0..=15, but a handle value
+    /// is at most a `u64`, so anything above 8 cannot be a handle —
+    /// it means the cursor is not on a handle field at all. Treated as
+    /// a positional signal, not a value-range complaint: the walker
+    /// reports it as a skipped record rather than a decode failure.
+    #[error(
+        "handle counter {counter} exceeds 8 bytes (code {code}); a handle value \
+         cannot be wider than a u64, so the cursor is not on a handle field"
+    )]
+    HandleCounterTooLarge {
+        /// The 4-bit reference code that preceded the counter.
+        code: u8,
+        /// The 4-bit byte count read from the stream (9..=15 here).
+        counter: u8,
+    },
 }
