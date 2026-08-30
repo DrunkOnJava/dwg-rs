@@ -234,27 +234,52 @@ proptest! {
         }
     }
 
-    /// Non-entity, non-table-entry codes (DICTIONARY, XRECORD,
-    /// LAYER_CONTROL, etc.) must always return Unhandled — never an
-    /// Error. LAYER (0x33) and other symbol-table entries are
-    /// intentionally NOT in this list: they now dispatch to their
-    /// typed variants (Layer, Style, Ltype, ...).
+    /// Non-entity codes this crate has no self-validating decoder for
+    /// must always return Unhandled — never an Error, and never a
+    /// typed variant. LAYER (0x33) and the other symbol-table entries
+    /// are intentionally NOT in this list, nor are DICTIONARY / XRECORD
+    /// / the `*_CONTROL` family: those now dispatch to their typed
+    /// variants through `dispatch_object`.
     #[test]
-    fn property_non_entity_codes_always_unhandled(
+    fn property_non_entity_codes_without_decoders_always_unhandled(
         payload in prop::collection::vec(any::<u8>(), 0..=256)
     ) {
         for &code in &[
-            0x2Au16, // DICTIONARY
-            0x32,    // LAYER_CONTROL
-            0x38,    // LTYPE_CONTROL
-            0x4F,    // XRECORD
+            0x49u16, // MLINESTYLE
+            0x4C,    // LONG_TRANSACTION
             0x52,    // LAYOUT
         ] {
             let raw = make_raw(code, payload.clone());
             let decoded = decode_from_raw(&raw, Version::R2018);
             prop_assert!(
                 matches!(decoded, DecodedEntity::Unhandled { .. }),
-                "type 0x{:02X} (non-entity) routed to a typed variant", code
+                "type 0x{:02X} (non-entity, no decoder) routed to a typed variant", code
+            );
+        }
+    }
+
+    /// The non-entity decoders must never panic and never fabricate a
+    /// record out of random bytes that do not land on the object's
+    /// data-stream boundary: every outcome is a typed variant that
+    /// passed `finish`, or an Error.
+    #[test]
+    fn property_non_entity_decoders_are_total_on_random_bytes(
+        payload in prop::collection::vec(any::<u8>(), 0..=256)
+    ) {
+        for &code in &[
+            0x2Au16, // DICTIONARY
+            0x30,    // BLOCK_CONTROL
+            0x32,    // LAYER_CONTROL
+            0x44,    // DIMSTYLE_CONTROL
+            0x48,    // GROUP
+            0x4F,    // XRECORD
+            0x50,    // ACDB_PLACEHOLDER
+        ] {
+            let raw = make_raw(code, payload.clone());
+            let decoded = decode_from_raw(&raw, Version::R2018);
+            prop_assert!(
+                !matches!(decoded, DecodedEntity::Unhandled { .. }),
+                "type 0x{:02X} routed to Unhandled — the object dispatcher lost it", code
             );
         }
     }

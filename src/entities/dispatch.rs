@@ -9,11 +9,12 @@
 //!
 //! # What this dispatcher does NOT do
 //!
-//! - Non-entity objects (DICTIONARY, XRECORD, `*_CONTROL`, symbol-table
-//!   entries, or any `Custom(N)` type resolved through the class map)
-//!   are returned as [`DecodedEntity::Unhandled`] with their raw type
-//!   code. Downstream callers can run [`crate::tables`] or
-//!   [`crate::objects`] decoders on them as needed.
+//! - Object types with no decoder in this crate — and the ones whose
+//!   decoder reads only a documented prefix of their fields, so it
+//!   cannot prove it read them correctly (see [`crate::objects`]) — are
+//!   returned as [`DecodedEntity::Unhandled`] with their raw type code.
+//!   Downstream callers can run those [`crate::objects`] decoders
+//!   directly.
 //! - Decoder errors (partial field, truncated stream, version mismatch)
 //!   are captured in [`DecodedEntity::Error`] — the dispatcher does not
 //!   abort the whole walk on one bad entity.
@@ -35,7 +36,7 @@ use crate::entities::{
     revolved_surface, solid, spline, sun, swept_surface, text, three_d_face, tolerance, trace,
     underlay, vertex, viewport, wipeout, xline,
 };
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::object::RawObject;
 use crate::object_type::ObjectType;
 use crate::version::Version;
@@ -101,9 +102,26 @@ pub enum DecodedEntity {
     AppId(crate::tables::appid::AppId),
     DimStyle(crate::tables::dimstyle::DimStyleEntry),
     BlockRecord(crate::tables::block_record::BlockRecord),
-    /// Object type this dispatcher doesn't decode (control objects,
-    /// dictionaries, unknown custom classes). The raw bytes remain
-    /// accessible on the originating [`RawObject`].
+    // Non-entity objects — the structural records that hold the
+    // drawing together. Like the symbol-table entries above they are
+    // not drawing entities, but a caller iterating DecodedEntity over
+    // the whole object stream wants them typed rather than opaque.
+    Dictionary(crate::objects::dictionary::Dictionary),
+    DictionaryVar(crate::objects::dictionary_var::DictionaryVar),
+    XRecord(crate::objects::xrecord::XRecord),
+    Placeholder(crate::objects::placeholder::Placeholder),
+    Group(crate::objects::acad_group::AcadGroup),
+    Scale(crate::objects::acad_scale::AcadScale),
+    ImageDef(crate::entities::imagedef::ImageDef),
+    /// One of the ten `*_CONTROL` table owners; `kind` says which.
+    Control {
+        kind: ObjectType,
+        control: crate::objects::control::Control,
+    },
+    /// Object type this dispatcher doesn't decode (unknown custom
+    /// classes, objects whose layout this crate has not matched against
+    /// real bytes yet). The raw bytes remain accessible on the
+    /// originating [`RawObject`].
     Unhandled {
         type_code: u16,
         kind: ObjectType,
@@ -184,6 +202,15 @@ impl DecodedEntity {
             Self::AppId(_) => 0x43,
             Self::DimStyle(_) => 0x45,
             Self::BlockRecord(_) => 0x31,
+            Self::Dictionary(_) => OBJECT_TYPE_DICTIONARY,
+            Self::XRecord(_) => OBJECT_TYPE_XRECORD,
+            Self::Placeholder(_) => OBJECT_TYPE_ACDB_PLACEHOLDER,
+            Self::Group(_) => OBJECT_TYPE_GROUP,
+            // DICTIONARYVAR and SCALE are custom classes — their codes
+            // vary per file via AcDb:Classes. Return 0 so callers know
+            // to consult the class map.
+            Self::DictionaryVar(_) | Self::Scale(_) | Self::ImageDef(_) => 0,
+            Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
     }
@@ -246,6 +273,17 @@ const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
 // wired as fixed codes here. If a file assigns a different class
 // index, custom-class dispatch via decode_from_raw_with_class_map
 // is the correct path.
+/// `AcDb:Classes` item class id that marks a class as a non-entity
+/// object (§5.7). `0x1F2` is its entity counterpart.
+const PROXY_OBJECT_ITEM_CLASS_ID: u16 = 0x1F3;
+
+// Non-entity object codes (§5 Table 4). These reach the dispatcher
+// through `dispatch_object`, not through the entity path.
+const OBJECT_TYPE_DICTIONARY: u16 = 0x2A; // 42
+const OBJECT_TYPE_GROUP: u16 = 0x48; // 72
+const OBJECT_TYPE_XRECORD: u16 = 0x4F; // 79
+const OBJECT_TYPE_ACDB_PLACEHOLDER: u16 = 0x50; // 80
+
 const OBJECT_TYPE_CAMERA: u16 = 0x4F8; // 1272
 const OBJECT_TYPE_SUN: u16 = 0x4F9; // 1273
 const OBJECT_TYPE_LIGHT: u16 = 0x4FA; // 1274
@@ -276,6 +314,28 @@ pub fn decode_from_raw_with_class_map(
             kind: raw.kind,
         };
     };
+    // Non-entity custom classes first: they carry the common *object*
+    // data, so feeding them to the entity preamble reader would
+    // mis-align every field after it.
+    if let Some(decoded) = dispatch_object_class(
+        raw,
+        class_def.dxf_class_name.as_str(),
+        type_code,
+        raw.kind,
+        version,
+    ) {
+        return decoded;
+    }
+    // A class whose item class id is ACAD_PROXY_OBJECT is a non-entity;
+    // running it through the common entity preamble below would
+    // mis-read every field and report a decoder error for what is
+    // simply a type this crate has no object decoder for.
+    if class_def.item_class_id == PROXY_OBJECT_ITEM_CLASS_ID {
+        return DecodedEntity::Unhandled {
+            type_code,
+            kind: raw.kind,
+        };
+    }
     // Position cursor past header + common preamble, then dispatch by
     // DXF class name.
     let mut cursor = match position_cursor_at_entity_body(raw, version) {
@@ -381,11 +441,12 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
     let type_code = raw.type_code;
     let kind = raw.kind;
 
-    // Short-circuit objects that are neither drawing entities NOR
-    // symbol-table entries (DICTIONARY, XRECORD, control objects,
-    // unknown custom classes).
+    // Objects that are neither drawing entities NOR symbol-table
+    // entries (DICTIONARY, XRECORD, control objects, ...) take the
+    // non-entity path: a shorter common prefix, and no common entity
+    // preamble at all.
     if !raw.is_entity() && !kind.is_table_entry() {
-        return DecodedEntity::Unhandled { type_code, kind };
+        return dispatch_object(raw, type_code, kind, version);
     }
 
     match position_cursor_at_entity_body(raw, version) {
@@ -406,6 +467,150 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
             message: format!("failed to position cursor: {e}"),
         },
     }
+}
+
+/// Object type code of a `*_CONTROL` record (§5 Table 4). Returns 0 for
+/// anything that is not a control object.
+fn control_type_code(kind: ObjectType) -> u16 {
+    match kind {
+        ObjectType::BlockControl => 0x30,
+        ObjectType::LayerControl => 0x32,
+        ObjectType::StyleControl => 0x34,
+        ObjectType::LtypeControl => 0x38,
+        ObjectType::ViewControl => 0x3C,
+        ObjectType::UcsControl => 0x3E,
+        ObjectType::VportControl => 0x40,
+        ObjectType::AppIdControl => 0x42,
+        ObjectType::DimStyleControl => 0x44,
+        ObjectType::VpEntHdrCtrl => 0x46,
+        _ => 0,
+    }
+}
+
+/// Dispatch a non-entity object — DICTIONARY, XRECORD, the
+/// `*_CONTROL` owners, ACDB_PLACEHOLDER, ACAD_GROUP.
+///
+/// These carry the common *object* data of §19.4.2 rather than the
+/// common entity preamble, and from R2007 their `TV` fields live in the
+/// object's string stream, so they route through
+/// [`crate::objects::modern`] instead of the entity cursor path. Every
+/// decoder reached from here checks that its data fields end exactly on
+/// the record's data-stream boundary, so a wrong field list produces
+/// [`DecodedEntity::Error`], never a plausible-looking struct.
+fn dispatch_object(
+    raw: &RawObject,
+    type_code: u16,
+    kind: ObjectType,
+    version: Version,
+) -> DecodedEntity {
+    // Decide whether this crate has a decoder *before* touching the
+    // bytes, so a type with no decoder reports Unhandled rather than a
+    // cursor error from the header skip.
+    let has_decoder = matches!(
+        kind,
+        ObjectType::Dictionary
+            | ObjectType::XRecord
+            | ObjectType::AcDbPlaceholder
+            | ObjectType::Group
+    ) || kind.is_control();
+    if !has_decoder {
+        return DecodedEntity::Unhandled { type_code, kind };
+    }
+    let body_start = match crate::object::body_cursor(raw, version) {
+        Ok(c) => c.position_bits(),
+        Err(e) => {
+            return DecodedEntity::Error {
+                type_code,
+                kind,
+                message: format!("failed to position cursor: {e}"),
+            };
+        }
+    };
+    let inline_end = raw.obj_size_bits.map(|b| b as usize);
+    let payload = raw.raw.as_slice();
+    use crate::objects::{control, dictionary, placeholder, xrecord};
+    let result: core::result::Result<DecodedEntity, String> = match kind {
+        ObjectType::Dictionary => {
+            dictionary::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Dictionary)
+                .map_err(|e| e.to_string())
+        }
+        ObjectType::XRecord => xrecord::decode_object(payload, body_start, inline_end, version)
+            .map(DecodedEntity::XRecord)
+            .map_err(|e| e.to_string()),
+        ObjectType::AcDbPlaceholder => {
+            placeholder::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Placeholder)
+                .map_err(|e| e.to_string())
+        }
+        ObjectType::Group => {
+            crate::objects::acad_group::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Group)
+                .map_err(|e| e.to_string())
+        }
+        k if k.is_control() => control::decode_object(payload, body_start, inline_end, version, k)
+            .map(|control| DecodedEntity::Control { kind: k, control })
+            .map_err(|e| e.to_string()),
+        _ => return DecodedEntity::Unhandled { type_code, kind },
+    };
+    match result {
+        Ok(decoded) => decoded,
+        Err(message) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message,
+        },
+    }
+}
+
+/// Dispatch a non-entity object whose type code came from the class
+/// map — the `AcDbScale` / `AcDbDictionaryVar` / `AcDbDictionaryWithDefault`
+/// family. Returns `None` when the class name has no self-validating
+/// object decoder, so the caller can fall through to the entity path.
+fn dispatch_object_class(
+    raw: &RawObject,
+    dxf_class_name: &str,
+    type_code: u16,
+    kind: ObjectType,
+    version: Version,
+) -> Option<DecodedEntity> {
+    let body_start = crate::object::body_cursor(raw, version)
+        .map(|c| c.position_bits())
+        .ok()?;
+    let inline_end = raw.obj_size_bits.map(|b| b as usize);
+    let payload = raw.raw.as_slice();
+    let result = match dxf_class_name {
+        "SCALE" | "ACDBSCALE" => {
+            crate::objects::acad_scale::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Scale)
+        }
+        "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
+            crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DictionaryVar)
+        }
+        // A dictionary-with-default is a DICTIONARY plus one extra
+        // handle, and handles are not data-stream fields, so the two
+        // share a field list exactly. Measured on `arc_2004.dwg`
+        // handle 14 and `arc_2013.dwg` handle 14, both of which close
+        // on their boundary with the DICTIONARY body.
+        "ACDBDICTIONARYWDFLT" | "ACDBDICTIONARYWITHDEFAULT" => {
+            crate::objects::dictionary::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Dictionary)
+        }
+        "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
+            crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::ImageDef)
+        }
+        _ => return None,
+    };
+    Some(match result {
+        Ok(decoded) => decoded,
+        Err(e) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message: e.to_string(),
+        },
+    })
 }
 
 /// Dispatch the R2007+ entities whose `TV` fields live in the object's
@@ -444,6 +649,14 @@ fn dispatch_split_stream_entity(
         OBJECT_TYPE_HATCH => {
             hatch::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Hatch)
+        }
+        OBJECT_TYPE_LIGHT => {
+            light::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::Light)
+        }
+        OBJECT_TYPE_GEODATA => {
+            geodata::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::GeoData)
         }
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind = dimension::DimensionKind::from_object_type_code(type_code)?;
@@ -600,46 +813,7 @@ fn position_cursor_at_entity_body<'a>(
     raw: &'a RawObject,
     version: Version,
 ) -> Result<BitCursor<'a>> {
-    let mut cursor = BitCursor::new(&raw.raw);
-
-    if version.is_r2010_plus() {
-        // MC — handle-stream-size-in-bits; byte-aligned, throwaway.
-        read_mc_unsigned(&mut cursor)?;
-    }
-
-    // Type code encoding depends on version. The walker already parsed
-    // this; we need to re-consume exactly the same number of bits.
-    crate::object::read_object_type(&mut cursor, version)?;
-
-    if version.has_object_size_field() {
-        // R2000-R2007 — 32-bit object-data-size-in-bits field (§19.1).
-        cursor.read_rl()?;
-    }
-
-    // Handle (4 bits code + 4 bits counter + counter bytes).
-    let _ = cursor.read_handle()?;
-
-    Ok(cursor)
-}
-
-/// Exact inverse of `object::read_mc_unsigned` — duplicated rather
-/// than imported because the walker's version is private to that
-/// module. Consumes a byte-aligned modular char as unsigned.
-fn read_mc_unsigned(cursor: &mut BitCursor<'_>) -> Result<u64> {
-    let mut value: u64 = 0;
-    let mut shift: u32 = 0;
-    for _ in 0..10 {
-        let b = cursor.read_rc()? as u64;
-        value |= (b & 0x7F) << shift;
-        if b & 0x80 == 0 {
-            return Ok(value);
-        }
-        shift += 7;
-        if shift >= 64 {
-            break;
-        }
-    }
-    Err(Error::SectionMap("MC length exceeded 10 bytes".into()))
+    crate::object::body_cursor(raw, version)
 }
 
 fn dispatch(
@@ -844,13 +1018,16 @@ impl DispatchSummary {
 mod tests {
     use super::*;
 
+    /// A non-entity type this crate has no self-validating decoder for
+    /// stays `Unhandled` — it must never be fed to an entity decoder,
+    /// and must never be counted as decoded.
     #[test]
-    fn unhandled_for_non_entity_type() {
+    fn unhandled_for_non_entity_type_without_a_decoder() {
         let raw = RawObject {
             stream_offset: 0,
             size_bytes: 0,
-            type_code: 42,
-            kind: ObjectType::Dictionary, // non-entity
+            type_code: 0x52,
+            kind: ObjectType::Layout, // non-entity, no decoder
             handle: crate::bitcursor::Handle {
                 code: 0,
                 counter: 0,
@@ -861,6 +1038,29 @@ mod tests {
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
+        assert!(!decoded.is_decoded());
+    }
+
+    /// A DICTIONARY with no bytes reaches the object decoder and fails
+    /// there — an honest `Error`, not a silent `Unhandled` and not a
+    /// fabricated empty dictionary.
+    #[test]
+    fn empty_dictionary_payload_errors_rather_than_decoding() {
+        let raw = RawObject {
+            stream_offset: 0,
+            size_bytes: 0,
+            type_code: OBJECT_TYPE_DICTIONARY,
+            kind: ObjectType::Dictionary,
+            handle: crate::bitcursor::Handle {
+                code: 0,
+                counter: 0,
+                value: 0,
+            },
+            raw: Vec::new(),
+            obj_size_bits: None,
+        };
+        let decoded = decode_from_raw(&raw, Version::R2018);
+        assert!(matches!(decoded, DecodedEntity::Error { .. }));
         assert!(!decoded.is_decoded());
     }
 

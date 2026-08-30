@@ -31,6 +31,8 @@
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point3D, Vec3D, read_bd3};
 use crate::error::{Error, Result};
+use crate::string_stream::{self, StringReader};
+use crate::tables::modern;
 use crate::version::Version;
 
 /// Decoded GEODATA entity.
@@ -58,6 +60,43 @@ pub struct GeoData {
 /// The cursor must already be positioned past the common entity
 /// preamble. Returns [`Error::Unsupported`] for pre-R2010 versions.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<GeoData> {
+    read_body(c, &mut None, version)
+}
+
+/// Decode a GEODATA from its raw payload, taking all five `TV` fields
+/// from the object's R2007+ string stream (§19.1) and checking the data
+/// fields end exactly where that stream begins.
+///
+/// GEODATA is R2010+ only, so this is the *only* correct path for it on
+/// a real file: all five strings — the coordinate-system definition
+/// (which is a full ESRI WKT or PROJ string, routinely hundreds of
+/// characters) and the four observation tags — live in the string
+/// stream, and reading them inline desynchronises the record at the
+/// first of them.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<GeoData> {
+    let (strings, string_start) = modern::open_entity(payload, version)?;
+    let mut strings = Some(strings);
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let geodata = read_body(&mut c, &mut strings, version)?;
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("GEODATA", at, string_start));
+    }
+    Ok(geodata)
+}
+
+/// Read the GEODATA field list from whichever streams hold it.
+fn read_body(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+) -> Result<GeoData> {
     if !version.is_r2010_plus() {
         return Err(Error::Unsupported {
             feature: "GEODATA requires R2010+".into(),
@@ -72,11 +111,11 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<GeoData> {
     let reference_north_dir = read_bd3(c)?;
     let design_to_ref_x_scale = c.read_bd()?;
     let design_to_ref_y_scale = c.read_bd()?;
-    let coordinate_system_def = read_tv(c, version)?;
-    let geo_rss_tag = read_tv(c, version)?;
-    let observation_from_tag = read_tv(c, version)?;
-    let observation_to_tag = read_tv(c, version)?;
-    let observation_coverage_tag = read_tv(c, version)?;
+    let coordinate_system_def = crate::objects::modern::read_tv(c, strings, version)?;
+    let geo_rss_tag = crate::objects::modern::read_tv(c, strings, version)?;
+    let observation_from_tag = crate::objects::modern::read_tv(c, strings, version)?;
+    let observation_to_tag = crate::objects::modern::read_tv(c, strings, version)?;
+    let observation_coverage_tag = crate::objects::modern::read_tv(c, strings, version)?;
     Ok(GeoData {
         version: version_field,
         block_handle,
@@ -93,37 +132,6 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<GeoData> {
         observation_to_tag,
         observation_coverage_tag,
     })
-}
-
-/// GEODATA is R2010+ only. R2010, R2013, R2018 all use the UTF-16LE
-/// bitstream encoding for TV fields per [`Version::uses_utf16_text`].
-fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
-    let len = c.read_bs_u()? as usize;
-    if len == 0 {
-        return Ok(String::new());
-    }
-    if version.uses_utf16_text() {
-        let mut units = Vec::with_capacity(len);
-        for _ in 0..len {
-            let lo = c.read_rc()? as u16;
-            let hi = c.read_rc()? as u16;
-            units.push((hi << 8) | lo);
-        }
-        if units.last() == Some(&0) {
-            units.pop();
-        }
-        String::from_utf16(&units)
-            .map_err(|_| Error::SectionMap("GEODATA string is not valid UTF-16".into()))
-    } else {
-        let mut bytes = Vec::with_capacity(len);
-        for _ in 0..len {
-            bytes.push(c.read_rc()?);
-        }
-        if bytes.last() == Some(&0) {
-            bytes.pop();
-        }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
-    }
 }
 
 #[cfg(test)]

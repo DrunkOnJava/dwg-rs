@@ -22,10 +22,19 @@
 //!
 //! The `TV` path is version-aware: R2007+ encodes it as UTF-16LE,
 //! earlier versions use 8-bit ASCII/MBCS — same rule as every other
-//! TV field in the crate.
+//! TV field in the crate. From R2007 it is not merely re-encoded but
+//! *relocated*, into the object's string stream (§19.1), so
+//! `decode_object` is the path a modern file takes.
+//!
+//! IMAGEDEF is a non-entity object, so it carries the common *object*
+//! data of §19.4.2 rather than the common entity preamble, and it is a
+//! custom class — its type code is assigned per file through
+//! `AcDb:Classes`.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
+use crate::objects::modern;
+use crate::string_stream::StringReader;
 use crate::version::Version;
 
 /// Decoded IMAGEDEF — path + pixel metadata for a raster IMAGE.
@@ -49,12 +58,39 @@ pub struct ImageDef {
 /// pipeline. 64 KiB is already adversarial territory.
 const IMAGEDEF_MAX_PATH_UNITS: usize = 65_536;
 
-/// Decodes the `ImageDef` payload that follows the common entity header.
+/// Decodes the `ImageDef` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ImageDef> {
+    read_body(c, &mut None, version)
+}
+
+/// Decode an IMAGEDEF straight from its raw object payload, taking the
+/// file path from the R2007+ string stream when the file has one and
+/// checking the data fields end exactly on the data-stream boundary.
+pub(crate) fn decode_object(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<ImageDef> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let out = read_body(&mut split.data, &mut split.strings, version)?;
+    split.finish("IMAGEDEF")?;
+    Ok(out)
+}
+
+/// Read the IMAGEDEF field list from whichever streams hold it.
+fn read_body(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+) -> Result<ImageDef> {
     let class_version = c.read_bl()? as u32;
     let image_width = c.read_bd()?;
     let image_height = c.read_bd()?;
-    let file_path = read_tv(c, version)?;
+    let file_path = match strings.as_mut() {
+        Some(reader) => reader.read_tv()?,
+        None => read_tv(c, version)?,
+    };
     let is_loaded = c.read_b()?;
     let pixel_size_units = c.read_rc()?;
     let pixel_width_size = c.read_bd()?;
@@ -70,10 +106,11 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ImageDef> {
     })
 }
 
-/// Local TV reader — the `tables::read_tv` helper is `pub(crate)` and
-/// duplicating its logic inline here avoids widening its visibility
-/// just for this module. The behaviour is identical: version-aware
-/// UTF-16 / 8-bit selection with a trailing-NUL strip.
+/// Inline TV reader for the pre-R2007 layout. Unlike
+/// [`crate::tables::read_tv`] it caps the claimed length before
+/// allocating, because an IMAGEDEF path is the one `TV` in this crate
+/// whose length comes straight from an untrusted file with no
+/// surrounding field to bound it.
 fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
     let len = c.read_bs_u()? as usize;
     if len == 0 {

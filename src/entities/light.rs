@@ -31,10 +31,22 @@
 //! BS   color_index          -- simplified CMC (AutoCAD color index)
 //! B    plot_glyph
 //! ```
+//!
+//! # The name comes from the string stream
+//!
+//! LIGHT exists only from R2007, which is exactly the release that
+//! moved `TV` characters out of the data stream (§19.1), so *every*
+//! LIGHT record on disk carries its name in the object's string
+//! stream. An earlier cut of this module had a private `read_tv` that
+//! ignored its `version` argument and always read 8-bit characters
+//! inline — doubly wrong: wrong stream and wrong encoding.
+//! [`decode_modern_split_stream`] is the path a real file takes.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, read_bd3};
 use crate::error::{Error, Result};
+use crate::string_stream::{self, StringReader};
+use crate::tables::modern;
 use crate::version::Version;
 
 /// Discriminator for LIGHT variant per §19.4.94.
@@ -95,13 +107,47 @@ pub struct Light {
 /// The cursor must already be positioned past the common entity
 /// preamble. Returns [`Error::Unsupported`] for pre-R2007 versions.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Light> {
+    read_body(c, &mut None, version)
+}
+
+/// Decode a LIGHT from its raw payload, taking the light name from the
+/// object's R2007+ string stream (§19.1) and checking the data fields
+/// end exactly where that stream begins.
+///
+/// LIGHT is R2007+ only, so this is the *only* correct path for it on a
+/// real file; [`decode`] survives for hand-built fixtures and for
+/// callers that already hold a positioned cursor.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<Light> {
+    let (strings, string_start) = modern::open_entity(payload, version)?;
+    let mut strings = Some(strings);
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let light = read_body(&mut c, &mut strings, version)?;
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("LIGHT", at, string_start));
+    }
+    Ok(light)
+}
+
+/// Read the LIGHT field list from whichever streams hold it.
+fn read_body(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+) -> Result<Light> {
     if !version.is_r2007_plus() {
         return Err(Error::Unsupported {
             feature: "LIGHT requires R2007+".into(),
         });
     }
     let version_field = c.read_bl_u()?;
-    let name = read_tv(c, version)?;
+    let name = crate::objects::modern::read_tv(c, strings, version)?;
     let light_type_code = c.read_bl_u()?;
     let light_type = LightType::from_code(light_type_code);
     let is_on = c.read_b()?;
@@ -133,25 +179,6 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Light> {
         color_index,
         plot_glyph,
     })
-}
-
-/// LIGHT is R2007+ only, so TV is always UTF-16LE.
-fn read_tv(c: &mut BitCursor<'_>, _version: Version) -> Result<String> {
-    let len = c.read_bs_u()? as usize;
-    if len == 0 {
-        return Ok(String::new());
-    }
-    let mut units = Vec::with_capacity(len);
-    for _ in 0..len {
-        let lo = c.read_rc()? as u16;
-        let hi = c.read_rc()? as u16;
-        units.push((hi << 8) | lo);
-    }
-    if units.last() == Some(&0) {
-        units.pop();
-    }
-    String::from_utf16(&units)
-        .map_err(|_| Error::SectionMap("LIGHT name is not valid UTF-16".into()))
 }
 
 #[cfg(test)]
