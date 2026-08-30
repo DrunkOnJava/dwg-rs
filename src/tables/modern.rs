@@ -76,6 +76,16 @@ fn locate_stream(payload: &[u8], version: Version) -> Result<StringStream> {
 /// Skip the common object prefix: EED chain, xdictionary flag (R2004+),
 /// binary-data flag (R2013+). Per §19.4.2 non-entity objects carry no
 /// graphics block and no reactor count at this point.
+///
+/// # Measured: the R2013+ binary-data flag is followed by an `RC`
+///
+/// When the `has AcDs binary data` bit is set, one `RC` follows before
+/// the record's own fields. Evidence: of the six DIMSTYLE records in
+/// `sample_AC1032.dwg`, the four with the bit clear decode with the
+/// prefix ending 4 bits in, while `ISO-25` and `custom_dim_style` —
+/// the two with it set — need exactly 8 more bits (reading `8` and
+/// `2`) before their `64-flag` lands and the body reaches the string
+/// stream.
 pub(crate) fn skip_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<()> {
     const MAX_XDATA_ITERATIONS: usize = 256;
     for _ in 0..MAX_XDATA_ITERATIONS {
@@ -92,7 +102,10 @@ pub(crate) fn skip_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Res
         let _no_xdictionary = c.read_b()?;
     }
     if matches!(version, Version::R2013 | Version::R2018) {
-        let _has_binary_data = c.read_b()?;
+        let has_binary_data = c.read_b()?;
+        if has_binary_data {
+            let _ds_binary_marker = c.read_rc()?;
+        }
     }
     Ok(())
 }

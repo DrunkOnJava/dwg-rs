@@ -418,6 +418,11 @@ fn dispatch_table_entry(
     version: Version,
 ) -> DecodedEntity {
     let result: core::result::Result<DecodedEntity, String> = match kind {
+        ObjectType::Layer if version.is_r2007_plus() => {
+            crate::tables::layer::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::Layer)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Layer => crate::tables::layer::decode(c, version)
             .map(DecodedEntity::Layer)
             .map_err(|e| e.to_string()),
@@ -476,6 +481,15 @@ fn dispatch_table_entry(
         ObjectType::AppId => crate::tables::appid::decode(c, version)
             .map(DecodedEntity::AppId)
             .map_err(|e| e.to_string()),
+        ObjectType::DimStyle if version.is_r2007_plus() => {
+            crate::tables::dimstyle::decode_modern_split_stream(
+                &raw.raw,
+                c.position_bits(),
+                version,
+            )
+            .map(DecodedEntity::DimStyle)
+            .map_err(|e| e.to_string())
+        }
         ObjectType::DimStyle => crate::tables::dimstyle::decode_partial(c, version)
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string()),
