@@ -243,11 +243,7 @@ impl FileHeader {
         }
         // §5.2: "The first 0x3D8 bytes should be decoded using
         // Reed-Solomon (255, 239) decoding, with a factor of 3."
-        let decoded = deinterleave(
-            &bytes[FILE_HEADER_OFFSET..end],
-            3,
-            RS_SYSTEM_MESSAGE,
-        )?;
+        let decoded = deinterleave(&bytes[FILE_HEADER_OFFSET..end], 3, RS_SYSTEM_MESSAGE)?;
         if decoded.len() < 0x20 {
             return Err(Error::SectionMap(
                 "R2007 file header: Reed-Solomon block shorter than its 0x20-byte prefix".into(),
@@ -265,11 +261,13 @@ impl FileHeader {
                 })?
                 .to_vec()
         } else {
-            let compressed = decoded.get(0x20..0x20 + compr_len as usize).ok_or_else(|| {
-                Error::SectionMap(
-                    "R2007 file header: ComprLen runs past the Reed-Solomon block".into(),
-                )
-            })?;
+            let compressed = decoded
+                .get(0x20..0x20 + compr_len as usize)
+                .ok_or_else(|| {
+                    Error::SectionMap(
+                        "R2007 file header: ComprLen runs past the Reed-Solomon block".into(),
+                    )
+                })?;
             r21_lz::decompress(compressed, FILE_HEADER_SIZE, DecompressLimits::default())?
         };
         if plain.len() < FILE_HEADER_SIZE {
@@ -863,13 +861,8 @@ mod tests {
             encoding: 4,
             pages: Vec::new(),
         };
-        let err = read_section(
-            &[],
-            &PageMap::default(),
-            &desc,
-            DecompressLimits::default(),
-        )
-        .unwrap_err();
+        let err =
+            read_section(&[], &PageMap::default(), &desc, DecompressLimits::default()).unwrap_err();
         assert!(matches!(err, Error::Unsupported { .. }));
     }
 }

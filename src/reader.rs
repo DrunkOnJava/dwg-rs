@@ -59,10 +59,13 @@ pub enum SectionMapStatus {
     /// discovered, plus any known-name entries whose payload size
     /// is unknown. Callers should treat this as advisory only.
     Fallback { reason: String },
-    /// R2007 — spec §5 layout not yet implemented by this crate.
-    /// `sections` contains a single `_R2007_UNSUPPORTED` placeholder
-    /// that covers the whole post-header byte range; it is not
-    /// individually decodable.
+    /// The container could not be walked and the `sections` list is a
+    /// placeholder covering the undecodable byte range.
+    ///
+    /// Reached only when an R2007 file's §5.1-§5.4 container fails to
+    /// parse — a truncated file, a page map that points outside it, or
+    /// a §5.10 stream that does not decompress to its recorded size.
+    /// A well-formed AC1021 file reports [`SectionMapStatus::Full`].
     Deferred { reason: String },
 }
 
@@ -188,8 +191,7 @@ impl DwgFile {
                     // crate cannot walk still opens with partial metadata,
                     // and say why in the status rather than pretending.
                     let mut sections = Vec::new();
-                    if common.image_seeker != 0
-                        && (common.image_seeker as u64) < bytes.len() as u64
+                    if common.image_seeker != 0 && (common.image_seeker as u64) < bytes.len() as u64
                     {
                         sections.push(Section {
                             name: "AcDb:Preview".to_string(),

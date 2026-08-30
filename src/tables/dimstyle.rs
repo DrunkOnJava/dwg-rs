@@ -75,7 +75,7 @@ pub type DimStyle = DimStyleEntry;
 /// It cannot satisfy the record's data-stream boundary, so the
 /// dispatcher does not use it on real files — see
 /// [`decode_r2000_inline`], which reads the whole §20.4.68 R2000+ body,
-/// and [`decode_modern_split_stream`] for R2007+. It is kept for callers
+/// and `decode_modern_split_stream` for R2007+. It is kept for callers
 /// that only want the rendering-essential variables out of a synthetic
 /// stream.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
@@ -137,7 +137,7 @@ fn read_cmc_inline(c: &mut BitCursor<'_>, version: Version) -> Result<i16> {
 }
 
 /// Decode the whole §20.4.68 "R2000+" DIMSTYLE body inline — the
-/// pre-R2007 counterpart of [`decode_modern_split_stream`].
+/// pre-R2007 counterpart of `decode_modern_split_stream`.
 ///
 /// The two field lists are the same list; the only differences are that
 /// `DIMPOST` / `DIMAPOST` cost real bits here (they are `TV`s in the

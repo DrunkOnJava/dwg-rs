@@ -1,21 +1,29 @@
 # Canonical test corpus
 
 A minimal, self-generated corpus of DWG files that CI runs
-`coverage_report` against (task #94). Four files, one per DWG version
-the write path can assemble, ~1.2 KB each.
+`coverage_report` against (task #94). Five files, one per DWG version
+the write path can assemble.
 
-| File                  | Version        | Entities | decoded / skip / err | ratio |
-|-----------------------|----------------|----------|----------------------|-------|
-| `synthetic_2004.dwg`  | AC1018 (R2004) | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2010.dwg`  | AC1024 (R2010) | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2013.dwg`  | AC1027 (R2013) | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2018.dwg`  | AC1032 (R2018) | 5        | 5 / 0 / 0            | 100 % |
-| **TOTAL**             |                | 20       | 20 / 0 / 0           | 100 % |
+| File                  | Version        | Container   | Entities | decoded / skip / err | ratio |
+|-----------------------|----------------|-------------|----------|----------------------|-------|
+| `synthetic_2000.dwg`  | AC1015 (R2000) | flat §3.2.6 | 5        | 5 / 0 / 0            | 100 % |
+| `synthetic_2004.dwg`  | AC1018 (R2004) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
+| `synthetic_2010.dwg`  | AC1024 (R2010) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
+| `synthetic_2013.dwg`  | AC1027 (R2013) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
+| `synthetic_2018.dwg`  | AC1032 (R2018) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
+| **TOTAL**             |                |             | 25       | 25 / 0 / 0           | 100 % |
 
-Each file carries three sections — `AcDb:Header` (64 zero bytes,
-placeholder), `AcDb:Handles`, `AcDb:AcDbObjects` — and five entities:
-a 2D LINE, a 3D LINE with non-default thickness and extrusion, a
-CIRCLE, an ARC, and a POINT.
+Each file carries the same five entities: a 2D LINE, a 3D LINE with
+non-default thickness and extrusion, a CIRCLE, an ARC, and a POINT.
+
+The R2004-family files carry three sections — `AcDb:Header` (64 zero
+bytes, placeholder), `AcDb:Handles`, `AcDb:AcDbObjects` — assembled by
+`assemble_dwg_bytes`. `synthetic_2000.dwg` has no section map at all:
+§3.2.6 gives R13-R15 a flat list of `(record number, absolute seeker,
+size)` locators, the object records sit loose in the file, and the
+object map addresses them by absolute file offset. That is what makes
+it a *different* gate rather than a fifth copy of the same one — it is
+the only fixture whose handle-map offsets are file offsets.
 
 ## Licence and provenance
 
@@ -30,7 +38,9 @@ no licence, so its contents are not redistributable.
 Generator: [`examples/build_fixtures.rs`](../../../examples/build_fixtures.rs),
 driving `dwg::file_writer::assemble_dwg_bytes` (write-path Stages 1-5),
 `dwg::handle_map::write_handle_map`, and the
-`dwg::element_encoder::ElementEncoder` entity encoders.
+`dwg::element_encoder::ElementEncoder` entity encoders. The R2000
+fixture uses `build_flat_fixture` in the same example instead of
+`assemble_dwg_bytes`, which does not accept the flat layout.
 
 Command line:
 
@@ -60,9 +70,16 @@ Autodesk product.
 Coverage is limited to the four entity types that currently have an
 `ElementEncoder` implementation (LINE, CIRCLE, ARC, POINT). Add
 fixtures as more encoders land — every new encoder is a chance to widen
-this gate. `assemble_dwg_bytes` rejects R14 / R2000 (flat locator
-table) and R2007 (two-layer Sec_Mask), so no fixture exists for those
-versions yet.
+this gate.
+
+No R14 or R2007 fixture exists. R14 entity records need the §20.4.1
+R13/R14 preamble and the §20.4.21 `3BD` LINE body, which the
+`ElementEncoder` implementations do not write; R2007's §5.1-§5.4
+container is implemented read-only, and writing one would need a
+Reed-Solomon encoder and a §5.10 compressor this crate does not have.
+Both releases are covered on the read side by the real corpus and by
+`tests/integration_legacy_container.rs`, whose R14 fixtures are built
+byte-by-byte in the test itself.
 
 ## What CI does with this
 

@@ -37,8 +37,8 @@
 //!
 //! The blocks are the *smaller copy functions themselves*, applied
 //! recursively — that is what "a combination of sub byte blocks" means, and
-//! it is what the bytes agree with. [`COPY_BLOCKS`] holds the table
-//! verbatim; [`emit_permuted`] recurses through it. Concretely:
+//! it is what the bytes agree with. `COPY_BLOCKS` holds the table
+//! verbatim; `emit_permuted` recurses through it. Concretely:
 //!
 //! | count | table row | expands to |
 //! |---|---|---|
@@ -68,7 +68,7 @@
 //!
 //! # Back-references (§5.10.2)
 //!
-//! [`read_instructions`] is the spec's `ReadInstructions` switch on the
+//! `read_instructions` is the spec's `ReadInstructions` switch on the
 //! opcode's high nibble, transcribed field-for-field. After each copy the
 //! low three bits of the running opcode give the next literal length; a
 //! zero there means another back-reference follows, unless the next
@@ -88,39 +88,39 @@ type Block = (usize, usize);
 /// function, in output order. See the module docs for why the blocks are
 /// expanded recursively.
 const COPY_BLOCKS: [&[Block]; 33] = [
-    &[],                                    // 0 — unused
-    &[(1, 0)],                              // 1
-    &[(1, 1), (1, 0)],                      // 2
-    &[(1, 2), (1, 1), (1, 0)],              // 3
-    &[(1, 0), (1, 1), (1, 2), (1, 3)],      // 4
-    &[(1, 4), (4, 0)],                      // 5
-    &[(1, 5), (4, 1), (1, 0)],              // 6
-    &[(2, 5), (4, 1), (1, 0)],              // 7
-    &[(4, 0), (4, 4)],                      // 8
-    &[(1, 8), (8, 0)],                      // 9
-    &[(1, 9), (8, 1), (1, 0)],              // 10
-    &[(2, 9), (8, 1), (1, 0)],              // 11
-    &[(4, 8), (8, 0)],                      // 12
-    &[(1, 12), (4, 8), (8, 0)],             // 13
-    &[(1, 13), (4, 9), (8, 1), (1, 0)],     // 14
-    &[(2, 13), (4, 9), (8, 1), (1, 0)],     // 15
-    &[(8, 8), (8, 0)],                      // 16
-    &[(8, 9), (1, 8), (8, 0)],              // 17
-    &[(1, 17), (16, 1), (1, 0)],            // 18
-    &[(3, 16), (16, 0)],                    // 19
-    &[(4, 16), (16, 0)],                    // 20
-    &[(1, 20), (4, 16), (16, 0)],           // 21
-    &[(2, 20), (4, 16), (16, 0)],           // 22
-    &[(3, 20), (4, 16), (16, 0)],           // 23
-    &[(8, 16), (16, 0)],                    // 24
-    &[(8, 17), (1, 16), (16, 0)],           // 25
-    &[(1, 25), (8, 17), (1, 16), (16, 0)],  // 26
-    &[(2, 25), (8, 17), (1, 16), (16, 0)],  // 27
-    &[(4, 24), (8, 16), (16, 0)],           // 28
-    &[(1, 28), (4, 24), (8, 16), (16, 0)],  // 29
-    &[(2, 28), (4, 24), (8, 16), (16, 0)],  // 30
+    &[],                                           // 0 — unused
+    &[(1, 0)],                                     // 1
+    &[(1, 1), (1, 0)],                             // 2
+    &[(1, 2), (1, 1), (1, 0)],                     // 3
+    &[(1, 0), (1, 1), (1, 2), (1, 3)],             // 4
+    &[(1, 4), (4, 0)],                             // 5
+    &[(1, 5), (4, 1), (1, 0)],                     // 6
+    &[(2, 5), (4, 1), (1, 0)],                     // 7
+    &[(4, 0), (4, 4)],                             // 8
+    &[(1, 8), (8, 0)],                             // 9
+    &[(1, 9), (8, 1), (1, 0)],                     // 10
+    &[(2, 9), (8, 1), (1, 0)],                     // 11
+    &[(4, 8), (8, 0)],                             // 12
+    &[(1, 12), (4, 8), (8, 0)],                    // 13
+    &[(1, 13), (4, 9), (8, 1), (1, 0)],            // 14
+    &[(2, 13), (4, 9), (8, 1), (1, 0)],            // 15
+    &[(8, 8), (8, 0)],                             // 16
+    &[(8, 9), (1, 8), (8, 0)],                     // 17
+    &[(1, 17), (16, 1), (1, 0)],                   // 18
+    &[(3, 16), (16, 0)],                           // 19
+    &[(4, 16), (16, 0)],                           // 20
+    &[(1, 20), (4, 16), (16, 0)],                  // 21
+    &[(2, 20), (4, 16), (16, 0)],                  // 22
+    &[(3, 20), (4, 16), (16, 0)],                  // 23
+    &[(8, 16), (16, 0)],                           // 24
+    &[(8, 17), (1, 16), (16, 0)],                  // 25
+    &[(1, 25), (8, 17), (1, 16), (16, 0)],         // 26
+    &[(2, 25), (8, 17), (1, 16), (16, 0)],         // 27
+    &[(4, 24), (8, 16), (16, 0)],                  // 28
+    &[(1, 28), (4, 24), (8, 16), (16, 0)],         // 29
+    &[(2, 28), (4, 24), (8, 16), (16, 0)],         // 30
     &[(1, 30), (4, 26), (8, 18), (16, 2), (2, 0)], // 31
-    &[(16, 16), (16, 0)],                   // 32
+    &[(16, 16), (16, 0)],                          // 32
 ];
 
 /// Append the `count` bytes of `src` starting at `base` to `out`, in the
@@ -171,9 +171,8 @@ fn byte_at(src: &[u8], pos: usize) -> Result<u8> {
 /// the length of the literal run that follows once the back-reference
 /// chain ends.
 fn read_instructions(src: &[u8], mut pos: usize, mut opcode: u8) -> Result<(usize, u8, u64, u64)> {
-    let offset: u64;
     let mut length: u64;
-    match opcode >> 4 {
+    let offset: u64 = match opcode >> 4 {
         0 => {
             length = u64::from(opcode & 0x0F) + 0x13;
             let lo = u64::from(byte_at(src, pos)?);
@@ -181,7 +180,7 @@ fn read_instructions(src: &[u8], mut pos: usize, mut opcode: u8) -> Result<(usiz
             opcode = byte_at(src, pos)?;
             pos += 1;
             length += u64::from((opcode >> 3) & 0x10);
-            offset = (u64::from(opcode & 0x78) << 5) + 1 + lo;
+            (u64::from(opcode & 0x78) << 5) + 1 + lo
         }
         1 => {
             length = u64::from(opcode & 0x0F) + 3;
@@ -189,7 +188,7 @@ fn read_instructions(src: &[u8], mut pos: usize, mut opcode: u8) -> Result<(usiz
             pos += 1;
             opcode = byte_at(src, pos)?;
             pos += 1;
-            offset = (u64::from(opcode & 0xF8) << 5) + 1 + lo;
+            (u64::from(opcode & 0xF8) << 5) + 1 + lo
         }
         2 => {
             let lo = u64::from(byte_at(src, pos)?);
@@ -210,16 +209,16 @@ fn read_instructions(src: &[u8], mut pos: usize, mut opcode: u8) -> Result<(usiz
                 pos += 1;
                 length += (u64::from(opcode & 0xF8) << 8) + 0x100;
             }
-            offset = off;
+            off
         }
         _ => {
             length = u64::from(opcode >> 4);
             let lo = u64::from(opcode & 0x0F);
             opcode = byte_at(src, pos)?;
             pos += 1;
-            offset = (u64::from(opcode & 0xF8) << 1) + lo + 1;
+            (u64::from(opcode & 0xF8) << 1) + lo + 1
         }
-    }
+    };
     Ok((pos, opcode, offset, length))
 }
 
@@ -327,7 +326,10 @@ pub fn decompress(src: &[u8], expected: usize, limits: DecompressLimits) -> Resu
                 });
             }
             let back = usize::try_from(offset).map_err(|_| Error::Lz77InvalidOffset)?;
-            let start = out.len().checked_sub(back).ok_or(Error::Lz77InvalidOffset)?;
+            let start = out
+                .len()
+                .checked_sub(back)
+                .ok_or(Error::Lz77InvalidOffset)?;
             if out.len() + copy_len > expected {
                 return Err(Error::Lz77OutputLimitExceeded { limit: expected });
             }
@@ -439,7 +441,8 @@ mod tests {
 
     #[test]
     fn truncated_stream_errors_rather_than_panicking() {
-        let err = decompress(&[0x20, 0x00, 0x00, 0x07], 64, DecompressLimits::default()).unwrap_err();
+        let err =
+            decompress(&[0x20, 0x00, 0x00, 0x07], 64, DecompressLimits::default()).unwrap_err();
         assert!(matches!(err, Error::Lz77Truncated));
     }
 

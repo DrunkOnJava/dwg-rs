@@ -8,6 +8,93 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — R14, R2000 and R2007 files now walk their object streams (2026-08-30, closes #104, #110, #65)
+
+Nine of the nineteen corpus files reported `n/a (no-handle-map)` in
+every coverage run this project has published. Not "decoded badly":
+**not walked at all** — three whole release bands, and with them the
+pre-2004 half of every field list in the crate, had no evidence behind
+them. They all decode now, with zero errored records.
+
+**R13-R15 (`AC1014`, `AC1015`)** need no new container: §3.1 puts the
+object records loose in the file and §3.2.6's object map addresses them
+by *absolute file offset*, so `DwgFile::object_stream` hands back the
+whole file and the existing §4.4 handle-map parser and
+`ObjectWalker::with_handle_map` do the rest. The locator records are
+given the canonical `AcDb:` names, which is what makes `handle_map()`,
+`class_map()` and `header_vars()` version-agnostic. Every one of the
+292 (R14) / 211 (R2000) handle-map entries per file resolves to a record
+whose own handle field matches the map.
+
+**R2007 (`AC1021`)** gets a real container (`src/r2007.rs`,
+`src/r21_lz.rs`): Reed-Solomon de-interleaving of the 0x400-byte file
+header, the §5.10 LZ variant, the page map, the section map and
+per-page data assembly. The decoded file header reproduces every
+constant §5.2 documents on all three corpus files, its `File size`
+field equals each file's own byte count, and all twelve tabulated
+section hash codes match. `SectionMapStatus::Deferred` is gone for
+AC1021.
+
+The `src/r2007.rs` this replaces described R2007 as a two-layer
+"Sec_Mask" — a byte XOR plus a 7-byte bit rotation. **R2007 uses
+neither**; that module described a transformation the format does not
+have, and it is removed rather than kept as a scaffold. `xor_layer_1`
+and `rotate_layer_2` are gone from the public API.
+
+**#65** falls out of the same work: §19.1's `RL` object-data-size *is*
+R2007's data-and-string end, so `string_stream::data_section_end`
+answers for AC1021 and every R2007+ decoder in the crate — the whole
+`tables::modern` / `objects::modern` family — runs on R2007 without a
+line of new decoder code.
+
+### Changed — every entity is boundary-checked on every release
+
+`entities::dispatch::checked_inline` previously returned `None` for the
+boundary on R13/R14 and R2007. Both bands state one: R2007 through the
+§19.1 trailer located from its `RL`, R13/R14 through the same `RL`,
+which §20.4.1 places *inside* the common entity data rather than in the
+object prologue. The pre-R2007 symbol-table path is checked too. **No
+entity or table entry in the corpus decodes unchecked on any release.**
+
+### Fixed — four pre-R2007 field lists the new files exposed
+
+Each was wrong on R2000 and R2004 as well; only files that reach a
+decoder could show it. All four now close on `delta 0`, and each is
+corroborated by the same drawing decoded on a later release:
+
+- **LAYER** read `BS values`, a `B` plot flag, a `BS` lineweight and a
+  `BS` colour. §20.4.54 has `BS values` — which already *contains* the
+  plot flag and the lineweight index — then the colour. `line_2004.dwg`
+  had been reporting lineweight −32765 and colour −31231; layer `0` now
+  reads colour 7 on every release from R14 to R2018.
+- **LTYPE** read an `RC flags` and an `RS used_count` that §20.4.58 does
+  not list, pushing the description three bytes late: every pre-R2007
+  `Continuous` record reported `lid line` instead of `Solid line`. The
+  dash-record field order and the `X 9` 256-byte text area are corrected
+  to the spec at the same time.
+- **BLOCK_HEADER** stopped after the xref pathname, 12 bits short on all
+  six R2000/R2004 records — §20.4.52 adds an insert-count run, a
+  description `TV` and a preview blob on R2000+, and puts the loaded
+  bit there too (R14 has none).
+- **DIMSTYLE** decoded 15 of ~70 fields and could not close. The whole
+  §20.4.68 R2000+ body is now read inline; `ISO-25` decodes to the
+  published ISO-25 defaults on R2000 and R2004, matching what the
+  R2007+ path reads from the same drawing.
+
+Also fixed for R14 specifically: the §20.1 / §20.4.1 `RL` after the EED
+chain (which every DICTIONARY, APPID, LTYPE, DIMSTYLE and BLOCK_HEADER
+record needed), DICTIONARY's `RC` where R2000+ write `BS` + `RC`,
+DIMSTYLE_CONTROL's absent trailing `RC`, VPORT's absent render mode and
+per-viewport UCS block, LINE's `3BD` + `3BD` body (§20.4.21), and the
+`BB` linetype and plot-style flags that are R2000+ only.
+
+### Added — an R2000 canonical fixture
+
+`examples/build_fixtures.rs` now emits `synthetic_2000.dwg` through a
+flat §3.2.6 assembler, so the committed corpus gates a container whose
+handle-map offsets are file offsets rather than section offsets. Five
+files, 25 entities, 100 % decoded. (#21, R2000 half.)
+
 ### Changed — the exact-boundary check now covers every entity type (2026-08-30, closes #63)
 
 Until now only the entity types that *had* to know about the R2007+
