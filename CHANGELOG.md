@@ -68,6 +68,7 @@ Measured coverage on the 19-file `samples/` corpus:
 | **Aggregate** | **587 / 34 / 25.7 %** | **597 / 24 / 26.2 %** |
 
 
+||||||| 9d6adbe
 ### Fixed — R2004 (AC1018) common object header (2026-08-30, #103, closes #24)
 
 - **`RL` object data size in bits was read for R2000 only.** ODA v5.4.1 §19.1

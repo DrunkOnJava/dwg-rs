@@ -375,6 +375,7 @@ Two structural facts fall out:
   the string-stream start bit and the inline `TV` read lands on the
   string stream. It is not a counter-example to the split layout.
 
+||||||| 9d6adbe
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
