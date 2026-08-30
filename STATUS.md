@@ -12,11 +12,11 @@ scrolling the changelog.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 2,187 decoded / 191 skipped /
-  **0 errored** / 92.0% on the local 19-file `samples/` corpus. The
+- **Current real-file decode coverage:** 2,259 decoded / 119 skipped /
+  **0 errored** / 95.0% on the local 19-file `samples/` corpus. The
   R2018 `sample_AC1032.dwg` sample is 762 / 80 / 0 / 90.5%. **No file
   in the corpus has a single errored record.** Per version:
-  R2004 85.4%, R2010 97.8%, R2013 97.0%, R2018 90.5%. What remains is
+  R2004 97.5%, R2010 97.8%, R2013 97.0%, R2018 90.5%. What remains is
   the *skipped* column — types with no decoder at all — not records
   that decode wrongly.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
@@ -212,8 +212,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 2187 decoded,
-  191 skipped, 0 errored, 92.0% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 2259 decoded,
+  119 skipped, 0 errored, 95.0% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
@@ -222,14 +222,15 @@ These have genuine open scope requiring focused work, not stubs.
   ACAD_SCALE now dispatch through `src/objects/modern.rs`, taking their
   `TV` fields from the R2007+ string stream and checking their data
   fields end exactly on the record's data-stream boundary.
-  VISUALSTYLE dispatches on R2010, R2013 and R2018 — 168 of its 240
-  corpus records — LAYOUT (with its embedded PLOTSETTINGS block)
+  VISUALSTYLE dispatches on R2004, R2010, R2013 and R2018 — 240 of its
+  240 corpus records, the R2004 band on a second, flag-less field list
+  measured against all 72 of its records — LAYOUT (with its embedded
+  PLOTSETTINGS block)
   dispatches on all 31 of its corpus records, and MLINESTYLE (10),
   MLEADERSTYLE (11), ACDBDETAILVIEWSTYLE (11) and
   ACDBSECTIONVIEWSTYLE (11) dispatch on all of theirs. Still
   unreached, in descending record count on the corpus (counts as of
-  the 2026-08-30 run): VISUALSTYLE on R2004/R2007 (72 records),
-  MATERIAL (38), TABLESTYLE (10). MATERIAL and PROPERTYSET_DATA decode
+  the 2026-08-30 run): MATERIAL (38), TABLESTYLE (10). MATERIAL and PROPERTYSET_DATA decode
   only a documented prefix of their fields, so they cannot satisfy the
   boundary check; TABLESTYLE's block structure is measured
   (ARCHITECTURE.md §7d.4) but a single record per corpus file cannot
