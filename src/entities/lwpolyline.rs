@@ -62,6 +62,7 @@ pub mod flag_bits {
     pub const HAS_VERTEX_ID: u16 = 0x8000;
 }
 
+/// Decodes the `LwPolyline` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
     use flag_bits::*;
     let flag = c.read_bs_u()?;

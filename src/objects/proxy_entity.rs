@@ -39,6 +39,7 @@ pub struct ProxyEntity {
     pub handles: Vec<Handle>,
 }
 
+/// Decodes the `ProxyEntity` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, _version: crate::version::Version) -> Result<ProxyEntity> {
     let proxy_class_id = c.read_bl()? as u32;
     let data_length = c.read_bl()? as usize;

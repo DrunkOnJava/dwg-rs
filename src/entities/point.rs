@@ -23,6 +23,7 @@ pub struct Point {
     pub x_axis_angle: f64,
 }
 
+/// Decodes the `Point` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Point> {
     let x = c.read_bd()?;
     let y = c.read_bd()?;

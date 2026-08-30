@@ -65,6 +65,7 @@ pub struct LocatorRecord {
 impl LocatorRecord {
     pub const SIZE: usize = 9;
 
+    /// Parses one 9-byte section locator record.
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < Self::SIZE {
             return Err(Error::SectionLocator(format!(

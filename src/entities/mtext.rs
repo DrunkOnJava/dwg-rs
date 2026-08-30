@@ -58,6 +58,7 @@ pub struct MText {
     pub linespace_factor: f64,
 }
 
+/// Decodes the `MText` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
     let insertion_point = read_bd3(c)?;
     let extrusion = read_bd3(c)?;

@@ -83,6 +83,7 @@ pub struct WriterScaffold {
 }
 
 impl WriterScaffold {
+    /// Creates an empty scaffold targeting `version`.
     pub fn new(version: Version) -> Self {
         Self {
             sections: BTreeMap::new(),

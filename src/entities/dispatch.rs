@@ -693,6 +693,7 @@ pub struct DispatchSummary {
 }
 
 impl DispatchSummary {
+    /// Tallies one dispatch outcome, retaining up to `MAX_RETAINED_ERRORS` error messages.
     pub fn record(&mut self, decoded: &DecodedEntity) {
         match decoded {
             DecodedEntity::Unhandled { .. } => self.unhandled += 1,
@@ -710,10 +711,12 @@ impl DispatchSummary {
         }
     }
 
+    /// Total entities seen: decoded + unhandled + errored.
     pub fn total(&self) -> usize {
         self.decoded + self.unhandled + self.errored
     }
 
+    /// Fraction of seen entities that decoded, or 0.0 when nothing was seen.
     pub fn decoded_ratio(&self) -> f64 {
         let total = self.total();
         if total == 0 {

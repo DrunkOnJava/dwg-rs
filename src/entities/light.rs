@@ -50,6 +50,7 @@ pub enum LightType {
 }
 
 impl LightType {
+    /// Maps the light-type code (1 distant, 2 point, 3 spot, 4 web); unknown codes are preserved as `Unknown`.
     pub fn from_code(code: u32) -> Self {
         match code {
             1 => Self::Distant,
@@ -60,10 +61,12 @@ impl LightType {
         }
     }
 
+    /// Point, spot, and web lights carry a position.
     pub fn has_position(self) -> bool {
         matches!(self, Self::Point | Self::Spot | Self::Web)
     }
 
+    /// Spot and web lights carry a target point.
     pub fn has_target(self) -> bool {
         matches!(self, Self::Spot | Self::Web)
     }

@@ -59,6 +59,7 @@ pub struct BitCursor<'a> {
 }
 
 impl<'a> BitCursor<'a> {
+    /// Creates a cursor positioned at the first bit of `bytes`.
     pub fn new(bytes: &'a [u8]) -> Self {
         Self {
             bytes,
@@ -140,6 +141,7 @@ impl<'a> BitCursor<'a> {
     // §2.0 — B (1 bit)
     // ================================================================
 
+    /// Reads a `B` (single bit).
     pub fn read_b(&mut self) -> Result<bool> {
         Ok(self.read_bits(1)? != 0)
     }
@@ -148,6 +150,7 @@ impl<'a> BitCursor<'a> {
     // §2.0 — BB (2 bits, used heavily as dispatch tag)
     // ================================================================
 
+    /// Reads a `BB` (2-bit code).
     pub fn read_bb(&mut self) -> Result<u8> {
         Ok(self.read_bits(2)? as u8)
     }
@@ -160,6 +163,7 @@ impl<'a> BitCursor<'a> {
     //  the previously read bits to the left. Result is 0-7."
     // ================================================================
 
+    /// Reads a `3B` (1- to 3-bit length prefix, R24+).
     pub fn read_3b(&mut self) -> Result<u8> {
         let mut result: u8 = 0;
         for _ in 0..3 {
@@ -180,6 +184,7 @@ impl<'a> BitCursor<'a> {
     //   11 → 256
     // ================================================================
 
+    /// Reads a `BS` (bitshort): a 2-bit prefix selects a 16-bit value, an 8-bit value, 0, or 256.
     pub fn read_bs(&mut self) -> Result<i16> {
         match self.read_bb()? {
             0b00 => {
@@ -210,6 +215,7 @@ impl<'a> BitCursor<'a> {
     //   11 → not used (reserved)
     // ================================================================
 
+    /// Reads a `BL` (bitlong): a 2-bit prefix selects a 32-bit value, an 8-bit value, or 0.
     pub fn read_bl(&mut self) -> Result<i32> {
         match self.read_bb()? {
             0b00 => {
@@ -229,6 +235,7 @@ impl<'a> BitCursor<'a> {
         }
     }
 
+    /// Reads a `BL` and reinterprets the bits as unsigned.
     pub fn read_bl_u(&mut self) -> Result<u32> {
         Ok(self.read_bl()? as u32)
     }
@@ -241,6 +248,7 @@ impl<'a> BitCursor<'a> {
     //  first)."
     // ================================================================
 
+    /// Reads a `BLL` (bitlonglong, R24+): a `3B` byte count followed by that many little-endian bytes.
     pub fn read_bll(&mut self) -> Result<u64> {
         let len = self.read_3b()? as usize;
         let mut out: u64 = 0;
@@ -259,6 +267,7 @@ impl<'a> BitCursor<'a> {
     //   11 → reserved
     // ================================================================
 
+    /// Reads a `BD` (bitdouble): a 2-bit prefix selects a raw double, 1.0, or 0.0.
     pub fn read_bd(&mut self) -> Result<f64> {
         match self.read_bb()? {
             0b00 => {
@@ -286,6 +295,7 @@ impl<'a> BitCursor<'a> {
     //   11 -> full 8-byte IEEE double follows
     // ================================================================
 
+    /// Reads a `DD` (bitdouble with default): the 2-bit prefix keeps `default` or patches 4, 6, or all 8 of its bytes.
     pub fn read_dd(&mut self, default: f64) -> Result<f64> {
         match self.read_bb()? {
             0b00 => Ok(default),
@@ -315,16 +325,19 @@ impl<'a> BitCursor<'a> {
     // "compressed" — they always consume the stated number of bytes.
     // ================================================================
 
+    /// Reads an `RC` (raw 8-bit char).
     pub fn read_rc(&mut self) -> Result<u8> {
         Ok(self.read_bits(8)? as u8)
     }
 
+    /// Reads an `RS` (raw little-endian 16-bit short).
     pub fn read_rs(&mut self) -> Result<i16> {
         let lsb = self.read_bits(8)? as u16;
         let msb = self.read_bits(8)? as u16;
         Ok(((msb << 8) | lsb) as i16)
     }
 
+    /// Reads an `RL` (raw little-endian 32-bit long).
     pub fn read_rl(&mut self) -> Result<u32> {
         let b0 = self.read_bits(8)? as u32;
         let b1 = self.read_bits(8)? as u32;
@@ -333,6 +346,7 @@ impl<'a> BitCursor<'a> {
         Ok((b3 << 24) | (b2 << 16) | (b1 << 8) | b0)
     }
 
+    /// Reads an `RD` (raw little-endian IEEE-754 double).
     pub fn read_rd(&mut self) -> Result<f64> {
         let mut bs = [0u8; 8];
         for b in &mut bs {
@@ -348,6 +362,7 @@ impl<'a> BitCursor<'a> {
     // LSB-first order. The terminating byte's 0x40 bit indicates negation.
     // ================================================================
 
+    /// Reads an `MC` (modular char): 7-bit groups with a continuation high bit and the sign in the final group.
     pub fn read_mc(&mut self) -> Result<i64> {
         let mut value: u64 = 0;
         let mut shift: u32 = 0;
@@ -377,6 +392,7 @@ impl<'a> BitCursor<'a> {
     // Same as MC but 2-byte base module. Used for section sizes.
     // ================================================================
 
+    /// Reads an `MS` (modular short): 15-bit groups with a continuation high bit.
     pub fn read_ms(&mut self) -> Result<u64> {
         let mut value: u64 = 0;
         let mut shift: u32 = 0;
@@ -402,6 +418,7 @@ impl<'a> BitCursor<'a> {
     // |CODE(4 bits)|COUNTER(4 bits)|HANDLE_BYTES * COUNTER|
     // ================================================================
 
+    /// Reads an `H` (handle reference): a code/counter byte followed by `counter` big-endian value bytes.
     pub fn read_handle(&mut self) -> Result<Handle> {
         let code = self.read_bits(4)? as u8;
         let counter = self.read_bits(4)? as u8;

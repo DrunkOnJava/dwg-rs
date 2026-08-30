@@ -30,6 +30,7 @@ pub struct Ellipse {
     pub end_param: f64,
 }
 
+/// Decodes the `Ellipse` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Ellipse> {
     let center = read_bd3(c)?;
     let major_axis = read_bd3(c)?;

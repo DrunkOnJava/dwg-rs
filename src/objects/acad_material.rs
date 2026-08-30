@@ -73,6 +73,7 @@ pub struct AcadMaterial {
     pub luminance_mode: i32,
 }
 
+/// Decodes the `AcadMaterial` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadMaterial> {
     if !version.is_r2007_plus() {
         return Err(Error::Unsupported {

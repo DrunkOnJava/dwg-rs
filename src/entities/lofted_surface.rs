@@ -47,6 +47,7 @@ pub struct LoftedSurface {
     pub end_tangent_mag: f64,
 }
 
+/// Decodes the `LoftedSurface` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<LoftedSurface> {
     let sat = decode_sat_blob(c)?;
     let num_cross_sections = c.read_bl()?;

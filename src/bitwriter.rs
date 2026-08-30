@@ -29,6 +29,7 @@ pub struct BitWriter {
 }
 
 impl BitWriter {
+    /// Creates an empty writer positioned at bit 0.
     pub fn new() -> Self {
         Self::default()
     }
@@ -84,10 +85,12 @@ impl BitWriter {
         }
     }
 
+    /// Writes a `B` (single bit).
     pub fn write_b(&mut self, v: bool) {
         self.write_bits(if v { 1 } else { 0 }, 1);
     }
 
+    /// Writes a `BB` (2-bit code) from the low two bits of `v`.
     pub fn write_bb(&mut self, v: u8) {
         debug_assert!(v <= 3);
         self.write_bits(v as u64, 2);
@@ -152,6 +155,7 @@ impl BitWriter {
         }
     }
 
+    /// Writes a `BS` from an unsigned value; bit-identical to writing it reinterpreted as `i16`.
     pub fn write_bs_u(&mut self, v: u16) {
         self.write_bs(v as i16);
     }
@@ -174,6 +178,7 @@ impl BitWriter {
         }
     }
 
+    /// Writes a `BL` from an unsigned value; bit-identical to writing it reinterpreted as `i32`.
     pub fn write_bl_u(&mut self, v: u32) {
         self.write_bl(v as i32);
     }
@@ -241,22 +246,26 @@ impl BitWriter {
         }
     }
 
+    /// Writes an `RC` (raw 8-bit char).
     pub fn write_rc(&mut self, v: u8) {
         self.write_bits(v as u64, 8);
     }
 
+    /// Writes an `RS` (raw little-endian 16-bit short).
     pub fn write_rs(&mut self, v: i16) {
         let w = v as u16;
         self.write_bits((w & 0xFF) as u64, 8);
         self.write_bits((w >> 8) as u64, 8);
     }
 
+    /// Writes an `RL` (raw little-endian 32-bit long).
     pub fn write_rl(&mut self, v: u32) {
         for i in 0..4 {
             self.write_bits(((v >> (i * 8)) & 0xFF) as u64, 8);
         }
     }
 
+    /// Writes an `RD` (raw little-endian IEEE-754 double).
     pub fn write_rd(&mut self, v: f64) {
         for b in v.to_le_bytes() {
             self.write_bits(b as u64, 8);

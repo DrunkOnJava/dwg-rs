@@ -47,6 +47,7 @@ pub enum ConstrainType {
 }
 
 impl ConstrainType {
+    /// Parses the HELIX constrain type from its `BS` code (0 turn height, 1 turns, 2 height).
     pub fn from_bs(v: i16) -> Result<Self> {
         match v {
             0 => Ok(Self::TurnHeight),
@@ -58,6 +59,7 @@ impl ConstrainType {
         }
     }
 
+    /// Encodes the constrain type back to its `BS` code.
     pub fn to_bs(self) -> i16 {
         match self {
             Self::TurnHeight => 0,
@@ -80,6 +82,7 @@ pub struct Helix {
     pub constrain_type: ConstrainType,
 }
 
+/// Decodes the `Helix` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Helix> {
     let axis_base_point = read_bd3(c)?;
     let start_point = read_bd3(c)?;

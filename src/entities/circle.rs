@@ -23,6 +23,7 @@ pub struct Circle {
     pub extrusion: Vec3D,
 }
 
+/// Decodes the `Circle` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Circle> {
     let cx = c.read_bd()?;
     let cy = c.read_bd()?;

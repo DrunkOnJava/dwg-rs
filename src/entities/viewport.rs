@@ -41,6 +41,7 @@ pub struct Viewport {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ViewportSkipped;
 
+/// Decodes the `Viewport` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Viewport> {
     let center = read_bd3(c)?;
     let width = c.read_bd()?;

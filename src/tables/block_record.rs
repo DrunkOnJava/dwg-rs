@@ -52,6 +52,7 @@ struct ModernBlockFields {
     string_start: usize,
 }
 
+/// Decodes a `BlockRecord` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let header = read_table_entry_header(c, version)?;
     let is_anonymous = c.read_b()?;

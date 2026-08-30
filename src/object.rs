@@ -166,6 +166,7 @@ impl ObjectWalkSummary {
 }
 
 impl<'a> ObjectWalker<'a> {
+    /// Starts a walker over the object-section bytes for `version`.
     pub fn new(bytes: &'a [u8], version: Version) -> Self {
         let initial = if bytes.len() >= 4
             && matches!(

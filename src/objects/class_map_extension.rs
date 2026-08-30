@@ -63,6 +63,7 @@ pub struct ClassMapExtension {
     pub entries: Vec<ClassMapExtensionEntry>,
 }
 
+/// Decodes `num_entries` class-map extension records (bounded by `MAX_CLASS_MAP_EXTENSIONS`).
 pub fn decode(
     c: &mut BitCursor<'_>,
     version: Version,

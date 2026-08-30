@@ -45,6 +45,7 @@ pub enum AlignOption {
 }
 
 impl AlignOption {
+    /// Parses the sweep alignment option from its `BB` code (0 none, 1 normal, 2 translate, 3 forced).
     pub fn from_bb(v: u8) -> Result<Self> {
         match v {
             0 => Ok(Self::NoAlignment),
@@ -57,6 +58,7 @@ impl AlignOption {
         }
     }
 
+    /// Encodes the alignment option back to its `BB` code.
     pub fn to_bb(self) -> u8 {
         match self {
             Self::NoAlignment => 0,
@@ -78,6 +80,7 @@ pub struct SweptSurface {
     pub align_option: AlignOption,
 }
 
+/// Decodes the `SweptSurface` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<SweptSurface> {
     let sat = decode_sat_blob(c)?;
     let path_handle = c.read_handle()?;

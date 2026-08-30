@@ -85,6 +85,7 @@ pub struct LtypeEntry {
 // [`LtypeEntry`].
 pub type LType = LtypeEntry;
 
+/// Decodes a `LtypeEntry` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
     let header = read_table_entry_header(c, version)?;
     let flags = c.read_rc()?;

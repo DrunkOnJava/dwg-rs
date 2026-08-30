@@ -74,6 +74,7 @@ pub enum Justification {
 }
 
 impl Justification {
+    /// Maps the MLINE justification code (0 top, 1 zero, 2 bottom); unknown codes are preserved as `Unknown`.
     pub fn from_code(code: u8) -> Self {
         match code {
             0 => Self::Top,
@@ -117,6 +118,7 @@ pub struct MLine {
     pub vertices: Vec<MlineVertex>,
 }
 
+/// Decodes the `MLine` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<MLine> {
     let scale_factor = c.read_bd()?;
     let justification = Justification::from_code(c.read_rc()?);
