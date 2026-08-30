@@ -31,7 +31,8 @@
 //! When `samples/` is absent the group is empty and the bench exits
 //! silently, matching the `tests/corpus_roundtrip.rs` convention.
 
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 use dwg::DwgFile;
 use std::fs;
 use std::path::PathBuf;

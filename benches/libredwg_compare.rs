@@ -58,7 +58,8 @@
 //! This is the closest public-API approximation to what `dwgread -O`
 //! does internally (page-map parse → object walk → metadata dump).
 
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use dwg::DwgFile;
 use std::path::PathBuf;
 

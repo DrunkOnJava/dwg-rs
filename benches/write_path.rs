@@ -21,7 +21,8 @@
 //! Throughput is reported in bytes/second of input — `criterion
 //! --throughput bytes` shows this as MiB/s in the CLI output.
 
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use std::hint::black_box;
 use dwg::file_writer::WriterScaffold;
 use dwg::version::Version;
 
