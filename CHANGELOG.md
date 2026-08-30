@@ -26,8 +26,10 @@ The correction that `string_stream::data_section_end` carried —
 exactly that short slice, and is removed: the rule is now
 `payload_bits - handle_bits`, and the two edits cancel to the same bit
 offset. **No decoder changes behaviour**: full-corpus coverage is
-byte-identical at 3695 / 741 / 9 / **83.1 %** before and after, and all
-19 test binaries pass.
+byte-identical before and after — 3695 / 741 / 9 / **83.1 %** on this
+change's pre-#79 base, and re-measured after merging #79's VISUALSTYLE
+work the combined tree reproduces main's 3911 / 525 / 9 / **88.0 %**
+exactly. All 19 test binaries pass.
 
 Two things the short slice was hiding:
 
