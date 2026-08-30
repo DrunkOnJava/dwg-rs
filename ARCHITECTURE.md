@@ -678,6 +678,128 @@ clip boundary of type 1 (rectangle) carries **no vertex count** — the
 two corners follow the boundary type directly, while the polygon form
 (type 2) does carry the count.
 
+## 7g. The last 39 R2018 errors (finding, 2026-08-30)
+
+After the handle-map fix (#53) and the LAYOUT field list (#52), 39
+records of `sample_AC1032.dwg` still errored and no other file in the
+corpus errored at all. All 39 are now decoded. Six findings did the
+work; each is stated with the evidence that fixes it, and each decoder
+now closes **exactly** on the record's data-stream boundary.
+
+### The `strings present` trailer bit is not an entity field
+
+A record with no string stream still writes the one-bit trailer flag
+that says so. It is the last bit before the handle stream, and it is
+not one of the record's own fields, so the data fields of such a record
+end **one bit before** `string_stream::data_section_end`.
+
+Every LWPOLYLINE (20 records), 3DFACE (1), INSERT (4) and SPLINE (2) of
+`sample_AC1032.dwg` carries no strings, and every one of them ended its
+field list exactly one bit short of the old boundary. Modelling that as
+a trailing `B` would have put a fabricated field at the end of four
+different field lists. `string_stream::data_field_end` returns the
+string-stream start bit when there is one and `data_section_end - 1`
+when there is not; `object::data_end_bit` and
+`tables::modern::open_entity` both route through it.
+
+### Object references consume no data-stream bits
+
+The same rule that moves `TV` into the string stream moves every `H`
+into the handle stream. MULTILEADER read three handles inline, HATCH
+read its per-path boundary handles inline, UNDERLAY read its definition
+handle inline — each one shifted every field after it. §20.4.75 is
+explicit for HATCH: the boundary handles are "Common Entity Handle
+Data", after the data stream, so the data stream carries only the count.
+
+### MULTILEADER embeds a whole `MLeaderAnnotContext`
+
+§20.4.48 says so directly, and §20.4.86 gives the embedded field list:
+leader roots, their leader lines, the vertices, and the text or block
+content. The inherited `AcDbAnnotScaleObjectContextData` /
+`AcDbObjectContextData` prefix (§20.4.71 / §20.4.89) is **not** present
+when embedded — the `BL` leader-root count follows the `BS 270` version
+directly. The `-R2007` arrowhead / block-label block is genuinely
+absent on R2018; in R2010+ the per-arrowhead data moved into the leader
+line (`H 341` arrow symbol per line).
+
+All 15 MULTILEADER records close on their string-stream start bit under
+that reading, and the text they recover from the string stream is the
+authored text: `"MLeader text, hello!"`, `"MULTILEADER TEST"`,
+`"MULTILEADER\PTEST\P123"`.
+
+**Not established:** 17 bits sit between `B 293 is annotative` and the
+R2010+ `BS 271` that §20.4.48 does not list — an `MC` (two bytes on all
+15 records) then a `B`. The `MC` holds only `274`, `530` and `786`
+across the file and the `B` is `true` on every record. `B` + `RS`, or
+`B` + two `RC`s, consume the same bits; `MC` is taken because it is the
+only one that stays correct for a larger value. The fields are surfaced
+as `MLeader::undocumented_mc` / `undocumented_flag` rather than named.
+
+### The HATCH gradient block is unconditional
+
+§20.4.75 lists `Is Gradient Fill` as a `BL` (not a `BS`) and does not
+guard the rest of the gradient record behind it. All eight HATCH
+records of `sample_AC1032.dwg` carry **two** strings — `"LINEAR"` then
+the pattern name (`"ANSI31"`, `"AR-PARQ1"`, `"HVEGE100"`, …) — even
+though six have the flag clear. Returning early on a clear flag
+consumed one `TV` too few and shifted the whole boundary-path tree.
+
+Four more HATCH corrections came from the same section: path points and
+seed points are `2RD` (raw doubles), not `BD` pairs; a `BS pattern type`
+follows `BS style`; the whole pattern-definition block is written only
+`if (!solidfill)`; and the pixel size is a `BD` written only when some
+path flag has bit `4` set.
+
+### Field types the previous readings had wrong
+
+| Entity | Was | Is (§) | How it shows |
+|---|---|---|---|
+| INSERT | `BD` scales, `BE` extrusion, no owned count | `BB` data flags selecting `RD`/`DD` forms, `3BD` extrusion, `BL` owned count only when `has_attribs` (§20.4.9) | 3 of 4 records overran; the fourth mis-scaled |
+| SPLINE | `BD` degree, branch on the stored `Scenario` | `BL` degree; on R2013+ the branch is derived — scenario is 1 if the knot parameter is Custom or there is no fit data, else 2 (§20.4.40) | both records store `1`, yet `0x434` is a fit spline |
+| LWPOLYLINE | `0x01` elevation … `0x20` const width, width read last | `0x001` normal, `0x002` thickness, `0x004` const width (read first), `0x008` elevation, `0x010` bulges, `0x020` widths, `0x400` vertex ids (§20.4.85) | 19 of 20 records have flag `0` or `0x200` and survive either reading; `0x4A6` has flag `4` and does not |
+| 3DFACE | `BD` deltas added to the previous corner, corner 4 dropped when `has_no_flag_ind` | `3DD` triples defaulting to the previous corner; only the invisible-edge `BS` is conditional (§20.4.32) | reserved `11` bit pattern |
+| IMAGEDEF | `BD` image size and pixel size | `2RD` for both (§20.4.81) | reserved `11` bit pattern |
+| DIMENSION (ang 2-line) | 16-point read after the four `3BD`s | `2RD` 16-point read **first** (§20.4.27) | reserved `11` bit pattern |
+| LTYPE dash | `BD`, `BS`, `BD`, `BD`, `BD`, `BD`, `BS` | `BD` length, `BS` shape code, two `RD` offsets, `BD` scale, `BD` rotation, `BS` shape flag; the 512-byte text area only when some `shapeflag & 0x02` (§20.4.58) | cursor exhausted 6 bits from the end |
+| UNDERLAY | insertion, scale, rotation, normal | normal, insertion, rotation, scale — measured, the spec has no UNDERLAY section | old order put the scale on `(0,0,1)` and the normal on `(1,1,1)` |
+
+### MTEXT's R2018 tail, and ATTRIB's embedded MTEXT
+
+§20.4.46 gives MTEXT an R2018+ block after the background flags: a `B`
+"is NOT annotative" and, when set, a version, a default flag, a handle
+slot, and a redundant copy of the record's own attachment point, axes,
+insertion point, rectangle and extents, then the column data. That is
+the 567 undecoded bits of #29 — they repeat the record's own values
+because the spec says they are a redundant copy. MTEXT now closes
+exactly instead of asserting the weaker `<= string_start`.
+
+§20.4.4 gives ATTRIB an R2010+ `RC` version and an R2018+ `RC`
+attribute type, and a multi-line attribute (`type != 1`) then embeds a
+whole MTEXT record "starting from the Entmode (entity mode)" — no
+length, no type code, no handle, no EED chain, no graphics block.
+`sample_AC1032.dwg` handle `0x79D` spends 683 data bits on that
+embedded record and carries three strings: the (empty) TEXT value, the
+MTEXT text `"my multi line text for the attrrib"`, and the tag
+`"MULTI_LINE_ATT"`. ATTDEF is "Common ATTRIB Entity Data" plus its own
+`RC` version and a `TV` prompt, which is why the old field list — one
+unexplained `RC` after the lock bit — closed on the four single-line
+ATTDEFs and failed on the multi-line one: three bytes cancelled to one.
+
+### Measured effect
+
+| Corpus slice | Before (`fa7fcc8`) | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 498 / 99 / 0 / 83.4 % | 498 / 99 / 0 / 83.4 % |
+| R2010 (AC1024) × 3 | 519 / 24 / 0 / 95.6 % | 519 / 24 / 0 / 95.6 % |
+| R2013 (AC1027) × 3 | 372 / 24 / 0 / 93.9 % | 372 / 24 / 0 / 93.9 % |
+| R2018 (AC1032) × 1 | 716 / 87 / 39 / 85.0 % | **755 / 87 / 0 / 89.7 %** |
+| **Aggregate** | **2105 / 234 / 39 / 88.5 %** | **2144 / 234 / 0 / 90.2 %** |
+
+`examples/probe_decode_errors.rs` lists every erroring record with its
+handle, body-start bit and data boundary;
+`examples/probe_entity_field_list.rs` walks a candidate token list
+against one entity record and prints the delta from that boundary.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

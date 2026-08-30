@@ -771,20 +771,10 @@ pub fn spline_to_curve(spline: &crate::entities::spline::Spline) -> Result<Curve
     })
 }
 
-/// Clamp the on-wire SPLINE degree (read as `f64` per spec) into a
+/// Clamp the on-wire SPLINE degree (a `BL` per §20.4.40) into a
 /// reasonable `u32` range for the renderer.
-fn clamp_spline_degree(d: f64) -> u32 {
-    if !d.is_finite() {
-        return 3;
-    }
-    let truncated = d.trunc();
-    if truncated < 1.0 {
-        1
-    } else if truncated > 15.0 {
-        15
-    } else {
-        truncated as u32
-    }
+fn clamp_spline_degree(d: i32) -> u32 {
+    d.clamp(1, 15) as u32
 }
 
 /// True when every entry in `weights` equals the first within a tight
@@ -1169,6 +1159,7 @@ mod tests {
     /// Build a minimal solid-fill [`Hatch`] with the caller's paths list.
     fn stub_hatch(paths: Vec<crate::entities::hatch::HatchPath>) -> crate::entities::hatch::Hatch {
         crate::entities::hatch::Hatch {
+            pattern_type: 1,
             gradient: None,
             elevation: 0.0,
             extrusion: Vec3D {
@@ -1185,7 +1176,7 @@ mod tests {
             pattern_scale: 1.0,
             pattern_double: false,
             pattern_lines: Vec::new(),
-            pixel_size: 0,
+            pixel_size: 0.0,
             seed_points: Vec::new(),
         }
     }
@@ -1215,7 +1206,7 @@ mod tests {
                     (Point2D { x: 2.0, y: 0.0 }, None),
                 ],
             },
-            boundary_handles: Vec::new(),
+            num_boundary_handles: 0,
         };
         let h = stub_hatch(vec![hp]);
         let paths = hatch_to_paths(&h);
@@ -1246,7 +1237,7 @@ mod tests {
                     counter_clockwise: true,
                 },
             ]),
-            boundary_handles: Vec::new(),
+            num_boundary_handles: 0,
         };
         let h = stub_hatch(vec![hp]);
         let paths = hatch_to_paths(&h);
@@ -1278,7 +1269,7 @@ mod tests {
                 end_angle: std::f64::consts::TAU,
                 counter_clockwise: true,
             }]),
-            boundary_handles: Vec::new(),
+            num_boundary_handles: 0,
         };
         let h = stub_hatch(vec![hp]);
         let paths = hatch_to_paths(&h);
@@ -1549,7 +1540,7 @@ mod tests {
             scenario: 1,
             flag1: None,
             knot_param: None,
-            degree: 3.0,
+            degree: 3,
             fit: None,
             control: Some(crate::entities::spline::ControlForm {
                 rational,
@@ -1611,7 +1602,7 @@ mod tests {
             scenario: 2,
             flag1: None,
             knot_param: None,
-            degree: 3.0,
+            degree: 3,
             fit: Some(crate::entities::spline::FitForm {
                 tolerance: 0.01,
                 begin_tangent: Vec3D {
@@ -1645,19 +1636,14 @@ mod tests {
     #[test]
     fn spline_to_curve_clamps_insane_degree() {
         let mut s = stub_control_spline(false, Vec::new());
-        s.degree = 999.0;
+        s.degree = 999;
         match spline_to_curve(&s).unwrap() {
             Curve::Spline(c) => assert_eq!(c.degree, 15),
             other => panic!("expected Spline, got {other:?}"),
         }
-        s.degree = -5.0;
+        s.degree = -5;
         match spline_to_curve(&s).unwrap() {
             Curve::Spline(c) => assert_eq!(c.degree, 1),
-            other => panic!("expected Spline, got {other:?}"),
-        }
-        s.degree = f64::NAN;
-        match spline_to_curve(&s).unwrap() {
-            Curve::Spline(c) => assert_eq!(c.degree, 3),
             other => panic!("expected Spline, got {other:?}"),
         }
     }
@@ -1669,6 +1655,7 @@ mod tests {
     #[test]
     fn insert_to_transform_identity_is_identity() {
         let i = crate::entities::insert::Insert {
+            owned_object_count: 0,
             insertion_point: Point3D::new(0.0, 0.0, 0.0),
             scale: Point3D::new(1.0, 1.0, 1.0),
             rotation: 0.0,
@@ -1690,6 +1677,7 @@ mod tests {
     #[test]
     fn insert_to_transform_translation_moves_origin() {
         let i = crate::entities::insert::Insert {
+            owned_object_count: 0,
             insertion_point: Point3D::new(10.0, 20.0, 30.0),
             scale: Point3D::new(1.0, 1.0, 1.0),
             rotation: 0.0,
@@ -1719,6 +1707,7 @@ mod tests {
         //   extrude (+Z normal, identity)
         //   translate → (10, 22, 0)
         let i = crate::entities::insert::Insert {
+            owned_object_count: 0,
             insertion_point: Point3D::new(10.0, 20.0, 0.0),
             scale: Point3D::new(2.0, 3.0, 1.0),
             rotation: std::f64::consts::FRAC_PI_2,

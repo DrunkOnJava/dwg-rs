@@ -222,10 +222,14 @@ fn build_insert_payload() -> Vec<u8> {
     w.write_bd(5.0);
     w.write_bd(10.0);
     w.write_bd(0.0);
-    w.write_bb(0b10); // unit scale
+    // Data flags `11` — scale is (1, 1, 1) and nothing is stored
+    // (§20.4.9).
+    w.write_bb(0b11);
     w.write_bd(0.0); // rotation
-    w.write_b(true); // default extrusion
-    w.write_b(false); // no attribs
+    w.write_bd(0.0); // extrusion (0, 0, 1) as a 3BD
+    w.write_bd(0.0);
+    w.write_bd(1.0);
+    w.write_b(false); // no attribs, so no owned-object count
     w.into_bytes()
 }
 
@@ -234,7 +238,7 @@ fn insert_decodes_identically_across_r2000_r2018() {
     let bytes = build_insert_payload();
     for &v in VERSIONS {
         let mut c = BitCursor::new(&bytes);
-        let i = entities::insert::decode(&mut c).unwrap_or_else(|e| {
+        let i = entities::insert::decode(&mut c, Version::R2000).unwrap_or_else(|e| {
             panic!("INSERT decode failed for version {v:?}: {e}");
         });
         assert_eq!(i.insertion_point.x, 5.0);
@@ -265,7 +269,7 @@ fn lwpolyline_decodes_identically_across_r2000_r2018() {
     let bytes = build_lwpolyline_payload();
     for &v in VERSIONS {
         let mut c = BitCursor::new(&bytes);
-        let p = entities::lwpolyline::decode(&mut c).unwrap_or_else(|e| {
+        let p = entities::lwpolyline::decode(&mut c, Version::R2000).unwrap_or_else(|e| {
             panic!("LWPOLYLINE decode failed for version {v:?}: {e}");
         });
         assert_eq!(p.vertices.len(), 3);
@@ -286,10 +290,13 @@ fn build_spline_payload(version: Version) -> Vec<u8> {
     let mut w = BitWriter::new();
     w.write_bl(2); // scenario = fit
     if matches!(version, Version::R2013 | Version::R2018) {
-        w.write_bl(0); // flag1
-        w.write_bl(0); // knot_param
+        // §20.4.40 derives the branch on R2013+ from these two: the
+        // method-fit-points bit set and a knot parameter that is not
+        // Custom select the fit form.
+        w.write_bl(1); // flag1 — method fit points
+        w.write_bl(2); // knot_param — Uniform
     }
-    w.write_bd(3.0); // degree
+    w.write_bl(3); // degree is a BL
     w.write_bd(0.01); // tolerance
     // begin / end tangents
     w.write_bd(1.0);
@@ -462,14 +469,14 @@ fn synthetic_point_payload_is_well_formed() {
 fn synthetic_insert_payload_is_well_formed() {
     let bytes = build_insert_payload();
     let mut c = BitCursor::new(&bytes);
-    assert!(entities::insert::decode(&mut c).is_ok());
+    assert!(entities::insert::decode(&mut c, Version::R2000).is_ok());
 }
 
 #[test]
 fn synthetic_lwpolyline_payload_is_well_formed() {
     let bytes = build_lwpolyline_payload();
     let mut c = BitCursor::new(&bytes);
-    assert!(entities::lwpolyline::decode(&mut c).is_ok());
+    assert!(entities::lwpolyline::decode(&mut c, Version::R2000).is_ok());
 }
 
 #[test]

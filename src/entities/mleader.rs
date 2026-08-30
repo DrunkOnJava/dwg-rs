@@ -1,580 +1,1023 @@
-//! MLEADER entity (§19.4.85) — multileader (R2010+).
+//! MULTILEADER entity (ODA Open Design Specification for .dwg files
+//! v5.4 §20.4.48 "MLEADER") — multileader, R2010+ in this crate.
 //!
-//! MLEADER is the modern successor to LEADER, added in R2008 and
-//! substantially revised in R2010. It encodes a leader line (possibly
-//! spline-based), an optional block or text attachment, dogleg
-//! geometry, arrowhead + line style references, and per-arrowhead /
-//! per-block-label overrides. The full stream in the ODA Open Design
-//! Specification v5.4.1 §19.4.85 runs ~60 fields with deep nesting
-//! (per-leader-line parameters, per-dogleg parameters, per-block-
-//! transform parameters).
+//! # Where the fields actually live
 //!
-//! # 30-field cutoff
-//!
-//! This decoder implements the **first ~30 fields** of the R2010+
-//! MLEADER layout — every field through `is_annotative` inclusive,
-//! plus the two variable-length override blocks (`arrowhead_overrides`,
-//! `block_labels`) and the two trailing attachment-enable booleans.
-//! Trailing fields past that point (leader-node blocks, property
-//! overrides, per-line-segment dogleg info, etc.) are read-and-ignored:
-//! the cursor is simply advanced past the entity body by the object
-//! stream's outer bit-size envelope — this decoder does not attempt
-//! to surface those fields.
-//!
-//! Rationale: the ~30 covered fields cover everything a viewer needs
-//! to classify a multileader, render its leader geometry references,
-//! and identify its attached text or block. The trailing fields
-//! govern overrides that a round-trip writer would need, which is
-//! out of scope for the current read-only pipeline.
-//!
-//! # Version gate
-//!
-//! Only R2010 and later have this layout (spec §19.4.85 introduces
-//! the MLEADER object class in the R2010 revision). Calling this
-//! decoder on a pre-R2010 stream returns
-//! [`Error::Unsupported`] — the older R2008 / R2009 MLEADER layout
-//! is not implemented here.
-//!
-//! # Stream shape (R2010+, first 30 fields)
+//! Most of a multileader is not in the MLEADER record's own field list.
+//! §20.4.48 says so directly: "A significant portion (content
+//! block/text and leaders) of the multileader entity is stored in the
+//! MLeaderAnnotContext object (see paragraph 20.4.86), which is
+//! embedded into this object (stream)." So the record reads
 //!
 //! ```text
-//! BS    class_version                  -- currently 2
-//! BS    content_type                   -- 1=mtext, 2=block, 3=none
-//! BS    draw_mlearner_order_type       -- 0..=2
-//! BS    draw_leader_order_type         -- 0..=2
-//! BL    max_leader_segments_points     -- cap 1000
-//! BD    first_seg_angle_constraint
-//! BD    second_seg_angle_constraint
-//! BS    leader_type                    -- 0..=3
-//! BS    line_color                     -- ACI index (CMC simplified)
-//! H     linetype_handle
-//! BL    line_weight
-//! B     enable_landing
-//! B     enable_dogleg
-//! BD    landing_distance
-//! BD    arrow_head_size
-//! BS    content_type_again             -- mirror of content_type
-//! TV    mtext_default_text             -- may be empty
-//! BD3   text_normal_direction
-//! H     text_style_handle
-//! BS    text_left_attachment_type
-//! BS    text_angle_type
-//! BS    text_alignment_type
-//! BS    text_color                     -- ACI index
-//! BD    text_height
-//! B     text_frame_enabled
-//! B     use_default_mtext_text
-//! BD3   block_content_normal
-//! H     block_content_handle
-//! BS    block_content_color            -- ACI index
-//! BD3   block_content_scale
-//! BD    block_content_rotation
-//! BS    block_content_connection
-//! B     is_annotative
-//! BS    num_arrowhead_overrides        -- cap 64
-//! for each override: BL index + H handle
-//! BS    num_block_labels               -- cap 1024
-//! for each label:    BL ui_index + BL ui_unit_type
-//! B     enable_text_attachment_to_leader
-//! B     enable_text_attachment_to_dogleg
+//! BS  270   version (expected 2)
+//! ...       the whole MLeaderAnnotContext field list, inline
+//! H   340   leader style
+//! BL  90    override flags
+//! ...       the style block
 //! ```
+//!
+//! and the context block carries the leader roots, the leader lines,
+//! their vertices, and the text or block content.
+//!
+//! # Measured: what the embedded context does *not* carry
+//!
+//! §20.4.86 lists the context as inheriting `AcDbAnnotScaleObjectContextData`
+//! (§20.4.71) which inherits `AcDbObjectContextData` (§20.4.89) — a
+//! `BS` version, two `B` flags and an `H` to the scale object. Embedded
+//! in an MLEADER **none of those inherited fields are present**: the
+//! `BL` leader-root count follows the `BS 270` version directly. On
+//! `sample_AC1032.dwg` handle `0x7B8` the version reads `2` at bit 6885
+//! and the next 10 bits are a `BL` of `1` — one leader root — after
+//! which the two `B` flags, a full-double connection point and a
+//! `(1, 0, 0)` direction all land. Reading the inherited prefix first
+//! puts the connection point 12 bits late and it decodes as a reserved
+//! `BD` pattern.
+//!
+//! # Measured: the R2007-and-earlier block is genuinely absent
+//!
+//! §20.4.48 tags the arrowhead list, the block-label list and the four
+//! fields after them (`B 294`, `BS 178`, `BS 179`, `BD 45`) as
+//! `-R2007`. All 15 MULTILEADER records of `sample_AC1032.dwg` close
+//! exactly on their string-stream start bit with that block omitted and
+//! with the R2010+ `BS 271 / BS 273 / BS 272` plus the R2013+ `B 295`
+//! read after `B 293 is annotative`; the last 21 bits of every one of
+//! them are bit-identical (`01 00001001`, `01 00001001`, `0` — top and
+//! bottom attachment both `9`, leader-not-extended). In R2010+ the
+//! per-arrowhead data moved into the leader line (`H 341 arrow symbol`
+//! per line), which is why nothing is lost.
+//!
+//! # Measured: 17 undocumented bits before the R2010+ trailer
+//!
+//! Between `B 293 Is annotative` and the R2010+ `BS 271 Attachment
+//! direction`, every MULTILEADER record of `sample_AC1032.dwg` carries
+//! 17 bits that §20.4.48 does not list: one `MC` (two bytes on all 15
+//! records — a continuation byte then a terminating byte) followed by
+//! one `B`. Read that way all 15 records land exactly on their
+//! string-stream start bit; with the 17 bits omitted every one of them
+//! stops 17 bits short. The `MC` holds only three values across the
+//! file — `274` (six records), `530` (one) and `786` (eight), i.e.
+//! `18 + 128 · {2, 4, 6}` — and the `B` is `true` on all fifteen.
+//!
+//! What the two fields *mean* is not established, and neither is which
+//! of the three `B`s in this run is `B 293`: `B, MC, B` and
+//! `B, MC, B` read identically whichever end `is annotative` sits at.
+//! This decoder keeps §20.4.48's order — `B 293` first — and surfaces
+//! the other two as [`MLeader::undocumented_mc`] /
+//! [`MLeader::undocumented_flag`] rather than inventing names for them.
+//! A file whose multileaders are known to be annotative would settle
+//! the assignment; this corpus cannot.
+//!
+//! The `MC` reading is not the only 17-bit shape that fits: `B` + `RS`,
+//! or `B` + two `RC`s, consume the same bits on every record here,
+//! because each record's byte pair happens to have the continuation bit
+//! set on the first byte and clear on the second. `MC` is taken because
+//! it is the only one of the three that stays correct if a record ever
+//! carries a larger value.
+//!
+//! # Handles and strings
+//!
+//! Every `H` in the field list is an object reference, and from R2007
+//! object references live in the record's handle stream, not its data
+//! stream — so an `H` slot consumes **zero** data-stream bits here.
+//! Likewise the one `TV` (the context's text label) comes from the
+//! string stream. That is what makes the decode self-validating: the
+//! data fields must end exactly on the string-stream start bit.
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point3D, Vec3D, read_bd3};
 use crate::error::{Error, Result};
+use crate::string_stream::{self, StringReader};
+use crate::tables::modern;
 use crate::version::Version;
 
-/// Maximum leader-segment points per MLEADER — mirror of
-/// [`crate::limits::ParseLimits::max_leader_points`] but scoped to the
-/// in-field `max_leader_segments_points` count so an adversarial file
-/// cannot request a multi-gigabyte allocation via this field.
-pub const MAX_LEADER_POINTS: usize = 1_000;
+/// Maximum leader roots accepted in one MULTILEADER. A multileader
+/// attaches at most one root per attachment side in AutoCAD; the cap is
+/// well above that so a malformed count is rejected without allocating.
+pub const MAX_LEADER_ROOTS: usize = 256;
 
-/// Maximum `num_arrowhead_overrides` entries accepted. Real MLEADERs
-/// use a handful of arrowheads at most.
-pub const MAX_ARROWHEAD_OVERRIDES: usize = 64;
+/// Maximum leader lines per root.
+pub const MAX_LEADER_LINES: usize = 1_024;
 
-/// Maximum `num_block_labels` entries accepted. Per the spec the label
-/// list sizes with the block attribute definitions; 1024 is a
-/// conservative cap above the practical ceiling.
-pub const MAX_BLOCK_LABELS: usize = 1_024;
+/// Maximum vertices per leader line.
+pub const MAX_LEADER_POINTS: usize = 10_000;
 
-/// A single arrowhead override entry: which leader node index the
-/// arrowhead applies to and a handle reference to the block-table
-/// entry that defines the arrow geometry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ArrowheadOverride {
-    pub index: u32,
-    pub handle: Handle,
+/// Maximum break start/end point pairs in any one list.
+pub const MAX_BREAK_PAIRS: usize = 1_024;
+
+/// Maximum text-column sizes in the context's text content.
+pub const MAX_COLUMN_SIZES: usize = 256;
+
+/// A `CMC` colour (§2.11, R2004+): a colour index that is always zero,
+/// a 32-bit RGB word, and a colour byte whose low two bits flag an
+/// optional colour name and colour-book name.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Cmc {
+    /// `BS` colour index. Per §2.11 this is always 0 in the CMC form.
+    pub index: i16,
+    /// `BL` RGB word.
+    pub rgb: u32,
+    /// `RC` colour byte (`& 1` ⇒ colour name follows, `& 2` ⇒ book name).
+    pub color_byte: u8,
+    /// Colour name, when the colour byte requested one.
+    pub name: String,
+    /// Colour-book name, when the colour byte requested one.
+    pub book_name: String,
 }
 
-/// A single block-label entry: UI index + unit-type classifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BlockLabel {
-    pub ui_index: u32,
-    pub ui_unit_type: u32,
+/// One vertex list plus per-line style of a leader (§20.4.86
+/// "LEADER_LINE").
+#[derive(Debug, Clone, PartialEq)]
+pub struct LeaderLine {
+    /// Vertices of this leader line, in order.
+    pub points: Vec<Point3D>,
+    /// `BL 91` index of the line within its root.
+    pub index: i32,
+    /// `BS 170` leader type (0 invisible, 1 straight, 2 spline).
+    pub leader_type: i16,
+    /// `CMC 92` line colour.
+    pub color: Cmc,
+    /// `H 340` line type — null on R2007+, where it lives in the
+    /// handle stream.
+    pub line_type_handle: Handle,
+    /// `BL 171` line weight.
+    pub line_weight: i32,
+    /// `BD 40` arrow size.
+    pub arrow_size: f64,
+    /// `H 341` arrow symbol — null on R2007+.
+    pub arrow_symbol_handle: Handle,
+    /// `BL 93` per-line override flags.
+    pub override_flags: u32,
 }
 
-/// Decoded MLEADER (R2010+, first ~30 fields — see module docs for the cutoff).
+/// One leader root (§20.4.86 "LEADER") — a connection point on the
+/// content and the leader lines hanging off it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LeaderRoot {
+    /// `B 290` — ODA writes true.
+    pub content_valid: bool,
+    /// `B 291` — undocumented; ODA writes true.
+    pub unknown_flag: bool,
+    /// `3BD 10` connection point.
+    pub connection_point: Point3D,
+    /// `3BD 11` direction.
+    pub direction: Vec3D,
+    /// `3BD 12` / `3BD 13` break start/end point pairs.
+    pub break_points: Vec<(Point3D, Point3D)>,
+    /// `BL 90` leader index.
+    pub index: i32,
+    /// `BD 40` landing distance.
+    pub landing_distance: f64,
+    /// The leader lines attached to this root.
+    pub lines: Vec<LeaderLine>,
+    /// `BS 271` attachment direction (0 horizontal, 1 vertical).
+    pub attachment_direction: i16,
+}
+
+/// Text content of a multileader (§20.4.86, `Has text contents` branch).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MLeaderText {
+    /// `TV 304` — the label, read from the record's string stream.
+    pub label: String,
+    /// `3BD 11` normal vector.
+    pub normal: Vec3D,
+    /// `H 340` text style — null on R2007+.
+    pub text_style_handle: Handle,
+    /// `3BD 12` location.
+    pub location: Point3D,
+    /// `3BD 13` direction.
+    pub direction: Vec3D,
+    /// `BD 42` rotation, radians.
+    pub rotation: f64,
+    /// `BD 43` boundary width.
+    pub boundary_width: f64,
+    /// `BD 44` boundary height.
+    pub boundary_height: f64,
+    /// `BD 45` line-spacing factor.
+    pub line_spacing_factor: f64,
+    /// `BS 170` line-spacing style (1 at least, 2 exactly).
+    pub line_spacing_style: i16,
+    /// `CMC 90` text colour.
+    pub color: Cmc,
+    /// `BS 171` alignment (1 left, 2 center, 3 right).
+    pub alignment: i16,
+    /// `BS 172` flow direction (1 horizontal, 3 vertical, 6 by style).
+    pub flow_direction: i16,
+    /// `CMC 91` background fill colour.
+    pub background_color: Cmc,
+    /// `BD 141` background scale factor.
+    pub background_scale: f64,
+    /// `BL 92` background transparency.
+    pub background_transparency: i32,
+    /// `B 291` background fill enabled.
+    pub background_fill_enabled: bool,
+    /// `B 292` background mask fill on.
+    pub background_mask_fill_on: bool,
+    /// `BS 173` column type.
+    pub column_type: i16,
+    /// `B 293` text height automatic.
+    pub text_height_automatic: bool,
+    /// `BD 142` column width.
+    pub column_width: f64,
+    /// `BD 143` column gutter.
+    pub column_gutter: f64,
+    /// `B 294` column flow reversed.
+    pub column_flow_reversed: bool,
+    /// `BD 144` column sizes.
+    pub column_sizes: Vec<f64>,
+    /// `B 295` word break.
+    pub word_break: bool,
+    /// Undocumented trailing `B` of the text branch.
+    pub unknown_flag: bool,
+}
+
+/// Block content of a multileader (§20.4.86, `Has contents block` branch).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MLeaderBlock {
+    /// `H 341` block table record — null on R2007+.
+    pub block_handle: Handle,
+    /// `3BD 14` normal vector.
+    pub normal: Vec3D,
+    /// `3BD 15` location.
+    pub location: Point3D,
+    /// `3BD 16` scale vector.
+    pub scale: Point3D,
+    /// `BD 46` rotation, radians.
+    pub rotation: f64,
+    /// `CMC 93` block colour.
+    pub color: Cmc,
+    /// `BD 47` — the 16 doubles of the complete transformation matrix.
+    pub transform: [f64; 16],
+}
+
+/// The embedded `MLeaderAnnotContext` (§20.4.86).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MLeaderContext {
+    /// The leader roots, each with its own leader lines.
+    pub leader_roots: Vec<LeaderRoot>,
+    /// `BD 40` overall scale.
+    pub overall_scale: f64,
+    /// `3BD 10` content base point.
+    pub content_base_point: Point3D,
+    /// `BD 41` text height.
+    pub text_height: f64,
+    /// `BD 140` arrow head size.
+    pub arrow_head_size: f64,
+    /// `BD 145` landing gap.
+    pub landing_gap: f64,
+    /// `BS 174` left text attachment type.
+    pub left_attachment: i16,
+    /// `BS 175` right text attachment type.
+    pub right_attachment: i16,
+    /// `BS 176` text align type (0 left, 1 center, 2 right).
+    pub text_align_type: i16,
+    /// `BS 177` attachment type (0 content extents, 1 insertion point).
+    pub attachment_type: i16,
+    /// Text content, when `B 290 has text contents` was set.
+    pub text: Option<MLeaderText>,
+    /// Block content, when `B 296 has contents block` was set.
+    pub block: Option<MLeaderBlock>,
+    /// `3BD 110` base point.
+    pub base_point: Point3D,
+    /// `3BD 111` base direction.
+    pub base_direction: Vec3D,
+    /// `3BD 112` base vertical.
+    pub base_vertical: Vec3D,
+    /// `B 297` is normal reversed.
+    pub normal_reversed: bool,
+    /// `BS 273` top attachment.
+    pub top_attachment: i16,
+    /// `BS 272` bottom attachment.
+    pub bottom_attachment: i16,
+}
+
+/// Decoded MULTILEADER (§20.4.48).
 #[derive(Debug, Clone, PartialEq)]
 pub struct MLeader {
+    /// `BS 270` version — expected to be 2.
     pub class_version: i16,
-    pub content_type: i16,
-    pub draw_mlearner_order_type: i16,
-    pub draw_leader_order_type: i16,
-    pub max_leader_segments_points: u32,
-    pub first_seg_angle_constraint: f64,
-    pub second_seg_angle_constraint: f64,
+    /// The embedded `MLeaderAnnotContext` block.
+    pub context: MLeaderContext,
+    /// `H 340` leader style — null on R2007+.
+    pub leader_style_handle: Handle,
+    /// `BL 90` property-override bitset.
+    pub override_flags: u32,
+    /// `BS 170` leader type (0 invisible, 1 straight, 2 spline).
     pub leader_type: i16,
-    pub line_color: i16,
-    pub linetype_handle: Handle,
+    /// `CMC 91` leader colour.
+    pub leader_color: Cmc,
+    /// `H 341` leader line type — null on R2007+.
+    pub line_type_handle: Handle,
+    /// `BL 171` line weight.
     pub line_weight: i32,
-    pub enable_landing: bool,
-    pub enable_dogleg: bool,
+    /// `B 290` landing enabled.
+    pub landing_enabled: bool,
+    /// `B 291` dog-leg enabled.
+    pub dogleg_enabled: bool,
+    /// `BD 41` landing distance.
     pub landing_distance: f64,
+    /// `H 342` arrow head — null on R2007+.
+    pub arrow_head_handle: Handle,
+    /// `BD 42` default arrow-head size.
     pub arrow_head_size: f64,
-    pub content_type_again: i16,
-    pub mtext_default_text: String,
-    pub text_normal_direction: Vec3D,
+    /// `BS 172` style content type (0 none, 1 block, 2 mtext, 3 tolerance).
+    pub content_type: i16,
+    /// `H 343` style text style — null on R2007+.
     pub text_style_handle: Handle,
-    pub text_left_attachment_type: i16,
+    /// `BS 173` style left text attachment type.
+    pub left_attachment: i16,
+    /// `BS 95` style right text attachment type.
+    pub right_attachment: i16,
+    /// `BS 174` style text angle type.
     pub text_angle_type: i16,
-    pub text_alignment_type: i16,
-    pub text_color: i16,
-    pub text_height: f64,
+    /// `BS 175` — undocumented in §20.4.48 ("Unknown").
+    pub unknown_175: i16,
+    /// `CMC 92` style text colour.
+    pub text_color: Cmc,
+    /// `B 292` style text frame enabled.
     pub text_frame_enabled: bool,
-    pub use_default_mtext_text: bool,
-    pub block_content_normal: Vec3D,
-    pub block_content_handle: Handle,
-    pub block_content_color: i16,
-    pub block_content_scale: Point3D,
-    pub block_content_rotation: f64,
-    pub block_content_connection: i16,
+    /// `H 344` style block — null on R2007+.
+    pub block_handle: Handle,
+    /// `CMC 93` style block colour.
+    pub block_color: Cmc,
+    /// `3BD 10` style block scale vector.
+    pub block_scale: Point3D,
+    /// `BD 43` style block rotation, radians.
+    pub block_rotation: f64,
+    /// `BS 176` style attachment type (0 center extents, 1 insertion point).
+    pub block_attachment_type: i16,
+    /// `B 293` is annotative.
     pub is_annotative: bool,
-    pub arrowhead_overrides: Vec<ArrowheadOverride>,
-    pub block_labels: Vec<BlockLabel>,
-    pub enable_text_attachment_to_leader: bool,
-    pub enable_text_attachment_to_dogleg: bool,
+    /// An `MC` that §20.4.48 does not list, between `B 293` and the
+    /// R2010+ trailer. See the module docs for the measurement — the
+    /// 15 records of `sample_AC1032.dwg` hold only `274`, `530` and
+    /// `786`.
+    pub undocumented_mc: i64,
+    /// The `B` that follows [`MLeader::undocumented_mc`] — also absent
+    /// from §20.4.48, and `true` on every record measured.
+    pub undocumented_flag: bool,
+    /// `BS 271` attachment direction (0 horizontal, 1 vertical). R2010+.
+    pub attachment_direction: i16,
+    /// `BS 273` style top text attachment. R2010+.
+    pub top_attachment: i16,
+    /// `BS 272` style bottom text attachment. R2010+.
+    pub bottom_attachment: i16,
+    /// `B 295` leader extended to text. R2013+.
+    pub leader_extended_to_text: bool,
 }
 
-/// Decode an MLEADER entity body from the current cursor position.
-///
-/// The caller is expected to have already consumed the object header
-/// (type code, handle, object-size-in-bits for R2000) and the common
-/// entity preamble (spec §19.4.1) before invoking this function.
-///
-/// # Version
-///
-/// This decoder implements the R2010+ MLEADER layout per spec
-/// §19.4.85. For pre-R2010 input the function returns
-/// [`Error::Unsupported`] — the older R2008 / R2009 layout is not
-/// implemented here.
-pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<MLeader> {
-    if !version.is_r2010_plus() {
-        return Err(Error::Unsupported {
-            feature: "MLEADER requires R2010+".into(),
-        });
-    }
+/// A null handle — what an `H` slot yields on R2007+, where object
+/// references live in the record's handle stream.
+const NULL_HANDLE: Handle = Handle {
+    code: 0,
+    counter: 0,
+    value: 0,
+};
 
-    let class_version = c.read_bs()?;
-    let content_type = c.read_bs()?;
-    let draw_mlearner_order_type = c.read_bs()?;
-    let draw_leader_order_type = c.read_bs()?;
-    let max_leader_segments_points = c.read_bl()? as u32;
-    if (max_leader_segments_points as usize) > MAX_LEADER_POINTS {
-        return Err(Error::SectionMap(format!(
-            "MLEADER max_leader_segments_points {max_leader_segments_points} \
-             exceeds cap {MAX_LEADER_POINTS}"
-        )));
+fn bounds_check(n: usize, field: &'static str, cap: usize, remaining_bits: usize) -> Result<()> {
+    if n > cap || n > remaining_bits {
+        Err(Error::SectionMap(format!(
+            "MLEADER {field} count {n} exceeds cap ({cap}) or remaining_bits ({remaining_bits})"
+        )))
+    } else {
+        Ok(())
     }
-    let first_seg_angle_constraint = c.read_bd()?;
-    let second_seg_angle_constraint = c.read_bd()?;
-    let leader_type = c.read_bs()?;
-    // CMC simplified to BS color index (AutoCAD color index / ACI),
-    // matching the pattern used by LAYER, LIGHT, SUN, MATERIAL, and
-    // MLINESTYLE decoders in this crate. Full §2.9 CMC parsing is
-    // deferred.
-    let line_color = c.read_bs()?;
-    let linetype_handle = c.read_handle()?;
-    let line_weight = c.read_bl()?;
-    let enable_landing = c.read_b()?;
-    let enable_dogleg = c.read_b()?;
-    let landing_distance = c.read_bd()?;
-    let arrow_head_size = c.read_bd()?;
-    let content_type_again = c.read_bs()?;
-    let mtext_default_text = read_tv(c, version)?;
-    let text_normal_direction = read_bd3(c)?;
-    let text_style_handle = c.read_handle()?;
-    let text_left_attachment_type = c.read_bs()?;
-    let text_angle_type = c.read_bs()?;
-    let text_alignment_type = c.read_bs()?;
-    let text_color = c.read_bs()?;
-    let text_height = c.read_bd()?;
-    let text_frame_enabled = c.read_b()?;
-    let use_default_mtext_text = c.read_b()?;
-    let block_content_normal = read_bd3(c)?;
-    let block_content_handle = c.read_handle()?;
-    let block_content_color = c.read_bs()?;
-    let block_content_scale = read_bd3(c)?;
-    let block_content_rotation = c.read_bd()?;
-    let block_content_connection = c.read_bs()?;
-    let is_annotative = c.read_b()?;
+}
 
-    // Variable-length: arrowhead overrides.
-    let num_arrowhead_overrides = c.read_bs()? as i32;
-    if num_arrowhead_overrides < 0 || (num_arrowhead_overrides as usize) > MAX_ARROWHEAD_OVERRIDES {
-        return Err(Error::SectionMap(format!(
-            "MLEADER num_arrowhead_overrides {num_arrowhead_overrides} \
-             out of range [0, {MAX_ARROWHEAD_OVERRIDES}]"
-        )));
-    }
-    let num_arrowhead_overrides = num_arrowhead_overrides as usize;
-    if num_arrowhead_overrides > c.remaining_bits() {
-        return Err(Error::SectionMap(format!(
-            "MLEADER num_arrowhead_overrides {num_arrowhead_overrides} \
-             exceeds remaining_bits {}",
-            c.remaining_bits()
-        )));
-    }
-    let mut arrowhead_overrides = Vec::with_capacity(num_arrowhead_overrides);
-    for _ in 0..num_arrowhead_overrides {
-        let index = c.read_bl()? as u32;
-        let handle = c.read_handle()?;
-        arrowhead_overrides.push(ArrowheadOverride { index, handle });
-    }
-
-    // Variable-length: block labels.
-    let num_block_labels = c.read_bs()? as i32;
-    if num_block_labels < 0 || (num_block_labels as usize) > MAX_BLOCK_LABELS {
-        return Err(Error::SectionMap(format!(
-            "MLEADER num_block_labels {num_block_labels} \
-             out of range [0, {MAX_BLOCK_LABELS}]"
-        )));
-    }
-    let num_block_labels = num_block_labels as usize;
-    if num_block_labels > c.remaining_bits() {
-        return Err(Error::SectionMap(format!(
-            "MLEADER num_block_labels {num_block_labels} \
-             exceeds remaining_bits {}",
-            c.remaining_bits()
-        )));
-    }
-    let mut block_labels = Vec::with_capacity(num_block_labels);
-    for _ in 0..num_block_labels {
-        let ui_index = c.read_bl()? as u32;
-        let ui_unit_type = c.read_bl()? as u32;
-        block_labels.push(BlockLabel {
-            ui_index,
-            ui_unit_type,
-        });
-    }
-
-    let enable_text_attachment_to_leader = c.read_b()?;
-    let enable_text_attachment_to_dogleg = c.read_b()?;
-
-    // Trailing fields (leader-node blocks, property overrides, per-
-    // line-segment dogleg info, etc.) are intentionally NOT parsed
-    // here. See module docs for the 30-field cutoff rationale.
-
-    Ok(MLeader {
-        class_version,
-        content_type,
-        draw_mlearner_order_type,
-        draw_leader_order_type,
-        max_leader_segments_points,
-        first_seg_angle_constraint,
-        second_seg_angle_constraint,
-        leader_type,
-        line_color,
-        linetype_handle,
-        line_weight,
-        enable_landing,
-        enable_dogleg,
-        landing_distance,
-        arrow_head_size,
-        content_type_again,
-        mtext_default_text,
-        text_normal_direction,
-        text_style_handle,
-        text_left_attachment_type,
-        text_angle_type,
-        text_alignment_type,
-        text_color,
-        text_height,
-        text_frame_enabled,
-        use_default_mtext_text,
-        block_content_normal,
-        block_content_handle,
-        block_content_color,
-        block_content_scale,
-        block_content_rotation,
-        block_content_connection,
-        is_annotative,
-        arrowhead_overrides,
-        block_labels,
-        enable_text_attachment_to_leader,
-        enable_text_attachment_to_dogleg,
+/// Read a `CMC` colour (§2.11) — `BS` index, `BL` RGB, `RC` colour byte,
+/// then the optional colour / book names the colour byte flags.
+fn read_cmc(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<Cmc> {
+    let index = c.read_bs()?;
+    let rgb = c.read_bl_u()?;
+    let color_byte = c.read_rc()?;
+    let name = if color_byte & 1 != 0 {
+        strings.read_tv()?
+    } else {
+        String::new()
+    };
+    let book_name = if color_byte & 2 != 0 {
+        strings.read_tv()?
+    } else {
+        String::new()
+    };
+    Ok(Cmc {
+        index,
+        rgb,
+        color_byte,
+        name,
+        book_name,
     })
 }
 
-/// Read a variable-length text field (TV per spec §2.8). R2007+ encodes
-/// UTF-16LE bit-streams; R2004 and earlier use 8-bit bytes.
-///
-/// Duplicates the small helper used by `mtext.rs` and `tables::read_tv`
-/// — kept local so the MLEADER decoder remains self-contained and
-/// doesn't take a crate-private dependency on the tables module.
-fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
-    let len = c.read_bs_u()? as usize;
-    if len == 0 {
-        return Ok(String::new());
+fn read_leader_line(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<LeaderLine> {
+    let num_points = c.read_bl_u()? as usize;
+    bounds_check(
+        num_points,
+        "leader-line points",
+        MAX_LEADER_POINTS,
+        c.remaining_bits(),
+    )?;
+    let mut points = Vec::with_capacity(num_points);
+    for _ in 0..num_points {
+        points.push(read_bd3(c)?);
     }
-    // Defensive cap: each char is ≥ 8 bits for ASCII, 16 for UTF-16.
-    // Reject lengths larger than the remaining byte budget.
-    if len > c.remaining_bits() {
-        return Err(Error::SectionMap(format!(
-            "MLEADER TV length {len} exceeds remaining_bits {}",
-            c.remaining_bits()
-        )));
+    // `BL` break-info count, then that many `<BL segment index, BL pair
+    // count, 3BD start, 3BD end ...>` groups.
+    let num_breaks = c.read_bl_u()? as usize;
+    bounds_check(
+        num_breaks,
+        "leader-line break info",
+        MAX_BREAK_PAIRS,
+        c.remaining_bits(),
+    )?;
+    for _ in 0..num_breaks {
+        let _segment_index = c.read_bl()?;
+        let pairs = c.read_bl_u()? as usize;
+        bounds_check(
+            pairs,
+            "leader-line break pairs",
+            MAX_BREAK_PAIRS,
+            c.remaining_bits(),
+        )?;
+        for _ in 0..pairs {
+            let _start = read_bd3(c)?;
+            let _end = read_bd3(c)?;
+        }
     }
-    if version.is_r2007_plus() {
-        let mut units = Vec::with_capacity(len);
-        for _ in 0..len {
-            let lo = c.read_rc()? as u16;
-            let hi = c.read_rc()? as u16;
-            units.push((hi << 8) | lo);
-        }
-        if units.last() == Some(&0) {
-            units.pop();
-        }
-        String::from_utf16(&units)
-            .map_err(|_| Error::SectionMap("MLEADER TV is not valid UTF-16".into()))
+    let index = c.read_bl()?;
+    let leader_type = c.read_bs()?;
+    let color = read_cmc(c, strings)?;
+    let line_type_handle = NULL_HANDLE;
+    let line_weight = c.read_bl()?;
+    let arrow_size = c.read_bd()?;
+    let arrow_symbol_handle = NULL_HANDLE;
+    let override_flags = c.read_bl_u()?;
+    Ok(LeaderLine {
+        points,
+        index,
+        leader_type,
+        color,
+        line_type_handle,
+        line_weight,
+        arrow_size,
+        arrow_symbol_handle,
+        override_flags,
+    })
+}
+
+fn read_leader_root(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<LeaderRoot> {
+    let content_valid = c.read_b()?;
+    let unknown_flag = c.read_b()?;
+    let connection_point = read_bd3(c)?;
+    let direction = read_bd3(c)?;
+    let num_break_pairs = c.read_bl_u()? as usize;
+    bounds_check(
+        num_break_pairs,
+        "leader-root break pairs",
+        MAX_BREAK_PAIRS,
+        c.remaining_bits(),
+    )?;
+    let mut break_points = Vec::with_capacity(num_break_pairs);
+    for _ in 0..num_break_pairs {
+        let start = read_bd3(c)?;
+        let end = read_bd3(c)?;
+        break_points.push((start, end));
+    }
+    let index = c.read_bl()?;
+    let landing_distance = c.read_bd()?;
+    let num_lines = c.read_bl_u()? as usize;
+    bounds_check(
+        num_lines,
+        "leader lines",
+        MAX_LEADER_LINES,
+        c.remaining_bits(),
+    )?;
+    let mut lines = Vec::with_capacity(num_lines);
+    for _ in 0..num_lines {
+        lines.push(read_leader_line(c, strings)?);
+    }
+    let attachment_direction = c.read_bs()?;
+    Ok(LeaderRoot {
+        content_valid,
+        unknown_flag,
+        connection_point,
+        direction,
+        break_points,
+        index,
+        landing_distance,
+        lines,
+        attachment_direction,
+    })
+}
+
+fn read_text_content(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<MLeaderText> {
+    let label = strings.read_tv()?;
+    let normal = read_bd3(c)?;
+    let text_style_handle = NULL_HANDLE;
+    let location = read_bd3(c)?;
+    let direction = read_bd3(c)?;
+    let rotation = c.read_bd()?;
+    let boundary_width = c.read_bd()?;
+    let boundary_height = c.read_bd()?;
+    let line_spacing_factor = c.read_bd()?;
+    let line_spacing_style = c.read_bs()?;
+    let color = read_cmc(c, strings)?;
+    let alignment = c.read_bs()?;
+    let flow_direction = c.read_bs()?;
+    let background_color = read_cmc(c, strings)?;
+    let background_scale = c.read_bd()?;
+    let background_transparency = c.read_bl()?;
+    let background_fill_enabled = c.read_b()?;
+    let background_mask_fill_on = c.read_b()?;
+    let column_type = c.read_bs()?;
+    let text_height_automatic = c.read_b()?;
+    let column_width = c.read_bd()?;
+    let column_gutter = c.read_bd()?;
+    let column_flow_reversed = c.read_b()?;
+    let num_sizes = c.read_bl_u()? as usize;
+    bounds_check(
+        num_sizes,
+        "column sizes",
+        MAX_COLUMN_SIZES,
+        c.remaining_bits(),
+    )?;
+    let mut column_sizes = Vec::with_capacity(num_sizes);
+    for _ in 0..num_sizes {
+        column_sizes.push(c.read_bd()?);
+    }
+    let word_break = c.read_b()?;
+    let unknown_flag = c.read_b()?;
+    Ok(MLeaderText {
+        label,
+        normal,
+        text_style_handle,
+        location,
+        direction,
+        rotation,
+        boundary_width,
+        boundary_height,
+        line_spacing_factor,
+        line_spacing_style,
+        color,
+        alignment,
+        flow_direction,
+        background_color,
+        background_scale,
+        background_transparency,
+        background_fill_enabled,
+        background_mask_fill_on,
+        column_type,
+        text_height_automatic,
+        column_width,
+        column_gutter,
+        column_flow_reversed,
+        column_sizes,
+        word_break,
+        unknown_flag,
+    })
+}
+
+fn read_block_content(
+    c: &mut BitCursor<'_>,
+    strings: &mut StringReader<'_>,
+) -> Result<MLeaderBlock> {
+    let block_handle = NULL_HANDLE;
+    let normal = read_bd3(c)?;
+    let location = read_bd3(c)?;
+    let scale = read_bd3(c)?;
+    let rotation = c.read_bd()?;
+    let color = read_cmc(c, strings)?;
+    let mut transform = [0.0f64; 16];
+    for slot in transform.iter_mut() {
+        *slot = c.read_bd()?;
+    }
+    Ok(MLeaderBlock {
+        block_handle,
+        normal,
+        location,
+        scale,
+        rotation,
+        color,
+        transform,
+    })
+}
+
+fn read_context(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<MLeaderContext> {
+    let num_roots = c.read_bl_u()? as usize;
+    bounds_check(
+        num_roots,
+        "leader roots",
+        MAX_LEADER_ROOTS,
+        c.remaining_bits(),
+    )?;
+    let mut leader_roots = Vec::with_capacity(num_roots);
+    for _ in 0..num_roots {
+        leader_roots.push(read_leader_root(c, strings)?);
+    }
+    let overall_scale = c.read_bd()?;
+    let content_base_point = read_bd3(c)?;
+    let text_height = c.read_bd()?;
+    let arrow_head_size = c.read_bd()?;
+    let landing_gap = c.read_bd()?;
+    let left_attachment = c.read_bs()?;
+    let right_attachment = c.read_bs()?;
+    let text_align_type = c.read_bs()?;
+    let attachment_type = c.read_bs()?;
+    let has_text = c.read_b()?;
+    let mut text = None;
+    let mut block = None;
+    if has_text {
+        text = Some(read_text_content(c, strings)?);
+    } else if c.read_b()? {
+        block = Some(read_block_content(c, strings)?);
+    }
+    let base_point = read_bd3(c)?;
+    let base_direction = read_bd3(c)?;
+    let base_vertical = read_bd3(c)?;
+    let normal_reversed = c.read_b()?;
+    let top_attachment = c.read_bs()?;
+    let bottom_attachment = c.read_bs()?;
+    Ok(MLeaderContext {
+        leader_roots,
+        overall_scale,
+        content_base_point,
+        text_height,
+        arrow_head_size,
+        landing_gap,
+        left_attachment,
+        right_attachment,
+        text_align_type,
+        attachment_type,
+        text,
+        block,
+        base_point,
+        base_direction,
+        base_vertical,
+        normal_reversed,
+        top_attachment,
+        bottom_attachment,
+    })
+}
+
+/// Read the MULTILEADER body (§20.4.48) from a data cursor already
+/// positioned past the common entity preamble, taking `TV` fields from
+/// `strings`.
+pub(crate) fn read_body(
+    c: &mut BitCursor<'_>,
+    strings: &mut StringReader<'_>,
+    version: Version,
+) -> Result<MLeader> {
+    let class_version = c.read_bs()?;
+    let context = read_context(c, strings)?;
+    let leader_style_handle = NULL_HANDLE;
+    let override_flags = c.read_bl_u()?;
+    let leader_type = c.read_bs()?;
+    let leader_color = read_cmc(c, strings)?;
+    let line_type_handle = NULL_HANDLE;
+    let line_weight = c.read_bl()?;
+    let landing_enabled = c.read_b()?;
+    let dogleg_enabled = c.read_b()?;
+    let landing_distance = c.read_bd()?;
+    let arrow_head_handle = NULL_HANDLE;
+    let arrow_head_size = c.read_bd()?;
+    let content_type = c.read_bs()?;
+    let text_style_handle = NULL_HANDLE;
+    let left_attachment = c.read_bs()?;
+    let right_attachment = c.read_bs()?;
+    let text_angle_type = c.read_bs()?;
+    let unknown_175 = c.read_bs()?;
+    let text_color = read_cmc(c, strings)?;
+    let text_frame_enabled = c.read_b()?;
+    let block_handle = NULL_HANDLE;
+    let block_color = read_cmc(c, strings)?;
+    let block_scale = read_bd3(c)?;
+    let block_rotation = c.read_bd()?;
+    let block_attachment_type = c.read_bs()?;
+    let is_annotative = c.read_b()?;
+    let undocumented_mc = c.read_mc()?;
+    let undocumented_flag = c.read_b()?;
+    let attachment_direction = c.read_bs()?;
+    let top_attachment = c.read_bs()?;
+    let bottom_attachment = c.read_bs()?;
+    let leader_extended_to_text = if matches!(version, Version::R2013 | Version::R2018) {
+        c.read_b()?
     } else {
-        let mut bytes = Vec::with_capacity(len);
-        for _ in 0..len {
-            bytes.push(c.read_rc()?);
-        }
-        if bytes.last() == Some(&0) {
-            bytes.pop();
-        }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        false
+    };
+    Ok(MLeader {
+        class_version,
+        context,
+        leader_style_handle,
+        override_flags,
+        leader_type,
+        leader_color,
+        line_type_handle,
+        line_weight,
+        landing_enabled,
+        dogleg_enabled,
+        landing_distance,
+        arrow_head_handle,
+        arrow_head_size,
+        content_type,
+        text_style_handle,
+        left_attachment,
+        right_attachment,
+        text_angle_type,
+        unknown_175,
+        text_color,
+        text_frame_enabled,
+        block_handle,
+        block_color,
+        block_scale,
+        block_rotation,
+        block_attachment_type,
+        is_annotative,
+        undocumented_mc,
+        undocumented_flag,
+        attachment_direction,
+        top_attachment,
+        bottom_attachment,
+        leader_extended_to_text,
+    })
+}
+
+/// Decode an R2010+ MULTILEADER from its record payload (§20.4.48).
+///
+/// `object_body_start` is the bit just past the object header, i.e.
+/// where the common entity preamble begins. The decoder reads the
+/// preamble itself, then the body, then checks that the data fields
+/// ended exactly on the record's string-stream start bit — so a wrong
+/// field list errors instead of returning a plausible-looking struct.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<MLeader> {
+    if !version.is_r2010_plus() {
+        return Err(Error::Unsupported {
+            feature: "MULTILEADER split-stream decode requires R2010+".into(),
+        });
     }
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let mleader = read_body(&mut c, &mut strings, version)?;
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("MULTILEADER", at, string_start));
+    }
+    Ok(mleader)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
+    use crate::string_stream::tests::build_payload;
 
-    /// Append a synthetic TV field to the writer. Matches the
-    /// `read_tv` decoder shape above.
-    fn write_tv(w: &mut BitWriter, s: &str, version: Version) {
-        if s.is_empty() {
-            w.write_bs_u(0);
-            return;
-        }
-        if version.is_r2007_plus() {
-            // Encode as UTF-16 LE; the decoder reads `len` u16 units.
-            let units: Vec<u16> = s.encode_utf16().collect();
-            w.write_bs_u(units.len() as u16);
-            for u in units {
-                w.write_rc((u & 0xFF) as u8);
-                w.write_rc((u >> 8) as u8);
-            }
-        } else {
-            let bytes = s.as_bytes();
-            w.write_bs_u(bytes.len() as u16);
-            for b in bytes {
-                w.write_rc(*b);
-            }
-        }
+    /// Append the bits of one BitWriter onto a bit vector.
+    fn bits(w: BitWriter) -> Vec<bool> {
+        crate::string_stream::tests::bits_of(&w)
     }
 
-    /// Write a minimal R2010+ MLEADER with content_type=none, no
-    /// arrowhead overrides, and no block labels. Returns the encoded
-    /// bit stream.
-    fn synth_minimal_mleader(version: Version) -> Vec<u8> {
+    /// Write a `CMC` with no name suffixes.
+    fn write_cmc(w: &mut BitWriter, rgb: u32) {
+        w.write_bs(0);
+        w.write_bl(rgb as i32);
+        w.write_rc(0);
+    }
+
+    /// A minimal but complete R2018 MULTILEADER body: one leader root
+    /// with one two-point leader line, MTEXT content, no columns.
+    fn synth_body() -> Vec<bool> {
         let mut w = BitWriter::new();
-        w.write_bs(2); // class_version
-        w.write_bs(3); // content_type = none
-        w.write_bs(0); // draw_mlearner_order_type
-        w.write_bs(0); // draw_leader_order_type
-        w.write_bl(10); // max_leader_segments_points (under cap)
-        w.write_bd(0.0); // first_seg_angle_constraint
-        w.write_bd(0.0); // second_seg_angle_constraint
-        w.write_bs(1); // leader_type
-        w.write_bs(256); // line_color = ByLayer (ACI)
-        w.write_handle(0, 0); // linetype_handle null
-        w.write_bl(-1); // line_weight (ByLayer sentinel)
-        w.write_b(true); // enable_landing
-        w.write_b(true); // enable_dogleg
-        w.write_bd(0.5); // landing_distance
-        w.write_bd(0.18); // arrow_head_size
-        w.write_bs(3); // content_type_again (mirror)
-        write_tv(&mut w, "", version); // mtext_default_text empty
-        // text_normal_direction (0, 0, 1)
+        w.write_bs(2); // class version (270)
+        // -- context --
+        w.write_bl(1); // one leader root
+        w.write_b(true); // content valid
+        w.write_b(true); // unknown
+        w.write_bd(10.0); // connection point
+        w.write_bd(20.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0); // direction
         w.write_bd(0.0);
         w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_handle(0, 0); // text_style_handle null
-        w.write_bs(1); // text_left_attachment_type
-        w.write_bs(0); // text_angle_type
-        w.write_bs(0); // text_alignment_type
-        w.write_bs(256); // text_color ByLayer
-        w.write_bd(2.5); // text_height
-        w.write_b(false); // text_frame_enabled
-        w.write_b(true); // use_default_mtext_text
-        // block_content_normal (0, 0, 1)
+        w.write_bl(0); // no break pairs
+        w.write_bl(0); // leader index
+        w.write_bd(8.0); // landing distance
+        w.write_bl(1); // one leader line
+        w.write_bl(2); // two points
         w.write_bd(0.0);
         w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(5.0);
+        w.write_bd(5.0);
+        w.write_bd(0.0);
+        w.write_bl(0); // no break info
+        w.write_bl(0); // leader line index
+        w.write_bs(1); // leader type = straight
+        write_cmc(&mut w, 0xC100_0000);
+        w.write_bl(-2); // line weight
+        w.write_bd(0.0); // arrow size
+        w.write_bl(0); // override flags
+        w.write_bs(0); // attachment direction (root)
+        w.write_bd(1.0); // overall scale
+        w.write_bd(1.0); // content base point
+        w.write_bd(2.0);
+        w.write_bd(0.0);
+        w.write_bd(4.0); // text height
+        w.write_bd(4.0); // arrow head size
+        w.write_bd(2.0); // landing gap
+        w.write_bs(1); // left attachment
+        w.write_bs(1); // right attachment
+        w.write_bs(0); // text align type
+        w.write_bs(0); // attachment type
+        w.write_b(true); // has text contents
+        // text branch: the TV slot consumes no data bits
+        w.write_bd(0.0); // normal
+        w.write_bd(0.0);
         w.write_bd(1.0);
-        w.write_handle(0, 0); // block_content_handle null
-        w.write_bs(256); // block_content_color ByLayer
-        // block_content_scale (1, 1, 1)
+        w.write_bd(3.0); // location
+        w.write_bd(4.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0); // direction
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // rotation
+        w.write_bd(0.0); // boundary width
+        w.write_bd(0.0); // boundary height
+        w.write_bd(1.0); // line spacing factor
+        w.write_bs(1); // line spacing style
+        write_cmc(&mut w, 0xC000_0000); // text colour
+        w.write_bs(1); // alignment
+        w.write_bs(5); // flow direction
+        write_cmc(&mut w, 0xC000_0000); // background colour
+        w.write_bd(0.0); // background scale
+        w.write_bl(0); // background transparency
+        w.write_b(false); // background fill
+        w.write_b(false); // background mask fill
+        w.write_bs(0); // column type
+        w.write_b(false); // text height automatic
+        w.write_bd(0.0); // column width
+        w.write_bd(0.0); // column gutter
+        w.write_b(false); // column flow reversed
+        w.write_bl(0); // no column sizes
+        w.write_b(false); // word break
+        w.write_b(false); // unknown
+        w.write_bd(0.0); // base point
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0); // base direction
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // base vertical
+        w.write_bd(1.0);
+        w.write_bd(0.0);
+        w.write_b(false); // normal reversed
+        w.write_bs(9); // top attachment
+        w.write_bs(9); // bottom attachment
+        // -- style block --
+        w.write_bl(279552); // override flags
+        w.write_bs(1); // leader type
+        write_cmc(&mut w, 0xC100_0000); // leader colour
+        w.write_bl(-2); // line weight
+        w.write_b(true); // landing enabled
+        w.write_b(true); // dogleg enabled
+        w.write_bd(8.0); // landing distance
+        w.write_bd(4.0); // arrow head size
+        w.write_bs(2); // content type = MTEXT
+        w.write_bs(1); // left attachment
+        w.write_bs(1); // right attachment
+        w.write_bs(1); // text angle type
+        w.write_bs(0); // unknown 175
+        write_cmc(&mut w, 0xC100_0000); // text colour
+        w.write_b(false); // text frame enabled
+        write_cmc(&mut w, 0xC100_0000); // block colour
+        w.write_bd(1.0); // block scale
         w.write_bd(1.0);
         w.write_bd(1.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0); // block_content_rotation
-        w.write_bs(0); // block_content_connection
-        w.write_b(false); // is_annotative
-        w.write_bs(0); // num_arrowhead_overrides
-        w.write_bs(0); // num_block_labels
-        w.write_b(true); // enable_text_attachment_to_leader
-        w.write_b(true); // enable_text_attachment_to_dogleg
-        w.into_bytes()
+        w.write_bd(0.0); // block rotation
+        w.write_bs(0); // block attachment type
+        w.write_b(false); // is annotative
+        w.write_mc(274).unwrap(); // the undocumented MC
+        w.write_b(true); // the undocumented flag
+        w.write_bs(0); // attachment direction
+        w.write_bs(9); // top attachment
+        w.write_bs(9); // bottom attachment
+        w.write_b(false); // leader extended to text (R2013+)
+        bits(w)
     }
 
+    /// Round-trip a BitWriter-built R2018 MULTILEADER through the
+    /// split-stream decoder, including the exact-boundary check.
     #[test]
-    fn roundtrip_minimal_mleader() {
-        let version = Version::R2018;
-        let bytes = synth_minimal_mleader(version);
-        let mut c = BitCursor::new(&bytes);
-        let m = decode(&mut c, version).expect("minimal MLEADER decodes");
+    fn roundtrip_minimal_r2018_multileader() {
+        // The record body is the common entity preamble followed by the
+        // MULTILEADER field list; `build_payload` frames it with the
+        // string stream and its trailer.
+        let mut pre = BitWriter::new();
+        pre.write_bs_u(0); // no XDATA
+        pre.write_b(false); // no graphics preview
+        pre.write_bb(0b10); // entmode
+        pre.write_bl(0); // num_reactors
+        pre.write_b(true); // no xdictionary
+        pre.write_b(false); // no AcDs binary data
+        pre.write_bs_u(0x0100); // colour
+        pre.write_bd(1.0); // linetype scale
+        pre.write_bb(0b00); // ltype flags
+        pre.write_bb(0b00); // plotstyle
+        pre.write_bb(0b00); // material
+        pre.write_rc(0); // shadow
+        pre.write_b(false);
+        pre.write_b(false);
+        pre.write_b(false);
+        pre.write_bs(0); // invisibility
+        pre.write_rc(0x1D); // lineweight
+        let mut body = bits(pre);
+        body.extend(synth_body());
+
+        let payload = build_payload(&body, &["MULTILEADER TEST"]);
+        let m = decode_modern_split_stream(&payload, 8, Version::R2018).expect("decodes");
         assert_eq!(m.class_version, 2);
-        assert_eq!(m.content_type, 3); // none
-        assert_eq!(m.draw_mlearner_order_type, 0);
-        assert_eq!(m.draw_leader_order_type, 0);
-        assert_eq!(m.max_leader_segments_points, 10);
-        assert_eq!(m.first_seg_angle_constraint, 0.0);
-        assert_eq!(m.second_seg_angle_constraint, 0.0);
-        assert_eq!(m.leader_type, 1);
-        assert_eq!(m.line_color, 256);
-        assert_eq!(m.line_weight, -1);
-        assert!(m.enable_landing);
-        assert!(m.enable_dogleg);
-        assert_eq!(m.landing_distance, 0.5);
-        assert_eq!(m.arrow_head_size, 0.18);
-        assert_eq!(m.content_type_again, 3);
-        assert!(m.mtext_default_text.is_empty());
+        assert_eq!(m.context.leader_roots.len(), 1);
+        let root = &m.context.leader_roots[0];
+        assert_eq!(root.landing_distance, 8.0);
+        assert_eq!(root.lines.len(), 1);
+        assert_eq!(root.lines[0].points.len(), 2);
         assert_eq!(
-            m.text_normal_direction,
-            Vec3D {
-                x: 0.0,
-                y: 0.0,
-                z: 1.0
+            root.lines[0].points[1],
+            Point3D {
+                x: 5.0,
+                y: 5.0,
+                z: 0.0
             }
         );
-        assert_eq!(m.text_left_attachment_type, 1);
-        assert_eq!(m.text_color, 256);
-        assert_eq!(m.text_height, 2.5);
-        assert!(!m.text_frame_enabled);
-        assert!(m.use_default_mtext_text);
+        assert_eq!(root.lines[0].line_weight, -2);
+        let text = m.context.text.as_ref().expect("text content");
+        assert_eq!(text.label, "MULTILEADER TEST");
+        assert_eq!(text.flow_direction, 5);
+        assert!(m.context.block.is_none());
+        assert_eq!(m.context.top_attachment, 9);
+        assert_eq!(m.override_flags, 279552);
+        assert_eq!(m.content_type, 2);
         assert_eq!(
-            m.block_content_normal,
-            Vec3D {
-                x: 0.0,
-                y: 0.0,
-                z: 1.0
-            }
-        );
-        assert_eq!(m.block_content_color, 256);
-        assert_eq!(
-            m.block_content_scale,
+            m.block_scale,
             Point3D {
                 x: 1.0,
                 y: 1.0,
                 z: 1.0
             }
         );
-        assert_eq!(m.block_content_rotation, 0.0);
-        assert_eq!(m.block_content_connection, 0);
         assert!(!m.is_annotative);
-        assert!(m.arrowhead_overrides.is_empty());
-        assert!(m.block_labels.is_empty());
-        assert!(m.enable_text_attachment_to_leader);
-        assert!(m.enable_text_attachment_to_dogleg);
+        assert_eq!(m.undocumented_mc, 274);
+        assert!(m.undocumented_flag);
+        assert_eq!(m.bottom_attachment, 9);
+        assert!(!m.leader_extended_to_text);
+    }
+
+    /// A wrong field list must error on the boundary, not return a
+    /// plausible struct: dropping the R2013+ `B 295` leaves the data
+    /// fields one bit short of the string stream.
+    #[test]
+    fn misaligned_field_list_errors() {
+        let mut pre = BitWriter::new();
+        pre.write_bs_u(0);
+        pre.write_b(false);
+        pre.write_bb(0b10);
+        pre.write_bl(0);
+        pre.write_b(true);
+        pre.write_b(false);
+        pre.write_bs_u(0x0100);
+        pre.write_bd(1.0);
+        pre.write_bb(0b00);
+        pre.write_bb(0b00);
+        pre.write_bb(0b00);
+        pre.write_rc(0);
+        pre.write_b(false);
+        pre.write_b(false);
+        pre.write_b(false);
+        pre.write_bs(0);
+        pre.write_rc(0x1D);
+        let mut body = bits(pre);
+        let mut synth = synth_body();
+        synth.pop(); // drop the R2013+ trailing bit
+        body.extend(synth);
+
+        let payload = build_payload(&body, &["MULTILEADER TEST"]);
+        let err = decode_modern_split_stream(&payload, 8, Version::R2018)
+            .expect_err("a short field list must be rejected");
+        assert!(
+            matches!(&err, Error::SectionMap(m) if m.contains("MULTILEADER data fields ended")),
+            "err={err:?}"
+        );
     }
 
     #[test]
-    fn decode_errors_on_pre_r2010() {
-        // Synthesize a minimal R2018 body; the version-gate should
-        // reject it even though the bits would parse if we allowed
-        // R2007. The byte content is irrelevant — we should bail
-        // BEFORE consuming any bits.
-        let bytes = synth_minimal_mleader(Version::R2018);
-        let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, Version::R2007).expect_err("pre-R2010 must error");
-        assert!(
-            matches!(&err, Error::Unsupported { feature } if feature.contains("R2010")),
-            "expected Unsupported(R2010+); got {err:?}"
-        );
-        // The error must surface BEFORE any bits are consumed, so the
-        // cursor is still at position zero.
-        assert_eq!(c.position_bits(), 0);
-    }
-
-    #[test]
-    fn decode_errors_on_oversized_arrowheads() {
-        // Walk the stream up to num_arrowhead_overrides, then emit
-        // 1000 — well above MAX_ARROWHEAD_OVERRIDES (64).
-        let version = Version::R2018;
-        let mut w = BitWriter::new();
-        w.write_bs(2);
-        w.write_bs(3);
-        w.write_bs(0);
-        w.write_bs(0);
-        w.write_bl(10);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bs(1);
-        w.write_bs(256);
-        w.write_handle(0, 0);
-        w.write_bl(-1);
-        w.write_b(true);
-        w.write_b(true);
-        w.write_bd(0.5);
-        w.write_bd(0.18);
-        w.write_bs(3);
-        write_tv(&mut w, "", version);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_handle(0, 0);
-        w.write_bs(1);
-        w.write_bs(0);
-        w.write_bs(0);
-        w.write_bs(256);
-        w.write_bd(2.5);
-        w.write_b(false);
-        w.write_b(true);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_handle(0, 0);
-        w.write_bs(256);
-        w.write_bd(1.0);
-        w.write_bd(1.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        w.write_bs(0);
-        w.write_b(false);
-        // Oversized count — should trigger the guard.
-        w.write_bs(1000);
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, version).expect_err("oversized arrowheads must error");
-        assert!(
-            matches!(&err, Error::SectionMap(msg) if msg.contains("num_arrowhead_overrides")),
-            "expected SectionMap(num_arrowhead_overrides); got {err:?}"
-        );
+    fn pre_r2010_is_unsupported() {
+        let payload = build_payload(&[false; 8], &[]);
+        let err = decode_modern_split_stream(&payload, 8, Version::R2007)
+            .expect_err("pre-R2010 must error");
+        assert!(matches!(&err, Error::Unsupported { feature } if feature.contains("R2010")));
     }
 }

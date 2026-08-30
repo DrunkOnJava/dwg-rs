@@ -75,7 +75,9 @@ pub enum DecodedEntity {
     Leader(leader::Leader),
     Image(image::Image),
     Hatch(hatch::Hatch),
-    MLeader(mleader::MLeader),
+    /// Boxed because a MULTILEADER carries its embedded
+    /// `MLeaderAnnotContext` inline and is by far the largest variant.
+    MLeader(Box<mleader::MLeader>),
     Viewport(viewport::Viewport),
     Camera(camera::Camera),
     Sun(sun::Sun),
@@ -357,6 +359,19 @@ pub fn decode_from_raw_with_class_map(
             };
         }
     };
+    // Custom-class entities whose `TV` fields live in the R2007+ string
+    // stream take the payload-and-offset form instead of the cursor
+    // form, and read the common preamble themselves.
+    if let Some(decoded) = dispatch_split_stream_class(
+        raw,
+        class_def.dxf_class_name.as_str(),
+        cursor.position_bits(),
+        type_code,
+        raw.kind,
+        version,
+    ) {
+        return decoded;
+    }
     if let Err(e) = crate::common_entity::read_common_entity_data(&mut cursor, version) {
         return DecodedEntity::Error {
             type_code,
@@ -368,9 +383,6 @@ pub fn decode_from_raw_with_class_map(
     {
         "IMAGE" | "RASTERIMAGE" => image::decode(&mut cursor, version)
             .map(DecodedEntity::Image)
-            .map_err(|e| e.to_string()),
-        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => mleader::decode(&mut cursor, version)
-            .map(DecodedEntity::MLeader)
             .map_err(|e| e.to_string()),
         // SURFACE family + HELIX — type codes vary per-file, dispatched
         // on the DXF class name recorded in AcDb:Classes. See spec
@@ -391,21 +403,6 @@ pub fn decode_from_raw_with_class_map(
             .map(DecodedEntity::Helix)
             .map_err(|e| e.to_string()),
         // UNDERLAY family (§19.4.86) — PDF / DWF / DGN share one payload.
-        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" => {
-            underlay::decode(&mut cursor, underlay::UnderlayKind::Pdf)
-                .map(DecodedEntity::Underlay)
-                .map_err(|e| e.to_string())
-        }
-        "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => {
-            underlay::decode(&mut cursor, underlay::UnderlayKind::Dwf)
-                .map(DecodedEntity::Underlay)
-                .map_err(|e| e.to_string())
-        }
-        "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => {
-            underlay::decode(&mut cursor, underlay::UnderlayKind::Dgn)
-                .map(DecodedEntity::Underlay)
-                .map_err(|e| e.to_string())
-        }
         "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor, version)
             .map(DecodedEntity::Wipeout)
             .map_err(|e| e.to_string()),
@@ -653,6 +650,85 @@ fn dispatch_object_class(
     })
 }
 
+/// Dispatch a **custom-class** entity whose `TV` fields live in the
+/// object's string stream and whose `H` fields live in the handle
+/// stream (spec §19.1 / §20.4.48).
+///
+/// These decoders take the record payload plus the bit offset of the
+/// common entity preamble rather than a positioned cursor, because they
+/// have to locate the string stream inside the same payload. Returns
+/// `None` when the class or version has no split-stream decoder, so the
+/// caller falls through to the cursor path.
+fn dispatch_split_stream_class(
+    raw: &RawObject,
+    dxf_class_name: &str,
+    object_body_start: usize,
+    type_code: u16,
+    kind: ObjectType,
+    version: Version,
+) -> Option<DecodedEntity> {
+    if !version.is_r2010_plus() {
+        return None;
+    }
+    let result = match dxf_class_name {
+        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
+            mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(|m| DecodedEntity::MLeader(Box::new(m)))
+        }
+        // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
+        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
+        | "ACDBDGNUNDERLAY" => {
+            let kind = match dxf_class_name {
+                "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
+                "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
+                _ => underlay::UnderlayKind::Pdf,
+            };
+            checked_inline(raw, object_body_start, version, "UNDERLAY", move |c, v| {
+                underlay::decode(c, kind, v)
+            })
+            .map(DecodedEntity::Underlay)
+        }
+        _ => return None,
+    };
+    Some(match result {
+        Ok(decoded) => decoded,
+        Err(e) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message: e.to_string(),
+        },
+    })
+}
+
+/// Run an inline entity decoder against a record's payload and require
+/// it to end **exactly** on the record's data-stream boundary — the
+/// first bit of its string stream, or the start of its handle stream
+/// when it holds no strings (§19.1).
+///
+/// Entities with no `TV` field do not need the split streams to read
+/// their values, but they still get the boundary for free, and the
+/// boundary is what turns a wrong field list into an error instead of
+/// plausible-looking geometry. Types listed here have been measured
+/// against every record of that type in the corpus.
+fn checked_inline<T>(
+    raw: &RawObject,
+    object_body_start: usize,
+    version: Version,
+    what: &'static str,
+    decode_body: impl FnOnce(&mut BitCursor<'_>, Version) -> Result<T>,
+) -> Result<T> {
+    let (_strings, string_start) = crate::tables::modern::open_entity(&raw.raw, version)?;
+    let mut c = BitCursor::new(&raw.raw);
+    crate::string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let value = decode_body(&mut c, version)?;
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(crate::tables::modern::misaligned(what, at, string_start));
+    }
+    Ok(value)
+}
+
 /// Dispatch the R2007+ entities whose `TV` fields live in the object's
 /// string stream (spec §19.1). Returns `None` when the type or version
 /// is not handled by a split-stream decoder, so the caller falls back
@@ -690,6 +766,28 @@ fn dispatch_split_stream_entity(
             hatch::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Hatch)
         }
+        OBJECT_TYPE_SPLINE if version.is_r2010_plus() => {
+            spline::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::Spline)
+        }
+        OBJECT_TYPE_INSERT if version.is_r2010_plus() => {
+            checked_inline(raw, object_body_start, version, "INSERT", insert::decode)
+                .map(DecodedEntity::Insert)
+        }
+        OBJECT_TYPE_3DFACE if version.is_r2010_plus() => {
+            checked_inline(raw, object_body_start, version, "3DFACE", |c, _v| {
+                three_d_face::decode(c)
+            })
+            .map(DecodedEntity::ThreeDFace)
+        }
+        OBJECT_TYPE_LWPOLYLINE if version.is_r2010_plus() => checked_inline(
+            raw,
+            object_body_start,
+            version,
+            "LWPOLYLINE",
+            lwpolyline::decode,
+        )
+        .map(DecodedEntity::LwPolyline),
         OBJECT_TYPE_LIGHT => {
             light::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Light)
@@ -918,7 +1016,7 @@ fn dispatch(
         OBJECT_TYPE_ATTDEF => attdef::decode(cursor, version)
             .map(DecodedEntity::AttDef)
             .map_err(|e| e.to_string()),
-        OBJECT_TYPE_INSERT => insert::decode(cursor)
+        OBJECT_TYPE_INSERT => insert::decode(cursor, version)
             .map(DecodedEntity::Insert)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_BLOCK => block::decode(cursor, version)
@@ -933,7 +1031,7 @@ fn dispatch(
         OBJECT_TYPE_POLYLINE_2D => polyline::decode(cursor)
             .map(DecodedEntity::Polyline)
             .map_err(|e| e.to_string()),
-        OBJECT_TYPE_LWPOLYLINE => lwpolyline::decode(cursor)
+        OBJECT_TYPE_LWPOLYLINE => lwpolyline::decode(cursor, version)
             .map(DecodedEntity::LwPolyline)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_POLYLINE_PFACE => polyface_mesh::decode(cursor)

@@ -16,21 +16,37 @@
 //! # Stream shape
 //!
 //! ```text
-//! BD3  insertion_point
-//! BD3  scale
+//! 3BD  normal
+//! 3BD  insertion_point
 //! BD   rotation
-//! BD3  normal
-//! RC   flags              -- bits per spec §19.4.86:
-//!                             0x01 clip_on
-//!                             0x02 underlay_on
-//!                             0x04 monochrome
-//!                             0x08 adjust_for_background
+//! 3BD  scale
+//! RC   flags              -- 0x01 clip_on, 0x02 underlay_on,
+//!                            0x04 monochrome, 0x08 adjust_for_background
 //! RC   contrast           -- 0..100
 //! RC   fade               -- 0..100
 //! BS   num_clip_vertices  -- capped at 100_000
-//! BD2  × num_clip_vertices   clip_polygon
-//! H    underlay_definition_handle   -- parsed but not dereferenced
+//! 2BD  × num_clip_vertices   clip_polygon
+//! H    underlay_definition_handle   -- handle stream on R2007+
 //! ```
+//!
+//! # Measured, not specified
+//!
+//! The ODA Open Design Specification v5.4 has no UNDERLAY section — the
+//! class post-dates it — so this field list comes from bytes alone.
+//! The one PDFUNDERLAY of `sample_AC1032.dwg` (handle `0xD07`) closes
+//! exactly on its data-stream boundary at bit 381 with the order above,
+//! and every value it yields is self-consistent: a unit normal
+//! `(0, 0, 1)`, an insertion point `(16.2869…, 15, 0)`, a zero
+//! rotation, a unit scale `(1, 1, 1)`, flags `3` (clip on + underlay
+//! on), contrast `100`, fade `0`, and no clip vertices. The previous
+//! order — insertion, scale, rotation, normal — put the scale on
+//! `(0, 0, 1)` and the normal on `(1, 1, 1)`, and then read the
+//! definition handle inline, which on R2007+ lives in the handle
+//! stream; the record ran off its end.
+//!
+//! **Not established:** the encoding of a clip vertex. The single
+//! record carries none, so `2BD` here is unverified — the sibling IMAGE
+//! entity uses `2RD` for its clip boundary (§20.4.80).
 //!
 //! The underlay definition handle points at an `ACDB_UNDERLAY_DEFINITION`
 //! dictionary entry that carries the file path + page/layer selection;
@@ -40,6 +56,7 @@
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point2D, Point3D, Vec3D, read_bd3};
 use crate::error::{Error, Result};
+use crate::version::Version;
 
 /// Which underlay family a given [`Underlay`] record came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -94,11 +111,11 @@ const UNDERLAY_MAX_CLIP_VERTS: usize = 100_000;
 
 /// Decode an UNDERLAY payload. The cursor must already be positioned
 /// past the common entity preamble.
-pub fn decode(c: &mut BitCursor<'_>, kind: UnderlayKind) -> Result<Underlay> {
-    let insertion_point = read_bd3(c)?;
-    let scale = read_bd3(c)?;
-    let rotation = c.read_bd()?;
+pub fn decode(c: &mut BitCursor<'_>, kind: UnderlayKind, version: Version) -> Result<Underlay> {
     let normal = read_bd3(c)?;
+    let insertion_point = read_bd3(c)?;
+    let rotation = c.read_bd()?;
+    let scale = read_bd3(c)?;
     let flags = c.read_rc()?;
     let contrast = c.read_rc()?;
     let fade = c.read_rc()?;
@@ -116,7 +133,17 @@ pub fn decode(c: &mut BitCursor<'_>, kind: UnderlayKind) -> Result<Underlay> {
         let y = c.read_bd()?;
         clip_polygon.push(Point2D { x, y });
     }
-    let definition_handle = c.read_handle()?;
+    // From R2007 object references live in the handle stream, so the
+    // `H` slot consumes no data-stream bits.
+    let definition_handle = if version.is_r2007_plus() {
+        Handle {
+            code: 0,
+            counter: 0,
+            value: 0,
+        }
+    } else {
+        c.read_handle()?
+    };
     Ok(Underlay {
         kind,
         insertion_point,
@@ -138,19 +165,19 @@ mod tests {
 
     fn write_minimal_underlay(flags: u8, clip_verts: &[(f64, f64)]) -> Vec<u8> {
         let mut w = BitWriter::new();
+        // normal
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
         // insertion_point
         w.write_bd(1.0);
         w.write_bd(2.0);
         w.write_bd(0.0);
+        // rotation
+        w.write_bd(0.0);
         // scale
         w.write_bd(1.0);
         w.write_bd(1.0);
-        w.write_bd(1.0);
-        // rotation
-        w.write_bd(0.0);
-        // normal
-        w.write_bd(0.0);
-        w.write_bd(0.0);
         w.write_bd(1.0);
         // flags / contrast / fade
         w.write_rc(flags);
@@ -171,7 +198,7 @@ mod tests {
     fn roundtrip_pdf_underlay_with_rect_clip() {
         let bytes = write_minimal_underlay(0x03, &[(0.0, 0.0), (10.0, 10.0)]);
         let mut c = BitCursor::new(&bytes);
-        let u = decode(&mut c, UnderlayKind::Pdf).unwrap();
+        let u = decode(&mut c, UnderlayKind::Pdf, Version::R2004).unwrap();
         assert_eq!(u.kind, UnderlayKind::Pdf);
         assert_eq!(
             u.insertion_point,
@@ -196,7 +223,7 @@ mod tests {
     fn roundtrip_dwf_underlay_no_clip() {
         let bytes = write_minimal_underlay(0x02, &[]);
         let mut c = BitCursor::new(&bytes);
-        let u = decode(&mut c, UnderlayKind::Dwf).unwrap();
+        let u = decode(&mut c, UnderlayKind::Dwf, Version::R2004).unwrap();
         assert_eq!(u.kind, UnderlayKind::Dwf);
         assert!(u.clip_polygon.is_empty());
         assert!(!u.is_clip_on());
@@ -207,7 +234,7 @@ mod tests {
     fn roundtrip_dgn_underlay_preserves_flags() {
         let bytes = write_minimal_underlay(0x0F, &[(0.0, 0.0)]);
         let mut c = BitCursor::new(&bytes);
-        let u = decode(&mut c, UnderlayKind::Dgn).unwrap();
+        let u = decode(&mut c, UnderlayKind::Dgn, Version::R2004).unwrap();
         assert_eq!(u.kind, UnderlayKind::Dgn);
         assert_eq!(u.flags, 0x0F);
         assert!(u.is_monochrome());
@@ -222,13 +249,13 @@ mod tests {
         let mut w = BitWriter::new();
         w.write_bd(0.0);
         w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(1.0);
         w.write_bd(1.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(1.0);
         w.write_bd(1.0);
         w.write_rc(0);
         w.write_rc(0);
@@ -238,7 +265,7 @@ mod tests {
         w.write_bs(32767);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, UnderlayKind::Pdf).unwrap_err();
+        let err = decode(&mut c, UnderlayKind::Pdf, Version::R2004).unwrap_err();
         assert!(
             matches!(&err, Error::SectionMap(msg) if msg.contains("UNDERLAY clip verts")),
             "err={err:?}"
