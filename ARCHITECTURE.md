@@ -889,6 +889,146 @@ handle, body-start bit and data boundary;
 `examples/probe_entity_field_list.rs` walks a candidate token list
 against one entity record and prints the delta from that boundary.
 
+## 7h. The ACIS entities, and what settles the AcDs marker (2026-08-30, #61 / #54)
+
+`REGION` (37), `3DSOLID` (38) and `BODY` (39) are one entry in the
+specification — §20.4.41 prescribes a single record shape for all three
+— and until this work the crate decoded only the first bit of it. The
+three records were `Unhandled`, and because they were, they could not
+answer the one question the corpus had been holding open since #52.
+
+### What the corpus actually holds
+
+Across all 19 files there are exactly **three** §20.4.41 records, all in
+`sample_AC1032.dwg` (R2018): 3DSOLID `0xD65`, REGION `0xD69`, 3DSOLID
+`0xD6A`. All three set the R2013+ `has AcDs binary data` bit of the
+common entity data. There is no ACIS record anywhere in the corpus that
+*clears* it, and none outside R2018.
+
+That bit is not decoration. §24.2.2.3 says it plainly: "For each ACIS
+entity (REGION, 3DSOLID), a data record is created with the SAB stream
+of the object." From R2013 the geometry payload leaves the entity
+record and becomes a data record in `AcDb:AcDsPrototype_1b`, keyed by
+handle. The entity keeps everything *except* the geometry.
+
+### The field list
+
+Measured from bit 82 — where the common entity preamble ends on all
+three records — to each record's data-stream boundary:
+
+```text
+B     wireframe data present          1
+B     point present                   1
+3BD   point
+BL    num isolines                    4
+B     isolines present                1
+BL    num wires                       0
+BL    num silhouettes                 0
+B     ACIS empty (2)                  1     -- §20.4.41 "Normally 1"
+BL    unknown (R2007+)                0
+--- R2013+ data-store block, measured ---
+B     unknown_a                       1
+BB    unknown_b                       0
+BB    unknown_c
+BB    unknown_d
+RC×16 revision GUID
+BL    unknown_e                       0
+```
+
+The inline ACIS envelope (`B ACIS empty`, `B unknown`, `BS version`,
+the block loop) is **absent**: only two bits stand between the preamble
+and the point, and both are 1.
+
+| record | data ends | point | isolines | revision GUID | delta |
+|---|---|---|---|---|---|
+| 3DSOLID `0xD65` | bit 437 | `(17.7767…, -220.8501…, 2.5)` | 4 | `833111a1-b7ac-4dd4-824d-78b33668f9e7` | **0** |
+| REGION `0xD69` | bit 373 | `(24.9857…, -220.4000…, 0)` | 4 | `2b80e3b3-b594-475e-8593-6a36b15e7945` | **0** |
+| 3DSOLID `0xD6A` | bit 437 | `(31.6857…, -220.1073…, 2.1902…)` | 4 | `f21ff2a0-ff9c-4ed1-9b2e-7a1e6518d595` | **0** |
+
+Four things corroborate the list independently of the arithmetic:
+
+1. **The points are drawing geometry.** Three bodies in a row at
+   `y ≈ -220`, `x` stepping `17.8 → 25.0 → 31.7`. A list off by one bit
+   produces `1e+88`-scale doubles, which is what every rejected
+   candidate produced.
+2. **`num isolines` is 4 on all three** — AutoCAD's default `ISOLINES`
+   system-variable value.
+3. **The 16 bytes are a valid RFC-4122 version-4 UUID on all three**
+   (version nibble `4`, variant bits `10`). Scanning every 128-bit
+   window of all three records, `data_end - 130` is the *only*
+   alignment at which all three satisfy both constraints; three
+   independent windows doing so by chance is 1 in 2^18.
+4. **Everything else is the spec's own grammar**, decoding the values
+   §20.4.41 says to expect (`ACIS empty (2)` "normally 1", empty wire
+   and silhouette lists, the R2007+ `BL` as 0).
+
+Only the *width* of the seven bits before the GUID is measured; the
+three records agree on `1, 0` for the first two slots and differ after,
+so `B, BB, BB, BB` is a labelling, not a measurement. The module says
+so.
+
+### The AcDs marker is a flag, and nothing follows it
+
+#52 found that four LAYOUT records of the same file need **16** further
+bits after the `has AcDs binary data` flag, and `objects/modern.rs`
+consumed them there. `tables/modern.rs` consumed an `RC` (8 bits) on
+DIMSTYLE evidence. `common_entity.rs` consumed nothing — untested,
+because no entity record whose field list closed had ever set the bit.
+Three readings of one field: issue #54.
+
+The three ACIS records arbitrate it, because their field list closes.
+`examples/probe_acis_records.rs` re-reads the preamble at each candidate
+width and runs §20.4.41 from wherever it lands:
+
+| marker width | preamble ends | preamble values | §20.4.41 list |
+|---|---|---|---|
+| **0 bits** | bit 82 | `colour 0x0100, lts 1.0, invis 0, lw 0x1D` | **delta 0** |
+| 8 bits | — | preamble does not read (reserved `BD` pattern `11`) | — |
+| 16 bits | bit 148-212 | `colour 0xEE10, lts 0` (or `1.5e119`), `lw 0x10/0x12/0xBC` | does not close |
+
+Both halves fail together for every non-zero width. The preamble values
+at 0 bits are exactly the ones every other entity in the file carries —
+BYLAYER colour `0x0100`, linetype scale `1.0`, invisibility `0`,
+lineweight `0x1D` — and at 16 bits they are none of those.
+
+So the flag is a flag. The 16 bits LAYOUT needs are LAYOUT's own, and
+they moved to `src/objects/acad_layout.rs` as a two-byte data-store
+block at the head of its §20.4.84 list, still conditional on the flag
+and still closing all 31 corpus LAYOUT records. `tables/modern.rs`
+keeps its `RC` for now: that path also omits the `BL num_reactors`
+`objects/modern.rs` reads, so its bit accounting has a second unresolved
+variable and is out of scope here. Three record types needing three
+different widths is itself the argument that the width belongs to the
+record, not to the flag.
+
+### Two spec-conformance fixes that fell out
+
+The envelope reader had been carrying two departures from §20.4.41 that
+no corpus record had ever reached:
+
+- the `B unknown` bit between `ACIS empty` and `BS version` was not
+  read at all;
+- the block loop read a `B has_more_blocks` flag before each `BL block
+  size`, where the spec has the loop terminate on a block size of `0`
+  and no flag.
+
+Both are corrected, and version 2 — "immediately following will be an
+acis file … no length is given" — is now refused rather than
+mis-stepped.
+
+### Measured effect
+
+| Corpus slice | Before (`7418d25`) | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 510 / 87 / 0 / 85.4 % | 510 / 87 / 0 / 85.4 % |
+| R2010 (AC1024) × 3 | 531 / 12 / 0 / 97.8 % | 531 / 12 / 0 / 97.8 % |
+| R2013 (AC1027) × 3 | 384 / 12 / 0 / 97.0 % | 384 / 12 / 0 / 97.0 % |
+| R2018 (AC1032) × 1 | 762 / 80 / 0 / 90.5 % | **765 / 77 / 0 / 90.9 %** |
+| **Aggregate** | **2187 / 191 / 0 / 92.0 %** | **2190 / 188 / 0 / 92.1 %** |
+
+`examples/probe_acis_records.rs` reproduces the census, the field list
+and the arbitration table from the bytes.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

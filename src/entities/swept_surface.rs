@@ -105,7 +105,7 @@ mod tests {
             &mut w,
             &SatBlob {
                 empty: false,
-                version: 2,
+                version: 1,
                 bytes: b"SW".to_vec(),
             },
         );
@@ -115,7 +115,7 @@ mod tests {
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let s = decode(&mut c).unwrap();
-        assert_eq!(s.sat.version, 2);
+        assert_eq!(s.sat.version, 1);
         assert_eq!(s.path_handle.code, 2);
         assert_eq!(s.path_handle.value, 0x42);
         assert_eq!(s.align_option, AlignOption::Normal);

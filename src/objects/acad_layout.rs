@@ -20,6 +20,8 @@
 //! any real record. That list is withdrawn.
 //!
 //! ```text
+//! RC   ds_block[0]                   -- R2013+, only when the record's
+//! RC   ds_block[1]                      `has AcDs binary data` bit is set
 //! <plot-settings block — see acad_plot_settings>
 //! TV   layout_name            (1)
 //! BL   tab_order              (71)
@@ -42,6 +44,33 @@
 //! base and named UCS, and one per viewport — live in the object's
 //! handle stream, past the data-stream boundary this module checks, so
 //! they are not fields of this struct.
+//!
+//! # The R2013+ data-store block — measured
+//!
+//! Across `arc_2013.dwg`, `circle_2013.dwg`, `line_2013.dwg` and
+//! `sample_AC1032.dwg`, exactly four non-entity records set the
+//! R2013+ `has AcDs binary data` bit of the common object data, and
+//! all four are the LAYOUT records of `sample_AC1032.dwg` (handles
+//! 34, 89, 94, 602). The 327 other non-entity records of those files
+//! clear it. On all four, this field list closes on the string-stream
+//! start bit only when **16 further bits** are read before the
+//! plot-settings block: the first byte is `0x2C` on every one of them,
+//! the second `0x0B` on the `Model` record and `0x00` on the three
+//! paper layouts. 8 bits leaves every one of them 8 bits short and 0
+//! bits leaves them 16 short.
+//!
+//! Those 16 bits used to sit in `crate::objects::modern` as a
+//! payload of the flag itself. #61 moved them here: the three ACIS
+//! entity records of the same file also set the flag, and their
+//! §20.4.41 field list closes with **zero** bits after it
+//! ([`crate::entities::modeler`]). One flag cannot be followed by 0
+//! bits on an entity and 16 on an object, so the 16 belong to LAYOUT.
+//!
+//! What the corpus cannot say is whether the block is keyed on the
+//! flag or is an unconditional R2018 addition — no R2018 LAYOUT in the
+//! corpus clears the bit, and no R2004/R2010/R2013 LAYOUT sets it. It
+//! is read conditionally here because that is the reading in which
+//! every one of the 31 corpus records closes.
 //!
 //! # `viewport_count` is a `BL`, not the `RL` §20.4.84 prints
 //!
@@ -138,6 +167,11 @@ fn read_bd3(c: &mut BitCursor<'_>) -> Result<Point3D> {
 /// A decoded LAYOUT record.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AcadLayout {
+    /// R2013+ data-store block — the two bytes a LAYOUT writes ahead
+    /// of its plot-settings block when the record's `has AcDs binary
+    /// data` bit is set. `None` on every record that clears the bit.
+    /// See the module docs for the four records that measure it.
+    pub ds_block: Option<[u8; 2]>,
     /// The plot-settings block §20.4.84 opens with.
     pub plot_settings: AcadPlotSettings,
     /// Layout name (group 1), e.g. `Model`, `Layout1`.
@@ -227,6 +261,13 @@ pub fn decode_object(
 ) -> Result<AcadLayout> {
     acad_plot_settings::check_version(version, "LAYOUT")?;
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    // R2013+ data-store block — see the module docs for the four
+    // records that measure it.
+    let ds_block = if split.has_ds_binary_data {
+        Some([split.data.read_rc()?, split.data.read_rc()?])
+    } else {
+        None
+    };
     let plot_settings = acad_plot_settings::read_fields(&mut split, version)?;
     let layout_name = modern::read_tv(&mut split.data, &mut split.strings, version)?;
     let c = &mut split.data;
@@ -257,6 +298,7 @@ pub fn decode_object(
     }
 
     Ok(AcadLayout {
+        ds_block,
         plot_settings,
         layout_name,
         tab_order,

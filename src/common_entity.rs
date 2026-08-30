@@ -20,7 +20,7 @@
 //! BB  entmode              -- entity mode (see [`EntityMode`])
 //! BL  num_reactors
 //! B   no_xdictionary_handle (R2004+)
-//! B   has_ds_binary_data   (R2013+)
+//! B   has_ds_binary_data   (R2013+; no further bits — see below)
 //! CMC color                -- BS index + optional BL rgb + B name_flag + TV name
 //! BD  linetype_scale
 //! BB  ltype_flags
@@ -36,7 +36,38 @@
 //!
 //! After the preamble comes the entity-specific payload, then
 //! handle references (owner/reactors/xdictionary/layer/linetype/...)
-//! collected at the tail.
+//! collected at the end of the record.
+//!
+//! # Measured: the R2013+ `has AcDs binary data` flag is followed by
+//! nothing
+//!
+//! §20.4.1 lists the bit and stops, and this crate carried three
+//! different readings of it (#54): this module consumed 0 bits,
+//! `objects::modern` 16 and `tables::modern` an `RC`. The entity path
+//! was untested — no entity record whose field list closes had ever
+//! set the bit.
+//!
+//! Exactly **three** entity records in the whole corpus set it, all in
+//! `sample_AC1032.dwg` (R2018): 3DSOLID `0xD65`, REGION `0xD69` and
+//! 3DSOLID `0xD6A`. All three are §20.4.41 ACIS records, and with #61
+//! their field list closes:
+//!
+//! | record | preamble ends | data ends | field list | delta |
+//! |---|---|---|---|---|
+//! | 3DSOLID `0xD65` | bit 82 | bit 437 | §20.4.41 + data-store block | 0 |
+//! | REGION `0xD69` | bit 82 | bit 373 | §20.4.41 + data-store block | 0 |
+//! | 3DSOLID `0xD6A` | bit 82 | bit 437 | §20.4.41 + data-store block | 0 |
+//!
+//! The preamble ends at bit 82 on all three with **0** bits consumed
+//! after the flag, and every field it decodes carries the value every
+//! other entity in the file carries — `entmode 2`, `num_reactors 0`,
+//! `no_xdictionary true`, colour `0x0100`, linetype scale `1.0`, all
+//! flag fields `0`, `invisibility 0`, `lineweight 0x1D`. Consuming 16
+//! bits there moves the colour read to bit 67, where it decodes to
+//! none of those, and leaves the §20.4.41 list 16 bits short of the
+//! boundary. See [`crate::entities::modeler`] for the field list and
+//! its value corroboration, and `examples/probe_acis_census.rs` for
+//! the two readings printed side by side.
 //!
 //! # Scope
 //!
@@ -100,7 +131,10 @@ pub struct CommonEntityData {
     pub num_reactors: u32,
     /// Whether an xdictionary handle is absent.
     pub no_xdictionary: bool,
-    /// R2013+: whether DS binary data follows.
+    /// R2013+ `has AcDs binary data` — the record has an associated
+    /// binary data record in the data-storage section (§24). The flag
+    /// consumes no further bits; see the module docs for the three
+    /// records that measure that.
     ///
     /// Kept as `binary_chain` for API compatibility with the earlier
     /// experimental reader.
@@ -296,6 +330,10 @@ pub(crate) fn read_entity_mode_onwards(
     } else {
         true
     };
+    // R2013+ `has AcDs binary data`. The flag is followed by no
+    // further bits — measured on 3DSOLID 0xD65 / 0xD6A and REGION
+    // 0xD69 of `sample_AC1032.dwg`, the only three entity records in
+    // the corpus that set it; see the module docs.
     let binary_chain = if matches!(version, Version::R2013 | Version::R2018) {
         c.read_b()?
     } else {
