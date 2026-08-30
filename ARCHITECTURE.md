@@ -443,9 +443,8 @@ boundary:
 A decoder that lands anywhere else returns `DecodedEntity::Error`, so a
 wrong field list can never inflate the coverage ratio. That is also why
 MATERIAL and PROPERTYSET_DATA — which read only what their bytes prove
-and stop — are deliberately **not** dispatched, along with LAYOUT and
-MLINESTYLE, whose field lists this crate has not yet matched against
-real bytes.
+and stop — are deliberately **not** dispatched, along with MLINESTYLE,
+whose field list this crate has not yet matched against real bytes.
 
 ### 7d.1 Deriving a field list the spec does not carry — VISUALSTYLE
 
@@ -493,6 +492,51 @@ over the same token set lands their 24 records on their `RL`
 object-data-size boundary, so `objects::acad_visual_style` returns
 `Error::Unsupported` for those bands rather than guessing, and the
 dispatcher maps that to `Unhandled`.
+
+### 7d.2 Checking a field list the spec *does* carry — LAYOUT
+
+VISUALSTYLE had to be derived because §20.4 has no entry for it.
+LAYOUT is the opposite case: **§20.4.84** prescribes the whole record,
+opening with the plot-settings block (every row glossed
+`plotsettings …`) and continuing into LAYOUT's own fields. What the
+crate previously carried was neither — `objects::acad_layout` cited a
+"§19.6.12 (L6-12)" that does not exist (the spec has no §19.6 chapter)
+and listed a field order missing the six margin/paper `BD`s, the
+paper-size `TV` and the shade-plot triple. It could not close on any
+real record, which is why LAYOUT stayed `Unhandled` on all 31 of them.
+
+Reading the prescription straight and measuring it against the boundary
+closes every record on the first attempt, on four release bands at
+once — 9 records on the R2004 files (inline `TV`s, `RL` boundary), 9 on
+R2010, 9 on R2013 and 4 on `sample_AC1032.dwg` (string-stream `TV`s).
+The boundary then earns its keep twice over, by catching the two places
+the prescription and the bytes disagree:
+
+- **`viewport_count` is a `BL`, not the `RL` §20.4.84 prints.** On
+  `sample_AC1032.dwg` handle 89 the field starts 10 bits before the
+  string-stream start: a 32-bit `RL` cannot fit, and a `BL` in its
+  8-bit form is exactly 10 bits and decodes `2`. The 28 records with no
+  viewport spend 2 bits there, where an `RL` would overrun by 30.
+- **The R2013+ `has_ds_binary_data` bit carries 16 further bits.** The
+  spec gives only the `B`. Four corpus records set it — the four
+  LAYOUTs of `sample_AC1032.dwg`, out of 331 non-entity records across
+  the R2013 and R2018 files — and on all four the field list closes
+  only with 16 bits consumed after the flag, the first byte `0x2C` on
+  every one. `objects::modern` previously consumed a single `RC` there,
+  an unvalidated guess no record had ever reached. See that module's
+  docs for the reading this crate takes and the one it cannot rule out.
+
+Because §20.4.84 is the only place the spec prescribes the
+plot-settings block, `objects::acad_plot_settings` and
+`objects::acad_layout` share one implementation of it: a standalone
+PLOTSETTINGS record decodes through the same `read_fields`, so the two
+cannot drift apart. The decoded values are what make the ordering
+believable rather than merely arithmetically consistent — paper sizes
+that match their own name string (`215.9 × 279.4` mm for
+`ANSI_A_(8.50_x_11.00_Inches)`, `210 × 297` for `A4`), limits that are
+the sheet less its margins in inches, `(1,0,0)` / `(0,1,0)` UCS axes on
+all 31 records, and AutoCAD's `±1e20` uninitialised-extents sentinel on
+the empty layouts.
 
 ## 7e. `AcDb:Classes` — where the class list actually starts
 

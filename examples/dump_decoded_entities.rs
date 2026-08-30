@@ -385,6 +385,34 @@ fn print_entity(i: usize, e: &DecodedEntity) {
                 v.trailing_strings,
             );
         }
+        DecodedEntity::Layout(l) => {
+            println!(
+                "[{i}] LAYOUT  name={:?} tab={} flags={} viewports={} \
+                 limmin=({}, {}) limmax=({}, {}) ucs_x=({}, {}, {}) ucs_y=({}, {}, {}) \
+                 ortho={} elevation={}",
+                l.layout_name,
+                l.tab_order,
+                l.flags,
+                l.viewport_count,
+                l.limmin.x,
+                l.limmin.y,
+                l.limmax.x,
+                l.limmax.y,
+                l.ucs_x_axis.x,
+                l.ucs_x_axis.y,
+                l.ucs_x_axis.z,
+                l.ucs_y_axis.x,
+                l.ucs_y_axis.y,
+                l.ucs_y_axis.z,
+                l.ucs_ortho_view_type,
+                l.elevation,
+            );
+            print_plot_settings(&l.plot_settings, "            ");
+        }
+        DecodedEntity::PlotSettings(s) => {
+            println!("[{i}] PLOTSETTINGS");
+            print_plot_settings(s, "            ");
+        }
         DecodedEntity::ImageDef(d) => {
             println!(
                 "[{i}] IMAGEDEF  path={:?} size={:?} loaded={}",
@@ -559,6 +587,47 @@ fn print_entity(i: usize, e: &DecodedEntity) {
             println!("[{i}] <unknown-variant>");
         }
     }
+}
+
+/// Print the §20.4.84 plot-settings block a LAYOUT embeds (or a
+/// standalone PLOTSETTINGS record carries).
+fn print_plot_settings(s: &dwg::objects::acad_plot_settings::AcadPlotSettings, indent: &str) {
+    println!(
+        "{indent}plot: setup={:?} device={:?} paper={:?} {}x{} mm \
+         margins(l={} b={} r={} t={}) flags={}",
+        s.page_setup_name,
+        truncate(&s.printer_config_name, 40),
+        s.paper_size,
+        s.paper_width,
+        s.paper_height,
+        s.margin_left,
+        s.margin_bottom,
+        s.margin_right,
+        s.margin_top,
+        s.plot_layout_flags,
+    );
+    println!(
+        "{indent}      origin=({}, {}) units={} rotation={} type={} \
+         window=({}, {})..({}, {}) scale={}/{} factor={} std_scale={} \
+         shade(mode={} res={} dpi={}) stylesheet={:?}",
+        s.plot_origin.x,
+        s.plot_origin.y,
+        s.paper_units,
+        s.plot_rotation,
+        s.plot_type,
+        s.window_min.x,
+        s.window_min.y,
+        s.window_max.x,
+        s.window_max.y,
+        s.real_world_units,
+        s.drawing_units,
+        s.scale_factor,
+        s.standard_scale_type,
+        s.shade_plot_mode,
+        s.shade_plot_resolution_level,
+        s.shade_plot_custom_dpi,
+        s.current_style_sheet,
+    );
 }
 
 fn truncate(s: &str, n: usize) -> String {
