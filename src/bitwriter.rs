@@ -10,7 +10,7 @@
 //!
 //! # Coverage
 //!
-//! Primitives: B, BB, 3B, BS, BL, BLL, BD, RC, RS, RL, RD, MC, MS, H,
+//! Primitives: B, BB, 3B, BS, BL, BLL, BD, DD, RC, RS, RL, RD, MC, MS, H,
 //! TV (8-bit variant). All emit bit-for-bit-reversible streams against
 //! the corresponding `BitCursor::read_*` — the bit-cursor + bit-writer
 //! pair is the foundational round-trip invariant for Phase H write
@@ -230,6 +230,17 @@ impl BitWriter {
         }
     }
 
+    /// DD — bitdouble with default. Emits the exact-default form when possible,
+    /// otherwise falls back to the full raw double form.
+    pub fn write_dd(&mut self, default: f64, v: f64) {
+        if v.to_bits() == default.to_bits() {
+            self.write_bb(0b00);
+        } else {
+            self.write_bb(0b11);
+            self.write_rd(v);
+        }
+    }
+
     pub fn write_rc(&mut self, v: u8) {
         self.write_bits(v as u64, 8);
     }
@@ -406,6 +417,22 @@ mod tests {
             } else {
                 assert!((got - v).abs() < 1e-10, "v={v} got={got}");
             }
+        }
+    }
+
+    #[test]
+    fn roundtrip_dd_default_and_full() {
+        for (default, v) in [
+            (0.0f64, 0.0f64),
+            (1.0, 1.0),
+            (12.5, -42.125),
+            (-1e-100, 1e100),
+        ] {
+            let mut w = BitWriter::new();
+            w.write_dd(default, v);
+            let bytes = w.into_bytes();
+            let mut c = BitCursor::new(&bytes);
+            assert_eq!(c.read_dd(default).unwrap(), v);
         }
     }
 

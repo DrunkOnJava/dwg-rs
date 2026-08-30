@@ -207,6 +207,22 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         DecodedEntity::Block(b) => {
             println!("[{i}] BLOCK  name={:?}", truncate(&b.name, 64));
         }
+        DecodedEntity::BlockRecord(b) => {
+            println!(
+                "[{i}] BLOCK_RECORD  name={:?} owned={:?}",
+                truncate(&b.header.name, 64),
+                b.num_owned_objects
+            );
+        }
+        DecodedEntity::Ltype(l) => {
+            println!(
+                "[{i}] LTYPE  name={:?} desc={:?} pattern_length={:.6} dashes={}",
+                truncate(&l.header.name, 64),
+                truncate(&l.description, 80),
+                l.pattern_length,
+                l.dashes.len()
+            );
+        }
         DecodedEntity::EndBlk(_) => {
             println!("[{i}] ENDBLK");
         }

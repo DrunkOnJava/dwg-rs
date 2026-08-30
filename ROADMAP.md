@@ -34,21 +34,32 @@ Ship bar for this milestone:
 ## 0.2.0 — entity-decode correctness
 
 **Theme: make the decoders work on real files.** The biggest known
-gap: `coverage_report.rs` shows only ~25% of entities decode on the
-measured corpus, and `tests/r2013_entity_values.rs` pins four
-`#[ignore]`'d tests that fail on real data.
+gap: `coverage_report.rs` shows only 20.1% of entities decode on the
+measured corpus. The first boundary layer is now fixed for
+R2013/R2018 LINE/CIRCLE/ARC records, common LWPOLYLINE vertices, and
+R2007+ BLOCK_HEADER / simple LTYPE string-stream names, but table, text,
+insert, dimension, hatch, and remaining LWPOLYLINE variants still need
+real-file field-layout work.
 
 Ship bar:
 
-- [ ] Handle-driven walk reaches modelspace geometry on R2013
-      (currently the R2013 samples decode only empty `BLOCK` /
-      `ENDBLK` shells; real `LINE` / `CIRCLE` / `ARC` live inside
-      `BLOCK_HEADER → owned entities` and are never visited)
-- [ ] Bit-cursor alignment inside R2018 typed entity payloads
-      produces finite, plausible coordinates (currently `LINE`
-      endpoints can have `z = 1.2e+225`, etc.)
-- [ ] The four `#[ignore]`'d tests in
-      `tests/r2013_entity_values.rs` are un-ignored and pass
+- [x] Handle-driven walk reaches modelspace LINE/CIRCLE/ARC geometry
+      consistently across the R2013 samples and the R2018 AC1032
+      sample's LINE population
+- [x] Bit-cursor alignment inside those typed geometry payloads
+      produces finite, plausible coordinates
+- [x] Real-DWG value tests in `tests/r2013_entity_values.rs` are
+      active in the default test run and pass
+- [x] Common LWPOLYLINE vertices decode first-point `RD/RD` and
+      subsequent `DD/DD`, pinned by AC1032 plausibility coverage
+- [x] Recover R2007+ `BLOCK_HEADER` names from the split string stream
+      and pin them against `sample_AC1032.dwg`
+- [x] Recover simple R2007+ `LTYPE` names/descriptions from the split
+      string stream and pin `ByBlock`, `ByLayer`, and `Continuous`
+      against `sample_AC1032.dwg`
+- [ ] Extend the real-file field-layout fixes to TEXT / MTEXT strings,
+      INSERT rotation, remaining table records, DIMENSION, HATCH,
+      remaining LWPOLYLINE flag variants, and trailing-handle variants
 - [ ] Decode-rate ≥ 75% aggregate on the measured corpus
 - [ ] `tests/fixtures/raw_entities/` holds hand-authored byte-level
       fixtures for `LINE`, `CIRCLE`, `ARC`, `POINT`, `LWPOLYLINE`,

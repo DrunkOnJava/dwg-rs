@@ -169,10 +169,19 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
     }
 
     let mut vertices = Vec::with_capacity(num_points);
-    for _ in 0..num_points {
-        let x = c.read_rd()?;
-        let y = c.read_rd()?;
-        vertices.push(Point2D { x, y });
+    if num_points > 0 {
+        let mut previous = Point2D {
+            x: c.read_rd()?,
+            y: c.read_rd()?,
+        };
+        vertices.push(previous);
+        for _ in 1..num_points {
+            previous = Point2D {
+                x: c.read_dd(previous.x)?,
+                y: c.read_dd(previous.y)?,
+            };
+            vertices.push(previous);
+        }
     }
     let mut bulges = Vec::with_capacity(num_bulges);
     for _ in 0..num_bulges {
@@ -212,10 +221,12 @@ mod tests {
         // No optional fields, 3 vertices.
         w.write_bs_u(0);
         w.write_bl(3);
-        for (x, y) in [(0.0f64, 0.0f64), (10.0, 0.0), (10.0, 10.0)] {
-            w.write_rd(x);
-            w.write_rd(y);
-        }
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_dd(0.0, 10.0);
+        w.write_dd(0.0, 0.0);
+        w.write_dd(10.0, 10.0);
+        w.write_dd(0.0, 10.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let p = decode(&mut c).unwrap();
@@ -233,10 +244,14 @@ mod tests {
         w.write_bs_u(CLOSED | HAS_BULGES);
         w.write_bl(4); // 4 points
         w.write_bl(4); // 4 bulges (one per segment)
-        for (x, y) in [(0.0f64, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)] {
-            w.write_rd(x);
-            w.write_rd(y);
-        }
+        w.write_rd(0.0);
+        w.write_rd(0.0);
+        w.write_dd(0.0, 10.0);
+        w.write_dd(0.0, 0.0);
+        w.write_dd(10.0, 10.0);
+        w.write_dd(0.0, 10.0);
+        w.write_dd(10.0, 0.0);
+        w.write_dd(10.0, 10.0);
         for b in [0.0, 0.5, 0.0, 0.5] {
             w.write_bd(b);
         }

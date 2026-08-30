@@ -17,6 +17,7 @@
 //! | §2.3 | [`BitCursor::read_bl`]     | bitlong: 00=32-bit / 01=8-bit / 10=0 / 11=reserved |
 //! | §2.4 | [`BitCursor::read_bll`]    | bitlonglong: 3-bit length + that many LE bytes |
 //! | §2.5 | [`BitCursor::read_bd`]     | bitdouble: 00=f64 / 01=1.0 / 10=0.0 / 11=reserved |
+//! | §2.5 | [`BitCursor::read_dd`]     | bitdouble with default |
 //! | §2   | [`BitCursor::read_rc`]     | raw u8 (byte-aligned) |
 //! | §2   | [`BitCursor::read_rs`]     | raw u16 LE |
 //! | §2   | [`BitCursor::read_rl`]     | raw u32 LE |
@@ -278,6 +279,38 @@ impl<'a> BitCursor<'a> {
     }
 
     // ================================================================
+    // §2.5 — DD (bitdouble with default)
+    //   00 -> use default
+    //   01 -> patch low 4 bytes of the default double
+    //   10 -> patch bytes 4,5 and low 4 bytes of the default double
+    //   11 -> full 8-byte IEEE double follows
+    // ================================================================
+
+    pub fn read_dd(&mut self, default: f64) -> Result<f64> {
+        match self.read_bb()? {
+            0b00 => Ok(default),
+            0b01 => {
+                let mut bs = default.to_le_bytes();
+                for b in &mut bs[..4] {
+                    *b = self.read_bits(8)? as u8;
+                }
+                Ok(f64::from_le_bytes(bs))
+            }
+            0b10 => {
+                let mut bs = default.to_le_bytes();
+                bs[4] = self.read_bits(8)? as u8;
+                bs[5] = self.read_bits(8)? as u8;
+                for b in &mut bs[..4] {
+                    *b = self.read_bits(8)? as u8;
+                }
+                Ok(f64::from_le_bytes(bs))
+            }
+            0b11 => self.read_rd(),
+            _ => unreachable!(),
+        }
+    }
+
+    // ================================================================
     // Raw (byte-aligned) types. These still honor bit_pos, but are not
     // "compressed" — they always consume the stated number of bytes.
     // ================================================================
@@ -509,6 +542,45 @@ mod tests {
         assert_eq!(c.read_bd().unwrap(), 1.0);
         assert_eq!(c.read_bd().unwrap(), 0.0);
         assert_eq!(c.read_bd().unwrap(), 2.0);
+    }
+
+    // Spec §2.5 — DD (bitdouble with default) examples.
+    #[test]
+    fn spec_2_5_bitdouble_with_default_variants() {
+        let default = 12.5f64;
+        let patch4 = f64::from_le_bytes([1, 2, 3, 4, 0, 0, 0x29, 0x40]);
+        let patch6 = f64::from_le_bytes([9, 8, 7, 6, 5, 4, 0x29, 0x40]);
+        let full = -42.25f64;
+
+        let fields: Vec<(u64, u32)> = vec![
+            (0b00, 2),
+            (0b01, 2),
+            (1, 8),
+            (2, 8),
+            (3, 8),
+            (4, 8),
+            (0b10, 2),
+            (5, 8),
+            (4, 8),
+            (9, 8),
+            (8, 8),
+            (7, 8),
+            (6, 8),
+        ];
+
+        let stream = pack_bits(&fields);
+        let mut c = BitCursor::new(&stream);
+        assert_eq!(c.read_dd(default).unwrap(), default);
+        assert_eq!(c.read_dd(default).unwrap(), patch4);
+        assert_eq!(c.read_dd(default).unwrap(), patch6);
+
+        let mut full_fields: Vec<(u64, u32)> = vec![(0b11, 2)];
+        for b in full.to_le_bytes() {
+            full_fields.push((b as u64, 8));
+        }
+        let stream = pack_bits(&full_fields);
+        let mut c = BitCursor::new(&stream);
+        assert_eq!(c.read_dd(default).unwrap(), full);
     }
 
     // §2.0 — single bits and 2-bit codes

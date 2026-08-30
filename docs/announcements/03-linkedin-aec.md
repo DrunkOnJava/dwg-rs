@@ -14,7 +14,7 @@ It is built from the ODA's freely-redistributable Open Design Specification v5.4
 
 What this means for downstream tools: a DWG container-layer reader you can evaluate for a closed-source product, a SaaS backend, or a permissively-licensed OSS pipeline — provided the current partial coverage fits your use case.
 
-Honest status: 0.1.0-alpha.1, pre-alpha. The container layer (file identification, section map, LZ77 decompression, CRC + Reed-Solomon, metadata, handle map, class map, object-stream walker) has landed and carries unit + corpus coverage. Per-entity field decoders are alpha — the README publishes measured decode rates per DWG version (22 % on R2018, 86 % on R2013, 25 % aggregate across the `nextgis/dwg_samples` corpus + one AC1032 sample). Entity-decoder correctness is the 0.2.0 milestone.
+Honest status: 0.1.0-alpha.1, pre-alpha. The container layer (file identification, section map, LZ77 decompression, CRC + Reed-Solomon, metadata, handle map, class map, object-stream walker) has landed and carries unit + corpus coverage. Per-entity field decoders are alpha — the README publishes measured decode rates per DWG version (44.2 % on R2018, 15.2 % on R2013, 20.1 % aggregate across the `nextgis/dwg_samples` corpus + one AC1032 sample). Entity-decoder correctness is the 0.2.0 milestone.
 
 Sibling project: rvt-rs — same source-provenance policy, same license, for Autodesk Revit (.rvt / .rfa).
 
