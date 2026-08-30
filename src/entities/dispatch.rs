@@ -433,6 +433,23 @@ fn dispatch_split_stream_entity(
             attdef::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::AttDef)
         }
+        OBJECT_TYPE_MTEXT => {
+            mtext::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::MText)
+        }
+        OBJECT_TYPE_TOLERANCE => {
+            tolerance::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::Tolerance)
+        }
+        OBJECT_TYPE_HATCH => {
+            hatch::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::Hatch)
+        }
+        OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
+            let kind = dimension::DimensionKind::from_object_type_code(type_code)?;
+            dimension::decode_modern_split_stream(&raw.raw, object_body_start, version, kind)
+                .map(DecodedEntity::Dimension)
+        }
         _ => return None,
     };
     Some(match result {

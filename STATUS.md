@@ -6,16 +6,16 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 666 passing in default/debug and release-all-features
+- **Lib tests:** 669 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 587 decoded / 1,660 skipped /
-  34 errored / 25.7% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 374 / 337 / 34 / 50.2%, and it
-  is now the only file with any errors — the R2004, R2010 and R2013
+- **Current real-file decode coverage:** 597 decoded / 1,660 skipped /
+  24 errored / 26.2% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 384 / 337 / 24 / 51.5%, and it
+  is the only file with any errors — the R2004, R2010 and R2013
   samples all decode with zero.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
@@ -78,7 +78,8 @@ scrolling the changelog.
   pre-R2010 analogue of the string-stream start bit.
 - R2007+ split-stream (`src/string_stream.rs` + `src/tables/modern.rs`)
   for LAYER / LTYPE / STYLE / UCS / VIEW / VPORT / APPID / DIMSTYLE /
-  BLOCK_HEADER, plus the TEXT / ATTRIB / ATTDEF entities. Each modern
+  BLOCK_HEADER, plus the TEXT / ATTRIB / ATTDEF / MTEXT / TOLERANCE /
+  HATCH / DIMENSION entities. Each modern
   decoder asserts its data fields end exactly on the string-stream
   start bit, so a wrong layout errors rather than returning garbage.
 - Named-object dictionary, ACAD_GROUP, ACAD_MLINESTYLE,
@@ -197,8 +198,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 587 decoded,
-  1660 skipped, 34 errored, 25.7% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 597 decoded,
+  1660 skipped, 24 errored, 26.2% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
@@ -208,10 +209,12 @@ These have genuine open scope requiring focused work, not stubs.
   symbol table plus TEXT/ATTRIB/ATTDEF read through the split string
   stream, and the R2004 (AC1018) object prologue now reads its `RL`
   object-data-size field so all three AC1018 samples decode with zero
-  errors. The next blockers are MTEXT (silently decodes a garbage
-  string today), INSERT rotation, DIMENSION, HATCH, TOLERANCE and
-  multi-line attributes (which embed an MTEXT record) — all now
-  isolated to the R2018 sample.
+  errors. MTEXT, TOLERANCE, HATCH and the DIMENSION family now read
+  their `TV` fields through the string stream as well. The next
+  blockers are HATCH boundary paths, INSERT rotation, MLEADER (which
+  also reads handles from the data stream) and the non-entity objects
+  that still read `TV` inline — all now isolated to the R2018
+  sample.
 - **#104 R14 / R2000 / R2007 handle-map walker.** Container layer
   ships for these versions, but the object-stream walker is
   R2004+ only. Unlocks `decoded_entities()` for those release

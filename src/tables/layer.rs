@@ -34,13 +34,25 @@ pub struct Layer {
 }
 
 impl Layer {
-    /// Bit 0x01 of `flags`: the layer is frozen.
+    /// Bit 0x01 of `flags`: the layer is frozen (§20.4.53).
     pub fn is_frozen(&self) -> bool {
-        self.flags & 0x01 != 0
+        self.flags & LAYER_VALUE_FROZEN != 0
     }
-    /// Bit 0x04 of `flags`: the layer is locked.
+    /// Bit 0x08 of `flags`: the layer is locked (§20.4.53).
+    ///
+    /// The DWG `values` word is not the DXF group-70 flag word: DXF
+    /// puts locked at `0x04`, DWG puts *frozen in new viewports*
+    /// there and locked at `0x08`. This accessor tested `0x04` until
+    /// #26, which made it report every layer frozen-in-new-viewports
+    /// as locked and every genuinely locked layer as unlocked.
     pub fn is_locked(&self) -> bool {
-        self.flags & 0x04 != 0
+        self.flags & LAYER_VALUE_LOCKED != 0
+    }
+
+    /// Bit 0x04 of `flags`: the layer is frozen in newly created
+    /// viewports (§20.4.53).
+    pub fn is_frozen_in_new_viewports(&self) -> bool {
+        self.flags & LAYER_VALUE_FROZEN_IN_NEW != 0
     }
     /// The layer's plot flag (plotted when set).
     pub fn is_plottable(&self) -> bool {
@@ -109,10 +121,10 @@ pub const LAYER_VALUE_LINEWEIGHT_SHIFT: u32 = 5;
 /// `0x01`, `Layer_Off` adds `0x02`, `Layer_Lock` adds `0x08`. The
 /// shared `0x03F0` decomposes as plot flag `0x10` plus lineweight
 /// index `31` (the "by layer / default" sentinel) at bit 5. Note that
-/// this is *not* the DXF group-70 flag word, where locked is `0x04`:
-/// [`Layer::is_locked`] still tests `0x04` and so under-reports on
-/// R2007+ files. Fixing it changes pre-R2007 behaviour too, so it is
-/// left for a separate change.
+/// this is *not* the DXF group-70 flag word, where locked is `0x04`;
+/// [`Layer::is_locked`] tests `0x08` and
+/// [`Layer::is_frozen_in_new_viewports`] tests `0x04` accordingly
+/// (#26).
 ///
 /// The colour uses the same full `CMC` form as VIEW and VPORT; the
 /// top byte of its `BL` selects the interpretation — `0xC3` marks an
@@ -218,7 +230,8 @@ mod tests {
         w.write_b(false);
         w.write_bs(0);
         w.write_b(false);
-        w.write_bs(0x05); // frozen + locked
+        // 0x01 frozen | 0x04 frozen in new viewports | 0x08 locked
+        w.write_bs(0x0D);
         w.write_b(false); // not plottable
         w.write_bs(0);
         w.write_bs(1);
@@ -226,7 +239,33 @@ mod tests {
         let mut c = BitCursor::new(&bytes);
         let l = decode(&mut c, Version::R2000).unwrap();
         assert!(l.is_frozen());
+        assert!(l.is_frozen_in_new_viewports());
         assert!(l.is_locked());
         assert!(!l.is_plottable());
+    }
+
+    /// `0x04` is frozen-in-new-viewports, not locked — the two bits
+    /// must not be confused (#26).
+    #[test]
+    fn frozen_in_new_viewports_is_not_locked() {
+        let mut w = BitWriter::new();
+        let s = b"VpFrozen";
+        w.write_bs_u(s.len() as u16);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
+        w.write_bs(LAYER_VALUE_FROZEN_IN_NEW);
+        w.write_b(true);
+        w.write_bs(0);
+        w.write_bs(7);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let l = decode(&mut c, Version::R2000).unwrap();
+        assert!(l.is_frozen_in_new_viewports());
+        assert!(!l.is_locked());
+        assert!(!l.is_frozen());
     }
 }

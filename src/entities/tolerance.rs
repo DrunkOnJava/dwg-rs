@@ -30,6 +30,8 @@
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point3D, Vec3D, read_bd3};
 use crate::error::{Error, Result};
+use crate::string_stream;
+use crate::tables::modern;
 use crate::version::Version;
 
 /// Decoded TOLERANCE payload.
@@ -73,6 +75,71 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Tolerance> {
         extrusion,
         text_string,
         dimstyle_handle,
+    })
+}
+
+/// Decode an R2007+ TOLERANCE whose `text_string` lives in the
+/// object's string stream (§19.1 split layout, §19.4.44).
+///
+/// `text_string` is TOLERANCE's last data field — `dimstyle_handle`
+/// follows it, and on R2007+ handles live in the handle stream — so
+/// the data fields must end exactly on the string-stream start bit.
+/// That makes this port fully self-validating, the same invariant the
+/// symbol-table decoders use.
+///
+/// Verified against all three TOLERANCE records of
+/// `sample_AC1032.dwg`, which recover the feature-control-frame
+/// strings `"{\\Fgdt;j}%%v{\\Fgdt;n}%%v..."`, `"99\na"` and
+/// `"{\\Fgdt;p}"`. Reading the `TV` inline made all three error with
+/// a cursor overrun.
+///
+/// # Measured: `unknown_short` / `height` / `dimgap` are absent
+///
+/// All three records span exactly 146 bits between the end of the
+/// common entity preamble (bit 82) and the string stream (bit 228),
+/// and those 146 bits parse as three `BD3` triples with nothing left
+/// over: a full-double insertion point (`00` prefix, 64-bit mantissa,
+/// twice, then a `10`-coded `0.0` for z), an x-direction of `1.0,
+/// 0.0, 0.0` as three two-bit codes, and an extrusion of `0.0, 0.0,
+/// 1.0` as three more — ending on bit 146 of the body, the string
+/// stream's first bit. There is no room for a leading `BS` or the two
+/// `BD`s, so this decoder does not read them and leaves them zero.
+/// The pre-R2007 [`decode`] path is untouched; no R2004-or-earlier
+/// sample in the corpus carries a TOLERANCE to measure it against.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<Tolerance> {
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+
+    let insertion_point = read_bd3(&mut c)?;
+    let x_axis_direction = read_bd3(&mut c)?;
+    let extrusion = read_bd3(&mut c)?;
+
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("TOLERANCE", at, string_start));
+    }
+    let text_string = strings.read_tv()?;
+    Ok(Tolerance {
+        unknown_short: 0,
+        height: 0.0,
+        dimgap: 0.0,
+        insertion_point,
+        x_axis_direction,
+        extrusion,
+        text_string,
+        // R2007+ keeps object references in the handle stream, which
+        // this crate does not walk yet.
+        dimstyle_handle: Handle {
+            code: 0,
+            counter: 0,
+            value: 0,
+        },
     })
 }
 

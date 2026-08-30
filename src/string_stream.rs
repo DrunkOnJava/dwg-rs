@@ -171,6 +171,22 @@ pub struct StringReader<'a> {
 }
 
 impl<'a> StringReader<'a> {
+    /// A reader over an object that carries no string stream — every
+    /// `read_tv` yields `""` and consumes nothing.
+    ///
+    /// R2007+ records whose `strings present` trailer bit is clear
+    /// still have the `TV` slots in their field table; the slots are
+    /// simply empty and consume no data-stream bits. A decoder must
+    /// therefore keep reading through the string stream rather than
+    /// falling back to the inline layout, which would shift every
+    /// field after the slot.
+    pub fn empty(payload: &'a [u8]) -> Self {
+        Self {
+            cursor: BitCursor::new(payload),
+            end_bit: 0,
+        }
+    }
+
     /// Open a reader positioned at the start of `stream` inside `payload`.
     pub fn new(payload: &'a [u8], stream: StringStream) -> Result<Self> {
         let mut cursor = BitCursor::new(payload);
@@ -189,6 +205,11 @@ impl<'a> StringReader<'a> {
     /// Current absolute bit position inside the payload.
     pub fn position_bits(&self) -> usize {
         self.cursor.position_bits()
+    }
+
+    /// Bits of string data not yet consumed (0 once exhausted).
+    pub fn remaining_bits(&self) -> usize {
+        self.end_bit.saturating_sub(self.cursor.position_bits())
     }
 
     /// Read the next `TU` string, or `""` when the stream is exhausted.

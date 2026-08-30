@@ -338,6 +338,43 @@ flag and the R2013+ DS-binary-data flag. Reading it is what turns
 `examples/probe_r2004_object_prefix.rs`, which prints every candidate
 prefix side by side.
 
+## 7c. Which objects put `TV` in the string stream (audit, 2026-08-30)
+
+`examples/audit_string_streams.rs` walks every object in a file,
+locates its string stream and prints the strings it holds. A type
+whose records carry strings there but whose decoder reads `TV` from
+the data cursor is *silently wrong* — it returns whatever bits sit at
+that position and never errors.
+
+On `sample_AC1032.dwg` (R2018), by object type:
+
+| Type | Records | With stream | Strings | Sample |
+|---|---|---|---|---|
+| TEXT 0x01 | 25 | 25 | 25 | `Hello this is a single line text` |
+| ATTRIB 0x02 | 4 | 4 | 9 | `17`, `ATTINFO` |
+| ATTDEF 0x03 | 5 | 5 | 16 | `ATTINFO`, `Enter number:` |
+| BLOCK 0x04 | 22 | 22 | 22 | `*Model_Space`, `_ArchTick` |
+| DIMENSION 0x14-0x1A | 11 | 10 | 11 | (all empty in this file) |
+| MTEXT 0x2C | 34 | 33 | 33 | `this is a Mtext\nwith multiple lines in it` |
+| TOLERANCE 0x2E | 3 | 3 | 3 | `{\Fgdt;j}%%v{\Fgdt;n}%%v…` |
+| HATCH 0x4E | 5 | 4 | 8 | `ANSI31`, `LINEAR` |
+| DICTIONARY 0x2A | 65 | 52 | 174 | `ACAD_COLOR` |
+| LAYOUT 0x52 | 4 | 4 | 20 | `ANSI_A_(8.50_x_11.00_Inches)` |
+| MLEADER (class) | 10 | 10 | 10 | `MLeader text, hello!` |
+| IMAGEDEF (class) | 1 | 1 | 1 | `.\image.JPG` |
+| INSERT 0x07, ENDBLK 0x05, SEQEND 0x06, LINE, CIRCLE, ARC, POINT, LWPOLYLINE, XRECORD 0x4F | — | **0** | 0 | no `TV` fields at all |
+
+Two structural facts fall out:
+
+- **A record with no string stream still has its `TV` slots**, and they
+  still consume no data-stream bits. Falling back to an inline read
+  there shifts every following field, so `StringReader::empty` exists
+  to give those records a reader that yields `""`.
+- **BLOCK is inline-correct by accident.** Its name is its only field,
+  so the data cursor after the common entity preamble already sits on
+  the string-stream start bit and the inline `TV` read lands on the
+  string stream. It is not a counter-example to the split layout.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
