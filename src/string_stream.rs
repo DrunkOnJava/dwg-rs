@@ -43,7 +43,7 @@
 //! For R2010+ the object payload leads with an `MC` field holding the
 //! handle-stream size in bits. The naive `payload_bits - handle_bits`
 //! lands 8 or 16 bits *short* of the real trailer end. Measured over
-//! 59 objects across 12 object types in `sample_AC1032.dwg` (R2018),
+//! 59 objects across 11 object types in `sample_AC1032.dwg` (R2018),
 //! `line_2013.dwg` (R2013) and `arc_2010.dwg` (R2010) — see
 //! `examples/probe_string_stream.rs` — the correction is exactly the
 //! width of that `MC` field:

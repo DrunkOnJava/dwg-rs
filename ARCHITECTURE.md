@@ -228,6 +228,77 @@ For R2010+, a 2-bit "object type tag" preceeds the 16-bit type code
 to compress common type numbers into 1 byte — see `object_type.rs`
 `ObjectType::read` for the dispatch.
 
+## 7a. R2007+ split streams (finding, 2026-08-30)
+
+From R2007 (`AC1021`) an object's body is three streams, not one:
+
+```
+ +--------------+----------------+----------------+
+ | data stream  | string stream  | handle stream  |
+ +--------------+----------------+----------------+
+                ^                ^
+                |                `- trailer ends here
+                `- data fields end exactly here
+```
+
+Every `TV` (variable text) field a record's field table lists inline is
+actually stored in the string stream, in field-table order. A decoder
+that reads `TV` from the data cursor gets random bits — the observable
+symptoms are `table entry name is not valid UTF-16`, `Bit cursor
+exhausted`, or a reserved `11` type code.
+
+### Locating the string stream
+
+The trailer at the end of the data area is, reading backwards from its
+end: one *strings-present* bit, a 16-bit size in bits, and — when bit
+15 of that size is set — a second 16-bit word supplying the high bits.
+`src/string_stream.rs` implements this.
+
+The end of that trailer is **not** `payload_bits - handle_stream_bits`.
+It is:
+
+```
+trailer_end = payload_bits - handle_stream_bits + mc_field_bits
+```
+
+where `mc_field_bits` is the width of the leading `MC` handle-stream-size
+field (8 bits for a one-byte `MC`, 16 for two).
+
+| Evidence | Value |
+|---|---|
+| Objects checked | 59 |
+| Object types spanned | 11 (LAYER, LTYPE, STYLE, VIEW, VPORT, APPID, DIMSTYLE, BLOCK_HEADER, TEXT, ATTRIB, ATTDEF) |
+| Files | `sample_AC1032.dwg` (R2018), `line_2013.dwg` (R2013), `arc_2010.dwg` (R2010) |
+| Deviation from the rule | 0 in all 59 |
+
+Reproduce with `cargo run --release --example probe_string_stream --
+<file.dwg> <type-code>`; the probe prints `delta_vs_predicted` per
+object. Two readings fit the evidence — either the record's `MS` byte
+count excludes the `MC` field, or the recorded handle-stream size counts
+the `MC` field itself — and this crate does not need to choose.
+
+### The self-validating decode
+
+Because the data stream ends exactly where the string stream begins,
+every split-stream decoder can check itself: `tables::modern::SplitStream::finish`
+rejects the record unless the data cursor lands on the string-stream
+start bit. That converts a mis-read field layout from *silently wrong
+values* into an error naming the bit offset and the deviation — which
+is how the R2007+ VIEW ambient-colour form, the VPORT flag block, the
+DIMSTYLE `AcDs`-binary-data byte and TEXT's `RD` height were each
+found.
+
+### Other findings that fell out of the same work
+
+| Finding | Evidence |
+|---|---|
+| Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard` |
+| VIEW / VPORT / LAYER / DIMSTYLE colours use a full `CMC`: `BS` index + `BL` true colour + `RC` byte, unconditionally | VIEW `view_custom` ambient reads index 0 with no flags yet is followed by `BL = 0xC2333333`; LAYER `0` reads `0xC3000007` |
+| `BL` top byte selects the colour form: `0xC3` = ACI index in the low byte, `0xC2` = literal RGB | `Layer_color_80` reads ACI 80; `Layer_true_color` reads `0xC2…` |
+| The R2013+ "has AcDs binary data" bit is followed by an `RC` | The two DIMSTYLE records in `sample_AC1032.dwg` with the bit set need exactly 8 more prefix bits than the four with it clear |
+| TEXT `height` is a raw `RD`, not a `BD` | With `DataFlags 0xFF`, object #236's remaining 66 bits are `BE` + `BT` + a 64-bit `1.0` at bit 220 |
+| LAYER `values` bits: `0x01` frozen, `0x02` off, `0x04` frozen-in-new, `0x08` locked, `0x10` plot, bits 5-9 lineweight index | `sample_AC1032.dwg` names its layers after their state and every one matches |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

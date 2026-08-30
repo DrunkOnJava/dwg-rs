@@ -17,7 +17,7 @@
 
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
-Empirical entity-decode coverage as measured on 2026-04-29 by
+Empirical entity-decode coverage as measured on 2026-08-30 by
 [`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
 local `samples/` set:
 
@@ -25,34 +25,43 @@ local `samples/` set:
 |---------|--------------|---------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
 | R2004 (AC1018)      | 3 | 15 | 522 | 60 | **2.5 %** |
-| R2010 (AC1024)      | 3 | 54 | 474 | 15 | **9.9 %** |
-| R2013 (AC1027)      | 3 | 60 | 327 | 9 | **15.2 %** |
-| R2018 (AC1032)      | 1 | 329 | 337 | 79 | **44.2 %** |
-| **Aggregate** | **19** | **458** | **1660** | **163** | **20.1 %** |
+| R2010 (AC1024)      | 3 | 69 | 474 | 0 | **12.7 %** |
+| R2013 (AC1027)      | 3 | 69 | 327 | 0 | **17.4 %** |
+| R2018 (AC1032)      | 1 | 374 | 337 | 34 | **50.2 %** |
+| **Aggregate** | **19** | **527** | **1660** | **94** | **23.1 %** |
 
 Per-entity-type error concentration in the measured corpus:
 
 | Type code | DXF name | Occurrences as error |
 |-----------|----------|-----------------------|
-| 0x01 (1) | `TEXT` | 25 |
-| 0x35 (53) | `STYLE` | 21 |
-| 0x45 (69) | `DIMSTYLE` | 20 |
-| 0x41 (65) | `VPORT` | 11 |
 | 0x31 (49) | `BLOCK_HEADER` | 10 |
 | 0x04 (4) | `BLOCK` | 9 |
 | 0x05 (5) | `ENDBLK` | 9 |
 | 0x39 (57) | `LTYPE` | 9 |
-| ... | (long tail) | 49 |
+| 0x35 (53) | `STYLE` | 6 |
+| 0x43 (67) | `APPID` | 6 |
+| 0x45 (69) | `DIMSTYLE` | 6 |
+| 0x4E (78) | `HATCH` | 5 |
+| 0x41 (65) | `VPORT` | 4 |
+| ... | (long tail) | 30 |
+
+Of the 94 remaining errors, 60 are in the three R2004 (AC1018) files, whose
+object-header alignment is broken independently of the string-stream work —
+the R2010 and R2013 files now decode with **zero** errors.
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
 are verified against hand-crafted synthetic input, and the R2013/R2018
 common-entity/body boundary is now pinned by real-DWG tests for LINE,
-CIRCLE, ARC, the `sample_AC1032.dwg` LINE population, common LWPOLYLINE
-vertices, and R2007+ `BLOCK_HEADER` / simple `LTYPE` string-stream names. The remaining gap is
-broader than "does the dispatcher return a variant": several table, text,
-insert, dimension, hatch, and LWPOLYLINE flag variants still misread
-version-specific field layouts or split streams. Closing that real-file decode
-gap is the 0.2.0 milestone.
+CIRCLE, ARC, the `sample_AC1032.dwg` LINE population, and common LWPOLYLINE
+vertices. R2007+ objects store every `TV` field in a separate string stream
+(ODA v5.4.1 §19.1); [`src/string_stream.rs`](./src/string_stream.rs) locates
+it, and LAYER, LTYPE, STYLE, UCS, VIEW, VPORT, APPID, DIMSTYLE,
+BLOCK_HEADER, TEXT, ATTRIB and ATTDEF read through it. Those decoders reject
+themselves unless their data fields end exactly on the string-stream start
+bit, so a mis-read layout errors instead of returning plausible garbage. The
+remaining gap: the R2004 object header, MTEXT / INSERT / DIMENSION / HATCH
+split streams, and multi-line attributes. Closing that real-file decode gap
+is the 0.2.0 milestone.
 
 ## Capability matrix at a glance
 
@@ -70,7 +79,7 @@ gap is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~20.1% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~23.1% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -254,8 +263,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 20.1 %
-aggregate / 44.2 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 23.1 %
+aggregate / 50.2 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety
