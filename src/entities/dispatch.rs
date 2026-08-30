@@ -113,6 +113,8 @@ pub enum DecodedEntity {
     Group(crate::objects::acad_group::AcadGroup),
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
+    Layout(Box<crate::objects::acad_layout::AcadLayout>),
+    PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -207,10 +209,15 @@ impl DecodedEntity {
             Self::XRecord(_) => OBJECT_TYPE_XRECORD,
             Self::Placeholder(_) => OBJECT_TYPE_ACDB_PLACEHOLDER,
             Self::Group(_) => OBJECT_TYPE_GROUP,
+            Self::Layout(_) => OBJECT_TYPE_LAYOUT,
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
             // to consult the class map.
-            Self::DictionaryVar(_) | Self::Scale(_) | Self::ImageDef(_) | Self::VisualStyle(_) => 0,
+            Self::DictionaryVar(_)
+            | Self::Scale(_)
+            | Self::ImageDef(_)
+            | Self::VisualStyle(_)
+            | Self::PlotSettings(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -284,6 +291,7 @@ const OBJECT_TYPE_DICTIONARY: u16 = 0x2A; // 42
 const OBJECT_TYPE_GROUP: u16 = 0x48; // 72
 const OBJECT_TYPE_XRECORD: u16 = 0x4F; // 79
 const OBJECT_TYPE_ACDB_PLACEHOLDER: u16 = 0x50; // 80
+const OBJECT_TYPE_LAYOUT: u16 = 0x52; // 82
 
 const OBJECT_TYPE_CAMERA: u16 = 0x4F8; // 1272
 const OBJECT_TYPE_SUN: u16 = 0x4F9; // 1273
@@ -511,6 +519,7 @@ fn dispatch_object(
             | ObjectType::XRecord
             | ObjectType::AcDbPlaceholder
             | ObjectType::Group
+            | ObjectType::Layout
     ) || kind.is_control();
     if !has_decoder {
         return DecodedEntity::Unhandled { type_code, kind };
@@ -546,6 +555,19 @@ fn dispatch_object(
             crate::objects::acad_group::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::Group)
                 .map_err(|e| e.to_string())
+        }
+        ObjectType::Layout => {
+            match crate::objects::acad_layout::decode_object(
+                payload, body_start, inline_end, version,
+            ) {
+                Ok(layout) => Ok(DecodedEntity::Layout(Box::new(layout))),
+                // "this release's layout is not determined" is not a
+                // decode failure — see `dispatch_object_class`.
+                Err(crate::error::Error::Unsupported { .. }) => {
+                    return DecodedEntity::Unhandled { type_code, kind };
+                }
+                Err(e) => Err(e.to_string()),
+            }
         }
         k if k.is_control() => control::decode_object(payload, body_start, inline_end, version, k)
             .map(|control| DecodedEntity::Control { kind: k, control })
@@ -587,6 +609,12 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::VisualStyle),
+        // A standalone PLOTSETTINGS record carries exactly the block
+        // §20.4.84 embeds in LAYOUT; the two share one field list.
+        "PLOTSETTINGS" | "ACDBPLOTSETTINGS" => crate::objects::acad_plot_settings::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PlotSettings),
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
@@ -1139,8 +1167,8 @@ mod tests {
         let raw = RawObject {
             stream_offset: 0,
             size_bytes: 0,
-            type_code: 0x52,
-            kind: ObjectType::Layout, // non-entity, no decoder
+            type_code: 0x49,
+            kind: ObjectType::MLineStyle, // non-entity, no decoder
             handle: crate::bitcursor::Handle {
                 code: 0,
                 counter: 0,
@@ -1152,6 +1180,51 @@ mod tests {
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
         assert!(!decoded.is_decoded());
+    }
+
+    /// LAYOUT now has a self-validating decoder, so an empty payload
+    /// reaches it and fails there rather than being waved through as
+    /// `Unhandled`.
+    #[test]
+    fn empty_layout_payload_errors_rather_than_decoding() {
+        let raw = RawObject {
+            stream_offset: 0,
+            size_bytes: 0,
+            type_code: 0x52,
+            kind: ObjectType::Layout,
+            handle: crate::bitcursor::Handle {
+                code: 0,
+                counter: 0,
+                value: 0,
+            },
+            raw: Vec::new(),
+            obj_size_bits: None,
+        };
+        let decoded = decode_from_raw(&raw, Version::R2018);
+        assert!(matches!(decoded, DecodedEntity::Error { .. }));
+        assert!(!decoded.is_decoded());
+    }
+
+    /// A release band whose LAYOUT layout is not determined comes back
+    /// `Unhandled`, never `Error` — "not determined" is not a broken
+    /// record.
+    #[test]
+    fn undetermined_layout_release_is_unhandled_not_error() {
+        let raw = RawObject {
+            stream_offset: 0,
+            size_bytes: 0,
+            type_code: 0x52,
+            kind: ObjectType::Layout,
+            handle: crate::bitcursor::Handle {
+                code: 0,
+                counter: 0,
+                value: 0,
+            },
+            raw: vec![0u8; 32],
+            obj_size_bits: None,
+        };
+        let decoded = decode_from_raw(&raw, Version::R2000);
+        assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
     }
 
     /// A DICTIONARY with no bytes reaches the object decoder and fails

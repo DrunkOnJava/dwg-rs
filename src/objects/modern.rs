@@ -53,7 +53,7 @@
 //! EED chain
 //! BL   num_reactors
 //! B    no_xdictionary_handle   -- R2004+
-//! B    has_ds_binary_data      -- R2013+ (an RC follows when set)
+//! B    has_ds_binary_data      -- R2013+ (16 further bits when set)
 //! ```
 //!
 //! Measured three independent ways on `sample_AC1032.dwg` (R2018),
@@ -79,6 +79,35 @@
 //! check; which one assigns the right values to the right fields is not
 //! determinable from the 16 bits an APPID record spends there, so this
 //! module does not touch the table path.
+//!
+//! # The R2013+ AcDs binary-data flag carries 16 further bits
+//!
+//! The spec's common-object-data table gives only the `B` — "indicates
+//! whether the object has associated binary data in the data store
+//! section" — and stops. It does not say what, if anything, follows
+//! when the bit is set, and no corpus record exercised it until LAYOUT
+//! was dispatched: across `arc_2013.dwg`, `circle_2013.dwg`,
+//! `line_2013.dwg` and `sample_AC1032.dwg`, exactly **four** non-entity
+//! records set the bit, and all four are the LAYOUT records of
+//! `sample_AC1032.dwg` (handles 34, 89, 94, 602). The 327 other
+//! non-entity records of those files clear it.
+//!
+//! On all four, the §20.4.84 LAYOUT field list closes on the
+//! string-stream start bit only when **16** bits are consumed after the
+//! flag, and the first of those two bytes is `0x2C` on every one of
+//! them (the second is `0x0B` on the `Model` record and `0x00` on the
+//! three paper layouts). An earlier revision of this module consumed a
+//! single `RC` there — an unvalidated guess that no test or corpus
+//! record reached; 8 bits leaves every LAYOUT record 8 bits short of
+//! its boundary, and 0 bits leaves it 16 short.
+//!
+//! Two readings fit the corpus: the marker is 16 bits wide, or it is
+//! absent and LAYOUT gained two leading bytes in R2018. The first is
+//! taken here because the extra bits appear exactly when the flag is
+//! set and the constant leading `0x2C` reads as data-store bookkeeping
+//! rather than page-setup state — and because the second would require
+//! §20.4.84 to be wrong at its very first field. Nothing in the corpus
+//! separates them outright; a non-LAYOUT record with the bit set would.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -211,7 +240,9 @@ fn read_common_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<
             if matches!(version, Version::R2013 | Version::R2018) {
                 let has_binary_data = c.read_b()?;
                 if has_binary_data {
+                    // 16 bits, measured — see the module docs.
                     let _ds_binary_marker = c.read_rc()?;
+                    let _ds_binary_id = c.read_rc()?;
                 }
             }
             return Ok(num_reactors);
