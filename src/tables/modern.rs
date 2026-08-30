@@ -159,3 +159,23 @@ pub(crate) fn read_4bits(c: &mut BitCursor<'_>) -> Result<u8> {
     }
     Ok(v)
 }
+
+/// Open the string stream of an R2007+ *entity*.
+///
+/// Entities carry their own common preamble
+/// ([`crate::common_entity::read_common_entity_data`]), so unlike
+/// [`open_table_entry`] this only returns the string reader and the bit
+/// at which the entity's data fields must end.
+pub(crate) fn open_entity(payload: &[u8], version: Version) -> Result<(StringReader<'_>, usize)> {
+    let stream = locate_stream(payload, version)?;
+    Ok((StringReader::new(payload, stream)?, stream.start_bit))
+}
+
+/// Error describing a data cursor that did not land on the string stream.
+pub(crate) fn misaligned(what: &str, at: usize, string_start: usize) -> Error {
+    Error::SectionMap(format!(
+        "{what} data fields ended at bit {at}, string stream starts at {string_start} \
+         (delta {})",
+        at as isize - string_start as isize
+    ))
+}

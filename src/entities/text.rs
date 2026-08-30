@@ -39,6 +39,8 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Vec3D, read_be, read_bt};
 use crate::error::{Error, Result};
+use crate::string_stream;
+use crate::tables::modern;
 use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -103,6 +105,90 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Text> {
     })
 }
 
+/// Decode an R2007+ TEXT whose string lives in the object's string
+/// stream (ODA v5.4.1 §19.1 split layout, §19.4.46 TEXT field table).
+///
+/// `object_body_start` is the bit just past the object header; this
+/// consumes the common entity preamble itself. Every field is read
+/// from the data stream except `text`, which comes from the string
+/// stream, and the decode is rejected unless the data fields land
+/// exactly on the string-stream start bit.
+///
+/// # Measured: `height` is an `RD`, not a `BD`
+///
+/// The TEXT records of `sample_AC1032.dwg` all carry `DataFlags = 0xFF`
+/// — every optional field elided — leaving only the flag byte, the
+/// `2RD` insertion point, `BE`, `BT` and the height. In object #236
+/// that leaves bits 218..284 of the payload, and the height reads as a
+/// clean `1.0` only when taken as a raw 64-bit `RD` starting at bit
+/// 220, i.e. with `BE` and `BT` occupying one bit each and no `BD`
+/// type code in front of the height. The pre-R2007 [`decode`] still
+/// reads it as a `BD`; that path is untouched here.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<Text> {
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+
+    let mut text = read_modern_fields(&mut c)?;
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("TEXT", at, string_start));
+    }
+    text.text = strings.read_tv()?;
+    Ok(text)
+}
+
+/// Read the R2007+ TEXT field body from the data stream, leaving
+/// [`Text::text`] empty for the caller to fill from the string stream.
+///
+/// Shared with ATTRIB (§19.4.2) and ATTDEF (§19.4.3), whose records
+/// begin with exactly this field list.
+pub fn read_modern_fields(c: &mut BitCursor<'_>) -> Result<Text> {
+    let flag = c.read_rc()?;
+    let elevation = if flag & 0x01 == 0 { c.read_rd()? } else { 0.0 };
+    let insertion_point = Point2D {
+        x: c.read_rd()?,
+        y: c.read_rd()?,
+    };
+    let alignment_point = if flag & 0x02 == 0 {
+        Some(Point2D {
+            x: c.read_dd(insertion_point.x)?,
+            y: c.read_dd(insertion_point.y)?,
+        })
+    } else {
+        None
+    };
+    let extrusion = read_be(c)?;
+    let thickness = read_bt(c)?;
+    let oblique_angle = if flag & 0x04 == 0 { c.read_bd()? } else { 0.0 };
+    let rotation_angle = if flag & 0x08 == 0 { c.read_bd()? } else { 0.0 };
+    let height = c.read_rd()?;
+    let width_factor = if flag & 0x10 == 0 { c.read_bd()? } else { 1.0 };
+    let generation = if flag & 0x20 == 0 { c.read_bs()? } else { 0 };
+    let h_align = if flag & 0x40 == 0 { c.read_bs()? } else { 0 };
+    let v_align = if flag & 0x80 == 0 { c.read_bs()? } else { 0 };
+    Ok(Text {
+        elevation,
+        insertion_point,
+        alignment_point,
+        extrusion,
+        thickness,
+        oblique_angle,
+        rotation_angle,
+        height,
+        width_factor,
+        text: String::new(),
+        generation,
+        h_align,
+        v_align,
+    })
+}
+
 /// Read a variable-text (TV) field. R2007+ uses UTF-16LE with length
 /// counted in codepoint shorts (excluding NUL). Prior versions use
 /// 8-bit MBCS-or-ASCII.
@@ -138,7 +224,7 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
 
@@ -167,6 +253,50 @@ mod tests {
         assert_eq!(t.height, 2.5);
         assert_eq!(t.width_factor, 1.0);
         assert_eq!(t.text, "HELLO");
+    }
+
+    /// Minimal R2018 common entity preamble — no XDATA, no graphics,
+    /// ByLayer mode, default colour / linetype / flags.
+    pub(crate) fn write_r2018_preamble(w: &mut BitWriter) {
+        w.write_bs_u(0); // no XDATA
+        w.write_b(false); // no graphics
+        w.write_bb(0b00); // entity mode ByLayer
+        w.write_bl(0); // no reactors
+        w.write_b(true); // no xdictionary
+        w.write_b(false); // no DS binary data
+        w.write_bs(0); // CMC colour
+        w.write_bd(1.0); // linetype scale
+        w.write_bb(0b00); // linetype flags
+        w.write_bb(0b00); // plotstyle flags
+        w.write_bb(0b00); // material flags
+        w.write_rc(0); // shadow flags
+        w.write_b(false); // full visual style
+        w.write_b(false); // face visual style
+        w.write_b(false); // edge visual style
+        w.write_bs(0); // invisibility
+        w.write_rc(0); // lineweight
+    }
+
+    #[test]
+    fn r2007_split_stream_text_reads_string_from_string_stream() {
+        let mut body = BitWriter::new();
+        write_r2018_preamble(&mut body);
+        body.write_rc(0xFF); // every optional field elided
+        body.write_rd(147.5); // insertion x
+        body.write_rd(2.75); // insertion y
+        body.write_b(true); // BE — default extrusion
+        body.write_b(true); // BT — zero thickness
+        body.write_rd(1.0); // height (RD, not BD)
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["Hello"]);
+        let t = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(t.text, "Hello");
+        assert_eq!(t.insertion_point, Point2D { x: 147.5, y: 2.75 });
+        assert_eq!(t.height, 1.0);
+        assert_eq!(t.width_factor, 1.0);
+        assert_eq!(t.elevation, 0.0);
+        assert_eq!(t.alignment_point, None);
+        assert_eq!(t.thickness, 0.0);
     }
 
     #[test]

@@ -25,6 +25,8 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::text::{self, Text};
 use crate::error::{Error, Result};
+use crate::string_stream;
+use crate::tables::modern;
 use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,6 +77,53 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Attrib> {
     })
 }
 
+/// Decode an R2007+ single-line ATTRIB whose `TV` fields live in the
+/// object's string stream (ODA v5.4.1 §19.1 split layout, §19.4.2).
+///
+/// The data stream carries the TEXT field body (see
+/// [`text::read_modern_fields`]), then the field length, the flags and
+/// the R2018 lock-position bit; the string stream carries the
+/// attribute value then the tag.
+///
+/// # Multi-line attributes are not decoded
+///
+/// R2010 added multi-line attributes, which embed a whole MTEXT record
+/// between the TEXT body and the tag. `sample_AC1032.dwg` contains one
+/// (`MULTI_LINE_ATT`, three strings in its stream rather than two);
+/// this decoder does not model the embedded record and reports the
+/// misalignment rather than guessing at it.
+pub(crate) fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<Attrib> {
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let mut text = text::read_modern_fields(&mut c)?;
+    let field_length = c.read_bs()?;
+    let flags = c.read_rc()?;
+    let lock_position = if matches!(version, Version::R2018) {
+        c.read_b()?
+    } else {
+        false
+    };
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("ATTRIB", at, string_start));
+    }
+    text.text = strings.read_tv()?;
+    let tag = strings.read_tv()?;
+    Ok(Attrib {
+        text,
+        tag,
+        field_length,
+        flags,
+        lock_position,
+    })
+}
+
 fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
     let len = c.read_bs_u()? as usize;
     if len == 0 {
@@ -108,6 +157,29 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
+
+    #[test]
+    fn r2007_split_stream_attrib_reads_value_and_tag() {
+        let mut body = BitWriter::new();
+        text::tests::write_r2018_preamble(&mut body);
+        body.write_rc(0xFF);
+        body.write_rd(0.0);
+        body.write_rd(0.0);
+        body.write_b(true); // extrusion default
+        body.write_b(true); // thickness zero
+        body.write_rd(2.5); // height
+        body.write_bs(0); // field length
+        body.write_rc(0x01); // flags — invisible
+        body.write_b(false); // lock position
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["17", "ATTINFO"]);
+        let a = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(a.tag, "ATTINFO");
+        assert_eq!(a.text.text, "17");
+        assert_eq!(a.text.height, 2.5);
+        assert!(a.is_invisible());
+        assert!(!a.lock_position);
+    }
 
     #[test]
     fn roundtrip_invisible_constant_attrib() {
