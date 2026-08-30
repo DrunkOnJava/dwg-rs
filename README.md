@@ -24,24 +24,32 @@ local `samples/` set:
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
-| R2004 (AC1018)      | 3 | 510 | 87 | 0 | **85.4 %** |
+| R2004 (AC1018)      | 3 | 582 | 15 | 0 | **97.5 %** |
 | R2010 (AC1024)      | 3 | 531 | 12 | 0 | **97.8 %** |
 | R2013 (AC1027)      | 3 | 384 | 12 | 0 | **97.0 %** |
-| R2018 (AC1032)      | 1 | 765 | 77 | 0 | **90.9 %** |
-| **Aggregate** | **19** | **2190** | **188** | **0** | **92.1 %** |
+| R2018 (AC1032)      | 1 | 776 | 57 | 9 | **92.2 %** |
+| **Aggregate** | **19** | **2273** | **96** | **9** | **95.6 %** |
 
-**Every record of every file in the corpus that reaches a decoder now
-decodes, and none errors.** What is left is the *skipped* column — 188
-records of types this crate has no decoder for at all (VISUALSTYLE on
-R2004/R2007, MATERIAL, TABLESTYLE) — not records it reads wrongly.
+**Every entity record in the corpus is now checked against its own
+data-stream boundary, and nine of them fail it.** That is an
+improvement, not a regression: until #63 the POLYLINE family, MESH,
+IMAGE, VIEWPORT, LEADER, MLINE, the surfaces, RAY / XLINE / POINT /
+CIRCLE / ARC / LINE / ELLIPSE / SOLID / TRACE / BLOCK / ENDBLK and the
+whole R2000-R2004 band decoded with **no boundary check at all**, so
+their zero error count was a property of the code rather than of the
+bytes. Nine errors that each name a specific unfinished field list are
+worth more than a zero that means nothing — see
+[`STATUS.md`](./STATUS.md) for which types they are.
 
-That matters more than the ratio, because every R2007+ decoder in this
-crate is *self-validating*: its data fields must end exactly on the first
-bit of the record's string stream, or — for a record that carries no
-strings — on the bit before the `strings present` trailer flag. A field
-list that is wrong anywhere lands somewhere else and reports an error
-rather than returning plausible-looking geometry. Zero errors therefore
-means zero known mis-reads, not zero unchecked reads.
+Every decoder in this crate is *self-validating*: its data fields must
+end exactly on the first bit of the record's string stream, on the bit
+before the `strings present` trailer flag when it carries no strings
+(R2010+), or on the `RL` object-data-size from the object prologue
+(R2000 / R2004). A field list that is wrong anywhere lands somewhere
+else and reports an error rather than returning plausible-looking
+geometry. On R2010+ there is no longer any entity type that decodes
+unchecked; R13 / R14 / R2007 records state no boundary this crate can
+read yet, and no record of those releases reaches a decoder at all.
 
 **Translation:** R2007+ objects store every `TV` field in a separate string
 stream and every `H` object reference in a separate handle stream (ODA
@@ -51,14 +59,20 @@ consuming no data-stream bits, and then asserts it landed exactly on the
 boundary. LAYER, LTYPE, STYLE, UCS, VIEW, VPORT, APPID, DIMSTYLE,
 BLOCK_HEADER, TEXT, ATTRIB, ATTDEF, MTEXT, TOLERANCE, HATCH, MULTILEADER,
 the DIMENSION family, INSERT, SPLINE, LWPOLYLINE, 3DFACE and the UNDERLAY
-family all go through it. The R2004 (AC1018) object prologue is read
-correctly too — an `RL` object data size in bits sits between the object
-type and the object handle on the whole R2000..R2007 band, and skipping it
-put every AC1018 record 32 bits out of phase.
+family all go through it, and since #63 so does **every other entity
+type** — via the same check, on the R2000/R2004 band as well as R2010+.
+The R2004 (AC1018) object prologue is read correctly too — an `RL` object
+data size in bits sits between the object type and the object handle on
+the whole R2000..R2007 band, and skipping it put every AC1018 record 32
+bits out of phase; that `RL` is now also the boundary AC1018 entities are
+held to.
 
-The remaining gap is the *unhandled* list, not the errored one: VISUALSTYLE
-on R2004/R2007, MATERIAL and TABLESTYLE have no field list matched against
-real bytes yet. Closing those is the 0.2.0 milestone.
+Two gaps remain. The *unhandled* list is the larger one: MATERIAL and
+TABLESTYLE have no field list matched against real bytes yet. The
+*errored* list is the new one, and it is short and named — VIEWPORT
+(6 records, a decoder that reads 266 of 1125 bits), MESH (2 records, two
+unidentified trailing bits) and LEADER (1 record, twelve bits short).
+Closing both is the 0.2.0 milestone.
 
 ## Capability matrix at a glance
 
@@ -76,7 +90,7 @@ real bytes yet. Closing those is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 92.1 %, zero errors (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 95.6 %, every entity boundary-checked, 9 named errors (#63, #103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |

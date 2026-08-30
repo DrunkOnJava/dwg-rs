@@ -30,6 +30,23 @@
 //! Full spec is over 30 fields. This decoder covers the core
 //! geometric fields (points, end projection, extrusion) — the text
 //! attachment details are skipped via deliberate field count.
+//!
+//! # Measured: twelve bits short, on one record
+//!
+//! Since #63 this decoder is held to the record's own data-stream
+//! boundary. The single LEADER record in the corpus
+//! (`sample_AC1032.dwg`, handle `0x512`) has a 581-bit data-field
+//! budget and this list consumes 569 of them, so the record reports
+//! `delta -12` instead of returning a struct that only looks complete.
+//!
+//! Twelve bits is small enough that several continuations of the field
+//! list above would fit it, and one record cannot choose between them:
+//! any combination of defaulted `BD`s and trailing `B` flags summing
+//! to twelve satisfies the budget equally well. Under this crate's
+//! evidence rule that is "documented offsets and stop", not a fix. A
+//! second file with a LEADER — ideally one with a text box, where the
+//! `box_height` / `box_width` pair is written explicitly rather than
+//! defaulted — separates the candidates immediately.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, Vec3D, read_bd3};

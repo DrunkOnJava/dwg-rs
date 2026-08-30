@@ -33,13 +33,14 @@ use crate::common_entity::CommonEntityData;
 use crate::entities::{
     arc, attdef, attrib, block, body, camera, circle, dimension, ellipse, endblk, extruded_surface,
     geodata, hatch, helix, image, insert, leader, light, line, lofted_surface, lwpolyline, mesh,
-    mleader, mtext, ole2_frame, point, polyface_mesh, polygon_mesh, polyline, ray, region,
-    revolved_surface, solid, spline, sun, swept_surface, text, three_d_face, three_d_solid,
+    mleader, mline, mtext, ole2_frame, point, polyface_mesh, polygon_mesh, polyline, ray, region,
+    revolved_surface, seqend, solid, spline, sun, swept_surface, text, three_d_face, three_d_solid,
     tolerance, trace, underlay, vertex, viewport, wipeout, xline,
 };
 use crate::error::Result;
 use crate::object::RawObject;
 use crate::object_type::ObjectType;
+use crate::string_stream::StringReader;
 use crate::version::Version;
 
 /// A decoded entity — one variant per type this crate knows how to decode.
@@ -73,7 +74,18 @@ pub enum DecodedEntity {
     Block(block::Block),
     EndBlk(endblk::EndBlk),
     Vertex(vertex::Vertex),
+    /// VERTEX_3D / VERTEX_MESH / VERTEX_PFACE — one field list for all
+    /// three; the flag byte says which.
+    VertexPoint(vertex::VertexPoint),
+    /// VERTEX_PFACE_FACE — four indices into a POLYLINE_PFACE's vertex list.
+    VertexPfaceFace(vertex::VertexPfaceFace),
+    /// SEQEND — closes an INSERT's or POLYLINE's sub-entity list.
+    SeqEnd(seqend::SeqEnd),
     Polyline(polyline::Polyline),
+    /// POLYLINE_3D — the 3D polyline header (§19.4.46).
+    Polyline3d(polyline::Polyline3d),
+    /// MLINE — the multi-line entity (§19.4.71).
+    MLine(Box<mline::MLine>),
     LwPolyline(lwpolyline::LwPolyline),
     Mesh(mesh::Mesh),
     PolyfaceMesh(polyface_mesh::PolyfaceMesh),
@@ -177,7 +189,15 @@ impl DecodedEntity {
             Self::Block(_) => OBJECT_TYPE_BLOCK,
             Self::EndBlk(_) => OBJECT_TYPE_ENDBLK,
             Self::Vertex(_) => OBJECT_TYPE_VERTEX_2D,
+            // VERTEX_3D / VERTEX_MESH / VERTEX_PFACE share one variant;
+            // the sentinel points at VERTEX_3D, the commonest of the
+            // three, and the flag byte carries the real distinction.
+            Self::VertexPoint(_) => OBJECT_TYPE_VERTEX_3D,
+            Self::VertexPfaceFace(_) => OBJECT_TYPE_VERTEX_PFACE_FACE,
+            Self::SeqEnd(_) => OBJECT_TYPE_SEQEND,
             Self::Polyline(_) => OBJECT_TYPE_POLYLINE_2D,
+            Self::Polyline3d(_) => OBJECT_TYPE_POLYLINE_3D,
+            Self::MLine(_) => OBJECT_TYPE_MLINE,
             Self::LwPolyline(_) => OBJECT_TYPE_LWPOLYLINE,
             // MESH (subdivision) is a custom class — code varies per
             // file via AcDb:Classes. Return 0 so callers consult the
@@ -262,9 +282,17 @@ const OBJECT_TYPE_ATTRIB: u16 = 0x02; // 2
 const OBJECT_TYPE_ATTDEF: u16 = 0x03; // 3
 const OBJECT_TYPE_BLOCK: u16 = 0x04; // 4
 const OBJECT_TYPE_ENDBLK: u16 = 0x05; // 5
+const OBJECT_TYPE_SEQEND: u16 = 0x06; // 6
 const OBJECT_TYPE_INSERT: u16 = 0x07; // 7
 const OBJECT_TYPE_VERTEX_2D: u16 = 0x0A; // 10
+// VERTEX_3D / VERTEX_MESH / VERTEX_PFACE share one measured field list
+// (`RC flag, 3BD location`); VERTEX_PFACE_FACE has its own.
+const OBJECT_TYPE_VERTEX_3D: u16 = 0x0B; // 11
+const OBJECT_TYPE_VERTEX_MESH: u16 = 0x0C; // 12
+const OBJECT_TYPE_VERTEX_PFACE: u16 = 0x0D; // 13
+const OBJECT_TYPE_VERTEX_PFACE_FACE: u16 = 0x0E; // 14
 const OBJECT_TYPE_POLYLINE_2D: u16 = 0x0F; // 15
+const OBJECT_TYPE_POLYLINE_3D: u16 = 0x10; // 16
 // Legacy mesh entities — POLYFACE_MESH (face-list) + POLYGON_MESH (M×N grid).
 // Vertex data for both lives in a handle chain of VERTEX_PFACE /
 // VERTEX_MESH sub-entities — the headers decoded here carry only the
@@ -293,6 +321,7 @@ const OBJECT_TYPE_3DSOLID: u16 = 0x26; // 38
 const OBJECT_TYPE_BODY: u16 = 0x27; // 39
 const OBJECT_TYPE_RAY: u16 = 0x28; // 40
 const OBJECT_TYPE_XLINE: u16 = 0x29; // 41
+const OBJECT_TYPE_MLINE: u16 = 0x2F; // 47
 const OBJECT_TYPE_MTEXT: u16 = 0x2C; // 44
 const OBJECT_TYPE_LEADER: u16 = 0x2D; // 45
 const OBJECT_TYPE_TOLERANCE: u16 = 0x2E; // 46
@@ -373,8 +402,8 @@ pub fn decode_from_raw_with_class_map(
     }
     // Position cursor past header + common preamble, then dispatch by
     // DXF class name.
-    let mut cursor = match position_cursor_at_entity_body(raw, version) {
-        Ok(c) => c,
+    let body_start = match position_cursor_at_entity_body(raw, version) {
+        Ok(c) => c.position_bits(),
         Err(e) => {
             return DecodedEntity::Error {
                 type_code,
@@ -389,53 +418,63 @@ pub fn decode_from_raw_with_class_map(
     if let Some(decoded) = dispatch_split_stream_class(
         raw,
         class_def.dxf_class_name.as_str(),
-        cursor.position_bits(),
+        body_start,
         type_code,
         raw.kind,
         version,
     ) {
         return decoded;
     }
-    if let Err(e) = crate::common_entity::read_common_entity_data(&mut cursor, version) {
-        return DecodedEntity::Error {
-            type_code,
-            kind: raw.kind,
-            message: format!("common entity preamble: {e}"),
-        };
-    }
-    let result: std::result::Result<DecodedEntity, String> = match class_def.dxf_class_name.as_str()
-    {
-        "IMAGE" | "RASTERIMAGE" => image::decode(&mut cursor, version)
-            .map(DecodedEntity::Image)
-            .map_err(|e| e.to_string()),
+    let name = class_def.dxf_class_name.as_str();
+    // Every custom-class entity decoder below runs through
+    // `checked_inline`, so it has to land exactly on the record's own
+    // data-stream boundary — the same rule the fixed-code path applies.
+    let result: Result<DecodedEntity> = match name {
+        "IMAGE" | "RASTERIMAGE" => {
+            checked_inline(raw, body_start, version, "IMAGE", |c, v, _, _| {
+                image::decode(c, v).map(DecodedEntity::Image)
+            })
+        }
         // SURFACE family + HELIX — type codes vary per-file, dispatched
         // on the DXF class name recorded in AcDb:Classes. See spec
         // §19.4.76 (HELIX) and §19.4.78-81 (SURFACE variants).
-        "EXTRUDEDSURFACE" | "ACDBEXTRUDEDSURFACE" => extruded_surface::decode(&mut cursor)
-            .map(DecodedEntity::ExtrudedSurface)
-            .map_err(|e| e.to_string()),
-        "REVOLVEDSURFACE" | "ACDBREVOLVEDSURFACE" => revolved_surface::decode(&mut cursor)
-            .map(DecodedEntity::RevolvedSurface)
-            .map_err(|e| e.to_string()),
-        "SWEPTSURFACE" | "ACDBSWEPTSURFACE" => swept_surface::decode(&mut cursor)
-            .map(DecodedEntity::SweptSurface)
-            .map_err(|e| e.to_string()),
-        "LOFTEDSURFACE" | "ACDBLOFTEDSURFACE" => lofted_surface::decode(&mut cursor)
-            .map(DecodedEntity::LoftedSurface)
-            .map_err(|e| e.to_string()),
-        "HELIX" | "ACDBHELIX" => helix::decode(&mut cursor)
-            .map(DecodedEntity::Helix)
-            .map_err(|e| e.to_string()),
-        // UNDERLAY family (§19.4.86) — PDF / DWF / DGN share one payload.
-        "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor, version)
-            .map(DecodedEntity::Wipeout)
-            .map_err(|e| e.to_string()),
+        "EXTRUDEDSURFACE" | "ACDBEXTRUDEDSURFACE" => {
+            checked_inline(raw, body_start, version, "EXTRUDEDSURFACE", |c, _, _, _| {
+                extruded_surface::decode(c).map(DecodedEntity::ExtrudedSurface)
+            })
+        }
+        "REVOLVEDSURFACE" | "ACDBREVOLVEDSURFACE" => {
+            checked_inline(raw, body_start, version, "REVOLVEDSURFACE", |c, _, _, _| {
+                revolved_surface::decode(c).map(DecodedEntity::RevolvedSurface)
+            })
+        }
+        "SWEPTSURFACE" | "ACDBSWEPTSURFACE" => {
+            checked_inline(raw, body_start, version, "SWEPTSURFACE", |c, _, _, _| {
+                swept_surface::decode(c).map(DecodedEntity::SweptSurface)
+            })
+        }
+        "LOFTEDSURFACE" | "ACDBLOFTEDSURFACE" => {
+            checked_inline(raw, body_start, version, "LOFTEDSURFACE", |c, _, _, _| {
+                lofted_surface::decode(c).map(DecodedEntity::LoftedSurface)
+            })
+        }
+        "HELIX" | "ACDBHELIX" => checked_inline(raw, body_start, version, "HELIX", |c, _, _, _| {
+            helix::decode(c).map(DecodedEntity::Helix)
+        }),
+        // WIPEOUT shares the IMAGE payload (§19.4.86).
+        "WIPEOUT" | "ACDBWIPEOUT" => {
+            checked_inline(raw, body_start, version, "WIPEOUT", |c, v, _, _| {
+                wipeout::decode(c, v).map(DecodedEntity::Wipeout)
+            })
+        }
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
-        "MESH" | "ACDBSUBDMESH" | "ACDBMESH" => mesh::decode(&mut cursor, version)
-            .map(DecodedEntity::Mesh)
-            .map_err(|e| e.to_string()),
+        "MESH" | "ACDBSUBDMESH" | "ACDBMESH" => {
+            checked_inline(raw, body_start, version, "MESH", |c, v, _, _| {
+                mesh::decode(c, v).map(DecodedEntity::Mesh)
+            })
+        }
         _ => {
             return DecodedEntity::Unhandled {
                 type_code,
@@ -445,10 +484,10 @@ pub fn decode_from_raw_with_class_map(
     };
     match result {
         Ok(entity) => entity,
-        Err(message) => DecodedEntity::Error {
+        Err(e) => DecodedEntity::Error {
             type_code,
             kind: raw.kind,
-            message,
+            message: e.to_string(),
         },
     }
 }
@@ -488,7 +527,7 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
             {
                 decoded
             } else {
-                dispatch(&mut cursor, type_code, kind, version)
+                dispatch_fixed_code(raw, cursor.position_bits(), type_code, kind, version)
             }
         }
         Err(e) => DecodedEntity::Error {
@@ -736,7 +775,7 @@ fn dispatch_split_stream_class(
                 object_body_start,
                 version,
                 "UNDERLAY",
-                move |c, v, _ce| underlay::decode(c, kind, v),
+                move |c, v, _ce, _s| underlay::decode(c, kind, v),
             )
             .map(DecodedEntity::Underlay)
         }
@@ -752,33 +791,105 @@ fn dispatch_split_stream_class(
     })
 }
 
+/// Bit offset at which an entity's data-stream fields must end, when
+/// the record states it.
+///
+/// | Release band | Boundary |
+/// |---|---|
+/// | R2010+ | first bit of the string stream, or the handle-stream start minus the one `B` "strings present" trailer bit (§19.1) |
+/// | R2000 / R2004 | the `RL` object-data-size-in-bits from the object prologue (§19.1) |
+/// | R2007 | not knowable here — see below |
+/// | R13 / R14 | no such field |
+///
+/// R2007 (`AC1021`) splits the data and string streams like R2010+ but
+/// records only the *combined* size in its `RL`, and this crate cannot
+/// locate an R2007 string stream yet ([`crate::string_stream::locate`]
+/// returns `None` there). Using the `RL` as the field boundary would
+/// therefore charge every record for its own strings. `None` is the
+/// honest answer until the R2007 object walk lands — no `AC1021` record
+/// reaches a decoder in this crate today.
+fn entity_data_end(raw: &RawObject, version: Version) -> Option<usize> {
+    if version.is_r2007_plus() {
+        // R2007 included: §19.1's `RL` object-data-size locates the
+        // trailer for AC1021 exactly as the leading `MC` does for
+        // R2010+, so `data_field_end` answers for both.
+        return crate::string_stream::data_field_end(&raw.raw, version);
+    }
+    raw.obj_size_bits.map(|b| b as usize)
+}
+
+/// Open the `TV` source for an entity record.
+///
+/// R2007+ takes every `TV` from the object's string stream — a record
+/// whose *strings present* trailer bit is clear still has the slots,
+/// they simply hold nothing and consume no data-stream bits, which is
+/// what [`StringReader::empty`] models. Earlier releases keep the
+/// characters inline, which `None` selects.
+fn entity_strings<'a>(payload: &'a [u8], version: Version) -> Result<Option<StringReader<'a>>> {
+    if !version.is_r2007_plus() {
+        return Ok(None);
+    }
+    Ok(Some(match crate::string_stream::locate(payload, version) {
+        Some(stream) => StringReader::new(payload, stream)?,
+        None => StringReader::empty(payload),
+    }))
+}
+
 /// Run an inline entity decoder against a record's payload and require
 /// it to end **exactly** on the record's data-stream boundary — the
-/// first bit of its string stream, or the start of its handle stream
-/// when it holds no strings (§19.1).
+/// first bit of its string stream, the start of its handle stream when
+/// it holds no strings (§19.1), or the `RL` object-data-size on the
+/// R2000/R2004 band.
 ///
 /// Entities with no `TV` field do not need the split streams to read
 /// their values, but they still get the boundary for free, and the
 /// boundary is what turns a wrong field list into an error instead of
-/// plausible-looking geometry. Types listed here have been measured
-/// against every record of that type in the corpus.
+/// plausible-looking geometry. Every fixed-code and custom-class entity
+/// decoder in this crate runs through here, and every release from R14
+/// on states a boundary — R13/R14 through the `RL` inside their common
+/// entity data (§20.4.1), R2000-R2007 through the same `RL` in the
+/// object prologue, R2010+ through the string-stream trailer — so **no**
+/// entity in the corpus decodes unchecked.
 fn checked_inline<T>(
     raw: &RawObject,
     object_body_start: usize,
     version: Version,
     what: &'static str,
-    decode_body: impl FnOnce(&mut BitCursor<'_>, Version, &CommonEntityData) -> Result<T>,
+    decode_body: impl FnOnce(
+        &mut BitCursor<'_>,
+        Version,
+        &CommonEntityData,
+        &mut Option<StringReader<'_>>,
+    ) -> Result<T>,
 ) -> Result<T> {
-    let (_strings, string_start) = crate::tables::modern::open_entity(&raw.raw, version)?;
+    let mut data_end = entity_data_end(raw, version);
+    let mut strings = entity_strings(&raw.raw, version)?;
     let mut c = BitCursor::new(&raw.raw);
     crate::string_stream::seek(&mut c, object_body_start)?;
     let common = crate::common_entity::read_common_entity_data(&mut c, version)?;
-    let value = decode_body(&mut c, version, &common)?;
-    let at = c.position_bits();
-    if at != string_start {
-        return Err(crate::tables::modern::misaligned(what, at, string_start));
+    // R13/R14 state the same boundary, but §20.4.1 puts their `RL`
+    // *inside* the common entity data rather than in the object
+    // prologue, so it is only knowable once the preamble has been read.
+    if data_end.is_none() {
+        data_end = common.data_end_bits.map(|b| b as usize);
+    }
+    let value = decode_body(&mut c, version, &common, &mut strings)?;
+    if let Some(end) = data_end {
+        let at = c.position_bits();
+        if at != end {
+            return Err(misaligned_entity(what, at, end));
+        }
     }
     Ok(value)
+}
+
+/// Error describing an entity whose data fields did not land on the
+/// record's own data-stream boundary.
+fn misaligned_entity(what: &str, at: usize, data_end: usize) -> crate::error::Error {
+    crate::error::Error::SectionMap(format!(
+        "{what} data fields ended at bit {at}, data stream ends at {data_end} (delta {})",
+        at as isize - data_end as isize
+    ))
 }
 
 /// Dispatch the R2007+ entities whose `TV` fields live in the object's
@@ -821,48 +932,6 @@ fn dispatch_split_stream_entity(
         OBJECT_TYPE_SPLINE if version.is_r2010_plus() => {
             spline::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Spline)
-        }
-        OBJECT_TYPE_INSERT if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "INSERT", |c, v, _ce| {
-                insert::decode(c, v)
-            })
-            .map(DecodedEntity::Insert)
-        }
-        OBJECT_TYPE_3DFACE if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "3DFACE", |c, _v, _ce| {
-                three_d_face::decode(c)
-            })
-            .map(DecodedEntity::ThreeDFace)
-        }
-        OBJECT_TYPE_LWPOLYLINE if version.is_r2010_plus() => checked_inline(
-            raw,
-            object_body_start,
-            version,
-            "LWPOLYLINE",
-            |c, v, _ce| lwpolyline::decode(c, v),
-        )
-        .map(DecodedEntity::LwPolyline),
-        // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
-        // three. `binary_chain` is the record's `has AcDs binary data`
-        // bit: when it is set the SAB stream lives in the data-storage
-        // section (§24) and the record's shape changes accordingly.
-        OBJECT_TYPE_3DSOLID if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "3DSOLID", |c, v, ce| {
-                three_d_solid::decode_record(c, v, ce.binary_chain)
-            })
-            .map(DecodedEntity::ThreeDSolid)
-        }
-        OBJECT_TYPE_REGION if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "REGION", |c, v, ce| {
-                region::decode_record(c, v, ce.binary_chain)
-            })
-            .map(DecodedEntity::Region)
-        }
-        OBJECT_TYPE_BODY if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "BODY", |c, v, ce| {
-                body::decode_record(c, v, ce.binary_chain)
-            })
-            .map(DecodedEntity::Body)
         }
         OBJECT_TYPE_LIGHT => {
             light::decode_modern_split_stream(&raw.raw, object_body_start, version)
@@ -1072,143 +1141,188 @@ fn position_cursor_at_entity_body<'a>(
     crate::object::body_cursor(raw, version)
 }
 
-fn dispatch(
-    cursor: &mut BitCursor<'_>,
+/// Name of the fixed-code entity this dispatcher decodes, or `None`
+/// when the code has no decoder at all.
+///
+/// This is the gate [`dispatch_fixed_code`] consults *before* running a
+/// record through [`checked_inline`], so it must list exactly the codes
+/// [`decode_fixed_entity_body`] handles — `tests::fixed_entity_label_covers_every_body_arm`
+/// pins that. Keeping the two in step is what lets an unknown type come
+/// back `Unhandled` instead of tripping a boundary check it was never
+/// going to satisfy.
+fn fixed_entity_label(type_code: u16) -> Option<&'static str> {
+    Some(match type_code {
+        OBJECT_TYPE_LINE => "LINE",
+        OBJECT_TYPE_POINT => "POINT",
+        OBJECT_TYPE_CIRCLE => "CIRCLE",
+        OBJECT_TYPE_ARC => "ARC",
+        OBJECT_TYPE_ELLIPSE => "ELLIPSE",
+        OBJECT_TYPE_RAY => "RAY",
+        OBJECT_TYPE_XLINE => "XLINE",
+        OBJECT_TYPE_SOLID => "SOLID",
+        OBJECT_TYPE_TRACE => "TRACE",
+        OBJECT_TYPE_3DFACE => "3DFACE",
+        OBJECT_TYPE_3DSOLID => "3DSOLID",
+        OBJECT_TYPE_REGION => "REGION",
+        OBJECT_TYPE_BODY => "BODY",
+        OBJECT_TYPE_SPLINE => "SPLINE",
+        OBJECT_TYPE_TEXT => "TEXT",
+        OBJECT_TYPE_MTEXT => "MTEXT",
+        OBJECT_TYPE_ATTRIB => "ATTRIB",
+        OBJECT_TYPE_ATTDEF => "ATTDEF",
+        OBJECT_TYPE_INSERT => "INSERT",
+        OBJECT_TYPE_BLOCK => "BLOCK",
+        OBJECT_TYPE_ENDBLK => "ENDBLK",
+        OBJECT_TYPE_SEQEND => "SEQEND",
+        OBJECT_TYPE_VERTEX_2D => "VERTEX_2D",
+        OBJECT_TYPE_VERTEX_3D => "VERTEX_3D",
+        OBJECT_TYPE_VERTEX_MESH => "VERTEX_MESH",
+        OBJECT_TYPE_VERTEX_PFACE => "VERTEX_PFACE",
+        OBJECT_TYPE_VERTEX_PFACE_FACE => "VERTEX_PFACE_FACE",
+        OBJECT_TYPE_POLYLINE_2D => "POLYLINE_2D",
+        OBJECT_TYPE_POLYLINE_3D => "POLYLINE_3D",
+        OBJECT_TYPE_MLINE => "MLINE",
+        OBJECT_TYPE_LWPOLYLINE => "LWPOLYLINE",
+        OBJECT_TYPE_POLYLINE_PFACE => "POLYLINE_PFACE",
+        OBJECT_TYPE_POLYLINE_MESH => "POLYLINE_MESH",
+        OBJECT_TYPE_LEADER => "LEADER",
+        OBJECT_TYPE_TOLERANCE => "TOLERANCE",
+        OBJECT_TYPE_OLE2FRAME => "OLE2FRAME",
+        OBJECT_TYPE_HATCH => "HATCH",
+        OBJECT_TYPE_VIEWPORT => "VIEWPORT",
+        OBJECT_TYPE_CAMERA => "CAMERA",
+        OBJECT_TYPE_SUN => "SUN",
+        OBJECT_TYPE_LIGHT => "LIGHT",
+        OBJECT_TYPE_GEODATA => "GEODATA",
+        // DIMENSION family per ODA §5 Table 4:
+        //   0x14 ORDINATE, 0x15 LINEAR, 0x16 ALIGNED, 0x17 ANG_3PT,
+        //   0x18 ANG_2LN, 0x19 RADIUS, 0x1A DIAMETER.
+        OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => "DIMENSION",
+        // SHAPE has no field list matched against real bytes yet — the
+        // one record in the corpus has a 160-bit budget and nothing to
+        // spend it on, so it stays `Unhandled` rather than being fed a
+        // guess. IMAGE and MLEADER are custom classes whose codes vary
+        // per file and resolve through `decode_from_raw_with_class_map`.
+        OBJECT_TYPE_SHAPE => return None,
+        _ => return None,
+    })
+}
+
+/// Decode one fixed-code entity's type-specific field list.
+///
+/// The cursor arrives past the common entity preamble; `strings` is the
+/// R2010+ string stream (`None` on the inline bands), and `common`
+/// carries the preamble's flags — [`CommonEntityData::binary_chain`] in
+/// particular, which changes the shape of the §20.4.41 ACIS records.
+///
+/// Callers reach this only for codes [`fixed_entity_label`] names, so
+/// the fall-through arm is unreachable in practice; it returns an error
+/// rather than panicking because parsing paths in this crate never
+/// panic.
+fn decode_fixed_entity_body(
+    c: &mut BitCursor<'_>,
+    type_code: u16,
+    version: Version,
+    common: &CommonEntityData,
+    strings: &mut Option<StringReader<'_>>,
+) -> Result<DecodedEntity> {
+    let _ = strings;
+    Ok(match type_code {
+        OBJECT_TYPE_LINE => DecodedEntity::Line(line::decode_versioned(c, version)?),
+        OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode(c)?),
+        OBJECT_TYPE_CIRCLE => DecodedEntity::Circle(circle::decode(c)?),
+        OBJECT_TYPE_ARC => DecodedEntity::Arc(arc::decode(c)?),
+        OBJECT_TYPE_ELLIPSE => DecodedEntity::Ellipse(ellipse::decode(c)?),
+        OBJECT_TYPE_RAY => DecodedEntity::Ray(ray::decode(c)?),
+        OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
+        OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
+        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
+        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c)?),
+        // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
+        // three. `binary_chain` is the record's `has AcDs binary data`
+        // bit: when it is set the SAB stream lives in the data-storage
+        // section (§24) and the record's shape changes accordingly.
+        OBJECT_TYPE_3DSOLID => DecodedEntity::ThreeDSolid(three_d_solid::decode_record(
+            c,
+            version,
+            common.binary_chain,
+        )?),
+        OBJECT_TYPE_REGION => {
+            DecodedEntity::Region(region::decode_record(c, version, common.binary_chain)?)
+        }
+        OBJECT_TYPE_BODY => {
+            DecodedEntity::Body(body::decode_record(c, version, common.binary_chain)?)
+        }
+        OBJECT_TYPE_SPLINE => DecodedEntity::Spline(spline::decode(c, version)?),
+        OBJECT_TYPE_TEXT => DecodedEntity::Text(text::decode(c, version)?),
+        OBJECT_TYPE_MTEXT => DecodedEntity::MText(mtext::decode(c, version)?),
+        OBJECT_TYPE_ATTRIB => DecodedEntity::Attrib(attrib::decode(c, version)?),
+        OBJECT_TYPE_ATTDEF => DecodedEntity::AttDef(attdef::decode(c, version)?),
+        OBJECT_TYPE_INSERT => DecodedEntity::Insert(insert::decode(c, version)?),
+        OBJECT_TYPE_BLOCK => DecodedEntity::Block(block::decode_field(c, version, strings)?),
+        OBJECT_TYPE_ENDBLK => DecodedEntity::EndBlk(endblk::decode(c)?),
+        OBJECT_TYPE_SEQEND => DecodedEntity::SeqEnd(seqend::decode(c)?),
+        OBJECT_TYPE_VERTEX_2D => DecodedEntity::Vertex(vertex::decode(c, version)?),
+        OBJECT_TYPE_VERTEX_3D | OBJECT_TYPE_VERTEX_MESH | OBJECT_TYPE_VERTEX_PFACE => {
+            DecodedEntity::VertexPoint(vertex::decode_point(c)?)
+        }
+        OBJECT_TYPE_VERTEX_PFACE_FACE => {
+            DecodedEntity::VertexPfaceFace(vertex::decode_pface_face(c)?)
+        }
+        OBJECT_TYPE_POLYLINE_2D => DecodedEntity::Polyline(polyline::decode(c)?),
+        OBJECT_TYPE_POLYLINE_3D => DecodedEntity::Polyline3d(polyline::decode_3d(c, version)?),
+        OBJECT_TYPE_MLINE => DecodedEntity::MLine(Box::new(mline::decode(c)?)),
+        OBJECT_TYPE_LWPOLYLINE => DecodedEntity::LwPolyline(lwpolyline::decode(c, version)?),
+        OBJECT_TYPE_POLYLINE_PFACE => {
+            DecodedEntity::PolyfaceMesh(polyface_mesh::decode_record(c, version)?)
+        }
+        OBJECT_TYPE_POLYLINE_MESH => DecodedEntity::PolygonMesh(polygon_mesh::decode(c)?),
+        OBJECT_TYPE_LEADER => DecodedEntity::Leader(leader::decode(c)?),
+        OBJECT_TYPE_TOLERANCE => DecodedEntity::Tolerance(tolerance::decode(c, version)?),
+        OBJECT_TYPE_OLE2FRAME => DecodedEntity::Ole2Frame(ole2_frame::decode(c)?),
+        OBJECT_TYPE_HATCH => DecodedEntity::Hatch(hatch::decode(c, version)?),
+        OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c)?),
+        OBJECT_TYPE_CAMERA => DecodedEntity::Camera(camera::decode(c, version)?),
+        OBJECT_TYPE_SUN => DecodedEntity::Sun(sun::decode(c, version)?),
+        OBJECT_TYPE_LIGHT => DecodedEntity::Light(light::decode(c, version)?),
+        OBJECT_TYPE_GEODATA => DecodedEntity::GeoData(geodata::decode(c, version)?),
+        OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
+            let kind =
+                dimension::DimensionKind::from_object_type_code(type_code).ok_or_else(|| {
+                    crate::error::Error::SectionMap(format!("no DIMENSION subtype for {type_code}"))
+                })?;
+            DecodedEntity::Dimension(dimension::decode(c, version, kind)?)
+        }
+        _ => {
+            return Err(crate::error::Error::SectionMap(format!(
+                "no fixed-code entity decoder for type 0x{type_code:04X}"
+            )));
+        }
+    })
+}
+
+/// Decode a fixed-code entity and require its field list to close
+/// exactly on the record's data-stream boundary.
+fn dispatch_fixed_code(
+    raw: &RawObject,
+    object_body_start: usize,
     type_code: u16,
     kind: ObjectType,
     version: Version,
 ) -> DecodedEntity {
-    // Step through the common entity preamble first (§19.4.1).
-    if let Err(e) = crate::common_entity::read_common_entity_data(cursor, version) {
-        return DecodedEntity::Error {
-            type_code,
-            kind,
-            message: format!("common entity preamble: {e}"),
-        };
-    }
-
-    // Dispatch on fixed type code.
-    let result: std::result::Result<DecodedEntity, String> = match type_code {
-        OBJECT_TYPE_LINE => line::decode_versioned(cursor, version)
-            .map(DecodedEntity::Line)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_POINT => point::decode(cursor)
-            .map(DecodedEntity::Point)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_CIRCLE => circle::decode(cursor)
-            .map(DecodedEntity::Circle)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_ARC => arc::decode(cursor)
-            .map(DecodedEntity::Arc)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_ELLIPSE => ellipse::decode(cursor)
-            .map(DecodedEntity::Ellipse)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_RAY => ray::decode(cursor)
-            .map(DecodedEntity::Ray)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_XLINE => xline::decode(cursor)
-            .map(DecodedEntity::XLine)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_SOLID => solid::decode(cursor)
-            .map(DecodedEntity::Solid)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_TRACE => trace::decode(cursor)
-            .map(DecodedEntity::Trace)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_3DFACE => three_d_face::decode(cursor)
-            .map(DecodedEntity::ThreeDFace)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_SPLINE => spline::decode(cursor, version)
-            .map(DecodedEntity::Spline)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_TEXT => text::decode(cursor, version)
-            .map(DecodedEntity::Text)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_MTEXT => mtext::decode(cursor, version)
-            .map(DecodedEntity::MText)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_ATTRIB => attrib::decode(cursor, version)
-            .map(DecodedEntity::Attrib)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_ATTDEF => attdef::decode(cursor, version)
-            .map(DecodedEntity::AttDef)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_INSERT => insert::decode(cursor, version)
-            .map(DecodedEntity::Insert)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_BLOCK => block::decode(cursor, version)
-            .map(DecodedEntity::Block)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_ENDBLK => endblk::decode(cursor)
-            .map(DecodedEntity::EndBlk)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_VERTEX_2D => vertex::decode(cursor, version)
-            .map(DecodedEntity::Vertex)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_POLYLINE_2D => polyline::decode(cursor)
-            .map(DecodedEntity::Polyline)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_LWPOLYLINE => lwpolyline::decode(cursor, version)
-            .map(DecodedEntity::LwPolyline)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_POLYLINE_PFACE => polyface_mesh::decode(cursor)
-            .map(DecodedEntity::PolyfaceMesh)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_POLYLINE_MESH => polygon_mesh::decode(cursor)
-            .map(DecodedEntity::PolygonMesh)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_LEADER => leader::decode(cursor)
-            .map(DecodedEntity::Leader)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_TOLERANCE => tolerance::decode(cursor, version)
-            .map(DecodedEntity::Tolerance)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_OLE2FRAME => ole2_frame::decode(cursor)
-            .map(DecodedEntity::Ole2Frame)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_HATCH => hatch::decode(cursor, version)
-            .map(DecodedEntity::Hatch)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_VIEWPORT => viewport::decode(cursor)
-            .map(DecodedEntity::Viewport)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_CAMERA => camera::decode(cursor, version)
-            .map(DecodedEntity::Camera)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_SUN => sun::decode(cursor, version)
-            .map(DecodedEntity::Sun)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_LIGHT => light::decode(cursor, version)
-            .map(DecodedEntity::Light)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_GEODATA => geodata::decode(cursor, version)
-            .map(DecodedEntity::GeoData)
-            .map_err(|e| e.to_string()),
-        OBJECT_TYPE_SHAPE => return DecodedEntity::Unhandled { type_code, kind },
-        // DIMENSION family per ODA §5 Table 4:
-        //   0x14 ORDINATE, 0x15 LINEAR, 0x16 ALIGNED, 0x17 ANG_3PT,
-        //   0x18 ANG_2LN, 0x19 RADIUS, 0x1A DIAMETER.
-        OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
-            match dimension::DimensionKind::from_object_type_code(type_code) {
-                Some(dk) => dimension::decode(cursor, version, dk)
-                    .map(DecodedEntity::Dimension)
-                    .map_err(|e| e.to_string()),
-                None => return DecodedEntity::Unhandled { type_code, kind },
-            }
-        }
-        // IMAGE and MLEADER are custom classes (AcDb:Classes lookup) —
-        // their codes vary per-file, so they're handled in the custom-
-        // class dispatch pass (see task #96) not here.
-        _ => return DecodedEntity::Unhandled { type_code, kind },
+    let Some(what) = fixed_entity_label(type_code) else {
+        return DecodedEntity::Unhandled { type_code, kind };
     };
+    let result = checked_inline(raw, object_body_start, version, what, |c, v, ce, s| {
+        decode_fixed_entity_body(c, type_code, v, ce, s)
+    });
 
     match result {
         Ok(entity) => entity,
-        Err(message) => DecodedEntity::Error {
+        Err(e) => DecodedEntity::Error {
             type_code,
             kind,
-            message,
+            message: e.to_string(),
         },
     }
 }
@@ -1478,6 +1592,143 @@ mod tests {
             crate::tables::read_tv(&mut c, Version::R2004).unwrap(),
             "ACAD"
         );
+    }
+
+    /// The boundary check is the point of #63: a record whose `RL`
+    /// object-data-size disagrees with what the field list consumed
+    /// must come back as an `Error`, not as a plausible LINE.
+    #[test]
+    fn r2004_line_with_a_wrong_obj_size_errors() {
+        let probe = build_r2004_line_record(0);
+        let mut c = BitCursor::new(&probe);
+        c.read_bs_u().unwrap();
+        c.read_rl().unwrap();
+        c.read_handle().unwrap();
+        crate::common_entity::read_common_entity_data(&mut c, Version::R2004).unwrap();
+        line::decode(&mut c).unwrap();
+        let true_size = c.position_bits() as u32;
+
+        for skew in [-8i32, -1, 1, 8] {
+            let claimed = (true_size as i32 + skew) as u32;
+            let bytes = build_r2004_line_record(claimed);
+            let raw = RawObject {
+                stream_offset: 0,
+                size_bytes: bytes.len() as u32,
+                type_code: OBJECT_TYPE_LINE,
+                kind: ObjectType::Line,
+                handle: crate::bitcursor::Handle {
+                    code: 0,
+                    counter: 1,
+                    value: 0x83,
+                },
+                raw: bytes,
+                obj_size_bits: Some(claimed),
+            };
+            match decode_from_raw(&raw, Version::R2004) {
+                DecodedEntity::Error { message, .. } => {
+                    assert!(
+                        message.contains("LINE data fields ended at bit"),
+                        "skew {skew}: unexpected message {message}"
+                    );
+                }
+                other => panic!("skew {skew}: expected an Error, got {other:?}"),
+            }
+        }
+    }
+
+    /// A code with no decoder must be rejected by
+    /// [`fixed_entity_label`] *before* the boundary check runs —
+    /// otherwise an unknown type would be reported as a misaligned
+    /// record rather than an unhandled one.
+    #[test]
+    fn fixed_entity_label_covers_every_body_arm() {
+        // Every code the body dispatcher decodes.
+        for code in [
+            OBJECT_TYPE_TEXT,
+            OBJECT_TYPE_ATTRIB,
+            OBJECT_TYPE_ATTDEF,
+            OBJECT_TYPE_BLOCK,
+            OBJECT_TYPE_ENDBLK,
+            OBJECT_TYPE_SEQEND,
+            OBJECT_TYPE_INSERT,
+            OBJECT_TYPE_VERTEX_2D,
+            OBJECT_TYPE_VERTEX_3D,
+            OBJECT_TYPE_VERTEX_MESH,
+            OBJECT_TYPE_VERTEX_PFACE,
+            OBJECT_TYPE_VERTEX_PFACE_FACE,
+            OBJECT_TYPE_POLYLINE_2D,
+            OBJECT_TYPE_POLYLINE_3D,
+            OBJECT_TYPE_ARC,
+            OBJECT_TYPE_CIRCLE,
+            OBJECT_TYPE_LINE,
+            OBJECT_TYPE_POINT,
+            OBJECT_TYPE_3DFACE,
+            OBJECT_TYPE_POLYLINE_PFACE,
+            OBJECT_TYPE_POLYLINE_MESH,
+            OBJECT_TYPE_SOLID,
+            OBJECT_TYPE_TRACE,
+            OBJECT_TYPE_VIEWPORT,
+            OBJECT_TYPE_ELLIPSE,
+            OBJECT_TYPE_SPLINE,
+            OBJECT_TYPE_REGION,
+            OBJECT_TYPE_3DSOLID,
+            OBJECT_TYPE_BODY,
+            OBJECT_TYPE_RAY,
+            OBJECT_TYPE_XLINE,
+            OBJECT_TYPE_MTEXT,
+            OBJECT_TYPE_LEADER,
+            OBJECT_TYPE_TOLERANCE,
+            OBJECT_TYPE_MLINE,
+            OBJECT_TYPE_OLE2FRAME,
+            OBJECT_TYPE_LWPOLYLINE,
+            OBJECT_TYPE_HATCH,
+            OBJECT_TYPE_CAMERA,
+            OBJECT_TYPE_SUN,
+            OBJECT_TYPE_LIGHT,
+            OBJECT_TYPE_GEODATA,
+        ]
+        .into_iter()
+        .chain(OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX)
+        {
+            assert!(
+                fixed_entity_label(code).is_some(),
+                "0x{code:04X} decodes but has no label, so it would be reported Unhandled"
+            );
+        }
+        // SHAPE has a code but no field list; the reserved range has
+        // neither.
+        assert!(fixed_entity_label(OBJECT_TYPE_SHAPE).is_none());
+        for code in [0x00u16, 0x08, 0x09, 0x1FF, 0xFFFF] {
+            assert!(fixed_entity_label(code).is_none(), "0x{code:04X}");
+        }
+    }
+
+    /// R13/R14 records state no boundary at all, and R2007's `RL`
+    /// covers its string stream too, so neither band can be checked —
+    /// `STATUS.md` says so and this pins it.
+    #[test]
+    fn only_r2000_plus_states_an_entity_boundary() {
+        let raw = RawObject {
+            stream_offset: 0,
+            size_bytes: 0,
+            type_code: OBJECT_TYPE_LINE,
+            kind: ObjectType::Line,
+            handle: crate::bitcursor::Handle {
+                code: 0,
+                counter: 0,
+                value: 0,
+            },
+            raw: vec![0u8; 16],
+            obj_size_bits: Some(64),
+        };
+        assert_eq!(entity_data_end(&raw, Version::R2000), Some(64));
+        assert_eq!(entity_data_end(&raw, Version::R2004), Some(64));
+        assert_eq!(entity_data_end(&raw, Version::R2007), None);
+        let r14 = RawObject {
+            obj_size_bits: None,
+            ..raw
+        };
+        assert_eq!(entity_data_end(&r14, Version::R14), None);
     }
 
     #[test]

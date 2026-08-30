@@ -8,6 +8,149 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Changed — the exact-boundary check now covers every entity type (2026-08-30, closes #63)
+
+Until now only the entity types that *had* to know about the R2007+
+split streams asserted anything about where their fields end. The
+POLYLINE family, MESH, IMAGE, WIPEOUT, VIEWPORT, LEADER, MLINE, the
+four SURFACE variants, RAY, XLINE, POINT, CIRCLE, ARC, LINE, ELLIPSE,
+SOLID, TRACE, ENDBLK and BLOCK decoded with **no boundary check at
+all** — and on the R2000/R2004 band, so did every entity type. Their
+zero error count was a property of the dispatcher, not of the bytes.
+
+Every fixed-code and custom-class entity decoder now runs through
+`entities::dispatch::checked_inline`, which requires the field list to
+end exactly on the record's own data-stream boundary: the string-stream
+start bit (or the handle-stream start minus the one `strings present`
+trailer bit) on R2010+, and the `RL` object-data-size-in-bits on
+R2000 / R2004. **On R2010+ the number of entity types that decode
+unchecked is now zero.** R2007 and R13/R14 state no boundary this crate
+can read, and no record of those releases reaches a decoder.
+
+Three field lists the check caught, each fixed to `delta 0` with an
+independent value corroborating it:
+
+- **BLOCK** (45 records, R2010/R2013/R2018) read its one `TV` inline.
+  On R2010+ the name lives in the string stream and the record's data
+  fields have a budget of **zero bits** — 27/27 on `sample_AC1032.dwg`
+  and 3/3 on each of `arc_2010.dwg` / `arc_2013.dwg`. Names now decode
+  as `*Model_Space`, `_ArchTick`, `MyBlock`, matching the BLOCK_RECORD
+  entries they pair with. The R2004 records were already correct and
+  now close on their `RL`.
+- **POLYLINE_PFACE** (1 record) claimed five `BS` counts and two inline
+  `H` handles, overrunning by 52 bits. The record holds `BS 5`, `BS 2`,
+  `BL 7` in 30 bits — and the file carries exactly 5 VERTEX_PFACE and 2
+  VERTEX_PFACE_FACE records, summing to 7.
+- **MLINE** (3 records) read `num_lines` as a `BS` where the record
+  writes one `RC`, decoding `lines = 521` and `verts = -11716`. One
+  token changed; all three now close at `delta 0` with `num_lines = 2`.
+
+Five types that previously came back `Unhandled` are now decoded,
+because the check can prove their field lists right rather than assume
+them — handles `0x422`..`0x431` of `sample_AC1032.dwg` read back as a
+self-consistent chain:
+
+- **SEQEND** — no fields at all; budget 0 on all four records.
+- **POLYLINE_3D** — `RC`, `RC`, `BL 5`; followed by exactly 5 VERTEX_3D.
+- **VERTEX_3D / VERTEX_MESH / VERTEX_PFACE** — `RC flag`, `3BD`; the
+  flags read `0x20` ("3D polyline vertex") and `0xC0` ("polyface mesh
+  vertex" + "3D polygon mesh vertex"), the crate's own flag table.
+- **VERTEX_PFACE_FACE** — four `BS` indices, `[1, 2, 3, -4]` and
+  `[-1, 4, 5, 0]`: all inside the mesh's declared 5-vertex range, with
+  the negative-index invisible-edge convention and the `0` terminator
+  of a three-corner face.
+
+Three decoders fail the check and are reported rather than patched —
+documented offsets, and stop:
+
+| Type | Records | Delta | Why it is not fixed |
+|---|---|---|---|
+| VIEWPORT | 6 | −819 | the decoder reads 266 of 1125 bits by design; six records of one identical shape give no variation to derive the rest from |
+| MESH | 2 | −2 | the two trailing bits read `10` on both records — the zero/default code of `BS`, `BL` and `BD` alike |
+| LEADER | 1 | −12 | twelve bits several continuations of §19.4.19 would fit, on one record |
+
+Also in this change: `POLYGON_MESH` stops reading two `H` handles from
+the data stream (an object reference has never occupied data-stream
+bits from R2000 on), and `examples/probe_entity_budgets.rs` prints the
+bit budget every entity record's field list has to fill.
+
+Measured coverage on the local 19-file corpus, before → after:
+
+| Version | Decoded | Skipped | Errored | Ratio |
+|---|---|---|---|---|
+| R2004 (AC1018) | 582 → 582 | 15 → 15 | 0 → 0 | 97.5 % → **97.5 %** |
+| R2010 (AC1024) | 531 → 531 | 12 → 12 | 0 → 0 | 97.8 % → **97.8 %** |
+| R2013 (AC1027) | 384 → 384 | 12 → 12 | 0 → 0 | 97.0 % → **97.0 %** |
+| R2018 (AC1032) | 765 → 776 | 77 → 57 | 0 → 9 | 90.9 % → **92.2 %** |
+| **Aggregate** | **2262 → 2273** | **116 → 96** | **0 → 9** | 95.1 % → **95.6 %** |
+
+The three unchanged slices are the point: their counts did not move,
+but every entity record in them is now checked where none was before,
+and every one passes.
+
+### Added — VISUALSTYLE on R2004: the flag-less generation (2026-08-30, refs #48)
+
+`VISUALSTYLE` now dispatches on R2004 as well as R2010+, taking all 72
+of its `AC1018` corpus records — the whole of the largest remaining
+`Unhandled` block. R2004 stores the same 24 shipped styles on a
+**second field list**: 30 fields, no `(value, flag)` pairs, one fewer
+property and a different order. It closes with delta 0 on all 24
+records of each of `arc_2004.dwg`, `circle_2004.dwg` and
+`line_2004.dwg`.
+
+- **Both ends of the record are anchored, not assumed.** The front
+  comes from `examples/probe_token_scan.rs` — the full-form `BD`s and
+  method-carrying `CMC`s that cannot survive a one-bit shift. The back
+  comes from a reverse scan for the unique offset at which
+  `BS, BL, BS, B` lands exactly on the `RL` object-data-size boundary;
+  it returns exactly one position per record, and its values reproduce
+  R2010's `edge_style_apply`, `display_shadow_type` and
+  `is_internal_use_only` on all 24.
+- **Two structural findings.** `is_internal_use_only` is the record's
+  **final bit** on R2004, not part of its head — and it splits the 24
+  styles into precisely the ten AutoCAD's Visual Styles Manager lists
+  and the fourteen it hides, the same partition R2010 makes 500-odd
+  bits earlier. `display_brightness` is a `BL` where R2010 spends a
+  `BD`, decoding `-50` / `50` / `0` against R2010's `-50.0` / `50.0` /
+  `0.0`; that `BL` is the whole reason `Dim`'s record runs 32 bits
+  longer than its neighbours' and `Brighten`'s 8.
+- **Cross-file value corroboration.** Twelve `BS` slots, all five
+  `CMC`s and both remaining `BD`s decode the same value as the *same
+  style* on `arc_2010.dwg`, on all 24 records — `edge_modifier`
+  `0`/`8`/`10`/`11`/`12`, `edge_silhouette_width` `3`/`5`/`6`,
+  `edge_obscured_linetype` `2` on `Hidden`, `7` on `Linepattern`,
+  `edge_crease_angle` `40`/`179`/`1`, `ColorChange`'s grey
+  `0xC2808080` and `Shaded`'s `0xC2787878` silhouette included.
+  `face_opacity` and `face_specular` are **signed** on R2004: their
+  magnitudes match R2010 everywhere, and the sign tracks whether the
+  property applies to the style.
+- **One 13-bit run is declared, not invented.** Between
+  `edge_silhouette_width` and `edge_intersection_linetype` sit 13 bits
+  that are constant on every one of the 72 records, so only their total
+  width is evidence. The module reads them as `RC BS B BS`, names the
+  last three for the three R2010 properties that occupy the same
+  position (all zero), and surfaces the leading byte as
+  `AcadVisualStyle::edge_unknown_byte`.
+- **R2007 stays declined and the reason is upstream.** The container
+  parse is `Deferred` for `AC1021` and the split-stream trailer is
+  located from a leading `MC` field only R2010+ writes, so no R2007
+  object of any type reaches a decoder. `decode_object` returns
+  `Error::Unsupported` there rather than shipping an unmeasured
+  reading, and the dispatcher maps that to `Unhandled` — #48 stays open
+  for that band.
+
+Measured coverage on the local 19-file corpus, before → after:
+
+| Version | Decoded | Skipped | Errored | Ratio |
+|---|---|---|---|---|
+| R2004 (AC1018) | 510 → 582 | 87 → 15 | 0 → 0 | 85.4 % → **97.5 %** |
+| R2010 (AC1024) | 531 → 531 | 12 → 12 | 0 → 0 | 97.8 % → **97.8 %** |
+| R2013 (AC1027) | 384 → 384 | 12 → 12 | 0 → 0 | 97.0 % → **97.0 %** |
+| R2018 (AC1032) | 762 → 762 | 80 → 80 | 0 → 0 | 90.5 % → **90.5 %** |
+| **Aggregate** | **2187 → 2259** | **191 → 119** | **0 → 0** | 92.0 % → **95.0 %** |
+
+(Re-measured on `main` after #67 (ACIS record) with this change merged: R2018 765 / 77 / 0 / 90.9 %, aggregate **2262 / 116 / 0 / 95.1 %**.)
+
 ### Added — MLINESTYLE (§20.4.73) and three style classes the spec does not prescribe (2026-08-30, closes #55)
 
 `MLINESTYLE`, `MLEADERSTYLE`, `ACDBDETAILVIEWSTYLE` and
