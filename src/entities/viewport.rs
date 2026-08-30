@@ -22,6 +22,23 @@
 //! BD   width
 //! BD   height
 //! ```
+//!
+//! # Measured: this prefix is a quarter of the record
+//!
+//! Since #63 every entity decoder is held to the record's own
+//! data-stream boundary, and VIEWPORT is the type that most visibly
+//! fails it. All six VIEWPORT records of `sample_AC1032.dwg` (handles
+//! `0x240`, `0x245`, `0x252`, `0x256`, `0x267`, `0x26B`) have an
+//! identical 1125-bit data-field budget; the five fields above consume
+//! 266 of them and stop, so each record reports `delta -819`.
+//!
+//! That is deliberate. The alternative — leaving VIEWPORT outside the
+//! check — is what made its zero error count structural rather than
+//! evidential, which is the whole point of #63. Six records that all
+//! spend exactly 1125 bits give the next pass a fixed budget to fill,
+//! but they are six copies of one shape: with no variation between
+//! them there is nothing to separate one candidate token sequence from
+//! another, so no field list is guessed here.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, read_bd3};

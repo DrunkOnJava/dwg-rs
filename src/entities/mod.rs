@@ -19,6 +19,9 @@
 //! | MLINE          | [`mline`]         | §19.4.71     |
 //! | POLYFACE_MESH  | [`polyface_mesh`] | §19.4.29     |
 //! | POLYGON_MESH   | [`polygon_mesh`]  | §19.4.30     |
+//! | POLYLINE_3D    | [`polyline`]      | §19.4.46     |
+//! | VERTEX_*       | [`vertex`]        | §19.4.55-59  |
+//! | SEQEND         | [`seqend`]        | §19.4.6      |
 //! | IMAGE          | [`image`]         | §19.4.35     |
 //! | IMAGEDEF       | [`imagedef`]      | §19.5.26     |
 //! | PROXY ENTITY   | [`proxy_entity_passthrough`] | §19.4.91 |
@@ -89,6 +92,7 @@ pub mod proxy_entity_passthrough;
 pub mod ray;
 pub mod region;
 pub mod revolved_surface;
+pub mod seqend;
 pub mod solid;
 pub mod spline;
 pub mod sun;

@@ -572,6 +572,40 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         DecodedEntity::Viewport(_) => {
             println!("[{i}] VIEWPORT (stub)");
         }
+        DecodedEntity::SeqEnd(_) => {
+            println!("[{i}] SEQEND");
+        }
+        DecodedEntity::VertexPoint(v) => {
+            println!(
+                "[{i}] VERTEX  flag=0x{:02X} location=({:.6}, {:.6}, {:.6})",
+                v.flag, v.location.x, v.location.y, v.location.z
+            );
+        }
+        DecodedEntity::VertexPfaceFace(f) => {
+            println!("[{i}] VERTEX_PFACE_FACE  indices={:?}", f.vertex_indices);
+        }
+        DecodedEntity::Polyline3d(p) => {
+            println!(
+                "[{i}] POLYLINE_3D  flags={:?} owned={:?}",
+                p.flags, p.num_owned_objects
+            );
+        }
+        DecodedEntity::PolyfaceMesh(m) => {
+            println!(
+                "[{i}] POLYLINE_PFACE  vertices={} faces={} owned={:?}",
+                m.vertex_count, m.face_count, m.num_owned_objects
+            );
+        }
+        DecodedEntity::MLine(m) => {
+            println!(
+                "[{i}] MLINE  scale={:.6} justification={:?} lines={} vertices={} flags={}",
+                m.scale_factor,
+                m.justification,
+                m.num_lines,
+                m.vertices.len(),
+                m.open_closed_flags
+            );
+        }
         DecodedEntity::Unhandled { type_code, kind } => {
             println!("[{i}] UNHANDLED  type_code=0x{type_code:04X} kind={kind:?}");
         }

@@ -51,14 +51,28 @@
 //! `0x343` mesh reads `(1, 60)` correctly but the list then walks off
 //! its own budget.
 //!
-//! ## The three bits this decoder does not read
+//! ## The two bits this decoder does not read — MESH does not close
 //!
 //! After the last crease both records leave exactly **3 bits** before
-//! the data/handle-stream boundary, and both hold `100`. That is
-//! consistent with a trailing `BL` of 0 followed by one bit of byte
-//! padding, but two records that both encode zero cannot distinguish a
-//! `BL` from a `BS` from two spare bits, so this decoder stops at the
-//! last crease and the offsets are recorded here instead of guessed.
+//! the handle stream, and both hold `100`. The last of those three is
+//! the §19.1 *strings present* trailer flag, which is not one of the
+//! record's own fields, so what MESH actually leaves unread is the
+//! two-bit run `10` in front of it.
+//!
+//! `10` is the zero/default code of a `BS`, a `BL` and a `BD` alike, so
+//! two records that both encode zero there cannot say which field it
+//! is — or whether it is a field at all. Under the evidence rule this
+//! crate holds itself to (delta 0 *with* a corroborating value, or
+//! documented offsets and stop) a zero corroborates nothing, so this
+//! decoder still stops at the last crease.
+//!
+//! The consequence, since #63 wired MESH through the exact-boundary
+//! check like every other entity: **both corpus MESH records report an
+//! error with `delta -2`** rather than returning a struct that only
+//! looks complete. That is the honest state — the geometry above is
+//! right (the Euler characteristics prove it), the last two bits are
+//! not identified, and one file cannot identify them. A record whose
+//! trailing value is non-zero would settle it immediately.
 //!
 //! Every claimed count is capped against both a hard ceiling and
 //! [`BitCursor::remaining_bits`], the defensive pattern from

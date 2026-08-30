@@ -26,6 +26,55 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::{Vec3D, read_be, read_bt};
 use crate::error::Result;
+use crate::version::Version;
+
+/// POLYLINE_3D (§19.4.46) — the 3D polyline header.
+///
+/// Unlike [`Polyline`] (the 2D form) it carries no widths, thickness,
+/// elevation or extrusion; the geometry lives entirely in the
+/// `VERTEX_3D` sub-entities the record owns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Polyline3d {
+    /// The two flag bytes, kept verbatim so a writer can re-emit them.
+    pub flags: [u8; 2],
+    /// R2004+ owned-object count — the `VERTEX_3D` sub-entities
+    /// reachable through this record's handle stream. `None` before
+    /// R2004, where the field is absent.
+    pub num_owned_objects: Option<u32>,
+}
+
+/// Decode a POLYLINE_3D header from a cursor parked past the common
+/// entity preamble.
+///
+/// # Stream shape — measured
+///
+/// ```text
+/// RC   flags_1
+/// RC   flags_2
+/// BL   num_owned_objects   -- R2004+ only
+/// ```
+///
+/// The one POLYLINE_3D record of `sample_AC1032.dwg` (handle `0x42B`)
+/// has a 26-bit data-field budget, and this list lands on it exactly
+/// (`delta 0`, `examples/probe_entity_field_list.rs`). Its owned-object
+/// count decodes to **5**, and the five records that immediately follow
+/// it in the object stream — handles `0x42C`..`0x430` — are exactly
+/// five `VERTEX_3D` sub-entities, closed by a SEQEND at `0x431`. The
+/// `BL` is the same R2004+ owned-object count
+/// [`crate::tables::block_record`] reads; `BS` cannot be separated from
+/// `BL` at a value of 5, so only the width and the value are claimed.
+pub fn decode_3d(c: &mut BitCursor<'_>, version: Version) -> Result<Polyline3d> {
+    let flags = [c.read_rc()?, c.read_rc()?];
+    let num_owned_objects = if version.is_r2004_plus() {
+        Some(c.read_bl()? as u32)
+    } else {
+        None
+    };
+    Ok(Polyline3d {
+        flags,
+        num_owned_objects,
+    })
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Polyline {
@@ -94,6 +143,37 @@ mod tests {
         assert!(p.is_closed());
         assert!(!p.is_3d());
         assert_eq!(p.thickness, 0.0);
+    }
+
+    /// The measured POLYLINE_3D shape: two zero flag bytes and an
+    /// owned-object count of 5, in exactly 26 bits.
+    #[test]
+    fn roundtrip_measured_polyline_3d() {
+        let mut w = BitWriter::new();
+        w.write_rc(0);
+        w.write_rc(0);
+        w.write_bl(5);
+        assert_eq!(w.position_bits(), 26);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let p = decode_3d(&mut c, Version::R2018).unwrap();
+        assert_eq!(p.flags, [0, 0]);
+        assert_eq!(p.num_owned_objects, Some(5));
+        assert_eq!(c.position_bits(), 26);
+    }
+
+    /// Before R2004 the owned-object count is absent.
+    #[test]
+    fn polyline_3d_has_no_owned_count_before_r2004() {
+        let mut w = BitWriter::new();
+        w.write_rc(0x08);
+        w.write_rc(0x00);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let p = decode_3d(&mut c, Version::R2000).unwrap();
+        assert_eq!(p.flags, [0x08, 0x00]);
+        assert_eq!(p.num_owned_objects, None);
+        assert_eq!(c.position_bits(), 16);
     }
 
     #[test]
