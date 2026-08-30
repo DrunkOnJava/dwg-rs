@@ -22,9 +22,9 @@
 //! --throughput bytes` shows this as MiB/s in the CLI output.
 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use std::hint::black_box;
 use dwg::file_writer::WriterScaffold;
 use dwg::version::Version;
+use std::hint::black_box;
 
 fn make_alternating(n: usize) -> Vec<u8> {
     (0..n).map(|i| (i & 0xFF) as u8).collect()

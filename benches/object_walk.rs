@@ -32,9 +32,9 @@
 //! silently, matching the `tests/corpus_roundtrip.rs` convention.
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use std::hint::black_box;
 use dwg::DwgFile;
 use std::fs;
+use std::hint::black_box;
 use std::path::PathBuf;
 
 fn samples_dir() -> PathBuf {
