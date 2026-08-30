@@ -9,29 +9,60 @@
 //! Pre-R2010 files never emit this entity; older versions are treated
 //! as [`crate::error::Error::Unsupported`].
 //!
-//! # Stream shape (R2010+, L4-34)
+//! # Stream shape (R2010+) — measured
 //!
 //! ```text
-//! BS   version             -- 0 or 1 (encoding variant)
+//! BS   version             -- 2 on both measured records
 //! B    blend_crease        -- whether creases are blended at corners
 //! BS   subdivision_level   -- smoothing steps applied at render time
 //! BS   vertex_count        -- control-cage vertices
 //! BD3  × vertex_count      -- vertex positions (world coords)
-//! BL   face_count          -- faces in the control cage
-//! (per face)
+//! BL   face_list_size      -- number of BL entries in the face list,
+//!                             NOT the number of faces
+//! (repeated until face_list_size entries are consumed)
 //!   BL face_vertex_count   -- 3 for tri, 4 for quad, >4 for n-gon
 //!   BL × face_vertex_count -- vertex indices into the positions array
 //! BL   edge_count
 //! (per edge)
-//!   BS start_index         -- vertex index
-//!   BS end_index           -- vertex index
-//! BD   × edge_count        -- crease values (0.0 = smooth)
+//!   BL start_index         -- vertex index
+//!   BL end_index           -- vertex index
+//! BL   crease_count
+//! BD   × crease_count      -- crease values (0.0 = smooth)
 //! ```
 //!
-//! The cross-field-count stream (a single `BL face_count` followed by
-//! per-face counts) reuses the defensive pattern from
-//! [`crate::entities::lwpolyline::decode`]: every claimed count is capped against both a
-//! hard ceiling and [`BitCursor::remaining_bits`].
+//! ## What the bytes say
+//!
+//! `sample_AC1032.dwg` (R2018) holds two decodable MESH records. Read
+//! with the count above as a *face* count, the second face-vertex count
+//! comes out as 132 / 128 and the parse dies; read as a flat entry
+//! count the two records close on themselves exactly:
+//!
+//! | handle | verts | face-list entries | faces | edges | creases | V − E + F |
+//! |--------|-------|-------------------|-------|-------|---------|-----------|
+//! | `0x343` | 62   | 336               | 72    | 132   | 132     | 2         |
+//! | `0x380` | 64   | 320               | 64    | 128   | 128     | 0         |
+//!
+//! The Euler characteristics (2 = closed surface, 0 = one-handle torus)
+//! are the independent check that the face and edge lists were read at
+//! the right offsets, and every face index and edge endpoint is below
+//! the vertex count — which [`decode`] enforces.
+//!
+//! Edge endpoints are `BL`, not `BS`: with `BS` the first pair of the
+//! `0x343` mesh reads `(1, 60)` correctly but the list then walks off
+//! its own budget.
+//!
+//! ## The three bits this decoder does not read
+//!
+//! After the last crease both records leave exactly **3 bits** before
+//! the data/handle-stream boundary, and both hold `100`. That is
+//! consistent with a trailing `BL` of 0 followed by one bit of byte
+//! padding, but two records that both encode zero cannot distinguish a
+//! `BL` from a `BS` from two spare bits, so this decoder stops at the
+//! last crease and the offsets are recorded here instead of guessed.
+//!
+//! Every claimed count is capped against both a hard ceiling and
+//! [`BitCursor::remaining_bits`], the defensive pattern from
+//! [`crate::entities::lwpolyline::decode`].
 //!
 //! # Version gating
 //!
@@ -50,9 +81,10 @@ use crate::version::Version;
 // against observed vertex / face / edge counts in real subdivision meshes.
 // ========================================================================
 const CAP_VERTICES: usize = 1_000_000;
-const CAP_FACES: usize = 1_000_000;
+const CAP_FACE_LIST: usize = 8_000_000;
 const CAP_FACE_VERTICES: usize = 64;
 const CAP_EDGES: usize = 4_000_000;
+const CAP_CREASES: usize = 4_000_000;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Mesh {
@@ -68,10 +100,22 @@ pub struct Mesh {
     /// One entry per face; each entry is a list of vertex indices.
     pub faces: Vec<Vec<u32>>,
     /// Edge endpoints as `(start_vertex_index, end_vertex_index)` pairs.
-    pub edges: Vec<(u16, u16)>,
+    pub edges: Vec<(u32, u32)>,
     /// Crease value per edge — 0.0 = smooth, >0.0 = sharpened at that
     /// subdivision step count.
     pub creases: Vec<f64>,
+}
+
+/// Every face and edge index addresses the vertex array. A parse that
+/// has drifted produces indices far past its end, so this is the
+/// decoder's cheapest self-check — it fires long before the counts do.
+fn check_index(index: u32, num_vertices: usize, what: &'static str) -> Result<u32> {
+    if index as usize >= num_vertices {
+        return Err(Error::SectionMap(format!(
+            "MESH {what} index {index} is outside the {num_vertices}-vertex cage"
+        )));
+    }
+    Ok(index)
 }
 
 fn bounds_check(n: usize, field: &'static str, cap: usize, remaining_bits: usize) -> Result<()> {
@@ -115,10 +159,18 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Mesh> {
         vertices.push(read_bd3(c)?);
     }
 
-    let num_faces = c.read_bl_u()? as usize;
-    bounds_check(num_faces, "face_count", CAP_FACES, c.remaining_bits())?;
-    let mut faces = Vec::with_capacity(num_faces);
-    for _ in 0..num_faces {
+    // Measured: this count is the *length of the face list in `BL`
+    // entries*, not a face count. See the module docs.
+    let face_list_size = c.read_bl_u()? as usize;
+    bounds_check(
+        face_list_size,
+        "face_list_size",
+        CAP_FACE_LIST,
+        c.remaining_bits(),
+    )?;
+    let mut faces: Vec<Vec<u32>> = Vec::new();
+    let mut consumed = 0usize;
+    while consumed < face_list_size {
         let fvc = c.read_bl_u()? as usize;
         bounds_check(
             fvc,
@@ -126,10 +178,18 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Mesh> {
             CAP_FACE_VERTICES,
             c.remaining_bits(),
         )?;
+        consumed += 1;
+        if consumed + fvc > face_list_size {
+            return Err(Error::SectionMap(format!(
+                "MESH face of {fvc} vertices overruns the {face_list_size}-entry \
+                 face list ({consumed} entries already read)"
+            )));
+        }
         let mut vs = Vec::with_capacity(fvc);
         for _ in 0..fvc {
-            vs.push(c.read_bl_u()?);
+            vs.push(check_index(c.read_bl_u()?, num_vertices, "face vertex")?);
         }
+        consumed += fvc;
         faces.push(vs);
     }
 
@@ -137,16 +197,18 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Mesh> {
     bounds_check(num_edges, "edge_count", CAP_EDGES, c.remaining_bits())?;
     let mut edges = Vec::with_capacity(num_edges);
     for _ in 0..num_edges {
-        let a = c.read_bs_u()?;
-        let b = c.read_bs_u()?;
+        let a = check_index(c.read_bl_u()?, num_vertices, "edge start")?;
+        let b = check_index(c.read_bl_u()?, num_vertices, "edge end")?;
         edges.push((a, b));
     }
 
-    // One crease per edge. ODA §19.4.66 states the crease array's length
-    // equals edge_count; enforcing that here keeps mis-sized streams
-    // from silently succeeding.
-    let mut creases = Vec::with_capacity(num_edges);
-    for _ in 0..num_edges {
+    // Measured: the crease array carries its own `BL` count, which
+    // equalled `edge_count` on both records of `sample_AC1032.dwg` but
+    // is read rather than assumed.
+    let num_creases = c.read_bl_u()? as usize;
+    bounds_check(num_creases, "crease_count", CAP_CREASES, c.remaining_bits())?;
+    let mut creases = Vec::with_capacity(num_creases);
+    for _ in 0..num_creases {
         creases.push(c.read_bd()?);
     }
 
@@ -182,7 +244,7 @@ mod tests {
         hdr: &MeshHeader,
         vertices: &[Point3D],
         faces: &[&[u32]],
-        edges: &[(u16, u16)],
+        edges: &[(u32, u32)],
         creases: &[f64],
     ) {
         w.write_bs_u(hdr.version);
@@ -194,7 +256,10 @@ mod tests {
             w.write_bd(v.y);
             w.write_bd(v.z);
         }
-        w.write_bl(faces.len() as i32);
+        // The face list is sized in BL entries: one count per face plus
+        // that face's indices.
+        let face_list_size: usize = faces.iter().map(|f| 1 + f.len()).sum();
+        w.write_bl(face_list_size as i32);
         for f in faces {
             w.write_bl(f.len() as i32);
             for &i in *f {
@@ -203,9 +268,10 @@ mod tests {
         }
         w.write_bl(edges.len() as i32);
         for &(a, b) in edges {
-            w.write_bs_u(a);
-            w.write_bs_u(b);
+            w.write_bl_u(a);
+            w.write_bl_u(b);
         }
+        w.write_bl(creases.len() as i32);
         for &c in creases {
             w.write_bd(c);
         }
@@ -240,7 +306,7 @@ mod tests {
         ];
         let face_a: &[u32] = &[0, 1, 2];
         let face_b: &[u32] = &[0, 2, 3];
-        let edges = [(0u16, 1u16), (1, 2), (2, 0), (2, 3), (3, 0)];
+        let edges = [(0u32, 1u32), (1, 2), (2, 0), (2, 3), (3, 0)];
         let creases = [0.0f64, 0.0, 1.0, 0.0, 0.0];
         write_mesh(
             &mut w,
@@ -298,7 +364,7 @@ mod tests {
             },
         ];
         let face: &[u32] = &[0, 1, 2];
-        let edges = [(0u16, 1u16), (1, 2), (2, 0)];
+        let edges = [(0u32, 1u32), (1, 2), (2, 0)];
         let creases = [0.5f64, 0.0, 0.25];
         write_mesh(
             &mut w,
@@ -345,20 +411,20 @@ mod tests {
     }
 
     #[test]
-    fn rejects_oversized_face_count() {
+    fn rejects_oversized_face_list_size() {
         let mut w = BitWriter::new();
         // Version + blend + subdivision_level + vertex_count(0)
         w.write_bs_u(0);
         w.write_b(false);
         w.write_bs_u(0);
         w.write_bs_u(0);
-        // face_count far beyond CAP_FACES
-        w.write_bl(2_000_000);
+        // face_list_size far beyond CAP_FACE_LIST
+        w.write_bl(20_000_000);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let err = decode(&mut c, Version::R2010).unwrap_err();
         assert!(
-            matches!(&err, Error::SectionMap(msg) if msg.contains("face_count")),
+            matches!(&err, Error::SectionMap(msg) if msg.contains("face_list_size")),
             "err={err:?}"
         );
     }

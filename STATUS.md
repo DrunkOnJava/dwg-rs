@@ -12,9 +12,9 @@ scrolling the changelog.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 1,751 decoded / 484 skipped /
-  46 errored / 76.8% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 533 / 166 / 46 / 71.5%, and it
+- **Current real-file decode coverage:** 1,755 decoded / 487 skipped /
+  39 errored / 76.9% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 537 / 169 / 39 / 72.1%, and it
   is the only file with any errors — the R2004, R2010 and R2013
   samples all decode with zero.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
@@ -198,10 +198,38 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 1751 decoded,
-  484 skipped, 46 errored, 76.8% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 1755 decoded,
+  487 skipped, 39 errored, 76.9% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
+
+- **#42 R2007+ custom-class entity preamble — closed.** The
+  graphics-preview block that follows a set `graphics present` flag is
+  sized by a `BLL` (§2.4) from R2010 on, not the `RL` used up to R2007,
+  and the `BLL` byte-count prefix is three raw bits. AutoCAD writes
+  proxy graphics for classes it does not implement natively, so that
+  flag is set on exactly the custom-class entities and clear on
+  LINE / TEXT / MTEXT — which is why the whole failure population looked
+  class-shaped. Nothing about the class record changes the preamble.
+  Measured on `sample_AC1032.dwg`: IMAGE `0x662` and WIPEOUT `0x44D`
+  carry 140-byte previews (`001` + `8C`), MULTILEADER `0x66E` 848 bytes
+  (`010` + `50 03`), MESH `0x343` 9512 bytes. All 20 preamble failures
+  are gone; the ten MULTILEADER errors are now MLEADER *body* failures
+  (#31).
+
+- **#44 CUSTOM(727) — not a type-code bug.** The three records read
+  `tag = 01` + `0xE7` + `0x1F0` = 727, which is exactly what the byte
+  says. They are not objects: handle `0x1607` decodes a handle field
+  with `counter = 11` (an 11-byte handle value), handle `0x15E6`
+  decodes `code 9 counter 0 value 0`, and their `MS` sizes (29,927 /
+  23,087 bytes) are inconsistent with their `MC` handle-stream sizes
+  (14,220 / 687 bits). Two more handle-map entries show the same
+  signature (`0x13E2` → CUSTOM(517), `0x13E7` → CUSTOM(564)), and six
+  handle-map offsets already point past the end of the assembled
+  section: the map addresses up to byte 1,289,590 while
+  `AcDb:AcDbObjects` assembles to 1,192,851 bytes, its own declared
+  size. The defect is in the handle-map / section-assembly address
+  space (#43), not in `read_object_type`.
 
 - **#33 remaining non-entity objects.** DICTIONARY, DICTIONARYVAR,
   XRECORD, ACDB_PLACEHOLDER, the ten `*_CONTROL` owners, ACAD_GROUP and

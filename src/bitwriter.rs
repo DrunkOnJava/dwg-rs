@@ -96,42 +96,29 @@ impl BitWriter {
         self.write_bits(v as u64, 2);
     }
 
-    /// 3B per spec §2.1 (as interpreted by [`crate::bitcursor::BitCursor::read_3b`]).
+    /// 3B per spec §2.1 (as measured by [`crate::bitcursor::BitCursor::read_3b`]).
     ///
-    /// The reader accumulates bits MSB-first, shifting into a `u8`,
-    /// stopping early on a 0-bit or after 3 bits. That produces a
-    /// closed set of four representable values:
-    ///
-    /// | bits | value |
-    /// |------|-------|
-    /// | `0`   | 0 |
-    /// | `10`  | 2 |
-    /// | `110` | 6 |
-    /// | `111` | 7 |
-    ///
-    /// Returns [`Error::Invalid3B`] for any value outside that set —
-    /// this is the preferred fallible API. [`write_3b`](Self::write_3b)
-    /// is kept as a convenience wrapper that `.expect`s the result for
-    /// call sites that have statically validated the input.
+    /// Three raw bits, MSB first, so every value `0..=7` is
+    /// representable in a fixed width. Returns [`Error::Invalid3B`] for
+    /// anything larger — this is the preferred fallible API.
+    /// [`write_3b`](Self::write_3b) is kept as a convenience wrapper
+    /// that `.expect`s the result for call sites that have statically
+    /// validated the input.
     pub fn try_write_3b(&mut self, v: u8) -> Result<()> {
-        match v {
-            0 => self.write_bits(0b0, 1),
-            2 => self.write_bits(0b10, 2),
-            6 => self.write_bits(0b110, 3),
-            7 => self.write_bits(0b111, 3),
-            _ => return Err(Error::Invalid3B { value: v }),
+        if v > 7 {
+            return Err(Error::Invalid3B { value: v });
         }
+        self.write_bits(v as u64, 3);
         Ok(())
     }
 
     /// Convenience wrapper around [`try_write_3b`](Self::try_write_3b)
     /// that panics on invalid input. Prefer the fallible form at any
-    /// call site where the value is not statically one of `{0, 2, 6, 7}`.
+    /// call site where the value is not statically in `0..=7`.
     ///
     /// # Panics
     ///
-    /// Panics with [`Error::Invalid3B`] formatting when `v` is outside
-    /// the representable set.
+    /// Panics with [`Error::Invalid3B`] formatting when `v > 7`.
     pub fn write_3b(&mut self, v: u8) {
         self.try_write_3b(v).expect("invalid 3B value");
     }
@@ -183,19 +170,19 @@ impl BitWriter {
         self.write_bl(v as i32);
     }
 
-    /// BLL (R24+) per spec §2.4: a 3B prefix-coded length followed by
-    /// that many little-endian data bytes.
+    /// BLL (R24+) per spec §2.4: a 3B byte count followed by that many
+    /// little-endian data bytes.
     ///
-    /// Because 3B can only represent lengths `{0, 2, 6, 7}` (spec §2.1,
-    /// prefix code), the writer must choose the smallest representable
-    /// length that fits the value. Encoding layout:
+    /// The count is three raw bits, so it spans `0..=7` and the writer
+    /// emits the exact number of bytes the value needs:
     ///
-    /// | range of `v`              | length | payload bytes | total bits (incl. prefix) |
-    /// |---------------------------|--------|---------------|---------------------------|
-    /// | `0`                       | 0      | 0             | 1                         |
-    /// | `1..=0xFFFF`              | 2      | 2             | 18                        |
-    /// | `0x10000..=0xFFFF_FFFF_FFFF` | 6    | 6             | 51                        |
-    /// | `0x1_0000_0000_0000..=(1<<56)-1` | 7 | 7           | 59                        |
+    /// | range of `v`                     | length | total bits (incl. prefix) |
+    /// |----------------------------------|--------|---------------------------|
+    /// | `0`                              | 0      | 3                         |
+    /// | `1..=0xFF`                       | 1      | 11                        |
+    /// | `0x100..=0xFFFF`                 | 2      | 19                        |
+    /// | …                                | …      | …                         |
+    /// | `0x1_0000_0000_0000..=(1<<56)-1` | 7      | 59                        |
     ///
     /// Values requiring more than 56 bits (`v >= 1 << 56`) return
     /// [`Error::BllOverflow`] — the encoding cannot represent them.
@@ -205,12 +192,8 @@ impl BitWriter {
         } else {
             ((64 - v.leading_zeros()) as usize).div_ceil(8)
         };
-        // Round up to the nearest representable prefix-coded length.
         let len: u8 = match byte_count {
-            0 => 0,
-            1 | 2 => 2,
-            3..=6 => 6,
-            7 => 7,
+            0..=7 => byte_count as u8,
             _ => return Err(Error::BllOverflow { value: v }),
         };
         self.try_write_3b(len)?;
@@ -516,11 +499,11 @@ mod tests {
         assert_eq!(c.read_mc().unwrap(), i64::MAX);
     }
 
-    /// `try_write_3b` returns `Err(Error::Invalid3B)` for values
-    /// outside `{0, 2, 6, 7}` instead of panicking.
+    /// `try_write_3b` returns `Err(Error::Invalid3B)` for values above
+    /// `7` instead of panicking.
     #[test]
     fn try_write_3b_rejects_invalid_values() {
-        for bad in [1u8, 3, 4, 5, 8, 15, 255] {
+        for bad in [8u8, 9, 15, 128, 255] {
             let mut w = BitWriter::new();
             let err = w.try_write_3b(bad).unwrap_err();
             assert!(
@@ -532,17 +515,14 @@ mod tests {
 
     #[test]
     fn try_write_3b_accepts_representable_values() {
-        for good in [0u8, 2, 6, 7] {
+        for good in 0u8..=7 {
             let mut w = BitWriter::new();
             assert!(w.try_write_3b(good).is_ok(), "good={good}");
         }
     }
 
     /// BLL must round-trip across the full byte-length spectrum the
-    /// prefix code can represent. The encoder upgrades counts of
-    /// `{1, 3, 4, 5, 7, 8}` bytes to the next larger representable
-    /// length, padding the value with zeros — the reader reconstructs
-    /// the original integer either way.
+    /// three-bit count can represent (0..=7 bytes).
     #[test]
     fn bll_roundtrip_spans_representable_range() {
         let values: [u64; 11] = [
