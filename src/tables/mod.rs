@@ -24,6 +24,7 @@ pub mod block_record;
 pub mod dimstyle;
 pub mod layer;
 pub mod ltype;
+pub(crate) mod modern;
 pub mod style;
 pub mod ucs;
 pub mod view;

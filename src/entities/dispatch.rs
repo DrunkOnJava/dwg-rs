@@ -436,6 +436,11 @@ fn dispatch_table_entry(
         ObjectType::Ltype => crate::tables::ltype::decode(c, version)
             .map(DecodedEntity::Ltype)
             .map_err(|e| e.to_string()),
+        ObjectType::Style if version.is_r2007_plus() => {
+            crate::tables::style::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::Style)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Style => crate::tables::style::decode(c, version)
             .map(DecodedEntity::Style)
             .map_err(|e| e.to_string()),
