@@ -23,24 +23,24 @@ local `samples/` set:
 
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
-| R14 (AC1014)        | 3 | 426 | 450 | 0 | **48.6 %** |
-| R2000 (AC1015)      | 3 | 534 | 99 | 0 | **84.4 %** |
+| R14 (AC1014)        | 3 | 498 | 378 | 0 | **56.8 %** |
+| R2000 (AC1015)      | 3 | 606 | 27 | 0 | **95.7 %** |
 | R2004 (AC1018)      | 3 | 582 | 15 | 0 | **97.5 %** |
-| R2007 (AC1021)      | 3 | 462 | 96 | 0 | **82.8 %** |
+| R2007 (AC1021)      | 3 | 534 | 24 | 0 | **95.7 %** |
 | R2010 (AC1024)      | 3 | 531 | 12 | 0 | **97.8 %** |
 | R2013 (AC1027)      | 3 | 384 | 12 | 0 | **97.0 %** |
 | R2018 (AC1032)      | 1 | 776 | 57 | 9 | **92.2 %** |
-| **Aggregate** | **19** | **3695** | **741** | **9** | **83.1 %** |
+| **Aggregate** | **19** | **3911** | **525** | **9** | **88.0 %** |
 
 **The aggregate fell from 95.6 % because it now covers nine more
 files.** Until #104/#110 the R14, R2000 and R2007 rows read `n/a` —
 those nine files had no object walk at all, so *none* of their records
 counted toward either column, and the 95.6 % was an average over the
-ten files that did. The three new bands contribute 1422 decoded records
-and zero errors; they also contribute 645 skipped ones, because
-VISUALSTYLE, XRECORD and MATERIAL are as unmatched there as everywhere
-else. Comparing 83.1 % against 95.6 % compares two different corpora;
-the per-version rows are the numbers that mean something.
+ten files that did. The three new bands contribute 1638 decoded records
+and zero errors; they also contribute 429 skipped ones, because
+XRECORD and MATERIAL are as unmatched there as everywhere else.
+Comparing 88.0 % against 95.6 % compares two different corpora; the
+per-version rows are the numbers that mean something.
 
 **Every entity record in the corpus is now checked against its own
 data-stream boundary, and nine of them fail it.** That is an
@@ -343,8 +343,9 @@ Coverage numbers in this README are measured with
 The project needs help, in rough order of impact:
 
 1. **Per-version entity preamble fixes** — figuring out why HATCH boundary paths, INSERT and MLEADER still fail on R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
-2. **VISUALSTYLE on R14 / R2000 / R2007** — 216 records; the R2004
-   flag-less list does not close on them, so a third layout exists.
+2. **XRECORD** — 345 records across the corpus, the largest remaining
+   unhandled class; its `(group code, value)` chain has no self-
+   validating field list yet.
 3. **R14 DIMSTYLE** — §20.4.68 gives R13/R14 their own field order,
    unmeasured.
 4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.

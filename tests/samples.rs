@@ -427,3 +427,172 @@ fn header_paths_are_mutually_exclusive() {
         }
     }
 }
+
+// ================================================================
+// VISUALSTYLE decodes on every release band (dwg-rs#73).
+// ================================================================
+
+/// The 24 built-in visual styles are in **every** corpus file, R14
+/// included, and all 456 records decode against their own data-stream
+/// boundary — the R14 / R2000 band on the flag-less field list with
+/// §2.11's bare-index colours, R2007 on the same list plus its one
+/// extra 2-bit slot, R2010+ on the `(value, flag)` list.
+///
+/// The assertions below are the value corroboration the layouts were
+/// derived from, so they fail if a field list ever slips a slot even
+/// while still landing on the boundary.
+#[test]
+fn every_corpus_file_decodes_its_twenty_four_visual_styles() {
+    let names = [
+        "arc_R14.dwg",
+        "circle_R14.dwg",
+        "line_R14.dwg",
+        "arc_2000.dwg",
+        "circle_2000.dwg",
+        "line_2000.dwg",
+        "arc_2004.dwg",
+        "circle_2004.dwg",
+        "line_2004.dwg",
+        "arc_2007.dwg",
+        "circle_2007.dwg",
+        "line_2007.dwg",
+        "arc_2010.dwg",
+        "circle_2010.dwg",
+        "line_2010.dwg",
+        "arc_2013.dwg",
+        "circle_2013.dwg",
+        "line_2013.dwg",
+        "sample_AC1032.dwg",
+    ];
+    let mut total = 0usize;
+    let mut files = 0usize;
+    for name in names {
+        let Some(file) = open_if_present(name) else {
+            continue;
+        };
+        files += 1;
+        let version = file.version();
+        let (decoded, _) = file
+            .decoded_entities()
+            .unwrap_or_else(|| panic!("{name}: no object walk"))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let styles: Vec<_> = decoded
+            .iter()
+            .filter_map(|d| match d {
+                dwg::entities::DecodedEntity::VisualStyle(v) => Some(v),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(styles.len(), 24, "{name}: VISUALSTYLE records decoded");
+        total += styles.len();
+
+        // The Visual Styles Manager lists ten of the 24 and hides
+        // fourteen; a field list off by one bit cannot reproduce that.
+        let listed = styles.iter().filter(|s| !s.is_internal_use_only).count();
+        assert_eq!(listed, 10, "{name}: internal-use split");
+
+        // A dense per-style enumeration running 0 (`Flat`) … 27
+        // (`Shaded`).
+        let mut types: Vec<i16> = styles.iter().map(|s| s.internal_style_type).collect();
+        types.sort_unstable();
+        types.dedup();
+        assert_eq!(types.len(), 24, "{name}: style types are distinct");
+        assert_eq!(types[0], 0, "{name}: lowest style type");
+        assert_eq!(types[23], 27, "{name}: highest style type");
+
+        let by_name = |want: &str| {
+            styles
+                .iter()
+                .find(|s| s.description == want)
+                .unwrap_or_else(|| panic!("{name}: no {want} style"))
+        };
+
+        // `X-Ray` is the one translucent style; the flag-less bands
+        // carry the same magnitudes with a sign that tracks whether the
+        // property applies, so compare magnitudes.
+        for style in &styles {
+            let want = if style.description == "X-Ray" {
+                0.5
+            } else {
+                0.6
+            };
+            assert!(
+                (style.face_opacity.abs() - want).abs() < 1e-12,
+                "{name}: {} face_opacity {}",
+                style.description,
+                style.face_opacity
+            );
+        }
+
+        // The eighteen `arc_` / `circle_` / `line_` files are one
+        // drawing saved down through six releases, so their style
+        // *content* is comparable band to band. `sample_AC1032.dwg` is
+        // a different drawing whose author edited some of these values
+        // — its `Conceptual` carries a 40-degree crease angle and its
+        // `Dim` no brightness offset — so the content assertions below
+        // apply to the saved-down set only.
+        if name != "sample_AC1032.dwg" {
+            // Crease angles in degrees, on the styles where one is
+            // meaningful.
+            assert!(
+                (by_name("Conceptual").edge_crease_angle - 179.0).abs() < 1e-12,
+                "{name}: Conceptual crease angle"
+            );
+            for want40 in ["Hidden", "Sketchy", "Shades of Gray"] {
+                assert!(
+                    (by_name(want40).edge_crease_angle - 40.0).abs() < 1e-12,
+                    "{name}: {want40} crease angle"
+                );
+            }
+
+            // Brightness: a `BL` up to R2007 and a `BD` from R2010,
+            // the same three values either way.
+            assert!(
+                (by_name("Dim").display_brightness + 50.0).abs() < 1e-12,
+                "{name}: Dim brightness"
+            );
+            assert!(
+                (by_name("Brighten").display_brightness - 50.0).abs() < 1e-12,
+                "{name}: Brighten brightness"
+            );
+            for style in &styles {
+                if !matches!(style.description.as_str(), "Dim" | "Brighten") {
+                    assert_eq!(
+                        style.display_brightness, 0.0,
+                        "{name}: {} brightness",
+                        style.description
+                    );
+                }
+            }
+        }
+
+        // `ColorChange` is the one style with a grey face colour, and
+        // the two colour encodings say the same thing: RGB 0x808080
+        // from R2004, ACI index 8 before it (§2.11).
+        let color_change = by_name("ColorChange");
+        if version.is_r2004_plus() {
+            assert_eq!(color_change.face_mono_color.method(), 0xC2, "{name}");
+            assert_eq!(
+                color_change.face_mono_color.payload(),
+                0x0080_8080,
+                "{name}"
+            );
+        } else {
+            assert_eq!(color_change.face_mono_color.index, 8, "{name}");
+            assert_eq!(color_change.face_mono_color.rgb, 0, "{name}");
+        }
+
+        // R2007 alone writes the extra 2-bit slot, and it is zero on
+        // every record measured.
+        for style in &styles {
+            assert_eq!(
+                style.display_unknown_short, 0,
+                "{name}: {} trailing slot",
+                style.description
+            );
+        }
+    }
+    if files == names.len() {
+        assert_eq!(total, 456, "the corpus holds 456 VISUALSTYLE records");
+    }
+}

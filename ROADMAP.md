@@ -84,8 +84,10 @@ Ship bar:
 
 Remaining under this theme, now that the records are visible:
 
-- [ ] VISUALSTYLE on R14 / R2000 / R2007 — 216 records; a third field
-      list that neither the R2004 nor the R2010+ one matches
+- [x] VISUALSTYLE on R14 / R2000 / R2007 — 216 records; there is no
+      third field list. R14 / R2000 are the R2004 list read with
+      §2.11's pre-R2004 bare-index colours, and R2007 is the R2004 list
+      plus one 2-bit slot (#73)
 - [ ] DIMSTYLE on R14 — §20.4.68 gives R13/R14 their own block order
 - [ ] Password-protected R2007 files (refused, not mis-decoded)
 
