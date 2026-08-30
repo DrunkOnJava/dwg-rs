@@ -1,12 +1,10 @@
 //! LTYPE table entry (ODA Open Design Specification v5.4.1 §19.5.3,
 //! L6-03) — linetype definition (dash/dot/text/shape pattern).
 //!
-//! # Stream shape
+//! # Stream shape (§20.4.58)
 //!
 //! ```text
 //! entry header (TV name + xref bits)
-//! RC     flags                  -- reserved/style flags
-//! RS     used_count             -- reference count kept by AutoCAD
 //! TV     description
 //! BD     pattern_length
 //! RC     alignment              -- always 'A' (0x41) in practice
@@ -14,18 +12,23 @@
 //!
 //! For each dash (0..num_dashes):
 //!   BD   length                 -- positive = dash, negative = gap, 0 = dot
-//!   BS   shape_flag             -- bit 0x02: has text, bit 0x04: has shape
-//!   BD   x_offset
-//!   BD   y_offset
+//!   BS   shape_number           -- index into the shape file, 0 when text
+//!   RD   x_offset
+//!   RD   y_offset
 //!   BD   scale
 //!   BD   rotation               -- radians
-//!   BS   shape_number           -- index into the shape file, 0 when text
-//!   if shape_flag & 0x02:  TV  text
-//!   if shape_flag & 0x04:  H   style_handle (via ODA §2.13)
+//!   BS   shape_flag             -- bit 0x02: has text, bit 0x04: has shape
+//!
+//! R2004 and earlier: 256 bytes of text area (`X 9`)
 //! ```
 //!
-//! Spec §19.5.3 caps `num_dashes` at 256; anything larger is a malformed
-//! or adversarial file.
+//! `num_dashes` is capped at 256; anything larger is a malformed or
+//! adversarial file.
+//!
+//! The `flags` and `used_count` fields on [`LtypeEntry`] are retained
+//! for API compatibility and are always zero: §20.4.58 lists no such
+//! fields, and reading them pushed every pre-R2007 description three
+//! bytes late (see [`decode`]).
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::error::{Error, Result};
@@ -33,7 +36,12 @@ use crate::tables::modern;
 use crate::tables::{TableEntryHeader, read_table_entry_header, read_tv};
 use crate::version::Version;
 
-/// Cap on the number of dash records per LTYPE, per spec §19.5.3.
+/// Size of the §20.4.58 `X 9` text area on R2004 and earlier — a fixed
+/// 256-byte pile of NUL-terminated strings that the complex-dash
+/// 75-group indices point into.
+pub const LTYPE_TEXT_AREA_BYTES: usize = 256;
+
+/// Cap on the number of dash records per LTYPE, per spec §20.4.58.
 pub const MAX_DASHES: usize = 256;
 
 /// Text that follows a shape-carrying dash (SHAPE_FLAG bit 0x02) or
@@ -87,10 +95,41 @@ pub struct LtypeEntry {
 pub type LType = LtypeEntry;
 
 /// Decodes a `LtypeEntry` table entry that follows the common object header.
+///
+/// # Field list (§20.4.58)
+///
+/// ```text
+/// TV   entry name       -- via read_table_entry_header
+/// B    64-flag
+/// BS   xrefindex + 1
+/// B    xdep
+/// TV   description
+/// BD   pattern length
+/// RC   alignment        -- always 'A'
+/// RC   numdashes
+/// repeat numdashes {
+///   BD dash length, BS complex shapecode, RD x-offset, RD y-offset,
+///   BD scale, BD rotation, BS shapeflag
+/// }
+/// R2004 and earlier: 256 bytes of text area
+/// ```
+///
+/// Two departures from an earlier revision, both measured:
+///
+/// - The `RC flags` + `RS used_count` this used to read after the entry
+///   header are not in §20.4.58 and are not in the bytes. They pushed
+///   the description three bytes late, which is why every pre-R2007
+///   `Continuous` record in the corpus reported its description as
+///   `lid line` followed by 200-odd NULs instead of `Solid line` — the
+///   R2007+ split-stream path on the same drawing reads `Solid line`.
+/// - The dash record's field order now matches §20.4.58 and the
+///   R2007+ path in this module, and the `X 9` text area of "R2004 and
+///   earlier" is consumed. With both in place every pre-R2007 LTYPE
+///   record of the corpus lands exactly on its data-stream boundary.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
     let header = read_table_entry_header(c, version)?;
-    let flags = c.read_rc()?;
-    let used_count = c.read_rs()?;
+    let flags = 0u8;
+    let used_count = 0i16;
     let description = read_tv(c, version)?;
     let pattern_length = c.read_bd()?;
     let alignment = c.read_rc()?;
@@ -103,19 +142,12 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
     let mut dashes = Vec::with_capacity(num_dashes);
     for _ in 0..num_dashes {
         let length = c.read_bd()?;
-        let shape_flag = c.read_bs()?;
-        let x_offset = c.read_bd()?;
-        let y_offset = c.read_bd()?;
+        let shape_number = c.read_bs()?;
+        let x_offset = c.read_rd()?;
+        let y_offset = c.read_rd()?;
         let scale = c.read_bd()?;
         let rotation = c.read_bd()?;
-        let shape_number = c.read_bs()?;
-        let text = if shape_flag & 0x02 != 0 {
-            DashText::Inline(read_tv(c, version)?)
-        } else if shape_flag & 0x04 != 0 {
-            DashText::StyleHandle(c.read_handle()?)
-        } else {
-            DashText::None
-        };
+        let shape_flag = c.read_bs()?;
         dashes.push(LtypeDash {
             length,
             shape_flag,
@@ -124,8 +156,16 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
             scale,
             rotation,
             shape_number,
-            text,
+            text: DashText::None,
         });
+    }
+    // §20.4.58 "R2004 and earlier: X 9 — 256 bytes of text area". It is
+    // unconditional on these releases, unlike the R2007+ 512-byte area
+    // which is written only when some dash sets `shapeflag & 0x02`.
+    if !version.is_r2007_plus() {
+        for _ in 0..LTYPE_TEXT_AREA_BYTES {
+            let _ = c.read_rc()?;
+        }
     }
     Ok(LtypeEntry {
         header,
@@ -252,8 +292,6 @@ mod tests {
     fn roundtrip_dashed_ltype() {
         let mut w = BitWriter::new();
         write_header(&mut w, b"DASHED");
-        w.write_rc(0); // flags
-        w.write_rs(0); // used_count
         let desc = b"Dashed ___ __ ";
         w.write_bs_u(desc.len() as u16);
         for b in desc {
@@ -264,12 +302,15 @@ mod tests {
         w.write_rc(3); // 3 dashes
         for (length, shape_flag) in [(0.5_f64, 0i16), (-0.125, 0), (0.125, 0)] {
             w.write_bd(length);
-            w.write_bs(shape_flag);
-            w.write_bd(0.0); // x_offset
-            w.write_bd(0.0); // y_offset
+            w.write_bs(0); // complex shapecode
+            w.write_rd(0.0); // x_offset
+            w.write_rd(0.0); // y_offset
             w.write_bd(1.0); // scale
             w.write_bd(0.0); // rotation
-            w.write_bs(0); // shape_number
+            w.write_bs(shape_flag);
+        }
+        for _ in 0..LTYPE_TEXT_AREA_BYTES {
+            w.write_rc(0);
         }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
@@ -286,30 +327,31 @@ mod tests {
     fn roundtrip_text_dash() {
         let mut w = BitWriter::new();
         write_header(&mut w, b"TEXTLINE");
-        w.write_rc(0);
-        w.write_rs(0);
         w.write_bs_u(0); // empty description
         w.write_bd(1.0);
         w.write_rc(b'A');
         w.write_rc(1);
-        // Dash with text
+        // Dash whose shape flag marks embedded text. §20.4.58 keeps the
+        // characters in the record's 256-byte text area, not inline, so
+        // the dash record itself is the same seven fields as any other.
         w.write_bd(0.25);
-        w.write_bs(0x02); // has text
-        w.write_bd(0.1);
-        w.write_bd(-0.05);
+        w.write_bs(0); // complex shapecode
+        w.write_rd(0.1);
+        w.write_rd(-0.05);
         w.write_bd(0.5);
         w.write_bd(0.0);
-        w.write_bs(0);
-        let t = b"GAS";
-        w.write_bs_u(t.len() as u16);
-        for b in t {
-            w.write_rc(*b);
+        w.write_bs(0x02); // shape flag: has text
+        for _ in 0..LTYPE_TEXT_AREA_BYTES {
+            w.write_rc(0);
         }
+        let end = w.position_bits();
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let l = decode(&mut c, Version::R2000).unwrap();
         assert!(l.dashes[0].has_text());
-        assert!(matches!(&l.dashes[0].text, DashText::Inline(s) if s == "GAS"));
+        assert_eq!(l.dashes[0].x_offset, 0.1);
+        assert_eq!(l.dashes[0].y_offset, -0.05);
+        assert_eq!(c.position_bits(), end);
     }
 
     #[test]

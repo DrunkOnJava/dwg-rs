@@ -190,11 +190,16 @@ impl ObjectWalkSummary {
 impl<'a> ObjectWalker<'a> {
     /// Starts a walker over the object-section bytes for `version`.
     pub fn new(bytes: &'a [u8], version: Version) -> Self {
-        let initial = if bytes.len() >= 4
-            && matches!(
-                version,
-                Version::R2004 | Version::R2010 | Version::R2013 | Version::R2018
-            ) {
+        // R2004+ (R2007 included) prefixes the `AcDb:AcDbObjects` stream
+        // with an `RL` of 0x0dca. Measured: every corpus file from
+        // `arc_2004.dwg` through `sample_AC1032.dwg` opens with the bytes
+        // `CA 0D 00 00`, and so does the decompressed R2007 section —
+        // `line_2007.dwg` starts `CA 0D 00 00 12 00 4C 12 80 …`, where
+        // `12 00` is the first record's `MS` and `4C` its `BS` type code
+        // (0x30 = BLOCK_CONTROL). R13-R15 have no such prefix because
+        // they have no object *section* — the records sit loose in the
+        // file (§3.1) and the object map addresses them absolutely.
+        let initial = if bytes.len() >= 4 && version.is_r2004_plus() {
             4
         } else {
             0
@@ -591,13 +596,17 @@ pub fn body_cursor<'a>(raw: &'a RawObject, version: Version) -> Result<BitCursor
 /// This is the self-validation anchor every split-stream decoder checks
 /// itself against:
 ///
-/// - R2010+ — the start of the object's string stream when it carries
-///   one, otherwise the start of its handle stream (§19.1).
-/// - R2000-R2007 — the `RL` object-data-size-in-bits from the object
-///   prologue, which marks the same boundary inline.
+/// - R2007+ — the start of the object's string stream when it carries
+///   one, otherwise the start of its handle stream minus the one `B`
+///   "strings present" trailer bit (§19.1). On R2007 that boundary is
+///   located from the `RL` below rather than from an `MC`; see
+///   [`crate::string_stream::data_section_end`].
+/// - R2000 / R2004 — the `RL` object-data-size-in-bits from the object
+///   prologue, which marks the same boundary inline (these releases
+///   have no string stream, so data fields run to the handle stream).
 /// - R13/R14 — unknown; returns `None`.
 pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
-    if version.is_r2010_plus() {
+    if version.is_r2007_plus() {
         return crate::string_stream::data_field_end(&raw.raw, version);
     }
     raw.obj_size_bits.map(|b| b as usize)

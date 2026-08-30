@@ -126,16 +126,26 @@ impl R13R15Header {
 
     /// Convert locator records into the generic `Section` list the reader
     /// exposes to callers.
+    ///
+    /// The record numbers carry the meanings §3.2.6 lists, so the sections
+    /// are given the same canonical `AcDb:` names the R2004+ section map
+    /// uses for the same content. That is what lets
+    /// [`crate::reader::DwgFile::read_section`],
+    /// [`crate::reader::DwgFile::handle_map`] and
+    /// [`crate::reader::DwgFile::class_map`] work version-agnostically.
+    /// Records 3 and 5 keep descriptive names: §3.2.6 documents record 3
+    /// only as "a special table (no sentinels)" and says of a sixth record
+    /// that "the meaning of the sixth one is unknown".
     pub fn into_sections(&self) -> Vec<Section> {
         self.locators
             .iter()
             .map(|r| Section {
                 name: match r.number {
-                    0 => "HEADER".to_string(),
-                    1 => "CLASSES".to_string(),
-                    2 => "OBJECT_MAP".to_string(),
-                    3 => "UNKNOWN_C3".to_string(),
-                    4 => "MEASUREMENT".to_string(),
+                    0 => "AcDb:Header".to_string(),
+                    1 => "AcDb:Classes".to_string(),
+                    2 => "AcDb:Handles".to_string(),
+                    3 => "R13C3_UNKNOWN".to_string(),
+                    4 => "AcDb:Template".to_string(),
                     n => format!("RECORD_{n}"),
                 },
                 kind: SectionKind::from_r13_record(r.number),

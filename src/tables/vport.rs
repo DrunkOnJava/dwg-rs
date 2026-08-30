@@ -97,7 +97,13 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
     let view_mode = modern::read_4bits(c)? as i16;
-    let render_mode = c.read_rc()?;
+    // §20.4.64 gates `Render Mode RC 281` on R2000+; R13/R14 go
+    // straight from the view mode to the lower-left corner.
+    let render_mode = if matches!(version, Version::R14) {
+        0
+    } else {
+        c.read_rc()?
+    };
     let lower_left = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
@@ -127,13 +133,21 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let _unknown = c.read_b()?;
-    let ucs_per_vport = c.read_b()?;
-    let _ucs_origin = read_bd3(c)?;
-    let _ucs_x_direction = read_bd3(c)?;
-    let _ucs_y_direction = read_bd3(c)?;
-    let _ucs_elevation = c.read_bd()?;
-    let _ucs_ortho_view_type = c.read_bs()?;
+    // §20.4.64 gates the whole per-viewport UCS block on R2000+ as
+    // well. Reading it on R14 walked the `*Active` record off the end
+    // of its payload with one bit to spare.
+    let ucs_per_vport = if matches!(version, Version::R14) {
+        false
+    } else {
+        let _unknown = c.read_b()?;
+        let ucs_per_vport = c.read_b()?;
+        let _ucs_origin = read_bd3(c)?;
+        let _ucs_x_direction = read_bd3(c)?;
+        let _ucs_y_direction = read_bd3(c)?;
+        let _ucs_elevation = c.read_bd()?;
+        let _ucs_ortho_view_type = c.read_bs()?;
+        ucs_per_vport
+    };
     Ok(VportEntry {
         header,
         view_height,
@@ -247,7 +261,13 @@ pub(crate) fn decode_modern_split_stream(
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
     let view_mode = modern::read_4bits(c)? as i16;
-    let render_mode = c.read_rc()?;
+    // §20.4.64 gates `Render Mode RC 281` on R2000+; R13/R14 go
+    // straight from the view mode to the lower-left corner.
+    let render_mode = if matches!(version, Version::R14) {
+        0
+    } else {
+        c.read_rc()?
+    };
     let _use_default_lights = c.read_b()?;
     let _default_lighting_type = c.read_rc()?;
     let _brightness = c.read_bd()?;

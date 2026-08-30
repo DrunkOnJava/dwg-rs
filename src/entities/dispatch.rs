@@ -670,8 +670,10 @@ fn dispatch_object_class(
         // handle 14 and `arc_2013.dwg` handle 14, both of which close
         // on their boundary with the DICTIONARY body.
         "ACDBDICTIONARYWDFLT" | "ACDBDICTIONARYWITHDEFAULT" => {
-            crate::objects::dictionary::decode_object(payload, body_start, inline_end, version)
-                .map(DecodedEntity::Dictionary)
+            crate::objects::dictionary::decode_object_with_default(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::Dictionary)
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
@@ -907,13 +909,30 @@ fn dispatch_table_entry(
     kind: ObjectType,
     version: Version,
 ) -> DecodedEntity {
+    // The bit at which a pre-R2007 table entry's data fields must end:
+    // the `RL` object-data-size the record itself records. R2000-R2007
+    // put it in the object prologue (the walker reads it into
+    // `RawObject::obj_size_bits`); R13/R14 put it inside the common
+    // object data, so it is only knowable once that has been consumed
+    // (§20.1). Checking against it turns a wrong field list into an
+    // error instead of a plausible-looking struct — the same posture
+    // the R2007+ split-stream decoders already take.
+    let mut inline_data_end: Option<usize> = None;
     if !version.is_r2007_plus() {
-        if let Err(e) = crate::common_entity::read_common_object_data(c, version) {
-            return DecodedEntity::Error {
-                type_code,
-                kind,
-                message: format!("common object data: {e}"),
-            };
+        match crate::common_entity::read_common_object_data_full(c, version) {
+            Ok(common) => {
+                inline_data_end = common
+                    .data_end_bits
+                    .or(raw.obj_size_bits)
+                    .map(|b| b as usize);
+            }
+            Err(e) => {
+                return DecodedEntity::Error {
+                    type_code,
+                    kind,
+                    message: format!("common object data: {e}"),
+                };
+            }
         }
     }
     let result: core::result::Result<DecodedEntity, String> = match kind {
@@ -989,7 +1008,15 @@ fn dispatch_table_entry(
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string())
         }
-        ObjectType::DimStyle => crate::tables::dimstyle::decode_partial(c, version)
+        // R13/R14 lay the dimension variables out in a different order
+        // and with different widths from R2000+ (§20.4.68 gives them
+        // their own block), and that order has not been matched against
+        // bytes; the record is reported unhandled rather than decoded
+        // from a list that cannot close.
+        ObjectType::DimStyle if matches!(version, Version::R14) => {
+            return DecodedEntity::Unhandled { type_code, kind };
+        }
+        ObjectType::DimStyle => crate::tables::dimstyle::decode_r2000_inline(c, version)
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string()),
         ObjectType::BlockHeader if version.is_r2007_plus() => {
@@ -1007,7 +1034,24 @@ fn dispatch_table_entry(
         _ => return DecodedEntity::Unhandled { type_code, kind },
     };
     match result {
-        Ok(decoded) => decoded,
+        Ok(decoded) => {
+            if let Some(end) = inline_data_end {
+                let at = c.position_bits();
+                if at != end {
+                    return DecodedEntity::Error {
+                        type_code,
+                        kind,
+                        message: format!(
+                            "{} data fields ended at bit {at}, data stream ends at {end} \
+                             (delta {})",
+                            kind.short_label(),
+                            at as isize - end as isize
+                        ),
+                    };
+                }
+            }
+            decoded
+        }
         Err(message) => DecodedEntity::Error {
             type_code,
             kind,
@@ -1045,7 +1089,7 @@ fn dispatch(
 
     // Dispatch on fixed type code.
     let result: std::result::Result<DecodedEntity, String> = match type_code {
-        OBJECT_TYPE_LINE => line::decode(cursor)
+        OBJECT_TYPE_LINE => line::decode_versioned(cursor, version)
             .map(DecodedEntity::Line)
             .map_err(|e| e.to_string()),
         OBJECT_TYPE_POINT => point::decode(cursor)

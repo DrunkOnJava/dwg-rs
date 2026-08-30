@@ -95,8 +95,21 @@ fn read_body(
             "DICTIONARY claims {num_items} items (>{MAX_DICTIONARY_ITEMS} sanity cap)"
         )));
     }
-    let cloning_flag = c.read_bs()?;
-    let hard_owner_flag = c.read_rc()?;
+    // §20.4.44 splits the two bytes after `Numitems` by release: R14
+    // writes one `RC` glossed "Unknown R14 byte, has always been 0";
+    // R2000+ write `BS Cloning flag` (DXF 281) + `RC Hard Owner flag`
+    // (DXF 280). Reading the R2000+ pair on R14 overshoots by the width
+    // of the `BS` — 18 bits on the R14 corpus, whose cloning value would
+    // have to take the `00` tag — and every one of the 73 DICTIONARY
+    // records per R14 file missed its data-stream boundary by exactly
+    // that.
+    let (cloning_flag, hard_owner_flag) = if matches!(version, Version::R14) {
+        let _unknown_r14 = c.read_rc()?;
+        (0i16, 0u8)
+    } else {
+        let cloning = c.read_bs()?;
+        (cloning, c.read_rc()?)
+    };
     let mut keys = Vec::with_capacity(num_items.min(1024));
     for _ in 0..num_items {
         keys.push(modern::read_tv(c, strings, version)?);
@@ -125,10 +138,85 @@ pub(crate) fn decode_object(
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<Dictionary> {
+    decode_object_inner(payload, body_start, inline_data_end, version, false)
+}
+
+/// Decode an `ACDBDICTIONARYWDFLT` (§20.4.45 — "same as the DICTIONARY
+/// object" plus a default-entry handle).
+///
+/// From R2000 on the extra field is a handle, so it costs no data-stream
+/// bits and the record shares DICTIONARY's field list exactly. On R13/R14
+/// it costs **one extra `TV`**.
+///
+/// # Measured
+///
+/// Handle `0xE` of `line_R14.dwg`, `arc_R14.dwg` and `circle_R14.dwg`
+/// (class 500, `ACDBDICTIONARYWDFLT`) declares `numitems = 1` and its
+/// `RL` boundary sits at bit 172. Reading one name leaves the cursor at
+/// bit 106; reading two lands on 172 exactly. The two names are `""`
+/// and `"Normal"` — and `"Normal"` is the one item, because that is the
+/// plot-style name this dictionary holds in every other release of the
+/// same drawing. So the empty slot precedes the item list.
+///
+/// Every one of the 73 plain DICTIONARY records in the same files reads
+/// exactly `numitems` names and closes on its own boundary, which is
+/// what makes the extra slot attributable to this class rather than to
+/// R14 dictionaries in general. One record type across three files is
+/// thin evidence for what the slot *means*, so it is consumed and not
+/// named.
+pub(crate) fn decode_object_with_default(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<Dictionary> {
+    decode_object_inner(
+        payload,
+        body_start,
+        inline_data_end,
+        version,
+        matches!(version, Version::R14),
+    )
+}
+
+fn decode_object_inner(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+    leading_extra_tv: bool,
+) -> Result<Dictionary> {
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
-    let out = read_body(&mut split.data, &mut split.strings, version)?;
+    let num_items = split.data.read_bl()? as usize;
+    if num_items > MAX_DICTIONARY_ITEMS {
+        return Err(Error::SectionMap(format!(
+            "DICTIONARY claims {num_items} items (>{MAX_DICTIONARY_ITEMS} sanity cap)"
+        )));
+    }
+    let (cloning_flag, hard_owner_flag) = if matches!(version, Version::R14) {
+        let _unknown_r14 = split.data.read_rc()?;
+        (0i16, 0u8)
+    } else {
+        let cloning = split.data.read_bs()?;
+        (cloning, split.data.read_rc()?)
+    };
+    if leading_extra_tv {
+        let _default_slot = modern::read_tv(&mut split.data, &mut split.strings, version)?;
+    }
+    let mut keys = Vec::with_capacity(num_items.min(1024));
+    for _ in 0..num_items {
+        keys.push(modern::read_tv(
+            &mut split.data,
+            &mut split.strings,
+            version,
+        )?);
+    }
     split.finish("DICTIONARY")?;
-    Ok(out)
+    Ok(Dictionary {
+        cloning_flag,
+        hard_owner: hard_owner_flag != 0,
+        keys,
+    })
 }
 
 #[cfg(test)]

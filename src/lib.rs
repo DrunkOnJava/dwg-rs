@@ -55,7 +55,8 @@
 //! - [`tables`] — symbol-table entries (LAYER, LTYPE, STYLE, VIEW, UCS,
 //!   VPORT, APPID, DIMSTYLE, BLOCK_RECORD)
 //! - [`objects`] — DICTIONARY / XRECORD / `*_CONTROL`
-//! - [`r2007`] — R2007-specific Sec_Mask two-layer obfuscation (layer 1 done)
+//! - [`r2007`] / [`r21_lz`] — R2007 (`AC1021`) container: file header,
+//!   page map, section map (spec §5.1-§5.4) and its own LZ variant (§5.10)
 //! - [`file_writer`] — scaffolded inverse of [`reader::DwgFile`]
 //! - [`graph`] — Phase 5 handle-driven traversal helpers (owner / reactor
 //!   chains, layer / linetype / style / dimstyle resolution)
@@ -128,6 +129,7 @@ pub mod object_type;
 pub mod objects;
 pub mod python_stubs;
 pub mod r2007;
+pub mod r21_lz;
 pub mod reader;
 pub mod reed_solomon;
 pub mod reed_solomon_encode;
