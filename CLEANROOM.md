@@ -130,6 +130,19 @@ it contributed vocabulary only. ODA spec v5.4.1 has no VISUALSTYLE or MATERIAL
 section; the `§19.6.9` / `§19.6.10` citations previously in this tree were
 withdrawn in the same PR.
 
+The PR for #48 extends `VISUALSTYLE` to the R2004 band and needs **no
+new outside vocabulary at all**. Its field list was derived from bytes
+the same way — the one token sequence that lands all 24 records of each
+of `arc_2004.dwg`, `circle_2004.dwg` and `line_2004.dwg` exactly on
+their `RL` object-data-size boundary — and every name on it is carried
+over from the R2010 list disclosed above, justified slot by slot
+against the value the *same style* decodes on `arc_2010.dwg`. The one
+slot with no R2010 counterpart is labelled `edge_unknown_byte`, and the
+13-bit run it leads is documented as a run whose internal boundaries
+the corpus cannot separate rather than being split into invented
+fields. R2007 is declined outright: no `AC1021` object reaches a
+decoder in this crate, so nothing is claimed about that band.
+
 ## 2026-08-30 — LAYOUT / PLOTSETTINGS field names (ODA spec §20.4.84)
 
 PR for #50 replaces the LAYOUT and PLOTSETTINGS field lists. Unlike

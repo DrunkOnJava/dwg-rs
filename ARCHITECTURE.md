@@ -487,12 +487,59 @@ cargo run --release --example probe_field_list -- \
     samples/arc_2010.dwg 42 BS,BS,B,BS,BS,BD,BD
 ```
 
-R2004 and R2007 VISUALSTYLE records store the same styles *without* the
-per-property flags and with a different property count; no sequence
-over the same token set lands their 24 records on their `RL`
-object-data-size boundary, so `objects::acad_visual_style` returns
-`Error::Unsupported` for those bands rather than guessing, and the
-dispatcher maps that to `Unhandled`.
+### 7d.1a The same object one generation earlier — VISUALSTYLE on R2004
+
+R2004 stores the same 24 styles *without* the per-property flags, with
+one fewer property and in a visibly different order, so the R2010 list
+misses its `RL` object-data-size boundary by hundreds of bits. Deriving
+the earlier list needed two things the R2010 pass did not: an anchor at
+each end of the record, and a second file to cross-check values
+against.
+
+Both ends were anchored from the record's own redundancy. At the front,
+`examples/probe_token_scan.rs` reports the self-identifying tokens —
+full-form `BD`s that decode to short decimals, `CMC`s whose true-colour
+word carries a real method octet — and the first three of those pin
+`face_opacity`, `face_specular` and `face_mono_color`. At the back, a
+reverse scan for the *unique* offset at which `BS, BL, BS, B` lands
+exactly on the boundary returns one position per record, and its four
+values reproduce R2010's `edge_style_apply` (`1` / `5` / `13`),
+`display_shadow_type` (`0`) and `is_internal_use_only` — the last of
+which splits the 24 styles into the ten AutoCAD's Visual Styles Manager
+lists and the fourteen it hides. That is the discovery that the
+flag-less generation moved `is_internal_use_only` from the record's
+head to its **final bit**, and that `display_brightness` is a `BL`
+there where R2010 spends a `BD`: `Dim` decodes `-50`, `Brighten` `50`,
+the other 22 records `0`, against R2010's `-50.0` / `50.0` / `0.0`, and
+that `BL` is the entire reason `Dim`'s record is 32 bits longer than
+its neighbours' and `Brighten`'s 8.
+
+With both ends fixed, the middle closes as `arc_2010.dwg`'s field
+values, in `arc_2004.dwg`'s order — 30 fields, delta 0 on all 24
+records of each of the three `*_2004.dwg` files. Twelve `BS` slots,
+all five `CMC`s and both remaining `BD`s reproduce R2010's decoded
+value for the *same style* on all 24 records, including the ones that
+vary style by style (`edge_modifier` `0`/`8`/`10`/`11`/`12`,
+`edge_silhouette_width` `3`/`5`/`6`, `edge_obscured_linetype` `2` on
+`Hidden`, `7` on `Linepattern`). Two slots differ informatively rather
+than worryingly: `face_opacity` and `face_specular` are **signed** on
+R2004, their magnitudes agreeing with R2010 on all 24 while the sign
+tracks whether the property applies to the style.
+
+One 13-bit run — between `edge_silhouette_width` and
+`edge_intersection_linetype` — is constant on all 72 records, so its
+internal boundaries cannot be measured, only its width. The module
+documents that explicitly, names the three properties R2010 places
+there (all of which decode zero), and surfaces the run's leading byte
+as `edge_unknown_byte` rather than inventing a name for it.
+
+R2007 stays undecoded, and not for want of a field list: the container
+parse returns `SectionMapStatus::Deferred` for `AC1021` and
+`string_stream::data_section_end` locates the split-stream trailer from
+a leading `MC` field only R2010+ writes, so no R2007 object of any type
+reaches a decoder. `objects::acad_visual_style` returns
+`Error::Unsupported` for that band and the dispatcher maps it to
+`Unhandled`.
 
 ### 7d.2 Checking a field list the spec *does* carry — LAYOUT
 

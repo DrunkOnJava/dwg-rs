@@ -1,5 +1,5 @@
 //! ACAD_VISUALSTYLE object — named display style (face lighting model,
-//! edge rendering, silhouette, shadows). R2010+ only.
+//! edge rendering, silhouette, shadows). R2004 and newer.
 //!
 //! # There is no spec prescription for this object
 //!
@@ -11,7 +11,7 @@
 //! section exists.) Everything below was therefore derived by measuring
 //! real records against the boundary the format itself provides.
 //!
-//! # The wire shape — measured
+//! # The wire shape — measured, R2010 and newer
 //!
 //! ```text
 //! TV   description                  -- from the string stream on R2007+
@@ -99,18 +99,146 @@
 //! not independently corroborated by this crate. Treat them as labels
 //! for slots whose layout is proven, not as verified semantics.
 //!
+//! # The wire shape — measured, R2004 (the flag-less generation)
+//!
+//! `arc_2004.dwg` stores the same 24 shipped styles with **no**
+//! per-property flags, one fewer property, and a visibly different
+//! order. This is the list that lands all 24 records of each of
+//! `arc_2004.dwg`, `circle_2004.dwg` and `line_2004.dwg` exactly on
+//! their `RL` object-data-size boundary — 72 records, delta 0:
+//!
+//! ```text
+//! TV   description                  -- inline on R2004, string stream on R2007
+//! BS   internal_style_type          BS  face_lighting_model
+//! BS   face_lighting_quality        BS  face_color_mode
+//! BD   face_opacity                 BD  face_specular
+//! CMC  face_mono_color              BS  face_modifier
+//! BS   edge_model                   BS  edge_style
+//! CMC  edge_intersection_color      CMC edge_obscured_color
+//! BS   edge_obscured_linetype       BD  edge_crease_angle
+//! BS   edge_modifier                CMC edge_color
+//! BD   edge_opacity                 BS  edge_width
+//! BS   edge_overhang                BS  edge_jitter
+//! CMC  edge_silhouette_color        BS  edge_silhouette_width
+//! RC   edge_unknown_byte            BS  edge_halo_gap
+//! B    edge_hide_precision          BS  edge_isoline_count
+//! BS   edge_intersection_linetype   BS  edge_style_apply
+//! BL   display_brightness           BS  display_shadow_type
+//! B    is_internal_use_only
+//! ```
+//!
+//! Three slots of the R2010 head are gone or moved: there is no
+//! `format_version` at all, `face_modifier` sits after
+//! `face_mono_color` rather than before `face_opacity`, and
+//! `is_internal_use_only` is the record's **last bit** rather than part
+//! of its head.
+//!
+//! # Why the R2004 list is not a guess either
+//!
+//! The same boundary rule arbitrates it — the record's `RL`
+//! object-data-size from the object prologue — and every slot but two
+//! is cross-checked against the value the *same style* decodes on
+//! `arc_2010.dwg`, where the layout is independently proven:
+//!
+//! - `internal_style_type` agrees on all 24 (`0` `Flat` … `27`
+//!   `Shaded`);
+//! - `face_lighting_model`, `face_color_mode`, `face_modifier`,
+//!   `edge_model`, `edge_style`, `edge_modifier`, `edge_width`,
+//!   `edge_overhang`, `edge_jitter`, `edge_silhouette_width`,
+//!   `edge_style_apply` and `display_shadow_type` agree on all 24 —
+//!   including the values that vary style by style: `edge_modifier`
+//!   `8`/`0`/`10`/`11`/`12`, `edge_silhouette_width` `3`/`5`/`6`,
+//!   `edge_style_apply` `1`/`5`/`13`;
+//! - all five `CMC`s agree on all 24, `ColorChange`'s grey
+//!   `0xC2808080` face and edge colours and `Shaded`'s `0xC2787878`
+//!   silhouette included;
+//! - `edge_crease_angle` agrees on all 24: `40` on `Hidden`,
+//!   `Shades of Gray` and `Sketchy`, `179` on `Conceptual`, `1`
+//!   elsewhere;
+//! - `edge_obscured_linetype` agrees on all 24 (`2` on `Hidden` and
+//!   `Shaded with edges`, `7` on `Linepattern`, `1` elsewhere) and so
+//!   does `edge_intersection_linetype` (`7` on `Linepattern`, `1`
+//!   elsewhere) — the pair that pins the two ends of the trailing run;
+//! - `is_internal_use_only`, the record's final bit, splits the 24
+//!   styles into exactly the ten AutoCAD's Visual Styles Manager lists
+//!   and the fourteen it hides, the same partition R2010 produces from
+//!   a bit 500-odd positions earlier.
+//!
+//! The two slots that do not agree literally are informative rather
+//! than worrying:
+//!
+//! - `display_brightness` is a **`BL`** here where R2010 spends a `BD`,
+//!   and it decodes `-50`, `50` and `0` against R2010's `-50.0`, `50.0`
+//!   and `0.0` — `Dim`, `Brighten` and the other 22. The `BL` is also
+//!   what explains the corpus's bit budgets: `Dim` spends 32 more bits
+//!   than its neighbours (full `BL` vs the `0` form) and `Brighten` 8
+//!   more (byte `BL`), and nothing else in the record varies between
+//!   those three styles.
+//! - `face_opacity` and `face_specular` are **signed** here where
+//!   R2010's are not. Their magnitudes agree with R2010 on all 24
+//!   records; the sign tracks whether the property applies to the
+//!   style. `face_specular` is positive on exactly the seven styles
+//!   that shade faces (`Flat`, `FlatWithEdges`, `Gouraud`,
+//!   `GouraudWithEdges`, `Realistic`, `Shaded`, `Shaded with edges`)
+//!   and negative on the other seventeen; `face_opacity` is positive on
+//!   exactly `X-Ray`, the one translucent style, and negative on the
+//!   other twenty-three. The values are surfaced as measured, sign
+//!   included.
+//!
+//! One further value differs for content rather than layout reasons:
+//! `Realistic` decodes `face_lighting_quality` `2` on R2004 and `3` on
+//! R2010. Every other field of that record agrees, so this is the style
+//! being clamped when it is saved down, not a mis-read field.
+//!
+//! ## What the R2004 list does *not* determine
+//!
+//! Thirteen bits sit between `edge_silhouette_width` and
+//! `edge_intersection_linetype`, and they hold the constant
+//! `0b0_0000_0001_0010` on **every one of the 72 corpus records**. A
+//! run that never varies cannot have its internal boundaries measured,
+//! and several token splits fit it. This module reads it as `RC` `BS`
+//! `B` `BS` — the only fit whose first token is a whole byte — and names
+//! the last three for the three properties R2010 places in exactly this
+//! position, all of which decode `0`, `false` and `0` there on the same
+//! 24 styles. The leading byte has no R2010 counterpart and is
+//! surfaced as [`AcadVisualStyle::edge_unknown_byte`] rather than given
+//! a plausible-sounding name. Only the run's **total width** and its
+//! constant contents are evidence; the boundaries inside it are a
+//! reading, and a future R2004 file with a non-default halo gap or
+//! isoline count would settle them.
+//!
+//! # Naming
+//!
+//! The field **types, widths and order** above are measured. The
+//! **names** follow the conventional `AcDbVisualStyle` property
+//! ordering; the face group is corroborated by the decoded values as
+//! described above, the edge and display groups are positional and are
+//! not independently corroborated by this crate. Treat them as labels
+//! for slots whose layout is proven, not as verified semantics.
+//!
 //! # Versions
 //!
 //! | Release | Status |
 //! |---|---|
-//! | R2010 | 28 properties — closes on all 24 records of `arc_2010.dwg` |
+//! | R2000 and earlier | `CMC` has no true-colour word; [`Error::Unsupported`] |
+//! | R2004 | 30 flag-less fields — closes on all 72 records of the three `*_2004.dwg` files |
+//! | R2007 | not measurable — [`Error::Unsupported`]; see below |
+//! | R2010 | 28 `(value, flag)` properties — closes on all 24 records of `arc_2010.dwg` |
 //! | R2013 / R2018 | 58 properties — closes on all 24 records of `arc_2013.dwg` and all 24 of `sample_AC1032.dwg` |
-//! | R2004 / R2007 | layout differs and is **not** determined; [`Error::Unsupported`] |
 //!
-//! `arc_2004.dwg` stores the same styles without the per-property flags
-//! and with a different property count; no token sequence over
-//! `BS/BD/CMC/B` lands its 24 records on their `RL` object-data-size
-//! boundary, so this module declines that band rather than guessing.
+//! **R2007 stays declined, and not because of this object.** Two
+//! upstream gaps stand between an `AC1021` file and any decoder:
+//! the container parse returns `SectionMapStatus::Deferred` for R2007
+//! (the second Sec_Mask obfuscation layer is not implemented), and
+//! `crate::string_stream::data_section_end` locates the split-stream
+//! trailer from the leading `MC` handle-stream size that only R2010 and
+//! newer write, so it declines R2007 outright. No R2007 object of any
+//! type therefore reaches this module, the corpus cannot say whether
+//! R2007 writes the flag-less list or the paired one, and this module
+//! returns [`Error::Unsupported`] rather than shipping a reading no
+//! byte has ever confirmed. The 24 VISUALSTYLE records in each of
+//! `arc_2007.dwg`, `circle_2007.dwg` and `line_2007.dwg` are invisible
+//! to `examples/coverage_report.rs` for the same reason.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -171,7 +299,8 @@ pub struct AcadVisualStyle {
     pub description: String,
     /// Dense per-style enumeration, `0` (`Flat`) … `27` (`Shaded`).
     pub internal_style_type: i16,
-    /// `2` in every record measured.
+    /// `2` in every R2010+ record measured. The R2004 layout has no
+    /// such field, and leaves this `0`.
     pub format_version: i16,
     /// Set on the styles AutoCAD does not offer in the UI.
     pub is_internal_use_only: bool,
@@ -219,6 +348,11 @@ pub struct AcadVisualStyle {
     pub edge_silhouette_color: VisualStyleColor,
     /// Edge property (positional name): silhouette width.
     pub edge_silhouette_width: i16,
+    /// R2004 only: the leading byte of the constant 13-bit run between
+    /// `edge_silhouette_width` and `edge_intersection_linetype`. `0` on
+    /// every corpus record, with no R2010 counterpart — see the module
+    /// docs. Always `0` on R2010 and newer, which have no such slot.
+    pub edge_unknown_byte: u8,
     /// Edge property (positional name): halo gap.
     pub edge_halo_gap: i16,
     /// Edge property (positional name): isoline count.
@@ -227,7 +361,8 @@ pub struct AcadVisualStyle {
     pub edge_hide_precision: bool,
     /// Edge property (positional name): style-apply bits.
     pub edge_style_apply: i16,
-    /// Display property (positional name): brightness.
+    /// Display property (positional name): brightness. A `BD` on
+    /// R2010+ and a whole-number `BL` on R2004, widened here.
     pub display_brightness: f64,
     /// Display property (positional name): shadow type.
     pub display_shadow_type: i16,
@@ -355,22 +490,146 @@ const R2013_TAIL: [TailKind; 30] = [
 /// taking its `TV` fields from the R2007+ string stream and checking
 /// that the data fields end exactly on the data-stream boundary.
 ///
-/// Returns [`Error::Unsupported`] for R2007 and earlier, whose layout
-/// this crate has not matched against real bytes.
+/// R2004 uses the flag-less field list, R2010 and newer the
+/// `(value, flag)` one. Returns [`Error::Unsupported`] for R2007 and
+/// earlier — see the module docs for why neither band can be measured.
 pub fn decode_object(
     payload: &[u8],
     body_start: usize,
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<AcadVisualStyle> {
-    if !version.is_r2010_plus() {
-        return Err(Error::Unsupported {
+    match version {
+        Version::R2004 => decode_legacy(payload, body_start, inline_data_end, version),
+        _ if version.is_r2010_plus() => {
+            decode_paired(payload, body_start, inline_data_end, version)
+        }
+        _ => Err(Error::Unsupported {
             feature: format!(
-                "ACAD_VISUALSTYLE layout is only determined for R2010 or newer; got {}",
+                "ACAD_VISUALSTYLE layout is determined for R2004 and R2010 or newer; got {}",
                 version.release()
             ),
-        });
+        }),
     }
+}
+
+/// Read one `CMC` outside the `(value, flag)` reader.
+fn read_color(c: &mut BitCursor<'_>) -> Result<VisualStyleColor> {
+    let (index, rgb, color_byte) = crate::tables::modern::read_cmc_full(c)?;
+    Ok(VisualStyleColor {
+        index,
+        rgb,
+        color_byte,
+    })
+}
+
+/// The R2004 field list — 30 fields, no per-property flags.
+fn decode_legacy(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<AcadVisualStyle> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let description = modern::read_tv(&mut split.data, &mut split.strings, version)?;
+    let c = &mut split.data;
+    let internal_style_type = c.read_bs()?;
+    let face_lighting_model = c.read_bs()?;
+    let face_lighting_quality = c.read_bs()?;
+    let face_color_mode = c.read_bs()?;
+    let face_opacity = c.read_bd()?;
+    let face_specular = c.read_bd()?;
+    let face_mono_color = read_color(c)?;
+    let face_modifier = c.read_bs()?;
+    let edge_model = c.read_bs()?;
+    let edge_style = c.read_bs()?;
+    let edge_intersection_color = read_color(c)?;
+    let edge_obscured_color = read_color(c)?;
+    let edge_obscured_linetype = c.read_bs()?;
+    let edge_crease_angle = c.read_bd()?;
+    let edge_modifier = c.read_bs()?;
+    let edge_color = read_color(c)?;
+    let edge_opacity = c.read_bd()?;
+    let edge_width = c.read_bs()?;
+    let edge_overhang = c.read_bs()?;
+    let edge_jitter = c.read_bs()?;
+    let edge_silhouette_color = read_color(c)?;
+    let edge_silhouette_width = c.read_bs()?;
+    // The constant 13-bit run — only its total width is evidence.
+    let edge_unknown_byte = c.read_rc()?;
+    let edge_halo_gap = c.read_bs()?;
+    let edge_hide_precision = c.read_b()?;
+    let edge_isoline_count = c.read_bs()?;
+    let edge_intersection_linetype = c.read_bs()?;
+    let edge_style_apply = c.read_bs()?;
+    let display_brightness = f64::from(c.read_bl()?);
+    let display_shadow_type = c.read_bs()?;
+    let is_internal_use_only = c.read_b()?;
+
+    split.finish("VISUALSTYLE")?;
+
+    Ok(AcadVisualStyle {
+        description,
+        internal_style_type,
+        format_version: 0,
+        is_internal_use_only,
+        face_lighting_model,
+        face_lighting_quality,
+        face_color_mode,
+        face_modifier,
+        face_opacity,
+        face_specular,
+        face_mono_color,
+        edge_model,
+        edge_style,
+        edge_intersection_color,
+        edge_obscured_color,
+        edge_obscured_linetype,
+        edge_intersection_linetype,
+        edge_crease_angle,
+        edge_modifier,
+        edge_color,
+        edge_opacity,
+        edge_width,
+        edge_overhang,
+        edge_jitter,
+        edge_silhouette_color,
+        edge_silhouette_width,
+        edge_unknown_byte,
+        edge_halo_gap,
+        edge_isoline_count,
+        edge_hide_precision,
+        edge_style_apply,
+        display_brightness,
+        display_shadow_type,
+        property_flags: Vec::new(),
+        extended: Vec::new(),
+        trailing_strings: trailing_strings(&mut split),
+    })
+}
+
+/// Drain whatever the record's string stream still holds.
+fn trailing_strings(split: &mut modern::ObjectStream<'_>) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(strings) = split.strings.as_mut() {
+        while !strings.is_exhausted() {
+            match strings.read_tv() {
+                Ok(text) => out.push(text),
+                Err(_) => break,
+            }
+        }
+    }
+    out
+}
+
+/// The R2010+ field list — 28 (R2010) or 58 (R2013+) `(value, flag)`
+/// property pairs behind a three-field head.
+fn decode_paired(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<AcadVisualStyle> {
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
     let description = modern::read_tv(&mut split.data, &mut split.strings, version)?;
     let internal_style_type = split.data.read_bs()?;
@@ -421,15 +680,7 @@ pub fn decode_object(
 
     split.finish("VISUALSTYLE")?;
 
-    let mut trailing_strings = Vec::new();
-    if let Some(strings) = split.strings.as_mut() {
-        while !strings.is_exhausted() {
-            match strings.read_tv() {
-                Ok(text) => trailing_strings.push(text),
-                Err(_) => break,
-            }
-        }
-    }
+    let trailing_strings = trailing_strings(&mut split);
 
     Ok(AcadVisualStyle {
         description,
@@ -458,6 +709,7 @@ pub fn decode_object(
         edge_jitter,
         edge_silhouette_color,
         edge_silhouette_width,
+        edge_unknown_byte: 0,
         edge_halo_gap,
         edge_isoline_count,
         edge_hide_precision,
@@ -586,10 +838,100 @@ mod tests {
         crate::string_stream::tests::build_payload(&bits, &["Flat", "strokes_ogs.tif"])
     }
 
+    /// The R2004 field list: 30 fields, no flags, `is_internal_use_only`
+    /// last. Mirrors the module's measured table.
+    fn write_legacy_properties(w: &mut BitWriter) {
+        w.write_bs(0); // internal_style_type
+        w.write_bs(2); // face_lighting_model
+        w.write_bs(1); // face_lighting_quality
+        w.write_bs(1); // face_color_mode
+        w.write_bd(-0.6); // face_opacity — signed on R2004
+        w.write_bd(30.0); // face_specular
+        cmc(w, 0, 0xC2FF_FFFF, 0); // face_mono_color
+        w.write_bs(2); // face_modifier
+        w.write_bs(0); // edge_model
+        w.write_bs(0); // edge_style
+        cmc(w, 0, 0xC300_0007, 0); // edge_intersection_color
+        cmc(w, 0, 0xC800_0000, 0); // edge_obscured_color
+        w.write_bs(1); // edge_obscured_linetype
+        w.write_bd(1.0); // edge_crease_angle
+        w.write_bs(8); // edge_modifier
+        cmc(w, 0, 0xC300_0007, 0); // edge_color
+        w.write_bd(1.0); // edge_opacity
+        w.write_bs(1); // edge_width
+        w.write_bs(6); // edge_overhang
+        w.write_bs(2); // edge_jitter
+        cmc(w, 0, 0xC300_0007, 0); // edge_silhouette_color
+        w.write_bs(5); // edge_silhouette_width
+        w.write_rc(0); // the constant run's leading byte
+        w.write_bs(0); // edge_halo_gap
+        w.write_b(false); // edge_hide_precision
+        w.write_bs(0); // edge_isoline_count
+        w.write_bs(1); // edge_intersection_linetype
+        w.write_bs(13); // edge_style_apply
+        w.write_bl(-50); // display_brightness — a BL on R2004
+        w.write_bs(0); // display_shadow_type
+        w.write_b(true); // is_internal_use_only
+    }
+
+    /// An R2004 record: inline `TV`, inline layout, `RL`-style boundary.
+    fn build_r2004() -> (Vec<u8>, usize) {
+        let mut body = modern::tests::r2004_object_prefix(1);
+        modern::tests::write_inline_tv(&mut body, "Flat");
+        write_legacy_properties(&mut body);
+        let end = body.position_bits();
+        (body.into_bytes(), end)
+    }
+
     #[test]
-    fn rejects_pre_r2010() {
+    fn rejects_pre_r2004() {
         let payload = build(Version::R2018);
-        let err = decode_object(&payload, 8, None, Version::R2004).unwrap_err();
+        let err = decode_object(&payload, 8, None, Version::R2000).unwrap_err();
+        assert!(
+            matches!(&err, Error::Unsupported { feature } if feature.contains("ACAD_VISUALSTYLE"))
+        );
+    }
+
+    #[test]
+    fn r2004_inline_visual_style_closes_on_its_object_data_size() {
+        let (payload, end) = build_r2004();
+        let style = decode_object(&payload, 0, Some(end), Version::R2004).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        // R2004 has no format_version slot at all.
+        assert_eq!(style.format_version, 0);
+        assert!(style.is_internal_use_only);
+        assert_eq!(style.face_lighting_model, 2);
+        assert!((style.face_opacity + 0.6).abs() < 1e-12);
+        assert!((style.face_specular - 30.0).abs() < 1e-12);
+        assert_eq!(style.face_modifier, 2);
+        assert_eq!(style.face_mono_color.method(), 0xC2);
+        assert_eq!(style.edge_obscured_color.method(), 0xC8);
+        assert_eq!(style.edge_silhouette_width, 5);
+        assert_eq!(style.edge_unknown_byte, 0);
+        assert_eq!(style.edge_intersection_linetype, 1);
+        assert_eq!(style.edge_style_apply, 13);
+        assert!((style.display_brightness + 50.0).abs() < 1e-12);
+        // No per-property flags exist on this release.
+        assert!(style.property_flags.is_empty());
+        assert!(style.extended.is_empty());
+    }
+
+    /// The flag-less body is 28 `BS` flags shorter than the paired one,
+    /// so the boundary check has to reject it under the R2010 list.
+    #[test]
+    fn r2004_body_rejected_by_the_r2010_field_list() {
+        let (payload, end) = build_r2004();
+        assert!(decode_object(&payload, 0, Some(end), Version::R2010).is_err());
+    }
+
+    /// R2007 is declined, and the decline is an `Unsupported` — so a
+    /// dispatched R2007 record lands in the Unhandled bucket rather than
+    /// being reported as a broken record.
+    #[test]
+    fn rejects_r2007() {
+        let (payload, end) = build_r2004();
+        let err = decode_object(&payload, 0, Some(end), Version::R2007).unwrap_err();
         assert!(
             matches!(&err, Error::Unsupported { feature } if feature.contains("ACAD_VISUALSTYLE"))
         );

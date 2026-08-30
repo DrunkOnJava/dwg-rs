@@ -22,7 +22,7 @@
 //! | ACAD_PROPERTYSET_DATA    | [`acad_property_set_data`]| §19.6.11 (L7-07) |
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
-//! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured  |
+//! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, two generations |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
 //! | *_CONTROL                | [`control`]               | §19.5.1..§19.5.10|
 //! | custom-dict entries      | [`custom_dict_entry`]     | §19.5.19 (L7-06) |

@@ -8,6 +8,69 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — VISUALSTYLE on R2004: the flag-less generation (2026-08-30, refs #48)
+
+`VISUALSTYLE` now dispatches on R2004 as well as R2010+, taking all 72
+of its `AC1018` corpus records — the whole of the largest remaining
+`Unhandled` block. R2004 stores the same 24 shipped styles on a
+**second field list**: 30 fields, no `(value, flag)` pairs, one fewer
+property and a different order. It closes with delta 0 on all 24
+records of each of `arc_2004.dwg`, `circle_2004.dwg` and
+`line_2004.dwg`.
+
+- **Both ends of the record are anchored, not assumed.** The front
+  comes from `examples/probe_token_scan.rs` — the full-form `BD`s and
+  method-carrying `CMC`s that cannot survive a one-bit shift. The back
+  comes from a reverse scan for the unique offset at which
+  `BS, BL, BS, B` lands exactly on the `RL` object-data-size boundary;
+  it returns exactly one position per record, and its values reproduce
+  R2010's `edge_style_apply`, `display_shadow_type` and
+  `is_internal_use_only` on all 24.
+- **Two structural findings.** `is_internal_use_only` is the record's
+  **final bit** on R2004, not part of its head — and it splits the 24
+  styles into precisely the ten AutoCAD's Visual Styles Manager lists
+  and the fourteen it hides, the same partition R2010 makes 500-odd
+  bits earlier. `display_brightness` is a `BL` where R2010 spends a
+  `BD`, decoding `-50` / `50` / `0` against R2010's `-50.0` / `50.0` /
+  `0.0`; that `BL` is the whole reason `Dim`'s record runs 32 bits
+  longer than its neighbours' and `Brighten`'s 8.
+- **Cross-file value corroboration.** Twelve `BS` slots, all five
+  `CMC`s and both remaining `BD`s decode the same value as the *same
+  style* on `arc_2010.dwg`, on all 24 records — `edge_modifier`
+  `0`/`8`/`10`/`11`/`12`, `edge_silhouette_width` `3`/`5`/`6`,
+  `edge_obscured_linetype` `2` on `Hidden`, `7` on `Linepattern`,
+  `edge_crease_angle` `40`/`179`/`1`, `ColorChange`'s grey
+  `0xC2808080` and `Shaded`'s `0xC2787878` silhouette included.
+  `face_opacity` and `face_specular` are **signed** on R2004: their
+  magnitudes match R2010 everywhere, and the sign tracks whether the
+  property applies to the style.
+- **One 13-bit run is declared, not invented.** Between
+  `edge_silhouette_width` and `edge_intersection_linetype` sit 13 bits
+  that are constant on every one of the 72 records, so only their total
+  width is evidence. The module reads them as `RC BS B BS`, names the
+  last three for the three R2010 properties that occupy the same
+  position (all zero), and surfaces the leading byte as
+  `AcadVisualStyle::edge_unknown_byte`.
+- **R2007 stays declined and the reason is upstream.** The container
+  parse is `Deferred` for `AC1021` and the split-stream trailer is
+  located from a leading `MC` field only R2010+ writes, so no R2007
+  object of any type reaches a decoder. `decode_object` returns
+  `Error::Unsupported` there rather than shipping an unmeasured
+  reading, and the dispatcher maps that to `Unhandled` — #48 stays open
+  for that band.
+
+Measured coverage on the local 19-file corpus, before → after:
+
+| Version | Decoded | Skipped | Errored | Ratio |
+|---|---|---|---|---|
+| R2004 (AC1018) | 510 → 582 | 87 → 15 | 0 → 0 | 85.4 % → **97.5 %** |
+| R2010 (AC1024) | 531 → 531 | 12 → 12 | 0 → 0 | 97.8 % → **97.8 %** |
+| R2013 (AC1027) | 384 → 384 | 12 → 12 | 0 → 0 | 97.0 % → **97.0 %** |
+| R2018 (AC1032) | 762 → 762 | 80 → 80 | 0 → 0 | 90.5 % → **90.5 %** |
+| **Aggregate** | **2187 → 2259** | **191 → 119** | **0 → 0** | 92.0 % → **95.0 %** |
+
+(Re-measured on `main` after #67 (ACIS record) with this change merged: R2018 765 / 77 / 0 / 90.9 %, aggregate **2262 / 116 / 0 / 95.1 %**.)
+
 ### Added — MLINESTYLE (§20.4.73) and three style classes the spec does not prescribe (2026-08-30, closes #55)
 
 `MLINESTYLE`, `MLEADERSTYLE`, `ACDBDETAILVIEWSTYLE` and
