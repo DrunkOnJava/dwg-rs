@@ -616,3 +616,82 @@ fn sample_ac1032_recovers_modern_attribute_tags() {
             .collect::<Vec<_>>()
     );
 }
+
+/// The three §20.4.41 ACIS records of `sample_AC1032.dwg` — the only
+/// entity records in the corpus that set the R2013+ `has AcDs binary
+/// data` bit, and therefore the ones that arbitrate its width (#54).
+///
+/// Each must decode with:
+///
+/// - `in_data_store` set (the SAB stream is a data-storage record, §24);
+/// - a wireframe point that is real drawing geometry — the three solids
+///   sit in a row at `y ≈ -220`;
+/// - `num_isolines == 4`, AutoCAD's default `ISOLINES` value;
+/// - a 16-byte revision GUID that is a valid RFC-4122 version-4 UUID.
+///
+/// Reaching a `DecodedEntity` variant at all is itself the boundary
+/// assertion: the dispatcher runs these through `checked_inline`, which
+/// errors unless the field list ends exactly on the record's
+/// data-stream boundary. A 16-bit AcDs marker would leave every one of
+/// them 16 bits short.
+#[test]
+fn sample_ac1032_acis_records_close_on_their_boundary() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    assert_eq!(file.version(), Version::R2018);
+
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let mut seen = Vec::new();
+    for entity in &entities {
+        let (label, in_data_store, fields) = match entity {
+            DecodedEntity::ThreeDSolid(solid) => {
+                ("3DSOLID", solid.in_data_store, solid.tail.clone())
+            }
+            DecodedEntity::Region(region) => ("REGION", region.in_data_store, region.tail.clone()),
+            DecodedEntity::Body(body) => ("BODY", body.in_data_store, body.tail.clone()),
+            _ => continue,
+        };
+        let fields = fields.expect("a dispatched ACIS record carries its §20.4.41 fields");
+        assert!(
+            in_data_store,
+            "{label}: every ACIS record of this file sets the AcDs bit"
+        );
+        assert_eq!(
+            fields.num_isolines, 4,
+            "{label}: AutoCAD writes ISOLINES = 4 by default"
+        );
+        assert!(fields.wireframe_present, "{label}: wireframe block present");
+        assert!(fields.acis_empty_2, "{label}: second ACIS-empty bit is 1");
+        let point = fields.point.expect("{label}: point present bit is set");
+        assert!(
+            is_plausible_coord(point.x) && is_plausible_coord(point.y),
+            "{label}: wireframe point {point:?} is not plausible geometry"
+        );
+        assert!(
+            (point.y - -220.0).abs() < 1.0,
+            "{label}: the three ACIS bodies sit in a row at y ≈ -220; got {}",
+            point.y
+        );
+        let guid = fields
+            .revision_guid
+            .expect("{label}: data-store records carry a revision GUID");
+        assert_eq!(
+            guid[6] >> 4,
+            4,
+            "{label}: revision GUID {guid:02X?} is not RFC-4122 version 4"
+        );
+        assert_eq!(
+            guid[8] >> 6,
+            0b10,
+            "{label}: revision GUID {guid:02X?} has the wrong variant bits"
+        );
+        seen.push(label);
+    }
+    seen.sort_unstable();
+    assert_eq!(
+        seen,
+        ["3DSOLID", "3DSOLID", "REGION"],
+        "sample_AC1032.dwg holds exactly two 3DSOLIDs and one REGION"
+    );
+}

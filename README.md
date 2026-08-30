@@ -27,11 +27,11 @@ local `samples/` set:
 | R2004 (AC1018)      | 3 | 510 | 87 | 0 | **85.4 %** |
 | R2010 (AC1024)      | 3 | 531 | 12 | 0 | **97.8 %** |
 | R2013 (AC1027)      | 3 | 384 | 12 | 0 | **97.0 %** |
-| R2018 (AC1032)      | 1 | 762 | 80 | 0 | **90.5 %** |
-| **Aggregate** | **19** | **2187** | **191** | **0** | **92.0 %** |
+| R2018 (AC1032)      | 1 | 765 | 77 | 0 | **90.9 %** |
+| **Aggregate** | **19** | **2190** | **188** | **0** | **92.1 %** |
 
 **Every record of every file in the corpus that reaches a decoder now
-decodes, and none errors.** What is left is the *skipped* column — 191
+decodes, and none errors.** What is left is the *skipped* column — 188
 records of types this crate has no decoder for at all (VISUALSTYLE on
 R2004/R2007, MATERIAL, TABLESTYLE) — not records it reads wrongly.
 
@@ -76,7 +76,7 @@ real bytes yet. Closing those is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 92.0 %, zero errors (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 92.1 %, zero errors (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |

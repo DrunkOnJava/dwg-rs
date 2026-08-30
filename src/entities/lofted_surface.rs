@@ -97,7 +97,7 @@ mod tests {
             &mut w,
             &SatBlob {
                 empty: false,
-                version: 2,
+                version: 1,
                 bytes: b"LOFT".to_vec(),
             },
         );

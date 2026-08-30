@@ -53,7 +53,7 @@
 //! EED chain
 //! BL   num_reactors
 //! B    no_xdictionary_handle   -- R2004+
-//! B    has_ds_binary_data      -- R2013+ (16 further bits when set)
+//! B    has_ds_binary_data      -- R2013+ (no further bits; see below)
 //! ```
 //!
 //! Measured three independent ways on `sample_AC1032.dwg` (R2018),
@@ -80,34 +80,37 @@
 //! determinable from the 16 bits an APPID record spends there, so this
 //! module does not touch the table path.
 //!
-//! # The R2013+ AcDs binary-data flag carries 16 further bits
+//! # The R2013+ AcDs binary-data flag carries no further bits
 //!
 //! The spec's common-object-data table gives only the `B` — "indicates
 //! whether the object has associated binary data in the data store
 //! section" — and stops. It does not say what, if anything, follows
-//! when the bit is set, and no corpus record exercised it until LAYOUT
-//! was dispatched: across `arc_2013.dwg`, `circle_2013.dwg`,
-//! `line_2013.dwg` and `sample_AC1032.dwg`, exactly **four** non-entity
-//! records set the bit, and all four are the LAYOUT records of
-//! `sample_AC1032.dwg` (handles 34, 89, 94, 602). The 327 other
-//! non-entity records of those files clear it.
+//! when the bit is set, and until #61 no record whose field list this
+//! crate closes exercised it on the *entity* side, so the width could
+//! not be measured against a self-validating list. This module read 16
+//! bits there, `tables::modern` read 8 and `common_entity` read 0 —
+//! three readings of one field (#54).
 //!
-//! On all four, the §20.4.84 LAYOUT field list closes on the
-//! string-stream start bit only when **16** bits are consumed after the
-//! flag, and the first of those two bytes is `0x2C` on every one of
-//! them (the second is `0x0B` on the `Model` record and `0x00` on the
-//! three paper layouts). An earlier revision of this module consumed a
-//! single `RC` there — an unvalidated guess that no test or corpus
-//! record reached; 8 bits leaves every LAYOUT record 8 bits short of
-//! its boundary, and 0 bits leaves it 16 short.
+//! Issue #61 settled it. The three ACIS entity records of
+//! `sample_AC1032.dwg` — 3DSOLID `0xD65` / `0xD6A` and REGION `0xD69` —
+//! set the bit, and their §20.4.41 field list
+//! ([`crate::entities::modeler`]) closes on the data-stream boundary
+//! with **zero** bits consumed after the flag. The list is corroborated
+//! four independent ways (three real coordinate triples, `num isolines
+//! = 4` on every record, a valid RFC-4122 version-4 GUID, and the
+//! spec's own grammar for everything else), and it cannot close with a
+//! 16-bit marker: the record would then be 16 bits short and the
+//! wireframe point would decode to nonsense.
 //!
-//! Two readings fit the corpus: the marker is 16 bits wide, or it is
-//! absent and LAYOUT gained two leading bytes in R2018. The first is
-//! taken here because the extra bits appear exactly when the flag is
-//! set and the constant leading `0x2C` reads as data-store bookkeeping
-//! rather than page-setup state — and because the second would require
-//! §20.4.84 to be wrong at its very first field. Nothing in the corpus
-//! separates them outright; a non-LAYOUT record with the bit set would.
+//! So the flag is a flag. The 16 bits four LAYOUT records of the same
+//! file need are LAYOUT's own — a data-store block at the head of its
+//! §20.4.84 field list, moved to
+//! [`crate::objects::acad_layout`] where the evidence for it lives.
+//! (`tables::modern`'s 8-bit `RC` is DIMSTYLE's counterpart; that path
+//! also omits the `BL num_reactors` this one reads, so its bit
+//! accounting is a separate open question and is left alone here.)
+//! Three record types needing three different widths is itself the
+//! argument that the width belongs to the record, not to the flag.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -128,6 +131,11 @@ pub(crate) struct ObjectStream<'a> {
     data_end: Option<usize>,
     /// `BL num_reactors` from the common object data (§19.4.2).
     pub num_reactors: u32,
+    /// R2013+ `has AcDs binary data` bit from the common object data
+    /// (§20.4.2). The bit itself consumes no further bits — see the
+    /// module docs — but a record that sets it may carry a
+    /// data-store block of its own, as LAYOUT does.
+    pub has_ds_binary_data: bool,
 }
 
 /// Read a `TV` from whichever stream actually holds it.
@@ -217,18 +225,23 @@ pub(crate) fn open<'a>(
 
     let mut data = BitCursor::new(payload);
     string_stream::seek(&mut data, body_start)?;
-    let num_reactors = read_common_object_prefix(&mut data, version)?;
+    let (num_reactors, has_ds_binary_data) = read_common_object_prefix(&mut data, version)?;
 
     Ok(ObjectStream {
         data,
         strings,
         data_end,
         num_reactors,
+        has_ds_binary_data,
     })
 }
 
-/// Consume the common object data of §19.4.2 and return the reactor count.
-fn read_common_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<u32> {
+/// Consume the common object data of §19.4.2 and return the reactor
+/// count together with the R2013+ `has AcDs binary data` bit.
+///
+/// The flag consumes **no further bits** — see the module docs for the
+/// three entity records that measure that.
+fn read_common_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<(u32, bool)> {
     for _ in 0..MAX_EED_ITERATIONS {
         let size = c.read_bs_u()? as usize;
         if size == 0 {
@@ -236,15 +249,12 @@ fn read_common_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<
             if version.is_r2004_plus() {
                 let _no_xdictionary = c.read_b()?;
             }
-            if matches!(version, Version::R2013 | Version::R2018) {
-                let has_binary_data = c.read_b()?;
-                if has_binary_data {
-                    // 16 bits, measured — see the module docs.
-                    let _ds_binary_marker = c.read_rc()?;
-                    let _ds_binary_id = c.read_rc()?;
-                }
-            }
-            return Ok(num_reactors);
+            let has_ds_binary_data = if matches!(version, Version::R2013 | Version::R2018) {
+                c.read_b()?
+            } else {
+                false
+            };
+            return Ok((num_reactors, has_ds_binary_data));
         }
         let _appid = c.read_handle()?;
         for _ in 0..size {

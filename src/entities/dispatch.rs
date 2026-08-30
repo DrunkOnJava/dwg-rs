@@ -29,12 +29,13 @@
 //! like HATCH boundary path trees (these remain in the raw bytes).
 
 use crate::bitcursor::BitCursor;
+use crate::common_entity::CommonEntityData;
 use crate::entities::{
-    arc, attdef, attrib, block, camera, circle, dimension, ellipse, endblk, extruded_surface,
+    arc, attdef, attrib, block, body, camera, circle, dimension, ellipse, endblk, extruded_surface,
     geodata, hatch, helix, image, insert, leader, light, line, lofted_surface, lwpolyline, mesh,
-    mleader, mtext, ole2_frame, point, polyface_mesh, polygon_mesh, polyline, ray,
-    revolved_surface, solid, spline, sun, swept_surface, text, three_d_face, tolerance, trace,
-    underlay, vertex, viewport, wipeout, xline,
+    mleader, mtext, ole2_frame, point, polyface_mesh, polygon_mesh, polyline, ray, region,
+    revolved_surface, solid, spline, sun, swept_surface, text, three_d_face, three_d_solid,
+    tolerance, trace, underlay, vertex, viewport, wipeout, xline,
 };
 use crate::error::Result;
 use crate::object::RawObject;
@@ -55,6 +56,12 @@ pub enum DecodedEntity {
     Ray(ray::Ray),
     XLine(xline::XLine),
     Solid(solid::Solid),
+    /// 3DSOLID (§20.4.41) — an ACIS solid body.
+    ThreeDSolid(three_d_solid::ThreeDSolid),
+    /// REGION (§20.4.41) — an ACIS planar bounded face.
+    Region(region::Region),
+    /// BODY (§20.4.41) — a generic ACIS body.
+    Body(body::Body),
     Trace(trace::Trace),
     ThreeDFace(three_d_face::ThreeDFace),
     Spline(spline::Spline),
@@ -156,6 +163,9 @@ impl DecodedEntity {
             Self::Ray(_) => OBJECT_TYPE_RAY,
             Self::XLine(_) => OBJECT_TYPE_XLINE,
             Self::Solid(_) => OBJECT_TYPE_SOLID,
+            Self::ThreeDSolid(_) => OBJECT_TYPE_3DSOLID,
+            Self::Region(_) => OBJECT_TYPE_REGION,
+            Self::Body(_) => OBJECT_TYPE_BODY,
             Self::Trace(_) => OBJECT_TYPE_TRACE,
             Self::ThreeDFace(_) => OBJECT_TYPE_3DFACE,
             Self::Spline(_) => OBJECT_TYPE_SPLINE,
@@ -276,6 +286,11 @@ const OBJECT_TYPE_SHAPE: u16 = 0x21; // 33
 const OBJECT_TYPE_VIEWPORT: u16 = 0x22; // 34
 const OBJECT_TYPE_ELLIPSE: u16 = 0x23; // 35
 const OBJECT_TYPE_SPLINE: u16 = 0x24; // 36
+// REGION / 3DSOLID / BODY are one entry in the spec (§20.4.41) and one
+// field list in this crate; see entities::modeler.
+const OBJECT_TYPE_REGION: u16 = 0x25; // 37
+const OBJECT_TYPE_3DSOLID: u16 = 0x26; // 38
+const OBJECT_TYPE_BODY: u16 = 0x27; // 39
 const OBJECT_TYPE_RAY: u16 = 0x28; // 40
 const OBJECT_TYPE_XLINE: u16 = 0x29; // 41
 const OBJECT_TYPE_MTEXT: u16 = 0x2C; // 44
@@ -714,9 +729,13 @@ fn dispatch_split_stream_class(
                 "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
                 _ => underlay::UnderlayKind::Pdf,
             };
-            checked_inline(raw, object_body_start, version, "UNDERLAY", move |c, v| {
-                underlay::decode(c, kind, v)
-            })
+            checked_inline(
+                raw,
+                object_body_start,
+                version,
+                "UNDERLAY",
+                move |c, v, _ce| underlay::decode(c, kind, v),
+            )
             .map(DecodedEntity::Underlay)
         }
         _ => return None,
@@ -746,13 +765,13 @@ fn checked_inline<T>(
     object_body_start: usize,
     version: Version,
     what: &'static str,
-    decode_body: impl FnOnce(&mut BitCursor<'_>, Version) -> Result<T>,
+    decode_body: impl FnOnce(&mut BitCursor<'_>, Version, &CommonEntityData) -> Result<T>,
 ) -> Result<T> {
     let (_strings, string_start) = crate::tables::modern::open_entity(&raw.raw, version)?;
     let mut c = BitCursor::new(&raw.raw);
     crate::string_stream::seek(&mut c, object_body_start)?;
-    crate::common_entity::read_common_entity_data(&mut c, version)?;
-    let value = decode_body(&mut c, version)?;
+    let common = crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let value = decode_body(&mut c, version, &common)?;
     let at = c.position_bits();
     if at != string_start {
         return Err(crate::tables::modern::misaligned(what, at, string_start));
@@ -802,11 +821,13 @@ fn dispatch_split_stream_entity(
                 .map(DecodedEntity::Spline)
         }
         OBJECT_TYPE_INSERT if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "INSERT", insert::decode)
-                .map(DecodedEntity::Insert)
+            checked_inline(raw, object_body_start, version, "INSERT", |c, v, _ce| {
+                insert::decode(c, v)
+            })
+            .map(DecodedEntity::Insert)
         }
         OBJECT_TYPE_3DFACE if version.is_r2010_plus() => {
-            checked_inline(raw, object_body_start, version, "3DFACE", |c, _v| {
+            checked_inline(raw, object_body_start, version, "3DFACE", |c, _v, _ce| {
                 three_d_face::decode(c)
             })
             .map(DecodedEntity::ThreeDFace)
@@ -816,9 +837,31 @@ fn dispatch_split_stream_entity(
             object_body_start,
             version,
             "LWPOLYLINE",
-            lwpolyline::decode,
+            |c, v, _ce| lwpolyline::decode(c, v),
         )
         .map(DecodedEntity::LwPolyline),
+        // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
+        // three. `binary_chain` is the record's `has AcDs binary data`
+        // bit: when it is set the SAB stream lives in the data-storage
+        // section (§24) and the record's shape changes accordingly.
+        OBJECT_TYPE_3DSOLID if version.is_r2010_plus() => {
+            checked_inline(raw, object_body_start, version, "3DSOLID", |c, v, ce| {
+                three_d_solid::decode_record(c, v, ce.binary_chain)
+            })
+            .map(DecodedEntity::ThreeDSolid)
+        }
+        OBJECT_TYPE_REGION if version.is_r2010_plus() => {
+            checked_inline(raw, object_body_start, version, "REGION", |c, v, ce| {
+                region::decode_record(c, v, ce.binary_chain)
+            })
+            .map(DecodedEntity::Region)
+        }
+        OBJECT_TYPE_BODY if version.is_r2010_plus() => {
+            checked_inline(raw, object_body_start, version, "BODY", |c, v, ce| {
+                body::decode_record(c, v, ce.binary_chain)
+            })
+            .map(DecodedEntity::Body)
+        }
         OBJECT_TYPE_LIGHT => {
             light::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Light)
