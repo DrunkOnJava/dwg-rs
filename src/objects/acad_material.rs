@@ -1,125 +1,114 @@
-//! ACAD_MATERIAL object (spec §19.6.9 — L6-16) — rendering material
-//! definition. R2007+ only.
+//! ACAD_MATERIAL object — rendering material definition.
 //!
-//! MATERIAL records describe how a surface is shaded during a
-//! rendered-viewport plot: diffuse/ambient/specular terms, bump
-//! mapping amplitude, refraction index, self-illumination, etc.
-//! The full stream runs to ~65 fields including per-channel texture
-//! sub-records; this decoder reads the **first ~25 most-rendering-
-//! relevant fields** and stops.
+//! # What this module does and does not claim
 //!
-//! # Field cutoff
+//! It reads a MATERIAL record's **strings** — the material name, its
+//! description, and the further string-stream entries R2018 records
+//! carry — and reports the **measured bit budget** of the record's data
+//! fields. It does not decode those data fields, because their layout
+//! is not determined, and it is therefore deliberately **not wired into
+//! the object dispatcher**: a MATERIAL record still counts as
+//! `Unhandled`, never as decoded.
 //!
-//! The cutoff is deliberate: once `luminance_mode` is consumed, the
-//! remaining fields are all texture sub-records (diffuse map, bump
-//! map, reflection map, opacity map, specular map, refraction map,
-//! normal map, …) each of which is itself a multi-field struct with
-//! version-gated extensions. A proper decoder for those belongs in
-//! a dedicated `MaterialTextures` module; mixing them into the
-//! base-property decoder would triple the surface area for a first
-//! cut. The fields captured here are sufficient to drive a flat
-//! shading preview or a DXF export of the material's base colour
-//! properties.
+//! # There is no spec prescription for this object
 //!
-//! # Stream shape (subset decoded)
+//! The ODA *Open Design Specification for .dwg files* v5.4.1 lists
+//! `MATERIAL` in §20.3's table of non-fixed object types, but §20.4 —
+//! the object-prescription chapter — has no entry for it; it runs from
+//! `20.4.1 Common Entity Data` to `20.4.104 XRECORD` and stops. (An
+//! earlier revision of this module cited "§19.6.9 (L6-16)"; no such
+//! section exists.)
 //!
-//! ```text
-//! TV   name
-//! TV   description
-//! BL   ambient_color_method       -- 0=ByObject, 1=Override
-//! BS   ambient_color              -- ACI index (simplified CMC)
-//! BD   ambient_color_factor
-//! BL   diffuse_color_method
-//! BS   diffuse_color
-//! BD   diffuse_color_factor
-//! BD   specular_color_factor
-//! BD   specular_gloss_factor
-//! BD   reflection_factor
-//! BD   opacity_factor
-//! BD   bump_amount
-//! BD   refraction_factor
-//! BD   translucence
-//! BL   self_illumination
-//! BD   luminance
-//! BL   luminance_mode
-//! ```
+//! # Why the previous field list was withdrawn
 //!
-//! Returns [`Error::Unsupported`] for pre-R2007 versions.
+//! That revision read `BL ambient_color_method, BS ambient_color,
+//! BD ambient_color_factor, …` off the front of the record. Measured
+//! against `arc_2004.dwg` handle 17 — the `ByLayer` material, whose two
+//! `TV`s occupy bits 0..76 of the body — that list decodes
+//! `ambient_color_method = 542113793` and `ambient_color = 17728`,
+//! followed by eight consecutive `BD = 1.0`. Those are not colour
+//! methods and colour indices; the list was wrong from its first field.
+//!
+//! # What the bytes do say — measured
+//!
+//! | File | Records | Data-field budget | Strings |
+//! |---|---|---|---|
+//! | `arc_2004.dwg` | 3 (`ByLayer`, `ByBlock`, `Global`) | 1340 / 1340 / 1332 bits, inclusive of the two inline `TV`s (1264 bits after them, identical in all three) | 2, inline |
+//! | `arc_2010.dwg` | 3 | 1284 bits, bit-identical in all three | 2 |
+//! | `arc_2013.dwg` | 3 | 1284 bits, bit-identical in all three and to R2010 | 2 |
+//! | `sample_AC1032.dwg` | 3 | 516 / 516 / 1028 bits | 7 |
+//!
+//! Inside the R2010/R2013 body, twelve `BD` slots decode to exactly
+//! `1/48` (`0.0208333…`, the imperial default map scale) at data-stream
+//! bits 46, 120, 250, 324, 510, 584, 706, 780, 900, 974, 1096 and 1170
+//! — six pairs, one per texture map, each pair 74 bits apart. The
+//! `sample_AC1032.dwg` `Global` record shows the same shape with four
+//! pairs, and each of its pairs is bracketed by `CMC` words
+//! `0xC1000000` and `0xC2040300`. Its seven string-stream entries — the
+//! name plus six empties — corroborate six map slots.
+//!
+//! That is enough to say where the per-map blocks are and not enough to
+//! say what is inside them, and the gap between the last `1/48` pair and
+//! the record's boundary differs from block to block (64, 120, 56, 54,
+//! 56 and 48 bits on R2010), so no single repeating block layout has
+//! been pinned. Per this crate's honesty rule a record counts as decoded
+//! only when its fields end exactly on the string-stream start bit, so
+//! MATERIAL stays undecoded until that layout is measured rather than
+//! guessed.
 
-use crate::bitcursor::BitCursor;
-use crate::error::{Error, Result};
-use crate::tables::read_tv;
+use crate::error::Result;
+use crate::objects::modern;
 use crate::version::Version;
 
-#[derive(Debug, Clone, PartialEq)]
+/// The parts of an ACAD_MATERIAL record this crate can prove.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcadMaterial {
+    /// Material name — `ByLayer`, `ByBlock` and `Global` in every
+    /// corpus file. Taken from the R2007+ string stream.
     pub name: String,
+    /// Material description; empty in every corpus record.
     pub description: String,
-    pub ambient_color_method: i32,
-    pub ambient_color: i16,
-    pub ambient_color_factor: f64,
-    pub diffuse_color_method: i32,
-    pub diffuse_color: i16,
-    pub diffuse_color_factor: f64,
-    pub specular_color_factor: f64,
-    pub specular_gloss_factor: f64,
-    pub reflection_factor: f64,
-    pub opacity_factor: f64,
-    pub bump_amount: f64,
-    pub refraction_factor: f64,
-    pub translucence: f64,
-    pub self_illumination: i32,
-    pub luminance: f64,
-    pub luminance_mode: i32,
+    /// Further string-stream entries. R2018 records carry six empty
+    /// slots here, one per texture map.
+    pub extra_strings: Vec<String>,
+    /// Bits between the end of the common object data and the record's
+    /// data-stream boundary — the budget a future field list has to
+    /// fill exactly. `None` on R13/R14, which carry no boundary.
+    pub data_field_bits: Option<usize>,
 }
 
-/// Decodes the `AcadMaterial` payload that follows the common object header.
-pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadMaterial> {
-    if !version.is_r2007_plus() {
-        return Err(Error::Unsupported {
-            feature: format!(
-                "ACAD_MATERIAL requires R2007 or newer; got {}",
-                version.release()
-            ),
-        });
+/// Read the strings and the measured data-field budget of one
+/// ACAD_MATERIAL record.
+///
+/// This does **not** decode the record's data fields and does not
+/// satisfy the crate-internal `ObjectStream::finish` boundary check, so
+/// it is not dispatched; see the module docs for what is and is not known.
+pub fn read_strings(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<AcadMaterial> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let name = modern::read_tv(&mut split.data, &mut split.strings, version)?;
+    let description = modern::read_tv(&mut split.data, &mut split.strings, version)?;
+    let data_field_bits = split
+        .data_end()
+        .map(|end| end.saturating_sub(split.data.position_bits()));
+    let mut extra_strings = Vec::new();
+    if let Some(strings) = split.strings.as_mut() {
+        while !strings.is_exhausted() {
+            match strings.read_tv() {
+                Ok(text) => extra_strings.push(text),
+                Err(_) => break,
+            }
+        }
     }
-    let name = read_tv(c, version)?;
-    let description = read_tv(c, version)?;
-    let ambient_color_method = c.read_bl()?;
-    let ambient_color = c.read_bs()?;
-    let ambient_color_factor = c.read_bd()?;
-    let diffuse_color_method = c.read_bl()?;
-    let diffuse_color = c.read_bs()?;
-    let diffuse_color_factor = c.read_bd()?;
-    let specular_color_factor = c.read_bd()?;
-    let specular_gloss_factor = c.read_bd()?;
-    let reflection_factor = c.read_bd()?;
-    let opacity_factor = c.read_bd()?;
-    let bump_amount = c.read_bd()?;
-    let refraction_factor = c.read_bd()?;
-    let translucence = c.read_bd()?;
-    let self_illumination = c.read_bl()?;
-    let luminance = c.read_bd()?;
-    let luminance_mode = c.read_bl()?;
     Ok(AcadMaterial {
         name,
         description,
-        ambient_color_method,
-        ambient_color,
-        ambient_color_factor,
-        diffuse_color_method,
-        diffuse_color,
-        diffuse_color_factor,
-        specular_color_factor,
-        specular_gloss_factor,
-        reflection_factor,
-        opacity_factor,
-        bump_amount,
-        refraction_factor,
-        translucence,
-        self_illumination,
-        luminance,
-        luminance_mode,
+        extra_strings,
+        data_field_bits,
     })
 }
 
@@ -128,56 +117,44 @@ mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
 
-    fn encode_tv_utf16(w: &mut BitWriter, s: &str) {
-        let units: Vec<u16> = s.encode_utf16().collect();
-        w.write_bs_u(units.len() as u16);
-        for u in units {
-            w.write_rc((u & 0xFF) as u8);
-            w.write_rc((u >> 8) as u8);
+    #[test]
+    fn r2018_split_stream_material_reads_its_names_from_the_string_stream() {
+        let mut body = modern::tests::r2018_object_prefix(1);
+        // Stand-in for the undecoded data fields.
+        for _ in 0..40 {
+            body.write_b(false);
         }
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload =
+            crate::string_stream::tests::build_payload(&bits, &["Global", "", "", "", "", "", ""]);
+        let material = read_strings(&payload, 8, None, Version::R2018).unwrap();
+        assert_eq!(material.name, "Global");
+        assert_eq!(material.description, "");
+        assert_eq!(material.extra_strings.len(), 5);
+        assert_eq!(material.data_field_bits, Some(40));
     }
 
     #[test]
-    fn rejects_pre_r2007() {
-        let bytes = [0u8; 16];
-        let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, Version::R2000).unwrap_err();
-        assert!(
-            matches!(&err, Error::Unsupported { feature } if feature.contains("ACAD_MATERIAL"))
-        );
-    }
-
-    #[test]
-    fn roundtrip_plastic_material_r2010() {
+    fn inline_layout_reads_its_names_from_the_data_cursor() {
         let mut w = BitWriter::new();
-        // R2010 is in the is_r2007_plus / uses_utf16_text family.
-        encode_tv_utf16(&mut w, "Plastic - Red");
-        encode_tv_utf16(&mut w, "Smooth red plastic");
-        w.write_bl(1); // ambient_color_method (1 = Override)
-        w.write_bs(1); // ambient_color (ACI red)
-        w.write_bd(1.0); // ambient_color_factor
-        w.write_bl(1); // diffuse_color_method
-        w.write_bs(1); // diffuse_color
-        w.write_bd(1.0); // diffuse_color_factor
-        w.write_bd(0.5); // specular_color_factor
-        w.write_bd(0.85); // specular_gloss_factor
-        w.write_bd(0.0); // reflection_factor
-        w.write_bd(1.0); // opacity_factor (fully opaque)
-        w.write_bd(0.0); // bump_amount
-        w.write_bd(1.5); // refraction_factor
-        w.write_bd(0.0); // translucence
-        w.write_bl(0); // self_illumination
-        w.write_bd(0.0); // luminance
-        w.write_bl(0); // luminance_mode
+        w.write_bs_u(0); // EED terminator
+        w.write_bl(1); // num_reactors
+        w.write_b(true); // no xdictionary (R2004+)
+        w.write_bs_u(8);
+        for b in b"ByLayer\0" {
+            w.write_rc(*b);
+        }
+        w.write_bs_u(0); // empty description
+        let after_names = w.position_bits();
+        for _ in 0..24 {
+            w.write_b(false);
+        }
+        let end = w.position_bits();
         let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let m = decode(&mut c, Version::R2010).unwrap();
-        assert_eq!(m.name, "Plastic - Red");
-        assert_eq!(m.description, "Smooth red plastic");
-        assert_eq!(m.ambient_color_method, 1);
-        assert_eq!(m.diffuse_color, 1);
-        assert!((m.specular_gloss_factor - 0.85).abs() < 1e-12);
-        assert!((m.opacity_factor - 1.0).abs() < 1e-12);
-        assert!((m.refraction_factor - 1.5).abs() < 1e-12);
+        let material = read_strings(&bytes, 0, Some(end), Version::R2004).unwrap();
+        assert_eq!(material.name, "ByLayer");
+        assert_eq!(material.description, "");
+        assert!(material.extra_strings.is_empty());
+        assert_eq!(material.data_field_bits, Some(end - after_names));
     }
 }

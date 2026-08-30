@@ -358,6 +358,33 @@ fn print_entity(i: usize, e: &DecodedEntity) {
                 s.scale_name, s.paper_units, s.drawing_units, s.is_unit_scale
             );
         }
+        DecodedEntity::VisualStyle(v) => {
+            println!(
+                "[{i}] VISUALSTYLE  description={:?} type={} internal_only={} \
+                 face(model={} quality={} color_mode={} opacity={} specular={}) \
+                 mono_color={:#010X}",
+                v.description,
+                v.internal_style_type,
+                v.is_internal_use_only,
+                v.face_lighting_model,
+                v.face_lighting_quality,
+                v.face_color_mode,
+                v.face_opacity,
+                v.face_specular,
+                v.face_mono_color.rgb,
+            );
+            println!(
+                "             edge(model={} color={:#010X} silhouette={:#010X} \
+                 crease={} opacity={}) extended={} strings={:?}",
+                v.edge_model,
+                v.edge_color.rgb,
+                v.edge_silhouette_color.rgb,
+                v.edge_crease_angle,
+                v.edge_opacity,
+                v.extended.len(),
+                v.trailing_strings,
+            );
+        }
         DecodedEntity::ImageDef(d) => {
             println!(
                 "[{i}] IMAGEDEF  path={:?} size={:?} loaded={}",

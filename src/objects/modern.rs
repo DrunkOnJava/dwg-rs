@@ -120,6 +120,15 @@ pub(crate) fn read_tv(
 }
 
 impl ObjectStream<'_> {
+    /// The bit at which the data fields must end, when it is knowable.
+    ///
+    /// Decoders that close their field list use
+    /// [`finish`](Self::finish); this is for the ones that only measure
+    /// the budget a future field list will have to fill.
+    pub(crate) fn data_end(&self) -> Option<usize> {
+        self.data_end
+    }
+
     /// Verify the data cursor consumed exactly the data stream, no more
     /// and no less. `what` names the record for the error message.
     ///

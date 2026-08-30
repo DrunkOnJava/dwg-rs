@@ -12,11 +12,12 @@ scrolling the changelog.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 1,751 decoded / 484 skipped /
-  46 errored / 76.8% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 533 / 166 / 46 / 71.5%, and it
+- **Current real-file decode coverage:** 1,919 decoded / 316 skipped /
+  46 errored / 84.1% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 557 / 142 / 46 / 74.8%, and it
   is the only file with any errors — the R2004, R2010 and R2013
-  samples all decode with zero.
+  samples all decode with zero. Per version: R2004 81.9%,
+  R2010 93.9%, R2013 91.7%.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
   Seed corpus: 30 hand-crafted inputs across all targets.
@@ -83,8 +84,10 @@ scrolling the changelog.
   decoder asserts its data fields end exactly on the string-stream
   start bit, so a wrong layout errors rather than returning garbage.
 - Named-object dictionary, ACAD_GROUP, ACAD_MLINESTYLE,
-  ACAD_PLOTSETTINGS, ACAD_SCALE, ACAD_MATERIAL, ACAD_VISUALSTYLE,
-  ACAD_PROPERTYSET_DATA, ACAD_LAYOUT.
+  ACAD_PLOTSETTINGS, ACAD_SCALE, ACAD_VISUALSTYLE (R2010+, 58
+  properties on R2013/R2018), ACAD_PROPERTYSET_DATA, ACAD_LAYOUT.
+  ACAD_MATERIAL reads only its strings and its measured bit budget —
+  its data-field layout is not determined.
 
 ### Graph + geometry (Phase 5 + 8)
 - `resolve_entity` / `owner_chain` / `reactor_chain`.
@@ -198,8 +201,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 1751 decoded,
-  484 skipped, 46 errored, 76.8% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 1919 decoded,
+  316 skipped, 46 errored, 84.1% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
@@ -208,12 +211,12 @@ These have genuine open scope requiring focused work, not stubs.
   ACAD_SCALE now dispatch through `src/objects/modern.rs`, taking their
   `TV` fields from the R2007+ string stream and checking their data
   fields end exactly on the record's data-stream boundary. Still
-  unreached, in descending record count on the corpus (counts as of
-  the 2026-08-30 run, which names custom classes now that the R2018
-  class table resolves): VISUALSTYLE (240 records), LAYOUT (31),
-  MATERIAL (30), ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11),
-  MLEADERSTYLE (11), MLINESTYLE (10), TABLESTYLE (10).
-  MATERIAL / VISUALSTYLE /
+  VISUALSTYLE now dispatches too on R2010, R2013 and R2018 — 168 of
+  its 240 corpus records. Still unreached, in descending record count
+  on the corpus (counts as of the 2026-08-30 run): VISUALSTYLE on
+  R2004/R2007 (72 records), LAYOUT (31), MATERIAL (30),
+  ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11), MLEADERSTYLE
+  (11), MLINESTYLE (10), TABLESTYLE (10). MATERIAL and
   PROPERTYSET_DATA decode only a documented prefix of their fields, so
   they cannot satisfy the boundary check; LAYOUT (which embeds the
   PLOTSETTINGS field list) and MLINESTYLE have field lists this crate

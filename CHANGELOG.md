@@ -8,6 +8,86 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — ACAD_VISUALSTYLE decodes and dispatches on R2010+ (2026-08-30, #38)
+
+- **The ODA spec carries no prescription for this object.** §20.4 runs
+  from `20.4.1 Common Entity Data` to `20.4.104 XRECORD` and stops;
+  VISUALSTYLE appears only in §20.3's list of non-fixed types. The two
+  modules that claimed "§19.6.10 (L6-17)" (VISUALSTYLE) and "§19.6.9
+  (L6-16)" (MATERIAL) were citing sections that do not exist; those
+  citations are withdrawn.
+- **The field list was derived from the boundary, not guessed.** Every
+  record's data fields must end exactly on the first bit of its string
+  stream. Searching for one token sequence over `B / BS / BL / BD / CMC`
+  that lands **all 24** VISUALSTYLE records of `arc_2010.dwg` on that
+  bit — with every `BD` a plausible double, every `CMC` true-colour word
+  a real colour method, and every flag a `BS` in `0..=7` — returns
+  exactly one answer: a fixed head (`TV` description, `BS` internal
+  style type, `BS` 2, `B` internal-use flag) then 28 `(value, flag)`
+  pairs. The same search on `arc_2013.dwg` returns exactly one answer
+  too — the same 28 pairs followed by 30 more — and that R2013 sequence
+  also closes on all 24 records of `sample_AC1032.dwg`.
+- **The pairing explains the corpus's bit budgets.** A flag of `1` costs
+  10 bits and a flag of `0` costs 2, so the records of one file differ
+  only in multiples of 8: `arc_2010.dwg` measures 574 / 774 / 782 / 790
+  / 798 / 806 / 854 / 862 bits, and the three internal styles that carry
+  `0` in every flag (`JitterOff`, `OverhangOff`, `EdgeColorOff`) are
+  exactly the 574-bit ones.
+- **Corroborated by the decoded values.** `is_internal_use_only` — the
+  lone `B` of the fixed head — comes out `false` on exactly ten of the
+  24 records (`2dWireframe`, `Wireframe`, `Hidden`, `Conceptual`,
+  `Realistic`, `Shades of Gray`, `Sketchy`, `X-Ray`, `Shaded with
+  edges`, `Shaded`), which is precisely the set AutoCAD's Visual Styles
+  Manager lists; `face_opacity` is `0.6` everywhere but `X-Ray`
+  (`0.5`); `face_mono_color` is `0xC2FFFFFF` everywhere but
+  `ColorChange` (`0xC2808080`); `edge_crease_angle` is `179` on
+  `Conceptual` and `40` on `Hidden` / `Sketchy` / `Shades of Gray`;
+  `internal_style_type` is a dense `0..=27` in ship order.
+- **R2004 / R2007 decline rather than guess.** Those records store the
+  same styles without the per-property flags and with a different
+  property count, and no sequence over the same token set lands their
+  24 records on the `RL` object-data-size boundary. `decode_object`
+  returns `Error::Unsupported` there, and the dispatcher now maps an
+  `Unsupported` from an object-class decoder to `Unhandled` rather than
+  `Error` — "this release is not determined" is not a broken record.
+- **`examples/probe_field_list.rs`** measures a candidate field list
+  against one real record and prints the delta from the boundary;
+  `examples/dump_decoded_entities.rs` prints VISUALSTYLE values.
+
+### Changed — ACAD_MATERIAL withdraws its unverified field list (2026-08-30, #38)
+
+- The previous `BL ambient_color_method, BS ambient_color, BD …` prefix
+  was wrong from its first field: on `arc_2004.dwg` handle 17 (the
+  `ByLayer` material) it decodes `ambient_color_method = 542113793` and
+  `ambient_color = 17728`, then eight consecutive `BD = 1.0`.
+- `objects::acad_material` now exposes `read_strings`, which reads the
+  name and description from the R2007+ string stream (they were being
+  read inline, i.e. from the wrong stream, on every R2007+ file), the
+  further string-stream entries an R2018 record carries, and the
+  **measured** data-field budget: 1284 bits on R2010 and R2013
+  (bit-identical across all three records of each file), 1264 bits after
+  the two inline `TV`s on R2004, 516 / 516 / 1028 on R2018.
+- What is known about the interior is documented rather than
+  implemented: twelve `BD` slots decode to exactly `1/48` at
+  data-stream bits 46, 120, 250, 324, 510, 584, 706, 780, 900, 974,
+  1096 and 1170 — six pairs, one per texture map, 74 bits apart — and
+  the R2018 record's seven string-stream entries corroborate six map
+  slots. The per-map block layout is not pinned, so MATERIAL stays
+  undispatched and its 30 corpus records stay `Unhandled`.
+
+Measured on the 19-file local corpus, `examples/coverage_report.rs`:
+
+| Corpus slice | Before (0914187) | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 489 / 108 / 0 / 81.9 % | 489 / 108 / 0 / 81.9 % |
+| R2010 (AC1024) × 3 | 438 / 105 / 0 / 80.7 % | **510 / 33 / 0 / 93.9 %** |
+| R2013 (AC1027) × 3 | 291 / 105 / 0 / 73.5 % | **363 / 33 / 0 / 91.7 %** |
+| R2018 (AC1032) × 1 | 533 / 166 / 46 / 71.5 % | **557 / 142 / 46 / 74.8 %** |
+| **Aggregate** | **1751 / 484 / 46 / 76.8 %** | **1919 / 316 / 46 / 84.1 %** |
+
+168 of the corpus's 240 VISUALSTYLE records now decode — the 72 on the
+three R2004 files are the remainder.
+
 ### Fixed — the R2018 `AcDb:Classes` record layout (2026-08-30, closes #37)
 
 - **`dwg_version` and `maintenance_version` are `BL`, not `BS`.** The

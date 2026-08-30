@@ -424,10 +424,57 @@ boundary:
 
 A decoder that lands anywhere else returns `DecodedEntity::Error`, so a
 wrong field list can never inflate the coverage ratio. That is also why
-MATERIAL, VISUALSTYLE and PROPERTYSET_DATA — which decode a documented
-*prefix* of their fields and stop — are deliberately **not** dispatched,
-along with LAYOUT and MLINESTYLE, whose field lists this crate has not
-yet matched against real bytes.
+MATERIAL and PROPERTYSET_DATA — which read only what their bytes prove
+and stop — are deliberately **not** dispatched, along with LAYOUT and
+MLINESTYLE, whose field lists this crate has not yet matched against
+real bytes.
+
+### 7d.1 Deriving a field list the spec does not carry — VISUALSTYLE
+
+The ODA v5.4.1 object-prescription chapter §20.4 stops at XRECORD; it
+carries no prescription for VISUALSTYLE or MATERIAL, the two largest
+undispatched classes on the corpus. The boundary above is what makes a
+field list for them *checkable* anyway, and it turns out to be strong
+enough to make one **derivable**: search for a token sequence over
+`B / BS / BL / BD / CMC` that lands **every** VISUALSTYLE record of a
+file exactly on its own boundary, requiring every `BD` to decode to a
+plausible double, every `CMC` true-colour word to carry a real colour
+method octet (`0xC0`…`0xC8`), and — once the pattern was visible — every
+other slot to be a `BS` flag in `0..=7`.
+
+On `arc_2010.dwg`'s 24 records that search returns exactly **one**
+answer: a fixed head (`TV` description, `BS` internal style type,
+`BS` 2, `B` internal-use flag) followed by 28 `(value, flag)` pairs. On
+`arc_2013.dwg` it returns exactly one answer too — the same 28 pairs
+plus 30 more — and that R2013 sequence closes on all 24 records of
+`sample_AC1032.dwg` as well. The `(value, flag)` pairing also explains
+the corpus's bit budgets: a flag of `1` costs 10 bits and a flag of `0`
+costs 2, which is why the records of one file differ only in multiples
+of 8, and why the three internal styles that carry `0` in every flag
+are exactly the shortest records in the file.
+
+Independent corroboration comes from the decoded values: the lone `B`
+of the fixed head is `false` on exactly the ten styles AutoCAD's Visual
+Styles Manager lists and `true` on the fourteen it hides; `face_opacity`
+is `0.6` everywhere except `X-Ray`, which is `0.5`; `face_mono_color` is
+white everywhere except `ColorChange`, which is `0x808080`;
+`edge_crease_angle` is `179` on `Conceptual` and `40` on `Hidden`,
+`Sketchy` and `Shades of Gray`.
+
+`examples/probe_field_list.rs` is the tool that measures one candidate
+list against one record:
+
+```sh
+cargo run --release --example probe_field_list -- \
+    samples/arc_2010.dwg 42 BS,BS,B,BS,BS,BD,BD
+```
+
+R2004 and R2007 VISUALSTYLE records store the same styles *without* the
+per-property flags and with a different property count; no sequence
+over the same token set lands their 24 records on their `RL`
+object-data-size boundary, so `objects::acad_visual_style` returns
+`Error::Unsupported` for those bands rather than guessing, and the
+dispatcher maps that to `Unhandled`.
 
 ## 7e. `AcDb:Classes` — where the class list actually starts
 
