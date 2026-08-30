@@ -127,6 +127,27 @@ pub fn build_section(
 
 /// Compute spec §4.6.1 page checksum: 32-bit rolling sum with bit
 /// rotation. `seed` is 0 for a fresh chunk.
+///
+/// # This is the Stage-1 hot loop (measured 2026-08-30, issue #17)
+///
+/// An attribution probe — replacing both call sites in
+/// [`build_section`] with `black_box(0u32)` and re-running
+/// `cargo bench --bench write_path` — showed this loop owns **92 %** of
+/// `stage1_build_section/uniform_16k` (21.25 µs → 1.73 µs) and 91-94 %
+/// of the other three cells. [`crate::lz77_encode::compress`] is
+/// literal-only and performs **no match search at all**, so the
+/// payload's content is irrelevant to the write path; the four bench
+/// cells differ only by size, not by compressibility.
+///
+/// `sum = rot1(sum) + b` is a strict loop-carried dependency of two
+/// 1-cycle ops, so 2 cycles/byte is the floor and vectorisation is
+/// impossible: `rot1` is `2x mod 2^32-1` while the add is mod `2^32`,
+/// and the two do not distribute. The measured cost is ~2.2 cycles per
+/// byte, i.e. already within ~11 % of that floor. Do not "optimise"
+/// this loop without a measurement that survives the methodology note
+/// in `.github/workflows/perf.yml` — an 8-way unrolled variant plus
+/// `#[inline(never)]` was tried and moved nothing outside the noise
+/// band.
 pub fn compute_checksum(data: &[u8], seed: u32) -> u32 {
     let mut sum: u32 = seed;
     for &b in data {
@@ -213,5 +234,41 @@ mod tests {
         let s1 = compute_checksum(b"PART1", 0);
         let s2 = compute_checksum(b"PART2", s1);
         assert_ne!(s2, 0);
+    }
+
+    /// `compute_checksum` is the Stage-1 hot loop (issue #17) and is a
+    /// tempting target for "optimisation". Pin its exact output across
+    /// lengths and seeds so any future restructuring — unrolling,
+    /// chunking, a wider accumulator — has to stay byte-identical.
+    #[test]
+    fn checksum_matches_reference_definition_at_every_length() {
+        /// The spec §4.6.1 definition, written out one byte at a time.
+        fn reference(data: &[u8], seed: u32) -> u32 {
+            let mut sum: u32 = seed;
+            for &b in data {
+                sum = sum.rotate_left(1);
+                sum = sum.wrapping_add(b as u32);
+            }
+            sum
+        }
+
+        // Deterministic pseudo-random bytes — a uniform fill would not
+        // catch a wrong-order unroll.
+        let mut data = Vec::with_capacity(300);
+        let mut s: u32 = 0x1234_5678;
+        for _ in 0..300 {
+            s = s.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            data.push((s >> 16) as u8);
+        }
+
+        for len in 0..data.len() {
+            for seed in [0u32, 1, 0xFFFF_FFFF, 0x8000_0001] {
+                assert_eq!(
+                    compute_checksum(&data[..len], seed),
+                    reference(&data[..len], seed),
+                    "checksum diverged from the reference at len={len} seed={seed:#010x}"
+                );
+            }
+        }
     }
 }
