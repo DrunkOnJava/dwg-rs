@@ -30,10 +30,10 @@
 //!
 //! | Magic    | Release                 | Status                                                                                      |
 //! |----------|-------------------------|---------------------------------------------------------------------------------------------|
-//! | `AC1014` | R14                     | Identifier / header recognized; object-stream walker for this layout not yet implemented    |
-//! | `AC1015` | 2000 / 2000i / 2002     | Identifier / header recognized; object-stream walker not yet implemented                    |
-//! | `AC1018` | 2004 / 2005 / 2006      | Container parsing works; end-to-end entity decode currently low on real corpora             |
-//! | `AC1021` | 2007 / 2008 / 2009      | **Deferred** — Sec_Mask layer-2 bookkeeping not yet implemented; section payloads error     |
+//! | `AC1014` | R14                     | Flat §3.2.6 container + object walk; 48.6% of records decode, no errors                     |
+//! | `AC1015` | 2000 / 2000i / 2002     | Flat §3.2.6 container + object walk; 84.4% of records decode, no errors                     |
+//! | `AC1018` | 2004 / 2005 / 2006      | Container + walk; 97.5% of records decode, no errors                                        |
+//! | `AC1021` | 2007 / 2008 / 2009      | §5.1-§5.4 container + walk; 82.8% of records decode, no errors                              |
 //! | `AC1024` | 2010 / 2011 / 2012      | Container parsing works; partial entity decode (see README for measured coverage)           |
 //! | `AC1027` | 2013 → 2017             | Container parsing works; best current entity coverage, still pre-alpha                      |
 //! | `AC1032` | 2018 → 2025+            | Object walker works on sample; typed entity decode has known correctness gaps on real files |
@@ -55,7 +55,10 @@
 //! - [`tables`] — symbol-table entries (LAYER, LTYPE, STYLE, VIEW, UCS,
 //!   VPORT, APPID, DIMSTYLE, BLOCK_RECORD)
 //! - [`objects`] — DICTIONARY / XRECORD / `*_CONTROL`
-//! - [`r2007`] — R2007-specific Sec_Mask two-layer obfuscation (layer 1 done)
+//! - [`r2007`] / [`r21_lz`] — R2007 (`AC1021`) container: file header,
+//!   page map, section map (spec §5.1-§5.4) and its own LZ variant
+//!   (§5.10). R2007 shares no container mechanism with R2004 — not the
+//!   file-header cipher, not the page headers, not the compressor.
 //! - [`file_writer`] — scaffolded inverse of [`reader::DwgFile`]
 //! - [`graph`] — Phase 5 handle-driven traversal helpers (owner / reactor
 //!   chains, layer / linetype / style / dimstyle resolution)
@@ -128,6 +131,7 @@ pub mod object_type;
 pub mod objects;
 pub mod python_stubs;
 pub mod r2007;
+pub mod r21_lz;
 pub mod reader;
 pub mod reed_solomon;
 pub mod reed_solomon_encode;

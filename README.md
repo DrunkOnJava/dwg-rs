@@ -23,12 +23,24 @@ local `samples/` set:
 
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
-| R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
+| R14 (AC1014)        | 3 | 426 | 450 | 0 | **48.6 %** |
+| R2000 (AC1015)      | 3 | 534 | 99 | 0 | **84.4 %** |
 | R2004 (AC1018)      | 3 | 582 | 15 | 0 | **97.5 %** |
+| R2007 (AC1021)      | 3 | 462 | 96 | 0 | **82.8 %** |
 | R2010 (AC1024)      | 3 | 531 | 12 | 0 | **97.8 %** |
 | R2013 (AC1027)      | 3 | 384 | 12 | 0 | **97.0 %** |
 | R2018 (AC1032)      | 1 | 776 | 57 | 9 | **92.2 %** |
-| **Aggregate** | **19** | **2273** | **96** | **9** | **95.6 %** |
+| **Aggregate** | **19** | **3695** | **741** | **9** | **83.1 %** |
+
+**The aggregate fell from 95.6 % because it now covers nine more
+files.** Until #104/#110 the R14, R2000 and R2007 rows read `n/a` —
+those nine files had no object walk at all, so *none* of their records
+counted toward either column, and the 95.6 % was an average over the
+ten files that did. The three new bands contribute 1422 decoded records
+and zero errors; they also contribute 645 skipped ones, because
+VISUALSTYLE, XRECORD and MATERIAL are as unmatched there as everywhere
+else. Comparing 83.1 % against 95.6 % compares two different corpora;
+the per-version rows are the numbers that mean something.
 
 **Every entity record in the corpus is now checked against its own
 data-stream boundary, and nine of them fail it.** That is an
@@ -48,8 +60,11 @@ before the `strings present` trailer flag when it carries no strings
 (R2000 / R2004). A field list that is wrong anywhere lands somewhere
 else and reports an error rather than returning plausible-looking
 geometry. On R2010+ there is no longer any entity type that decodes
-unchecked; R13 / R14 / R2007 records state no boundary this crate can
-read yet, and no record of those releases reaches a decoder at all.
+unchecked, and since #104/#110 that holds on every other release too:
+R2007's boundary is the same `RL` object-data-size read through the
+§19.1 trailer, and R13/R14 state theirs inside the common entity data
+(§20.4.1) rather than in the object prologue. **No entity in the corpus
+decodes unchecked on any release.**
 
 **Translation:** R2007+ objects store every `TV` field in a separate string
 stream and every `H` object reference in a separate handle stream (ODA
@@ -83,13 +98,14 @@ Closing both is the 0.2.0 milestone.
 | R18 / R21 / R24 / R27 / R32 header parsing | ✓ shipped | All shipped variants |
 | LZ77 decompression + output-limit caps | ✓ shipped | 256 MiB default, configurable |
 | Section Page Map + Section Info | ✓ shipped | Plus fallback path via `SectionMapStatus` |
-| Sec_Mask layer-1 (R2004 family) | ✓ shipped | Layer-2 R2007 bookkeeping deferred |
+| Sec_Mask layer-1 (R2004 family) | ✓ shipped | R2007 does not use Sec_Mask at all — see `src/r2007.rs` |
 | CRC-8 + CRC-32 verification | ✓ shipped | — |
 | Reed-Solomon (255,239) FEC | ✓ shipped | Decoder + writer-side encoder; read-side fallback wiring pending (#109) |
 | Metadata (SummaryInfo / AppInfo / Preview / FileDepList) | ✓ shipped | UTF-16 auto-detect, PNG thumbnail carve |
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
-| Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
+| Object-stream walker | ✓ shipped | All eight releases — R13-R15 flat locator, R2004-family page map, R2007 §5 container |
+| R2007 (AC1021) container | ✓ shipped | Reed-Solomon de-interleave, §5.10 LZ, page map, section map (#110) |
 | Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 95.6 %, every entity boundary-checked, 9 named errors (#63, #103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
@@ -132,8 +148,9 @@ The container layer is the most mature part of the crate and is covered by the t
   R2013/R2018 LINE/CIRCLE/ARC alignment is now pinned; many text,
   insert, dimension, hatch, LWPOLYLINE flag variants, and table-object paths still
   need real-file field-layout work.
-- R14 / R2000 object-stream walking (different layout from R2004-family; not yet implemented).
-- R2007 section payloads (layer-1 Sec_Mask shipped, layer-2 bit-rotation scaffolded only).
+- Password-protected R2007 files (a section whose descriptor declares
+  encryption is refused, not decoded).
+- Writing R14 or R2007 files (both containers are implemented read-only).
 - Full HATCH boundary path tree, full MLEADER leader-line list, full 75-field DIMSTYLE.
 - Byte-identical DWG round-trips or automated external CAD application
   acceptance for `DwgFile::to_bytes()` output.
@@ -172,7 +189,7 @@ fn main() -> dwg::Result<()> {
         println!("author: {}", summary.author);
     }
 
-    // Handle-indexed object walk — works on R2004+ but skips R14/R2000/R2007.
+    // Handle-indexed object walk — works on every release from R14 on.
     if let Some(Ok(objects)) = file.all_objects() {
         println!("raw objects: {}", objects.len());
     }
@@ -326,8 +343,10 @@ Coverage numbers in this README are measured with
 The project needs help, in rough order of impact:
 
 1. **Per-version entity preamble fixes** — figuring out why HATCH boundary paths, INSERT and MLEADER still fail on R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
-2. **R14 / R2000 object-stream walker** — completely different layout from R2004-family.
-3. **R2007 Sec_Mask layer-2 bookkeeping** — spec §5.2.
+2. **VISUALSTYLE on R14 / R2000 / R2007** — 216 records; the R2004
+   flag-less list does not close on them, so a third layout exists.
+3. **R14 DIMSTYLE** — §20.4.68 gives R13/R14 their own field order,
+   unmeasured.
 4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.
 5. **Write-path stages 2–5** — page-map / section-info / system-page / file-open-header rebuild.
 

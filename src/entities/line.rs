@@ -1,6 +1,22 @@
-//! LINE entity (§19.4.20).
+//! LINE entity (§20.4.21).
 //!
-//! # Stream shape
+//! # Stream shape — R13/R14
+//!
+//! ```text
+//! 3BD start
+//! 3BD end
+//! BT  thickness
+//! BE  extrusion
+//! ```
+//!
+//! §20.4.21 gives the two endpoints as plain `3BD`s on R13-R14 and only
+//! introduces the `Z's are zero` / `RD` + `DD` compression at R2000. The
+//! LINE record of every R14 corpus file runs off the end of its payload
+//! under the R2000+ reading (`wanted 8 bits, 2 bits remain`) and closes
+//! exactly on its `RL` boundary under this one — see
+//! [`decode_versioned`].
+//!
+//! # Stream shape — R2000+
 //!
 //! ```text
 //! B   zflag             -- true ⇒ entity is 2D (z coords defaulted to 0.0)
@@ -19,8 +35,9 @@
 //! primitive, where each start coordinate is the corresponding default.
 
 use crate::bitcursor::BitCursor;
-use crate::entities::{Point3D, Vec3D, read_be, read_bt};
+use crate::entities::{Point3D, Vec3D, read_bd3, read_be, read_bt};
 use crate::error::Result;
+use crate::version::Version;
 
 /// Fully-decoded LINE entity.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,10 +50,41 @@ pub struct Line {
     pub is_2d: bool,
 }
 
-/// Decode a LINE entity's payload from `c`.
+/// Decode a LINE entity's payload for `version`.
+///
+/// Routes to the R13/R14 `3BD` + `3BD` form or the R2000+
+/// `RD` + `DD` form; see the module docs. The cursor must already be
+/// positioned past the common entity preamble.
+pub fn decode_versioned(c: &mut BitCursor<'_>, version: Version) -> Result<Line> {
+    if matches!(version, Version::R14) {
+        return decode_r13_r14(c);
+    }
+    decode(c)
+}
+
+/// Decode the R13/R14 LINE payload: both endpoints as plain `3BD`s.
+///
+/// Kept separate from [`decode`] because the two layouts share no
+/// fields — R13/R14 has no `Z's are zero` flag and no `DD` defaults.
+pub fn decode_r13_r14(c: &mut BitCursor<'_>) -> Result<Line> {
+    let start = read_bd3(c)?;
+    let end = read_bd3(c)?;
+    let thickness = read_bt(c)?;
+    let extrusion = read_be(c)?;
+    Ok(Line {
+        start,
+        end,
+        thickness,
+        extrusion,
+        is_2d: start.z == 0.0 && end.z == 0.0,
+    })
+}
+
+/// Decode an R2000+ LINE entity's payload from `c`.
 ///
 /// The cursor must already be positioned past the common entity
-/// preamble.
+/// preamble. For a version-dispatching entry point see
+/// [`decode_versioned`].
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Line> {
     let zflag = c.read_b()?;
     let sx = c.read_rd()?;

@@ -236,3 +236,68 @@ likewise measured from the corpus's own boundaries: 0 bits on the
 entity path, with the 16 bits four R2018 LAYOUT records need relocated
 into LAYOUT's own field list. No third-party implementation was
 consulted for either.
+
+## 2026-08-30 — the R14 / R2000 / R2007 containers (ODA spec §3, §5, §20)
+
+The PR for #104 / #110 / #65 opens the three release bands that had no
+object walk. Every structure in it comes from the freely-redistributable
+ODA *Open Design Specification for .dwg files* v5.4.1 and from the
+corpus bytes; no third-party DWG implementation was consulted for any
+part of it.
+
+- **§3.1 / §3.2.6** prescribe the R13-R15 file layout and the
+  section-locator records, including the record numbering this crate
+  maps onto the canonical `AcDb:` names.
+- **§5.1 - §5.4** prescribe the whole R2007 container: the meta-data
+  table, the Reed-Solomon-and-compressed file header with its 34 named
+  fields, the `GetSystemPageSize` pseudo-code, the page-map
+  accumulation loop, the section-map record layout and the per-section
+  hash codes this crate checks itself against.
+- **§5.10** prescribes the R2007 LZ variant — the opcode switch of
+  `ReadInstructions`, the literal-length escape, and the sub-block
+  table `src/r21_lz.rs` transcribes as `COPY_BLOCKS`.
+- **§5.13** prescribes the two Reed-Solomon configurations and the
+  interleaving rule.
+- **§19.1** prescribes the string-stream trailer that R2007 is located
+  from; **§20.1** and **§20.4.1** prescribe the R13/R14 object and
+  entity prefixes; **§20.4.21 / .44 / .45 / .52 / .54 / .58 / .64 /
+  .68** prescribe the LINE, DICTIONARY, DICTIONARYWDFLT, BLOCK_HEADER,
+  LAYER, LTYPE, VPORT and DIMSTYLE field lists this PR corrects toward
+  the spec.
+
+Four readings in the diff are **measured**, not prescribed, and each is
+documented at the module that owns it:
+
+1. The §5.10 sub-block table is applied **recursively** — the blocks
+   are the smaller copy functions, so a two-byte block is reversed.
+   The spec prints the table and says the byte order differs but does
+   not say the blocks nest. The corpus does: two independent literals
+   (the file header's first, and one inside the section name
+   `AcDb:AppInfoHistory`) decode correctly only under the recursive
+   reading, and under it every constant §5.2 documents comes back.
+2. The Reed-Solomon block count for a system page is
+   `ceil(factor · align8(stored) / 239)`, read backwards out of §5.3's
+   construction rather than stated by it.
+3. `SectionNameLength` in the §5.2 section-map record counts **bytes
+   including the two-byte terminator**; the spec's own field-width
+   column ("SectionNameLength x 2 [+ 2]") suggests characters. The
+   corpus decides it: the first section's page list begins exactly
+   `0x40 + SectionNameLength` bytes into the record.
+4. `ACDBDICTIONARYWDFLT` writes one `TV` more than `numitems` on R14.
+   §20.4.45 gives the class a default-entry *handle*, which costs no
+   data-stream bits from R2000 on. One record type across three files
+   is thin evidence for what the extra slot means, so it is consumed
+   and deliberately left unnamed.
+
+The trailing bit after `DIMLWE` that `tables::dimstyle` reads is
+likewise measured — it was already measured on R2013/R2018 by an
+earlier change, and the R2000 and R2004 records of this corpus need
+exactly the same one bit. Two release bands agreeing on an undocumented
+bit is the strongest statement available about it, so it is consumed
+and not named.
+
+The `src/r2007.rs` this PR replaces described R2007 as applying a
+two-layer "Sec_Mask" — a byte XOR plus a 7-byte bit rotation. That
+description matched nothing in the spec and nothing in the bytes; the
+module and its tests are removed rather than kept as a misleading
+scaffold.

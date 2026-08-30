@@ -220,25 +220,22 @@
 //!
 //! | Release | Status |
 //! |---|---|
-//! | R2000 and earlier | `CMC` has no true-colour word; [`Error::Unsupported`] |
+//! | R14 / R2000 / R2007 | a third layout, not yet measured — [`Error::Unsupported`]; see below |
 //! | R2004 | 30 flag-less fields — closes on all 72 records of the three `*_2004.dwg` files |
-//! | R2007 | not measurable — [`Error::Unsupported`]; see below |
 //! | R2010 | 28 `(value, flag)` properties — closes on all 24 records of `arc_2010.dwg` |
 //! | R2013 / R2018 | 58 properties — closes on all 24 records of `arc_2013.dwg` and all 24 of `sample_AC1032.dwg` |
 //!
-//! **R2007 stays declined, and not because of this object.** Two
-//! upstream gaps stand between an `AC1021` file and any decoder:
-//! the container parse returns `SectionMapStatus::Deferred` for R2007
-//! (the second Sec_Mask obfuscation layer is not implemented), and
-//! `crate::string_stream::data_section_end` locates the split-stream
-//! trailer from the leading `MC` handle-stream size that only R2010 and
-//! newer write, so it declines R2007 outright. No R2007 object of any
-//! type therefore reaches this module, the corpus cannot say whether
-//! R2007 writes the flag-less list or the paired one, and this module
-//! returns [`Error::Unsupported`] rather than shipping a reading no
-//! byte has ever confirmed. The 24 VISUALSTYLE records in each of
-//! `arc_2007.dwg`, `circle_2007.dwg` and `line_2007.dwg` are invisible
-//! to `examples/coverage_report.rs` for the same reason.
+//! **The three earliest bands write a layout that is neither of these.**
+//! Until #104/#110 their records never reached a decoder, so the
+//! question could not be asked. It can now, and the answer is negative:
+//! run the R2004 flag-less list against the 24 VISUALSTYLE records of
+//! each of the nine `*_R14.dwg` / `*_2000.dwg` / `*_2007.dwg` files and
+//! **all 216** miss their data-stream boundary. That is 216 records of
+//! evidence that a third field list exists, and none at all about what
+//! it is, so this module returns [`Error::Unsupported`] for those
+//! releases rather than shipping a reading no byte confirms. They are
+//! the single largest entry in the *unhandled* column of
+//! `examples/coverage_report.rs`.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -493,6 +490,13 @@ const R2013_TAIL: [TailKind; 30] = [
 /// R2004 uses the flag-less field list, R2010 and newer the
 /// `(value, flag)` one. Returns [`Error::Unsupported`] for R2007 and
 /// earlier — see the module docs for why neither band can be measured.
+///
+/// The R14 / R2000 / R2007 bands were tried against the R2004 list once
+/// their object walk landed: all 24 VISUALSTYLE records of every one of
+/// those nine corpus files miss their data-stream boundary under it, so
+/// those releases carry a third layout that is still unmeasured. The
+/// records stay unhandled rather than decoded from a list that does not
+/// close.
 pub fn decode_object(
     payload: &[u8],
     body_start: usize,

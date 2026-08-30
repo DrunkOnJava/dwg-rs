@@ -1193,11 +1193,152 @@ changed by this work; each waits on a second file.
 | R2018 (AC1032) × 1 | 765 / 77 / 0 / 90.9 % | **776 / 57 / 9 / 92.2 %** |
 | **Aggregate** | **2262 / 116 / 0 / 95.1 %** | **2273 / 96 / 9 / 95.6 %** |
 
+(Both columns cover the ten files that were walkable at the time. §7j
+adds the other nine.)
+
 The R2004, R2010 and R2013 slices are unchanged in count — but every
 one of their entity records is now checked where none was before, and
 all of them pass. `examples/probe_entity_budgets.rs` prints the budget
 each record's field list has to fill; `examples/probe_decode_errors.rs`
 prints the nine that do not fill it.
+
+## 7j. The three containers that had no walk (2026-08-30, #104 / #110 / #65)
+
+Nine of the nineteen corpus files — `{line,arc,circle}_{R14,2000,2007}.dwg`
+— reported `n/a (no-handle-map)` in every coverage run this document has
+ever quoted. Not "decoded badly": *not walked at all*. Three whole
+release bands, and with them the pre-2004 half of every field list in
+the crate, had no evidence behind them. This section is what it took to
+open them.
+
+### R13-R15: the file *is* the object stream
+
+§3.2.6 gives R13/R14/R2000 a flat list of `(record number, absolute
+seeker, size)` locators instead of a page map, and §3.1 puts the object
+records loose in the file between the class definitions and the object
+map. There is no `AcDb:AcDbObjects` *section*: the object map's offsets
+are **absolute file offsets**.
+
+So the walk needed no new machinery at all. `DwgFile::object_stream`
+hands back the whole file for these releases, the §4.4 handle-map parser
+runs unchanged on the locator's byte range, and
+`ObjectWalker::with_handle_map` seeks to each offset exactly as it does
+on R2018. The verification is the walker's own oracle: every record
+repeats its handle, and on all six R14/R2000 files **every** entry of
+the map — 292 per R14 file, 211 per R2000 file — lands on a record whose
+handle field matches. Zero mismatches, zero skips.
+
+The locators are given the canonical `AcDb:` names (`AcDb:Header`,
+`AcDb:Classes`, `AcDb:Handles`, `AcDb:Template`) so that
+`handle_map()`, `class_map()` and `header_vars()` are version-agnostic
+one level up.
+
+### R13/R14 put the object size somewhere else
+
+§20.1 and §20.4.1 each list `RL — size of object in bits, not including
+end handles` **twice**: once under "R2000+" between the object type and
+the object handle, and once under "R13-R14" after the EED chain (objects)
+or after the graphics-present flag (entities). The two placements are
+mutually exclusive.
+
+The walker settles the first half by construction: it reads the handle
+straight after the type code on R13/R14, and 876 of 876 handles across
+the three R14 files then match the map. The second half is measured —
+`examples/probe_r13_r14_prefix.rs` reads the candidate `RL` at the
+post-EED position for all 285 non-entity records of each R14 file and
+reports that every one of them is `> 0`, no larger than the record's
+payload, and past the cursor that produced it; 135 of them then have a
+field list that closes on it exactly.
+
+That field is the R14 band's data-stream boundary, which is why
+`checked_inline` and `objects::modern::open` both take it from the
+prefix they have just read rather than from `RawObject::obj_size_bits`.
+
+### R2007: four mechanisms, none of them the R2004 ones
+
+The crate previously carried a module describing R2007 as "two-layer
+Sec_Mask" — a byte XOR plus a 7-byte bit rotation. **R2007 uses neither.**
+§5.1-§5.4 describe a container that shares only vocabulary with §4:
+
+| layer | R2004 / R2010+ | R2007 |
+|---|---|---|
+| file header | 0x6C bytes at 0x80, XOR against the magic sequence | 0x400 bytes at 0x80, Reed-Solomon (255, 239) + §5.10 LZ |
+| page header | 32-byte `Sec_Mask`-XOR'd header per page | none — pages are bare |
+| compression | LZ77 §4.7 | a different LZ variant, §5.10 |
+| system pages | plain | RS (255, 239) interleaved, the data repeated `factor` times |
+| data pages | plain | RS (255, 251) interleaved when the section's `encoding` is 4 |
+
+Because a valid file needs no error *correction*, only the interleaving
+matters: gather codeword `j`'s bytes from positions `blocks·i + j` and
+keep the first `message` of them. The block count is not `page ÷ 255` —
+it is `ceil(factor · align8(stored) / 239)`, read backwards out of
+§5.3's construction. Getting that wrong is silent: the page-map page
+happens to have the same count either way, and only the section map
+(15 blocks in a 18-block-wide page) exposes the difference.
+
+**The §5.10 literal copy is a permutation.** The spec prints a table of
+"sub byte blocks" per copy length and one sentence — "the order of bytes
+in source and target buffer are different" — that is easy to read as an
+implementation note about a hand-optimised `memcpy`. It is not. The
+blocks are the smaller copy functions applied *recursively*, so a
+2-byte block comes out reversed, a 16-byte block comes out with its
+halves swapped, and an 11-byte block (`2 [9], 8 [1], 1 [0]`) comes out
+`src[10], src[9], src[1..9], src[0]`.
+
+Two independent measurements pin it, and both are load-bearing:
+
+| where | source bytes | straight copy | permuted copy |
+|---|---|---|---|
+| file header, first literal | `00 70` | `00 70` → header size 0x7000 | `70 00` → **header size 0x70**, the value §5.2 names |
+| section map, an 11-byte literal | inside a section name | `AcDb:Ap\0pInfoHistory` — invalid UTF-16 | `AcDb:AppInfoHistory` |
+
+With the permutation right, the decoded file header reproduces **every**
+constant §5.2 documents on all three corpus files — `0x70`, `0x20`,
+`0x40`, `0xf800`, `4`, `1`, `0x60100` — and its `File size` field equals
+the file's own byte count (66304 / 66304 / 66560). The section map then
+yields thirteen sections whose hash codes match the §5.2 table for all
+twelve the table lists; the thirteenth is `AcDb:AppInfoHistory`, which
+AutoCAD writes and ODA does not.
+
+`examples/probe_r2007_container.rs` prints all of it with a
+`ok` / `MISMATCH` verdict per constant.
+
+### R2007's split-stream boundary (#65)
+
+R2010+ locate the string-stream trailer from the leading `MC`
+handle-stream size (§7a). R2007 has no `MC` — and §19.1's `RL`
+object-data-size, which R2000 and R2004 use as their data-field end,
+is on R2007 the end of the data **and** string area, i.e. exactly the
+`endbit` the §19.1 trailer prose is written around.
+
+Running the trailer backwards from it produces a string stream whose
+first `TU` is the record's own name on every named record of every
+R2007 corpus file: `0`, `Standard`, `ACAD`, `*Active`, `ISO-25`,
+`Annotative`, `ByBlock`, `ByLayer`, `Continuous`, `AcadAnnotative`,
+`*Model_Space`, `*Paper_Space`, `ACAD_NAV_VCDISPLAY`. That is
+`string_stream::data_section_end`'s R2007 arm, and it is what lets every
+R2007+ decoder in the crate — the whole `tables::modern` /
+`objects::modern` family — run on AC1021 without a line of new decoder
+code.
+
+### What the three bands then said about the pre-2004 field lists
+
+Opening them turned four decoders that had never seen a real record
+into decoders that had to close on a boundary. Each was wrong, and each
+is wrong on R2000 and R2004 too — these are fixes to the *existing*
+bands that only the new files could surface:
+
+| decoder | was | §20.4.x says | delta before |
+|---|---|---|---|
+| LAYER (inline) | `BS values`, `B plot`, `BS lineweight`, `BS colour` | `BS values` (which *contains* plot + lineweight), then `CMC` | overshoot; `line_2004.dwg` reported lineweight −32765, colour −31231 |
+| LTYPE (inline) | `RC flags` + `RS used_count` before the description | neither field exists | description three bytes late — `lid line` for `Solid line` on every pre-R2007 file |
+| BLOCK_HEADER (inline) | stopped after the xref path | R2000+ add an insert-count run, a description `TV` and a preview blob | −12 bits on all six R2000/R2004 records |
+| DIMSTYLE (inline) | 15 of ~70 fields | the whole §20.4.68 R2000+ body | −298 to −440 bits |
+
+The corroboration is cross-version: the same drawing exists in seven
+releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
+"*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
+published ISO-25 defaults. It now does, from R14 through R2018.
 
 ## 8. Write pipeline (current scope)
 

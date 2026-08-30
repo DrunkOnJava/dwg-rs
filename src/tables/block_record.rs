@@ -39,6 +39,13 @@ pub struct BlockRecord {
     pub xref_path: String,
 }
 
+/// Cap on the insert-count run of §20.4.52: a non-zero `RC` per insert
+/// handle, terminated by a zero. No realistic block carries more.
+const MAX_INSERT_COUNT: usize = 256;
+
+/// Cap on the §20.4.52 binary preview blob of one BLOCK_HEADER.
+const MAX_PREVIEW_BYTES: usize = 1_000_000;
+
 #[derive(Debug, Clone)]
 struct ModernBlockFields {
     header: TableEntryHeader,
@@ -53,13 +60,44 @@ struct ModernBlockFields {
 }
 
 /// Decodes a `BlockRecord` table entry that follows the common object header.
+///
+/// # Field list (§20.4.52)
+///
+/// ```text
+/// TV   entry name        -- via read_table_entry_header
+/// B    64-flag, BS xrefindex+1, B xdep
+/// B    anonymous, B hasatts, B blkisxref, B xrefoverlaid
+/// R2000+: B loaded bit
+/// R2004+: BL owned object count
+/// 3BD  base point
+/// TV   xref pathname
+/// R2000+: RC* insert count (non-zero bytes, terminated by a zero RC)
+///         TV block description
+///         BL size of preview data, then that many RC
+/// R2007+: BS insert units, B explodable, RC block scaling
+/// ```
+///
+/// # Measured
+///
+/// The three R2000 and three R2004 BLOCK_HEADER records of every corpus
+/// file ended their field list exactly **12 bits** before their
+/// data-stream boundary until the R2000+ tail above was added: the
+/// terminating zero `RC` of the insert count is 8 bits, an empty `TV`
+/// description is a `BS` on the `10` (value 0) code — 2 bits — and a
+/// zero preview size is a `BL` on the same code, another 2. All six now
+/// close on delta 0. The `B loaded bit` is likewise R2000+; reading it
+/// on R14 ran those records off the end of their payload.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let header = read_table_entry_header(c, version)?;
     let is_anonymous = c.read_b()?;
     let has_attribs = c.read_b()?;
     let is_xref = c.read_b()?;
     let xref_overlay = c.read_b()?;
-    let is_loaded_xref = c.read_b()?;
+    let is_loaded_xref = if matches!(version, Version::R14) {
+        false
+    } else {
+        c.read_b()?
+    };
     let num_owned_objects = if version.is_r2004_plus() {
         Some(c.read_bl()? as u32)
     } else {
@@ -67,6 +105,30 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     };
     let base_point = read_bd3(c)?;
     let xref_path = read_tv(c, version)?;
+    if !matches!(version, Version::R14) {
+        // Insert-count run: zero or more non-zero `RC`s, then a zero.
+        for _ in 0..=MAX_INSERT_COUNT {
+            if c.read_rc()? == 0 {
+                break;
+            }
+        }
+        let _description = read_tv(c, version)?;
+        let preview_bytes = c.read_bl_u()? as usize;
+        if preview_bytes > MAX_PREVIEW_BYTES {
+            return Err(Error::SectionMap(format!(
+                "BLOCK_HEADER preview data claims {preview_bytes} bytes \
+                 (>{MAX_PREVIEW_BYTES} sanity cap)"
+            )));
+        }
+        for _ in 0..preview_bytes {
+            let _ = c.read_rc()?;
+        }
+    }
+    if version.is_r2007_plus() {
+        let _insert_units = c.read_bs()?;
+        let _explodable = c.read_b()?;
+        let _block_scaling = c.read_rc()?;
+    }
     Ok(BlockRecord {
         header,
         is_anonymous,
@@ -359,7 +421,7 @@ mod tests {
         w.write_b(false);
         w.write_bs(0);
         w.write_b(false);
-        // 5 flag bits — all false
+        // 4 block flags + the R2000+ loaded bit — all false
         w.write_b(false);
         w.write_b(false);
         w.write_b(false);
@@ -373,12 +435,48 @@ mod tests {
         w.write_bd(0.0);
         // empty xref path
         w.write_bs_u(0);
+        // R2000+ tail: insert-count terminator, description, preview size
+        w.write_rc(0);
+        w.write_bs_u(0);
+        w.write_bl(0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let b = decode(&mut c, Version::R2004).unwrap();
         assert_eq!(b.header.name, "*Model_Space");
         assert_eq!(b.num_owned_objects, Some(42));
         assert!(!b.is_xref);
+    }
+
+    /// §20.4.52 puts the loaded bit, the insert-count run, the
+    /// description and the preview blob under "R2000+"; an R14 record
+    /// stops after the xref pathname.
+    #[test]
+    fn r14_block_record_stops_after_the_xref_path() {
+        let mut w = BitWriter::new();
+        let s = b"*MODEL_SPACE";
+        w.write_bs_u(s.len() as u16);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
+        w.write_b(false); // anonymous
+        w.write_b(false); // has attribs
+        w.write_b(false); // is xref
+        w.write_b(false); // xref overlaid
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bs_u(0); // empty xref path
+        let end = w.position_bits();
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let b = decode(&mut c, Version::R14).unwrap();
+        assert_eq!(b.header.name, "*MODEL_SPACE");
+        assert_eq!(b.num_owned_objects, None);
+        assert!(!b.is_loaded_xref);
+        assert_eq!(c.position_bits(), end);
     }
 
     #[test]

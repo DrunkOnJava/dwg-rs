@@ -6,16 +6,26 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 751 passing in default/debug and release-all-features
+- **Lib tests:** 766 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
-  entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 2,273 decoded / 96 skipped /
-  **9 errored** / 95.6% on the local 19-file `samples/` corpus. The
+  entity-regression (18), real-DWG value regression (8),
+  legacy-container (11: R14 / R2000 byte-built flat files, the R2007
+  string-stream boundary, and four corpus-gated pins).
+- **Current real-file decode coverage:** 3,695 decoded / 741 skipped /
+  **9 errored** / 83.1% on the local 19-file `samples/` corpus. The
   R2018 `sample_AC1032.dwg` sample is 776 / 57 / 9 / 92.2%. Per
-  version: R2004 97.5%, R2010 97.8%, R2013 97.0%, R2018 92.2%.
+  version: R14 48.6%, R2000 84.4%, R2004 97.5%, R2007 82.8%,
+  R2010 97.8%, R2013 97.0%, R2018 92.2%.
+- **All nineteen corpus files now decode.** Until #104/#110 the nine
+  R14 / R2000 / R2007 files reported `n/a (no-handle-map)` — no record
+  of those releases reached a decoder, so none of them counted in
+  either column. The aggregate rate therefore *fell* from 95.6% while
+  the decoded count rose by 1,422: the old figure averaged ten files,
+  the new one nineteen. The per-version rows are comparable; the
+  aggregates are not.
 - **Every entity record is boundary-checked** (#63). The nine errors
   are the honest residue of turning that check on for the types that
   previously had none — see the honesty note below. They are not a
@@ -37,6 +47,15 @@ scrolling the changelog.
 
 ### Container layer (Phase 1)
 - File identification across 8 DWG versions (R14 → R2018).
+- **R13-R15 flat section locators (§3.2.6)** named with the canonical
+  `AcDb:` names and read as byte ranges; the object map's offsets are
+  absolute file offsets, so the whole file is the object stream (#104).
+- **R2007 (`AC1021`) container (§5.1-§5.4)** — Reed-Solomon
+  de-interleave of the 0x400-byte file header, the §5.10 LZ variant
+  (`src/r21_lz.rs`), the page map, the section map and per-page data
+  assembly (#110). Every constant §5.2 documents comes back correct on
+  all three corpus files, and all twelve tabulated section hash codes
+  match. Password-protected files are refused, not mis-decoded.
 - LZ77 decompression with spec-errata fixes + `DecompressLimits`.
 - Section Page Map + Section Info walking.
 - Sec_Mask layer-1 XOR masking.
@@ -235,16 +254,15 @@ These have genuine open scope requiring focused work, not stubs.
   `entities::dispatch::checked_inline`, so its field list must end on
   the record's own data-stream boundary — the string-stream start bit
   (or the bit before the `strings present` trailer flag) on R2010+, and
-  the `RL` object-data-size on R2000 / R2004. **On R2010+ the number of
-  entity types that decode unchecked is zero.** Two bands are still
-  unchecked, and neither has a record that reaches a decoder:
+  the `RL` object-data-size on the earlier bands. **The number of entity
+  types that decode unchecked is zero, on every release:**
 
   | Band | Boundary | Checked |
   |---|---|---|
   | R2010 / R2013 / R2018 | string-stream start, or handle-stream start − 1 | **all types** |
-  | R2000 / R2004 | `RL` object-data-size-in-bits | **all types** |
-  | R2007 | `RL` covers data *and* strings; the split point is not locatable yet (#110) | none — no AC1021 record reaches a decoder |
-  | R13 / R14 | record states no size | none — no record reaches a decoder (#104) |
+  | R2007 | string-stream start, located from the §19.1 `RL` (#65) | **all types** |
+  | R2000 / R2004 | `RL` object-data-size-in-bits, from the object prologue | **all types** |
+  | R13 / R14 | the same `RL`, which §20.4.1 places inside the common entity data instead | **all types** |
 
   Nine corpus records now fail the check. All nine are decoders whose
   field list is genuinely unfinished, and each is documented at the
@@ -301,28 +319,37 @@ These have genuine open scope requiring focused work, not stubs.
   from the 16 bits an APPID record spends there; the names are
   unaffected because they come from the string stream either way.
 
-- **#103 remaining real-file decoder alignment** (P0). The R2007+
+- **#103 remaining real-file decoder alignment** (P0, unchanged scope,
+  larger corpus). The R2007+
   symbol table, TEXT / ATTRIB / ATTDEF / MTEXT / TOLERANCE / HATCH /
   MULTILEADER / the DIMENSION family / INSERT / SPLINE / LWPOLYLINE /
   3DFACE / the UNDERLAY family read their `TV`s from the string
   stream, treat an `H` slot as consuming no data bits, and assert the
   data fields end exactly on the record's data-stream boundary — and
-  since #63 so does every other entity type, on the R2000/R2004 band
-  as well. What is left under this issue is mostly *coverage*: the 96
-  skipped records belong to types with no field list matched against
-  real bytes yet. The alignment residue is the nine errored records
+  since #63 so does every other entity type, on every band. What is
+  left under this issue is mostly *coverage*: the 741 skipped records
+  belong to types with no field list matched against real bytes yet,
+  and 645 of them are in the three release bands that only became
+  walkable with #104/#110. The alignment residue is the nine errored records
   tabulated in the #63 note above.
-- **#104 R14 / R2000 / R2007 handle-map walker.** Container layer
-  ships for these versions, but the object-stream walker is
-  R2004+ only. Unlocks `decoded_entities()` for those release
-  families.
+
 - **#109 Reed-Solomon FEC read-side wiring.** The multi-codeword
   stream decoder shipped (SEC-04, #279); wiring it into
   `section_map` as a fallback path when CRC-8 fails is a separate
   cut.
-- **#110 R2007 Sec_Mask layer-2.** The second obfuscation layer
-  on top of the R2004-family Sec_Mask. Container parse returns
-  `SectionMapStatus::Deferred` for R2007 until this lands.
+- **VISUALSTYLE on R14 / R2000 / R2007 — 216 records, layout not
+  determined.** #64 measured the R2004 "flag-less" field list and #47
+  the R2010+ `(value, flag)` one. Neither closes on the three earlier
+  bands: all 24 records of each of those nine files miss their
+  data-stream boundary under the R2004 list, so a third layout exists.
+  The records stay unhandled rather than decoded from a list that does
+  not close (`objects/acad_visual_style.rs`).
+- **R14 DIMSTYLE.** §20.4.68 gives R13/R14 their own block — the flags
+  come first as `B`s and `RC`s, then the `BD` variables, in an order
+  that shares nothing with the R2000+ list. Two records per R14 file
+  report unhandled. The R2000+ inline list itself is now complete and
+  closes on delta 0 for R2000 and R2004
+  (`tables::dimstyle::decode_r2000_inline`).
 - **#136 Cargo workspace split.** Refactor the crate into
   `dwg-core` + `dwg-cli` + `dwg-fuzz` (+ keep `dwg-wasm`).
   Mechanical but affects every path reference.

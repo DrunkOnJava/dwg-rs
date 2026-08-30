@@ -128,7 +128,8 @@ For `dwg-rs`:
   [the bit-stream walk-through](./01-reading-dwg-without-autocad.md#the-split-stream-architecture).
 - R14/R2000 object-stream walker (different layout from
   R2004-family).
-- R2007 Sec_Mask layer-2 bookkeeping (spec §5.2).
+- VISUALSTYLE's field list on R14 / R2000 / R2007 (216 records; a
+  third layout neither the R2004 nor the R2010+ list matches).
 
 For `rvt-rs`:
 
