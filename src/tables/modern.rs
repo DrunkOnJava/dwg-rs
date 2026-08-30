@@ -117,3 +117,32 @@ pub(crate) fn read_entry_flags(c: &mut BitCursor<'_>) -> Result<(bool, i16, bool
     let xref_index_plus_1 = c.read_bs()?;
     Ok((flag64, xref_index_plus_1, is_xref_dependent))
 }
+
+/// Read the full `CMC` colour form used by the R2007+ VIEW / VPORT
+/// records: `BS` colour index, `BL` true-colour word, `RC` colour byte.
+///
+/// # Measured, not assumed
+///
+/// §2.11 makes the `BL` and trailing byte conditional on flag bits in
+/// the `BS`. The ambient-colour field of VIEW (`view_custom` in
+/// `sample_AC1032.dwg`, data bits 377..421 of the object body) carries
+/// index `0` — no flags set — yet is still followed by
+/// `BL = 0xC2333333` (RGB 51/51/51) and `RC = 0` and only that reading
+/// lands the record on its string stream. So this form is
+/// unconditional wherever it is used.
+pub(crate) fn read_cmc_full(c: &mut BitCursor<'_>) -> Result<(u16, u32, u8)> {
+    let index = c.read_bs_u()?;
+    let rgb = c.read_bl_u()?;
+    let color_byte = c.read_rc()?;
+    Ok((index, rgb, color_byte))
+}
+
+/// Read a `4BITS` field (§2.1) — four raw bits, MSB first. Used by the
+/// VIEWMODE field of VIEW and VPORT.
+pub(crate) fn read_4bits(c: &mut BitCursor<'_>) -> Result<u8> {
+    let mut v = 0u8;
+    for _ in 0..4 {
+        v = (v << 1) | u8::from(c.read_b()?);
+    }
+    Ok(v)
+}

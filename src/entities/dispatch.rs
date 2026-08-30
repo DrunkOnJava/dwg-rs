@@ -444,15 +444,35 @@ fn dispatch_table_entry(
         ObjectType::Style => crate::tables::style::decode(c, version)
             .map(DecodedEntity::Style)
             .map_err(|e| e.to_string()),
+        ObjectType::View if version.is_r2007_plus() => {
+            crate::tables::view::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::View)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::View => crate::tables::view::decode(c, version)
             .map(DecodedEntity::View)
             .map_err(|e| e.to_string()),
+        ObjectType::Ucs if version.is_r2007_plus() => {
+            crate::tables::ucs::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::Ucs)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Ucs => crate::tables::ucs::decode(c, version)
             .map(DecodedEntity::Ucs)
             .map_err(|e| e.to_string()),
+        ObjectType::Vport if version.is_r2007_plus() => {
+            crate::tables::vport::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::VPort)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Vport => crate::tables::vport::decode(c, version)
             .map(DecodedEntity::VPort)
             .map_err(|e| e.to_string()),
+        ObjectType::AppId if version.is_r2007_plus() => {
+            crate::tables::appid::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::AppId)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::AppId => crate::tables::appid::decode(c, version)
             .map(DecodedEntity::AppId)
             .map_err(|e| e.to_string()),
