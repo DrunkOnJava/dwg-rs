@@ -8,6 +8,89 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — LAYOUT and PLOTSETTINGS decode and dispatch on R2004 and R2010+ (2026-08-30, closes #50, closes #39)
+
+- **The field list is §20.4.84's, read straight.** LAYOUT is the one
+  place the spec prescribes the plot-settings block: §20.4.84 opens
+  with it — every row glossed `plotsettings …` — and continues into
+  LAYOUT's own fields. There is no separate §20.4 PLOTSETTINGS entry,
+  and no §19.6 chapter at all, so the "§19.6.12 (L6-12)" and "§19.6.6
+  (L6-14)" citations the two modules carried are withdrawn along with
+  the field lists that went with them. Both are replaced by one shared
+  implementation (`acad_plot_settings::read_fields`), so the embedded
+  block and a standalone PLOTSETTINGS record cannot drift apart.
+- **Measured against the boundary on all 31 corpus records.** Each
+  record's data fields must end exactly on the first bit of its string
+  stream (R2010+) or on the `RL` object-data-size (R2004);
+  `examples/probe_field_list.rs` prints the delta. The list closes with
+  delta 0 on all 9 R2004 records, all 9 R2010, all 9 R2013 and all 4 on
+  `sample_AC1032.dwg` — no band declines, and no bits are left over.
+- **`viewport_count` is a `BL`, not the `RL` §20.4.84 prints.** On
+  `sample_AC1032.dwg` handle 89 the field starts 10 bits before the
+  string-stream start bit: a 32-bit `RL` cannot fit, and a `BL` in its
+  8-bit form is exactly 10 bits and decodes `2` — the number of
+  viewports that layout owns. The 28 records with no viewport spend 2
+  bits there, where an `RL` would overrun the boundary by 30.
+- **The R2013+ `has_ds_binary_data` flag carries 16 further bits.** The
+  spec's common-object-data table gives only the `B`.
+  `objects::modern` consumed a single `RC` after it — an unvalidated
+  guess no test or corpus record had ever reached. Exactly four
+  non-entity records in the corpus set the bit (the four LAYOUTs of
+  `sample_AC1032.dwg`, against 327 that clear it), and on all four the
+  field list closes only with **16** bits consumed, the first byte
+  `0x2C` on every one. The alternative reading — that the marker is
+  absent and LAYOUT gained two leading bytes in R2018 — is not ruled
+  out by this corpus and is recorded in `src/objects/modern.rs`.
+- **Corroborated by the decoded values.** `paper_width` × `paper_height`
+  matches each record's own `paper_size` string (`215.9 × 279.4` mm for
+  `ANSI_A_(8.50_x_11.00_Inches)` and `Letter_(8.50_x_11.00_Inches)`,
+  `210 × 297` for `A4`); the four margins are `6.35` mm (0.25 in) on the
+  `none_device` records and `≈4.23` mm on the HP LaserJet one; the
+  paper layouts' `limmin`/`limmax` are the sheet less those margins in
+  inches (`-0.25, -0.25 … 10.75, 8.25` on Letter; `-0.1667, -0.1667 …
+  11.526, 8.101` on A4); every `Model` record carries AutoCAD's default
+  `0, 0 … 12, 9`; `ucs_x_axis` is `(1,0,0)` and `ucs_y_axis` `(0,1,0)`
+  on all 31; `extent_min`/`extent_max` hold AutoCAD's `±1e20`
+  uninitialised sentinel on the empty `Layout1` records; `tab_order` is
+  `0` on each `Model` and `1`/`2`/`3` on the paper tabs; and
+  `scale_factor` equals `real_world_units / drawing_units` on every
+  record (`0.38686… = 1 / 2.58489…` on the `Model` of
+  `sample_AC1032.dwg`).
+- **Pre-R2004 and R2007 decline rather than guess.** §20.4.84 inserts a
+  `T plot_view_name` for R13-R2000 and omits the shade-plot triple and
+  `viewport_count`; those files have no walkable object stream in this
+  crate (#104), so that branch is undetermined. R2007's field list is
+  presumably the R2004 one, but its string stream is not locatable here
+  yet. Both return `Error::Unsupported`, which the dispatcher maps to
+  `Unhandled`.
+- `AcadLayout` now embeds an `AcadPlotSettings` and drops the five
+  `Handle` fields it used to carry — §20.4.84's handle references live
+  in the object's handle stream, past the data-stream boundary, so they
+  were never fields of the data record. `AcadLayout::paper_min_limits`
+  / `paper_max_limits` / `min_extents` / `max_extents` are renamed to
+  the spec's `limmin` / `limmax` / `extent_min` / `extent_max`, and
+  `paper_width()` / `paper_height()` become `limits_width()` /
+  `limits_height()` (the paper size proper now lives on the embedded
+  plot settings). `objects::acad_layout::decode` and
+  `objects::acad_plot_settings::decode` are replaced by
+  `decode_object`, which takes the raw payload so it can reach the
+  string stream.
+- `examples/dump_decoded_entities.rs` prints LAYOUT and PLOTSETTINGS
+  values.
+
+Measured on the 19-file local corpus, `examples/coverage_report.rs`:
+
+| Corpus slice | Before (f706937) | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 489 / 108 / 0 / 81.9 % | **498 / 99 / 0 / 83.4 %** |
+| R2010 (AC1024) × 3 | 510 / 33 / 0 / 93.9 % | **519 / 24 / 0 / 95.6 %** |
+| R2013 (AC1027) × 3 | 363 / 33 / 0 / 91.7 % | **372 / 24 / 0 / 93.9 %** |
+| R2018 (AC1032) × 1 | 561 / 145 / 39 / 75.3 % | **565 / 141 / 39 / 75.8 %** |
+| **Aggregate** | **1923 / 319 / 39 / 84.3 %** | **1954 / 288 / 39 / 85.7 %** |
+
+All 31 LAYOUT records of the corpus now decode; the error count is
+unchanged.
+
 ### Fixed — the R2010+ entity graphics-preview block is sized by a `BLL` (2026-08-30, closes #42)
 
 - **The common entity preamble's graphics-preview size is an `RL` up to

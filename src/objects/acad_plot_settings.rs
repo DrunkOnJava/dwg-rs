@@ -15,7 +15,7 @@
 //! literal `plotsettings …` gloss in that table — before LAYOUT's own
 //! fields begin. That is the list this module implements, and
 //! [`crate::objects::acad_layout`] reads it through
-//! [`read_fields`] so the two can never drift apart.
+//! `read_fields` so the two can never drift apart.
 //!
 //! # The wire shape — §20.4.84, measured on 31 records
 //!
@@ -377,7 +377,9 @@ pub(crate) mod tests {
         let payload = build_r2018();
         for version in [Version::R14, Version::R2000, Version::R2007] {
             let err = decode_object(&payload, 8, None, version).unwrap_err();
-            assert!(matches!(&err, Error::Unsupported { feature } if feature.contains("PLOTSETTINGS")));
+            assert!(
+                matches!(&err, Error::Unsupported { feature } if feature.contains("PLOTSETTINGS"))
+            );
         }
     }
 

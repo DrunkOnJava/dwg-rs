@@ -129,3 +129,27 @@ contradicts them. No code, structure, or layout was taken from that document —
 it contributed vocabulary only. ODA spec v5.4.1 has no VISUALSTYLE or MATERIAL
 section; the `§19.6.9` / `§19.6.10` citations previously in this tree were
 withdrawn in the same PR.
+
+## 2026-08-30 — LAYOUT / PLOTSETTINGS field names (ODA spec §20.4.84)
+
+PR for #50 replaces the LAYOUT and PLOTSETTINGS field lists. Unlike
+VISUALSTYLE above, this one needed no outside vocabulary: **§20.4.84
+LAYOUT** of the freely-redistributable ODA *Open Design Specification
+for .dwg files* v5.4.1 prescribes the whole record — the plot-settings
+block (each row glossed `plotsettings …`) followed by LAYOUT's own
+fields — and every field name, type and DXF group code in
+`src/objects/acad_layout.rs` and `src/objects/acad_plot_settings.rs`
+comes from that table. No Autodesk DXF Reference wording was consulted
+or needed for this object, and no code, structure or layout was taken
+from any source outside the spec PDF and the corpus bytes.
+
+Two departures from the spec are **measured**, not borrowed: the
+record's `viewport_count` is a `BL` where §20.4.84 prints `RL`, and the
+R2013+ `has_ds_binary_data` flag is followed by 16 further bits where
+the spec's common-object-data table names only the `B`. Both are
+derived from the corpus's own data-stream boundary and documented in
+the modules; neither came from a third-party implementation.
+
+The "§19.6.12 (L6-12)" and "§19.6.6 (L6-14)" citations the two modules
+previously carried are withdrawn — the spec has no §19.6 chapter, and
+§20.4 carries no standalone PLOTSETTINGS entry.

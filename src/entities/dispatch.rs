@@ -113,7 +113,7 @@ pub enum DecodedEntity {
     Group(crate::objects::acad_group::AcadGroup),
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
-    Layout(crate::objects::acad_layout::AcadLayout),
+    Layout(Box<crate::objects::acad_layout::AcadLayout>),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
@@ -560,12 +560,9 @@ fn dispatch_object(
         }
         ObjectType::Layout => {
             match crate::objects::acad_layout::decode_object(
-                payload,
-                body_start,
-                inline_end,
-                version,
+                payload, body_start, inline_end, version,
             ) {
-                Ok(layout) => Ok(DecodedEntity::Layout(layout)),
+                Ok(layout) => Ok(DecodedEntity::Layout(Box::new(layout))),
                 // "this release's layout is not determined" is not a
                 // decode failure — see `dispatch_object_class`.
                 Err(crate::error::Error::Unsupported { .. }) => {
@@ -616,12 +613,10 @@ fn dispatch_object_class(
         .map(DecodedEntity::VisualStyle),
         // A standalone PLOTSETTINGS record carries exactly the block
         // §20.4.84 embeds in LAYOUT; the two share one field list.
-        "PLOTSETTINGS" | "ACDBPLOTSETTINGS" => {
-            crate::objects::acad_plot_settings::decode_object(
-                payload, body_start, inline_end, version,
-            )
-            .map(DecodedEntity::PlotSettings)
-        }
+        "PLOTSETTINGS" | "ACDBPLOTSETTINGS" => crate::objects::acad_plot_settings::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PlotSettings),
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)

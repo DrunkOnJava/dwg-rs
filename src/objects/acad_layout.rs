@@ -58,7 +58,7 @@
 //!
 //! Each record's data fields must end exactly on the first bit of its
 //! string stream (R2010+) or on the `RL` object-data-size (R2004); see
-//! [`crate::objects::modern`]. The list above lands **all 31 LAYOUT
+//! `objects::modern`. The list above lands **all 31 LAYOUT
 //! records of the corpus** on that bit — 9 on the R2004 files, 9 on
 //! R2010, 9 on R2013, 4 on `sample_AC1032.dwg` — with delta 0 and no
 //! bits to spare.
@@ -364,10 +364,7 @@ mod tests {
         assert!(l.trailing_strings.is_empty());
         // The embedded plot-settings block round-trips too.
         assert_eq!(l.plot_settings.printer_config_name, "none_device");
-        assert_eq!(
-            l.plot_settings.paper_size,
-            "ANSI_A_(8.50_x_11.00_Inches)"
-        );
+        assert_eq!(l.plot_settings.paper_size, "ANSI_A_(8.50_x_11.00_Inches)");
         assert!((l.plot_settings.paper_width - 215.9).abs() < 1e-12);
         assert!((l.plot_settings.paper_height - 279.4).abs() < 1e-12);
         assert!((l.plot_settings.margin_left - 6.35).abs() < 1e-12);
@@ -419,8 +416,7 @@ mod tests {
         let mut body = modern::tests::r2018_object_prefix(1);
         write_layout_block(&mut body, 0, Point2D::default(), 0);
         let bits = crate::string_stream::tests::bits_of(&body);
-        let payload =
-            crate::string_stream::tests::build_payload(&bits, &["", "", "", "", "Model"]);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["", "", "", "", "Model"]);
         assert!(decode_object(&payload, 8, None, Version::R2018).is_err());
     }
 
