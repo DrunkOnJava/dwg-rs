@@ -397,7 +397,7 @@ pub fn decode_from_raw_with_class_map(
                 .map(DecodedEntity::Underlay)
                 .map_err(|e| e.to_string())
         }
-        "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor)
+        "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor, version)
             .map(DecodedEntity::Wipeout)
             .map_err(|e| e.to_string()),
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.

@@ -22,13 +22,26 @@
 //! RC    fade             -- 0..100
 //! (R2010+) B clip_mode    -- 0 = outside, 1 = inside
 //! BS    clip_boundary_type  -- 1 = rectangle, 2 = polygon
-//! BL    num_clip_verts
 //! (if clip_boundary_type == 1)
-//!   RD2  corner_1
+//!   RD2  corner_1        -- no vertex count precedes these
 //!   RD2  corner_2
 //! (else)
+//!   BL   num_clip_verts
 //!   RD2 × num_clip_verts
 //! ```
+//!
+//! # Measured — the rectangle form carries no vertex count
+//!
+//! `sample_AC1032.dwg` (R2018) holds one IMAGE (handle `0x662`) and one
+//! WIPEOUT (handle `0x44D`), which shares this layout. The IMAGE is a
+//! 994 × 965 raster with `clip_boundary_type = 1`; its clip corners
+//! `(-0.5, -0.5)` and `(993.5, 964.5)` occupy bits 1663..1919 of a
+//! record whose data stream ends at bit 1920. Reading a `BL` count
+//! between the type and the corners consumes the first 34 bits of the
+//! `-0.5`, which both mis-decodes the rectangle and overruns the record.
+//! The WIPEOUT has `clip_boundary_type = 2`, and there the `BL` count
+//! *is* present: `4`, followed by four `RD2` vertices spanning bits
+//! 1673..2185 of a record ending at 2186.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Point3D, Vec3D, read_bd3};
@@ -80,12 +93,18 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Image> {
         false
     };
     let clip_boundary_type = c.read_bs()?;
-    let num_clip_verts = c.read_bl()? as usize;
+    // Measured: the rectangle form (type 1) writes its two corners
+    // straight after the type — no count field. See the module docs.
+    let num_clip_verts = if clip_boundary_type == 1 {
+        2
+    } else {
+        c.read_bl()? as usize
+    };
     // Real IMAGE clip boundaries are a handful of vertices; 100K is a
     // conservative upper bound. Also cross-check against remaining
-    // payload bits (each vertex is ≥ 4 bits — two BB dispatch tags).
+    // payload bits (each vertex is 128 bits — two RDs).
     const IMAGE_MAX_CLIP_VERTS: usize = 100_000;
-    if num_clip_verts > IMAGE_MAX_CLIP_VERTS || num_clip_verts > c.remaining_bits() {
+    if num_clip_verts > IMAGE_MAX_CLIP_VERTS || num_clip_verts * 128 > c.remaining_bits() {
         return Err(Error::SectionMap(format!(
             "IMAGE clip verts {num_clip_verts} exceeds cap \
              ({IMAGE_MAX_CLIP_VERTS} or remaining_bits {})",
@@ -163,8 +182,7 @@ mod tests {
         w.write_rc(50);
         w.write_rc(50);
         w.write_rc(0);
-        w.write_bs(1); // rectangle
-        w.write_bl(2); // num verts
+        w.write_bs(1); // rectangle — no vertex count follows
         w.write_rd(0.0);
         w.write_rd(0.0);
         w.write_rd(1920.0);
@@ -180,6 +198,52 @@ mod tests {
             }
         );
         assert!(matches!(i.clip_boundary, ClipBoundary::Rectangle { .. }));
+    }
+
+    /// The measured `sample_AC1032.dwg` IMAGE body (handle `0x662`):
+    /// a 994 × 965 raster whose rectangular clip boundary follows the
+    /// boundary type with no vertex count in between.
+    #[test]
+    fn decodes_the_measured_rectangle_image_body() {
+        let mut w = BitWriter::new();
+        w.write_bl(0);
+        w.write_bd(0.0); // insertion point (0, 15, 0)
+        w.write_bd(15.0);
+        w.write_bd(0.0);
+        w.write_bd(0.010416666666666664); // u vector = 1/96 in X
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(6.37836874555913e-19); // v vector = 1/96 in Y
+        w.write_bd(0.010416666666666666);
+        w.write_bd(0.0);
+        w.write_rd(994.0); // image size in pixels
+        w.write_rd(965.0);
+        w.write_bs(7); // display flags
+        w.write_b(false); // clipping off
+        w.write_rc(50);
+        w.write_rc(50);
+        w.write_rc(0);
+        w.write_b(false); // clip mode (R2010+)
+        w.write_bs(1); // rectangle
+        w.write_rd(-0.5); // corners, straight after the type
+        w.write_rd(-0.5);
+        w.write_rd(993.5);
+        w.write_rd(964.5);
+        let end = w.position_bits();
+
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let i = decode(&mut c, Version::R2018).unwrap();
+        assert_eq!(i.image_size, Point2D { x: 994.0, y: 965.0 });
+        assert_eq!(i.brightness, 50);
+        assert_eq!(
+            i.clip_boundary,
+            ClipBoundary::Rectangle {
+                lower_left: Point2D { x: -0.5, y: -0.5 },
+                upper_right: Point2D { x: 993.5, y: 964.5 },
+            }
+        );
+        assert_eq!(c.position_bits(), end);
     }
 
     #[test]

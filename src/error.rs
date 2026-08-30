@@ -81,8 +81,8 @@ pub enum Error {
     #[error("Section map parse failed: {0}")]
     SectionMap(String),
 
-    /// The BLL encoding (`spec §2.4`) uses a 3-bit prefix-coded length
-    /// whose representable set is `{0, 2, 6, 7}` bytes. Values in the
+    /// The BLL encoding (`spec §2.4`) uses a three-bit byte count, so
+    /// it spans `0..=7` bytes. Values in the
     /// top byte of a `u64` (`v >= 1 << 56`) cannot fit in the largest
     /// allowed length (7 bytes) and must be rejected at write time.
     #[error(
@@ -91,11 +91,11 @@ pub enum Error {
     )]
     BllOverflow { value: u64 },
 
-    /// The writer was asked to emit a 3B prefix-coded value outside the
-    /// representable set `{0, 2, 6, 7}` (spec §2.1). Internal callers
+    /// The writer was asked to emit a 3B value above 7, which the
+    /// three-bit code cannot hold (spec §2.1). Internal callers
     /// normalize upstream; this variant surfaces the programmer error
     /// without a panic.
-    #[error("invalid 3B value {value}; representable: {{0, 2, 6, 7}} (spec §2.1)")]
+    #[error("invalid 3B value {value}; representable: 0..=7 (spec §2.1)")]
     Invalid3B { value: u8 },
 
     /// The signed modular-char decoder produced a magnitude that cannot

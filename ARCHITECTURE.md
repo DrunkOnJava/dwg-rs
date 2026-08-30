@@ -147,7 +147,7 @@ bit granularity. Key methods:
 |-----------------|--------------------------------------------------|--------------------------|
 | `read_b`        | 1 bit                                            | `bool`                   |
 | `read_bb`       | 2 bits                                           | `0..=3`                  |
-| `read_3b`       | 1-3 bits (early-stop on 0)                       | `{0, 2, 6, 7}`           |
+| `read_3b`       | 3 raw bits (the BLL byte count)                  | `0..=7`                  |
 | `read_bs`       | 2-bit tag + {16, 8, 0, 0} bit payload            | `i16`                    |
 | `read_bl`       | 2-bit tag + {32, 8, 0, reserved} bit payload     | `i32`                    |
 | `read_bd`       | 2-bit tag + {64, 0, 0, reserved} bit payload     | `f64`                    |
@@ -514,6 +514,60 @@ does not reach — a separate gap, not a class-table one.
 Reproduce with `cargo run --release --example probe_class_layout --
 samples/sample_AC1032.dwg`, which prints the per-field bit offsets,
 the record widths, the resolved names, and the trailer arithmetic.
+
+## 7f. The entity graphics-preview block (finding, 2026-08-30)
+
+The common entity preamble (§19.4.1) opens with the EED chain, then a
+single `B` "graphics present" flag. When that flag is set, a size field
+and that many bytes of proxy graphics follow — and **the size field
+changes width across the release bands**:
+
+| Release band | Graphics size field |
+|---|---|
+| R13 - R2007 | `RL` (32 bits) |
+| R2010+ | `BLL` (§2.4 — a three-bit byte count, then that many LE bytes) |
+
+Read as an `RL` on R2018 the field yields sizes in the millions of
+bytes for records a few hundred bytes long, and the byte-skip loop runs
+off the end of the record inside the preamble, before any
+entity-specific field.
+
+**Custom classes were a correlation, not a cause.** AutoCAD writes
+proxy graphics for entities whose class it does not implement natively,
+so the flag is set on MULTILEADER / MESH / ACAD_TABLE / WIPEOUT / IMAGE
+and clear on LINE / TEXT / MTEXT. The preamble is byte-for-byte the same
+field list either way; the graphics branch simply had no coverage until
+the R2018 class table started resolving (#41) and those records began
+reaching a decoder.
+
+**The `BLL` byte count is three raw bits.** The crate previously read
+the `3B` code as a stop-at-zero prefix, which can only produce
+`{0, 2, 6, 7}` — a set with no encoding for "one byte", which the file
+requires. Measured on `sample_AC1032.dwg`:
+
+| record | prefix bits | size bytes | preamble ends at bit |
+|---|---|---|---|
+| IMAGE `0x662` | `001` + `8C` | 140 | 1213 |
+| WIPEOUT `0x44D` | `001` + `8C` | 140 | 1213 |
+| MULTILEADER `0x66E` | `010` + `50 03` | 848 | 6885 |
+| MULTILEADER `0x818` | `010` + `98 02` | 664 | 5413 |
+| MESH `0x343` | `010` + `28 25` | 9512 | 76197 |
+| MESH `0x380` | `010` + `08 24` | 9224 | 73893 |
+
+The check that this is right is what follows the block: every one of
+those records then reads `entmode = 2`, `num_reactors = 0`,
+`no_xdictionary = true`, colour `0x0100`, linetype scale `1.0`, all
+flag fields `0`, `invisibility = 0`, `lineweight = 0x1D` — bit-for-bit
+the values every plain LINE / TEXT / MTEXT record in the same file
+carries. `examples/probe_entity_preamble.rs` prints both readings side
+by side for any record.
+
+Two more things fall out of the same two records. The IMAGE and the
+WIPEOUT are **bit-identical for their first 175 bits**, which is how we
+know `AcDbWipeout` stores a raster-image record verbatim; and an IMAGE
+clip boundary of type 1 (rectangle) carries **no vertex count** — the
+two corners follow the boundary type directly, while the polygon form
+(type 2) does carry the count.
 
 ## 8. Write pipeline (current scope)
 
