@@ -11,13 +11,69 @@ name: Perf
 #     GitHub Actions cache keyed on the workflow file's SHA so that
 #     changes to the benchmark set invalidate stale baselines.
 #   - pull_request runs the same benches and compares against the
-#     cached `main` baseline with `critcmp`. Regressions >20 % fail
-#     the job. If no baseline is cached yet (first run, or cache
-#     miss) the comparison is skipped with a warning — we never
-#     want first-time contributors to hit a red X because the cache
-#     is cold.
+#     cached `main` baseline by reading criterion's own
+#     `estimates.json` files. The comparison table is printed on every
+#     run. If no baseline is cached yet (first run, or cache miss) the
+#     comparison is skipped with a warning — we never want first-time
+#     contributors to hit a red X because the cache is cold.
 #
-# 20 % is a conservative threshold for a pre-alpha crate where the
+# ---------------------------------------------------------------------
+# Failure rule (issue #17) — ratio AND absolute delta AND a re-run
+# ---------------------------------------------------------------------
+#
+# A bench fails the job only when ALL THREE hold:
+#
+#   1. ratio  = pr_mean / main_mean  >=  RATIO_THRESHOLD (1.20)
+#   2. delta  = pr_mean - main_mean  >=  ABS_FLOOR_NS    (5 000 ns)
+#   3. the same bench trips (1) and (2) again on an immediate re-run.
+#
+# Why the ratio alone was not enough: issue #17 recorded
+# `stage1_build_section/uniform_16k` at ratio 1.24 on PR #13 — a PR
+# that touched neither `src/lz77_encode.rs` nor `src/file_writer.rs` —
+# while three sibling cells in the SAME run *improved* by 10-17 %. A
+# whole-group swing in both directions is the signature of runner
+# noise, not of a code change. On a shared GitHub vCPU a 21 µs bench
+# routinely moves double digits.
+#
+# ABS_FLOOR_NS = 5 000 ns (5 µs). Rationale: the cells small enough for
+# 20 % to fall under that floor (alt_1k ~1.7 µs, uniform_16k ~21 µs)
+# exercise exactly the same `WriterScaffold::build_sections` code path
+# as `mixed_64k` (~100 µs) and `mixed_256k` (~334 µs), which stay
+# gated because 20 % of them is 20-67 µs. So no code path loses
+# coverage — a real algorithmic regression still fails the job on the
+# large cells. What the floor removes is the class of failure where the
+# only evidence is a few microseconds on the smallest cell.
+#
+# The re-run costs nothing on the happy path: it only executes when a
+# bench has already tripped (1) and (2).
+#
+# ---------------------------------------------------------------------
+# Methodology note — how to check a suspected regression by hand
+# ---------------------------------------------------------------------
+#
+# Criterion's headline number (mean / slope) is an average over ~100
+# samples, so anything else running on the machine inflates it. Local
+# evidence gathered for #17 on 2026-08-30, an M2 Max under a load
+# average of ~12, `stage1_build_section/uniform_16k`:
+#
+#   criterion mean, same binary, two runs ....... 21.25 µs → 32.99 µs (+55 %)
+#   minimum of the SAME samples ................. 20.80 µs → 21.82 µs (+4.9 %)
+#
+# The minimum per-iteration time is the sample that came closest to
+# running uncontended, and it is far steadier. Extract it from
+# criterion's raw samples:
+#
+#   jq '[ [.iters, .times] | transpose[] | .[1]/.[0] ] | min' \
+#     target/criterion/<group>/<cell>/<baseline>/sample.json
+#
+# The same six-way A/B matrix (rolled vs 8-way-unrolled+`#[inline(never)]`
+# checksum × with/without an unrelated function added to
+# `src/bitwriter.rs`) landed entirely inside 20.80-21.89 µs with no
+# consistent ordering by build — i.e. the "+24 % from code layout"
+# reported in #17 did not survive the better estimator. That is why the
+# fix here is a CI-side rule and not a code change.
+#
+# 20 % is a conservative ratio for a pre-alpha crate where the
 # benchmarks are small enough that CI noise can spike double-digit
 # percentages on cold runners. Once the crate has a published
 # baseline in the 0.2 era, tighten this to 10 % (#417 follow-up).
@@ -61,11 +117,13 @@ jobs:
           # bench build never pollutes the test cache.
           key: perf-${{ runner.os }}
 
-      - name: Install critcmp
-        # Pinned — bump deliberately in a separate PR. critcmp reads
-        # criterion's `target/criterion` output and emits a
-        # percent-change summary suitable for programmatic gating.
-        run: cargo install critcmp --version 0.1.8 --locked
+      # No critcmp install any more: `.github/scripts/criterion-gate.sh`
+      # reads criterion's own `estimates.json` with `jq` (preinstalled on
+      # ubuntu-latest). That drops a ~1-minute `cargo install` from every
+      # run, removes a text-scraping parse that would silently
+      # mis-attribute a column if critcmp's layout ever changed, and
+      # gives the gate the absolute nanosecond delta it needs for the
+      # noise floor described at the top of this file.
 
       # --------------------------------------------------------------
       # Baseline caching: keyed on this workflow file + Cargo.lock +
@@ -82,74 +140,83 @@ jobs:
       - name: Run benches
         run: |
           set -euo pipefail
-          # Four benches per the task spec (lz77 + section_map +
-          # object_walk + metadata_parse + libredwg_compare — five
-          # total counting lz77, though the task summary references
-          # four; we just run all five in the `[[bench]]` set).
+          # All six `[[bench]]` targets: lz77, section_map, object_walk,
+          # metadata_parse, libredwg_compare, write_path.
           #
           # On push-to-main we record this run as the new baseline.
-          # On PRs we record it as "pr" so critcmp can diff against
-          # the cached "main".
+          # On PRs we record it as "pr" so the gate script can diff
+          # against the cached "main".
           BASELINE_NAME="pr"
           if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
             BASELINE_NAME="main"
           fi
           echo "Recording baseline: ${BASELINE_NAME}"
-          cargo bench --bench lz77 -- --save-baseline "${BASELINE_NAME}"
-          cargo bench --bench section_map -- --save-baseline "${BASELINE_NAME}"
-          cargo bench --bench object_walk -- --save-baseline "${BASELINE_NAME}"
-          cargo bench --bench metadata_parse -- --save-baseline "${BASELINE_NAME}"
-          cargo bench --bench libredwg_compare -- --save-baseline "${BASELINE_NAME}"
-          cargo bench --bench write_path -- --save-baseline "${BASELINE_NAME}"
+          .github/scripts/run-benches.sh "${BASELINE_NAME}"
 
       - name: Compare PR vs baseline
         if: github.event_name == 'pull_request'
+        env:
+          RATIO_THRESHOLD: "1.20"
+          # 5 µs. See the failure-rule comment at the top of this file
+          # for why the ratio is paired with an absolute floor, and why
+          # 5 µs specifically.
+          ABS_FLOOR_NS: "5000"
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          # GitHub's default shell is `bash -e`; the gate script signals
+          # its verdict through the exit status, so errexit must be off
+          # for the `$?` checks below to be reachable.
+          set +e
           if [ ! -d target/criterion ] || [ -z "$(find target/criterion -name 'benchmark.json' -print -quit 2>/dev/null)" ]; then
             echo "::warning::no criterion output found; skipping compare"
             exit 0
           fi
-          # `critcmp main pr` prints each benchmark with a percent
-          # delta. If the baseline named "main" isn't present (cache
-          # miss, first PR ever), critcmp exits nonzero — that's a
-          # warning, not a failure, because the PR author can't fix
-          # a cold cache.
-          if ! critcmp main pr > critcmp.out 2>&1; then
-            echo "::warning::no cached 'main' baseline to compare against — likely first run"
-            cat critcmp.out || true
+
+          # Pass 1. Exit 2 means the cached `main` baseline is absent
+          # (cold cache, first PR ever) — a warning, never a red X,
+          # because the PR author cannot fix a cold cache.
+          .github/scripts/criterion-gate.sh main pr /tmp/tripped-1.txt
+          STATUS=$?
+          if [ "$STATUS" -eq 0 ]; then
+            echo "All benches within ${RATIO_THRESHOLD}x of the main baseline."
             exit 0
           fi
-          cat critcmp.out
-
-          # Parse the percent-change column. critcmp's default output
-          # is `name   timing   time/iter   ratio`. We extract the
-          # ratio (>1 == slower) and fail the job if any bench
-          # regresses by >= 1.20x (== +20 %).
-          THRESHOLD="1.20"
-          FAIL=0
-          while IFS= read -r line; do
-            # Skip header + separator rows.
-            case "$line" in
-              ""|*"-----"*|*"group"*|*"benchmark"*) continue ;;
-            esac
-            # ratio is the 4th whitespace-separated field on "pr" rows.
-            RATIO=$(echo "$line" | awk '{ for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/) { print $i; exit } }')
-            NAME=$(echo "$line" | awk '{print $1}')
-            if [ -z "$RATIO" ]; then
-              continue
-            fi
-            WORSE=$(awk -v r="$RATIO" -v t="$THRESHOLD" 'BEGIN { print (r+0 >= t+0) ? "1" : "0" }')
-            if [ "$WORSE" = "1" ]; then
-              echo "::error::${NAME} regressed by ratio ${RATIO} (threshold ${THRESHOLD})"
-              FAIL=1
-            fi
-          done < critcmp.out
-          if [ "$FAIL" -ne 0 ]; then
-            echo "::error::one or more benchmarks regressed >=20% vs main"
+          if [ "$STATUS" -eq 2 ]; then
+            echo "::warning::no cached 'main' baseline to compare against — likely first run"
+            exit 0
+          fi
+          if [ "$STATUS" -ne 1 ]; then
+            echo "::error::criterion-gate.sh failed with status $STATUS"
             exit 1
           fi
-          echo "All benches within ${THRESHOLD}x of main baseline."
+
+          # Pass 2 — the "two consecutive runs" requirement from #17.
+          # Something tripped both thresholds; re-measure before
+          # believing it. Only a bench that trips in BOTH runs fails the
+          # job, so a one-off runner hiccup is reported and forgiven.
+          echo "::notice::pass 1 flagged a regression; re-running the benches to confirm"
+          .github/scripts/run-benches.sh pr2
+
+          .github/scripts/criterion-gate.sh main pr2 /tmp/tripped-2.txt
+          STATUS=$?
+          if [ "$STATUS" -eq 0 ]; then
+            echo "::warning::pass 1 flagged a regression but the re-run was clean; treating pass 1 as runner noise"
+            exit 0
+          fi
+          if [ "$STATUS" -ne 1 ]; then
+            echo "::error::criterion-gate.sh failed with status $STATUS on the re-run"
+            exit 1
+          fi
+
+          CONFIRMED=$(sort /tmp/tripped-1.txt /tmp/tripped-2.txt | uniq -d)
+          if [ -z "$CONFIRMED" ]; then
+            echo "::warning::both passes flagged regressions, but no single benchmark twice; treating as runner noise"
+            exit 0
+          fi
+          echo "$CONFIRMED" | while IFS= read -r NAME; do
+            echo "::error::${NAME} regressed >=${RATIO_THRESHOLD}x AND >=${ABS_FLOOR_NS}ns vs main on two consecutive runs"
+          done
+          exit 1
 
       # --------------------------------------------------------------
       # Cache the new `main` baseline on push-to-main ONLY. PR runs

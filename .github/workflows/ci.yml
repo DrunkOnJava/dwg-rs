@@ -117,42 +117,76 @@ jobs:
         run: rustup update stable
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
       # The canonical corpus lives at tests/fixtures/canonical/ and is
-      # committed to the repo. If this job's decoded_ratio drops below
-      # the asserted threshold, a dispatcher or decoder regression has
-      # landed — see task #93.
+      # committed to the repo — four self-generated, Apache-2.0
+      # R2004-family files (one per version assemble_dwg_bytes supports)
+      # produced by `cargo run --release --example build_fixtures`. See
+      # tests/fixtures/canonical/README.md for provenance.
+      #
+      # Until task #94 this job skipped with a warning whenever the
+      # directory held no .dwg file, which it always did — a vacuous
+      # gate. A missing corpus is now a hard failure.
+      - name: Assert the canonical corpus is present
+        run: |
+          set -e
+          if [ ! -d tests/fixtures/canonical ] \
+             || [ -z "$(find tests/fixtures/canonical -maxdepth 1 -name '*.dwg' -print -quit)" ]; then
+            echo "::error::canonical corpus is empty — regenerate with \
+          'cargo run --release --example build_fixtures' and commit the result"
+            exit 1
+          fi
+          find tests/fixtures/canonical -maxdepth 1 -name '*.dwg' -print
+
+      # Generation is byte-deterministic, so the committed fixtures must
+      # equal what the current tree produces. A drifted corpus means the
+      # writer changed without the fixtures being regenerated — at which
+      # point the ratio below is measuring stale bytes.
+      - name: Verify the committed corpus matches the generator
+        run: |
+          set -e
+          cargo +stable run --release --example build_fixtures
+          if ! git diff --exit-code -- tests/fixtures/canonical; then
+            echo "::error::committed fixtures differ from build_fixtures output; \
+          re-run 'cargo run --release --example build_fixtures' and commit the diff"
+            exit 1
+          fi
+
       - name: Run coverage_report and assert minimum decode ratio
         run: |
           set -e
-          # Skip if the directory doesn't exist OR has no .dwg fixtures
-          # yet — the canonical corpus is committed lazily (see
-          # tests/fixtures/canonical/README.md). Both conditions matter:
-          # an empty directory with only a README is a valid state while
-          # the write path matures.
-          if [ ! -d tests/fixtures/canonical ] \
-             || [ -z "$(find tests/fixtures/canonical -maxdepth 1 -name '*.dwg' -print -quit)" ]; then
-            echo "::warning::canonical corpus has no .dwg files yet; skipping coverage smoke"
-            exit 0
-          fi
           OUTPUT=$(cargo +stable run --release --example coverage_report -- tests/fixtures/canonical 2>&1)
           echo "$OUTPUT"
-          # Extract the TOTAL ratio percentage. If parse fails or
-          # ratio drops below the threshold below, fail the job.
-          # Threshold value MUST match the numeric comparison below.
-          RATIO=$(echo "$OUTPUT" | awk '/^TOTAL/ { for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/) print $i }' | tail -1)
+          # Extract the TOTAL row's ratio percentage (the last float on
+          # that line). If the parse fails or the ratio drops below the
+          # threshold below, fail the job.
+          RATIO=$(echo "$OUTPUT" | awk '/^TOTAL/ { for (i=1;i<=NF;i++) if ($i ~ /^[0-9]+\.[0-9]+$/) last=$i } END { print last }')
           if [ -z "$RATIO" ]; then
             echo "::error::could not parse decoded_ratio from coverage_report"
             exit 1
           fi
-          # Threshold is deliberately below the current measured aggregate
-          # (~25%) to allow noise while still catching large regressions.
-          # Raise this once real .dwg fixtures land under canonical/.
-          THRESHOLD=20.0
+          # MEASURED 2026-08-30 on the committed corpus: 20 entities
+          # (5 per file × 4 files), 20 decoded / 0 unhandled / 0 errored
+          # => aggregate decoded_ratio = 100.0%.
+          #
+          # The floor is the measured value minus one entity's worth of
+          # margin (1/20 = 5.0 points) => 95.0. The margin is deliberately
+          # this small: decoded_ratio is a deterministic function of the
+          # committed bytes, not a timing measurement, so there is no CI
+          # noise to absorb. It exists only so that adding a deliberately
+          # unhandled object to the corpus (e.g. a DICTIONARY, to exercise
+          # the Unhandled path) does not require editing this workflow in
+          # the same commit.
+          #
+          # Raise this back to 100.0 if the corpus ever settles on a
+          # fully-decodable object set. The tight gate lives in
+          # tests/canonical_corpus.rs, which pins the exact per-file
+          # counts AND the decoded field values under `cargo test`.
+          THRESHOLD=95.0
           PASS=$(awk -v r="$RATIO" -v t="$THRESHOLD" 'BEGIN { print (r+0 >= t+0) ? "1" : "0" }')
           if [ "$PASS" != "1" ]; then
             echo "::error::decoded_ratio $RATIO% < $THRESHOLD% minimum threshold"
             exit 1
           fi
-          echo "coverage-smoke PASS: decoded_ratio=$RATIO%"
+          echo "coverage-smoke PASS: decoded_ratio=$RATIO% (threshold ${THRESHOLD}%)"
 
   pii-guard:
     name: PII guard
