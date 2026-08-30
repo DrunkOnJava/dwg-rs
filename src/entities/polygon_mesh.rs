@@ -2,9 +2,9 @@
 //!
 //! A POLYGON_MESH header stores the (M, N) dimensions of an indexed
 //! surface patch plus closed-direction flags. The vertex grid itself
-//! lives in a handle chain of `VERTEX_MESH` sub-entities referenced by
-//! `first_vertex_handle` .. `last_vertex_handle`; the
-//! traversal is a downstream concern, not handled here.
+//! lives in a chain of `VERTEX_MESH` sub-entities the record owns
+//! through its handle stream; the traversal is a downstream concern,
+//! not handled here.
 //!
 //! POLYGON_MESH and [`super::polyface_mesh::PolyfaceMesh`] are sibling
 //! legacy 3D representations — polygon-mesh is indexed (parametric M×N
@@ -24,11 +24,28 @@
 //! BS   n_density
 //! BS   m_vert_count   -- grid dimension M
 //! BS   n_vert_count   -- grid dimension N
-//! H    first_vertex_handle
-//! H    last_vertex_handle
 //! ```
+//!
+//! # Not verified against real bytes
+//!
+//! No file in the corpus carries a POLYGON_MESH record, so unlike its
+//! sibling [`super::polyface_mesh`] — whose list is pinned to the one
+//! record of `sample_AC1032.dwg` — this field list has never been
+//! landed on a data-stream boundary. It is wired through the same
+//! exact-boundary check as every other entity (#63), so the first real
+//! record to reach it will either confirm the list or report a delta;
+//! it will not silently return plausible-looking numbers.
+//!
+//! Two `H` reads were removed from the list in #63. An object
+//! reference never occupies data-stream bits from R2000 onward — the
+//! handle stream begins exactly where the boundary this decoder is
+//! checked against ends — so reading the vertex-chain endpoints inline
+//! was wrong on every release the crate walks. That was measurable on
+//! POLYLINE_PFACE, whose identical mistake overran its boundary by 52
+//! bits; it is corrected here by the same rule rather than by a
+//! measurement of this type.
 
-use crate::bitcursor::{BitCursor, Handle};
+use crate::bitcursor::BitCursor;
 use crate::error::Result;
 
 /// Flag bits (§19.4.30). Named constants for the documented bits; any
@@ -52,8 +69,6 @@ pub struct PolygonMesh {
     pub m_vert_count: u16,
     /// Grid dimension along the N axis.
     pub n_vert_count: u16,
-    pub first_vertex_handle: Handle,
-    pub last_vertex_handle: Handle,
 }
 
 impl PolygonMesh {
@@ -69,24 +84,21 @@ impl PolygonMesh {
 
 /// Decode a POLYGON_MESH header.
 ///
-/// Only the header is parsed here — the VERTEX_MESH grid referenced by
-/// the handle chain is walked at the object-stream layer.
+/// Only the header is parsed here — the VERTEX_MESH grid the record
+/// owns is reached through its handle stream, which begins where this
+/// decoder's data fields must end.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<PolygonMesh> {
     let flags = c.read_bs_u()?;
     let m_density = c.read_bs_u()?;
     let n_density = c.read_bs_u()?;
     let m_vert_count = c.read_bs_u()?;
     let n_vert_count = c.read_bs_u()?;
-    let first_vertex_handle = c.read_handle()?;
-    let last_vertex_handle = c.read_handle()?;
     Ok(PolygonMesh {
         flags,
         m_density,
         n_density,
         m_vert_count,
         n_vert_count,
-        first_vertex_handle,
-        last_vertex_handle,
     })
 }
 
@@ -101,8 +113,6 @@ mod tests {
         nd: u16,
         m: u16,
         n: u16,
-        first: (u8, u64),
-        last: (u8, u64),
     }
 
     fn write_pmesh(w: &mut BitWriter, f: &PmeshFields) {
@@ -111,8 +121,6 @@ mod tests {
         w.write_bs_u(f.nd);
         w.write_bs_u(f.m);
         w.write_bs_u(f.n);
-        w.write_handle(f.first.0, f.first.1);
-        w.write_handle(f.last.0, f.last.1);
     }
 
     #[test]
@@ -126,10 +134,9 @@ mod tests {
                 nd: 6,
                 m: 5,
                 n: 4,
-                first: (3, 0x200),
-                last: (3, 0x214),
             },
         );
+        let end = w.position_bits();
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let m = decode(&mut c).unwrap();
@@ -140,8 +147,9 @@ mod tests {
         assert_eq!(m.n_density, 6);
         assert_eq!(m.m_vert_count, 5);
         assert_eq!(m.n_vert_count, 4);
-        assert_eq!(m.first_vertex_handle.value, 0x200);
-        assert_eq!(m.last_vertex_handle.value, 0x214);
+        // The five counts are the whole data-stream field list — the
+        // vertex-chain handles are not in it.
+        assert_eq!(c.position_bits(), end);
     }
 
     #[test]
@@ -155,8 +163,6 @@ mod tests {
                 nd: 4,
                 m: 16,
                 n: 8,
-                first: (3, 0x300),
-                last: (3, 0x310),
             },
         );
         let bytes = w.into_bytes();
@@ -179,8 +185,6 @@ mod tests {
                 nd: 8,
                 m: 24,
                 n: 12,
-                first: (3, 0x400),
-                last: (3, 0x41C),
             },
         );
         let bytes = w.into_bytes();
@@ -189,8 +193,8 @@ mod tests {
         assert!(m.is_closed_m());
         assert!(m.is_closed_n());
         assert_eq!(m.flags & 0x3, 0x3);
-        assert_eq!(m.first_vertex_handle.value, 0x400);
-        assert_eq!(m.last_vertex_handle.value, 0x41C);
+        assert_eq!(m.m_vert_count, 24);
+        assert_eq!(m.n_vert_count, 12);
     }
 
     #[test]
@@ -207,8 +211,6 @@ mod tests {
                 nd: 3,
                 m: 7,
                 n: 5,
-                first: (3, 1),
-                last: (3, 2),
             },
         );
         let bytes = w.into_bytes();

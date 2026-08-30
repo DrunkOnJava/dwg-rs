@@ -8,6 +8,86 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Changed — the exact-boundary check now covers every entity type (2026-08-30, closes #63)
+
+Until now only the entity types that *had* to know about the R2007+
+split streams asserted anything about where their fields end. The
+POLYLINE family, MESH, IMAGE, WIPEOUT, VIEWPORT, LEADER, MLINE, the
+four SURFACE variants, RAY, XLINE, POINT, CIRCLE, ARC, LINE, ELLIPSE,
+SOLID, TRACE, ENDBLK and BLOCK decoded with **no boundary check at
+all** — and on the R2000/R2004 band, so did every entity type. Their
+zero error count was a property of the dispatcher, not of the bytes.
+
+Every fixed-code and custom-class entity decoder now runs through
+`entities::dispatch::checked_inline`, which requires the field list to
+end exactly on the record's own data-stream boundary: the string-stream
+start bit (or the handle-stream start minus the one `strings present`
+trailer bit) on R2010+, and the `RL` object-data-size-in-bits on
+R2000 / R2004. **On R2010+ the number of entity types that decode
+unchecked is now zero.** R2007 and R13/R14 state no boundary this crate
+can read, and no record of those releases reaches a decoder.
+
+Three field lists the check caught, each fixed to `delta 0` with an
+independent value corroborating it:
+
+- **BLOCK** (45 records, R2010/R2013/R2018) read its one `TV` inline.
+  On R2010+ the name lives in the string stream and the record's data
+  fields have a budget of **zero bits** — 27/27 on `sample_AC1032.dwg`
+  and 3/3 on each of `arc_2010.dwg` / `arc_2013.dwg`. Names now decode
+  as `*Model_Space`, `_ArchTick`, `MyBlock`, matching the BLOCK_RECORD
+  entries they pair with. The R2004 records were already correct and
+  now close on their `RL`.
+- **POLYLINE_PFACE** (1 record) claimed five `BS` counts and two inline
+  `H` handles, overrunning by 52 bits. The record holds `BS 5`, `BS 2`,
+  `BL 7` in 30 bits — and the file carries exactly 5 VERTEX_PFACE and 2
+  VERTEX_PFACE_FACE records, summing to 7.
+- **MLINE** (3 records) read `num_lines` as a `BS` where the record
+  writes one `RC`, decoding `lines = 521` and `verts = -11716`. One
+  token changed; all three now close at `delta 0` with `num_lines = 2`.
+
+Five types that previously came back `Unhandled` are now decoded,
+because the check can prove their field lists right rather than assume
+them — handles `0x422`..`0x431` of `sample_AC1032.dwg` read back as a
+self-consistent chain:
+
+- **SEQEND** — no fields at all; budget 0 on all four records.
+- **POLYLINE_3D** — `RC`, `RC`, `BL 5`; followed by exactly 5 VERTEX_3D.
+- **VERTEX_3D / VERTEX_MESH / VERTEX_PFACE** — `RC flag`, `3BD`; the
+  flags read `0x20` ("3D polyline vertex") and `0xC0` ("polyface mesh
+  vertex" + "3D polygon mesh vertex"), the crate's own flag table.
+- **VERTEX_PFACE_FACE** — four `BS` indices, `[1, 2, 3, -4]` and
+  `[-1, 4, 5, 0]`: all inside the mesh's declared 5-vertex range, with
+  the negative-index invisible-edge convention and the `0` terminator
+  of a three-corner face.
+
+Three decoders fail the check and are reported rather than patched —
+documented offsets, and stop:
+
+| Type | Records | Delta | Why it is not fixed |
+|---|---|---|---|
+| VIEWPORT | 6 | −819 | the decoder reads 266 of 1125 bits by design; six records of one identical shape give no variation to derive the rest from |
+| MESH | 2 | −2 | the two trailing bits read `10` on both records — the zero/default code of `BS`, `BL` and `BD` alike |
+| LEADER | 1 | −12 | twelve bits several continuations of §19.4.19 would fit, on one record |
+
+Also in this change: `POLYGON_MESH` stops reading two `H` handles from
+the data stream (an object reference has never occupied data-stream
+bits from R2000 on), and `examples/probe_entity_budgets.rs` prints the
+bit budget every entity record's field list has to fill.
+
+Measured coverage on the local 19-file corpus, before → after:
+
+| Version | Decoded | Skipped | Errored | Ratio |
+|---|---|---|---|---|
+| R2004 (AC1018) | 582 → 582 | 15 → 15 | 0 → 0 | 97.5 % → **97.5 %** |
+| R2010 (AC1024) | 531 → 531 | 12 → 12 | 0 → 0 | 97.8 % → **97.8 %** |
+| R2013 (AC1027) | 384 → 384 | 12 → 12 | 0 → 0 | 97.0 % → **97.0 %** |
+| R2018 (AC1032) | 765 → 776 | 77 → 57 | 0 → 9 | 90.9 % → **92.2 %** |
+| **Aggregate** | **2262 → 2273** | **116 → 96** | **0 → 9** | 95.1 % → **95.6 %** |
+
+The three unchanged slices are the point: their counts did not move,
+but every entity record in them is now checked where none was before,
+and every one passes.
+
 ### Added — VISUALSTYLE on R2004: the flag-less generation (2026-08-30, refs #48)
 
 `VISUALSTYLE` now dispatches on R2004 as well as R2010+, taking all 72

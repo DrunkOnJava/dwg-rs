@@ -13,11 +13,42 @@
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
+use crate::string_stream::StringReader;
 use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     pub name: String,
+}
+
+/// Decode a BLOCK, taking its one `TV` from whichever stream holds it.
+///
+/// `Some(reader)` is the R2010+ split layout: the name's characters
+/// live in the object's string stream and the slot costs the data
+/// stream nothing. `None` is the inline layout of R2000-R2004.
+///
+/// # Measured
+///
+/// BLOCK's entire field list is that one `TV`, so on R2010+ its data
+/// fields have a budget of **zero** bits — and every BLOCK record in
+/// the corpus has exactly that: 27/27 on `sample_AC1032.dwg` (R2018)
+/// and 3/3 on each of `arc_2010.dwg` and `arc_2013.dwg`, measured with
+/// `examples/probe_entity_budgets.rs`. Reading the name inline instead
+/// overran the boundary on all 33 (deltas +58 … +266). On R2004 the
+/// same records spend 114-122 bits there, which is exactly the inline
+/// `BS` length plus the NUL-terminated name, and they close on the
+/// `RL` object-data-size with the reading below.
+pub fn decode_field(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    strings: &mut Option<StringReader<'_>>,
+) -> Result<Block> {
+    match strings.as_mut() {
+        Some(reader) => Ok(Block {
+            name: reader.read_tv()?,
+        }),
+        None => decode(c, version),
+    }
 }
 
 /// Decodes the `Block` payload that follows the common entity header.

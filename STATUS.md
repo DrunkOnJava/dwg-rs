@@ -6,19 +6,21 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 741 passing in default/debug and release-all-features
+- **Lib tests:** 751 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 2,262 decoded / 116 skipped /
-  **0 errored** / 95.0% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 762 / 80 / 0 / 90.5%. **No file
-  in the corpus has a single errored record.** Per version:
-  R2004 97.5%, R2010 97.8%, R2013 97.0%, R2018 90.9%. What remains is
-  the *skipped* column — types with no decoder at all — not records
-  that decode wrongly.
+- **Current real-file decode coverage:** 2,273 decoded / 96 skipped /
+  **9 errored** / 95.6% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 776 / 57 / 9 / 92.2%. Per
+  version: R2004 97.5%, R2010 97.8%, R2013 97.0%, R2018 92.2%.
+- **Every entity record is boundary-checked** (#63). The nine errors
+  are the honest residue of turning that check on for the types that
+  previously had none — see the honesty note below. They are not a
+  regression from the 2,262 / 116 / **0** of #67: the same nine records
+  "decoded" then, without anything checking that they had.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
   entries on `sample_AC1032.dwg` resolves to a record whose own handle
   field matches the map, and the walked records cover 1,191,935 of the
@@ -52,13 +54,13 @@ scrolling the changelog.
 - R2013/R2018 common-entity/body boundary pinned for LINE/CIRCLE/ARC
   with active real-DWG regression tests.
 
-### Entity decoders (Phase 4, 27 modules)
+### Entity decoders (Phase 4, 59 modules under `src/entities/`)
 - LINE, CIRCLE, ARC, ELLIPSE, POINT, LWPOLYLINE, POLYLINE 2D/3D.
 - TEXT, MTEXT, INSERT, ATTRIB/ATTDEF, BLOCK/ENDBLK.
 - SPLINE, HATCH, MLEADER, LEADER, TOLERANCE.
 - DIMENSION base + linear / aligned / radial / diameter /
   angular 2-line / angular 3-point / ordinate subclass decoders.
-- MESH (subdivision) / POLYFACE MESH / POLYGON MESH.
+- MESH (subdivision) / POLYLINE_PFACE / POLYGON MESH.
 - 3DFACE, and the three §20.4.41 ACIS entities — 3DSOLID, REGION,
   BODY — with the full record (ACIS envelope, wireframe/isoline block,
   the R2007+ trailing `BL` and the R2013+ data-store revision GUID),
@@ -69,6 +71,14 @@ scrolling the changelog.
 - OLE2FRAME, WIPEOUT, MLINE.
 - PROXY entity / PROXY object (opaque pass-through).
 - RAY, XLINE, VIEWPORT, TRACE, SOLID-2D.
+- SEQEND, POLYLINE_3D, VERTEX_3D / VERTEX_MESH / VERTEX_PFACE,
+  VERTEX_PFACE_FACE — wired in #63, each field list pinned to `delta 0`
+  on every corpus record of its type and cross-checked against the
+  object stream: the POLYLINE_PFACE at handle `0x422` of
+  `sample_AC1032.dwg` declares 5 vertices, 2 faces and 7 owned objects
+  and is followed by exactly 5 VERTEX_PFACE, 2 VERTEX_PFACE_FACE and a
+  SEQEND; the POLYLINE_3D at `0x42B` declares 5 owned objects and is
+  followed by exactly 5 VERTEX_3D and a SEQEND.
 - `LINE` end coordinates use DD fields with each start coordinate as
   the default; `line_2013.dwg` now asserts the authored
   `(50, 50, 0) -> (100, 100, 0)` geometry.
@@ -215,10 +225,42 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 2262 decoded,
-  116 skipped, 0 errored, 95.1% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 2273 decoded,
+  96 skipped, 9 errored, 95.6% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
+
+- **#63 which entity types are exact-checked — the honesty note.**
+  Every entity type this crate decodes is now routed through
+  `entities::dispatch::checked_inline`, so its field list must end on
+  the record's own data-stream boundary — the string-stream start bit
+  (or the bit before the `strings present` trailer flag) on R2010+, and
+  the `RL` object-data-size on R2000 / R2004. **On R2010+ the number of
+  entity types that decode unchecked is zero.** Two bands are still
+  unchecked, and neither has a record that reaches a decoder:
+
+  | Band | Boundary | Checked |
+  |---|---|---|
+  | R2010 / R2013 / R2018 | string-stream start, or handle-stream start − 1 | **all types** |
+  | R2000 / R2004 | `RL` object-data-size-in-bits | **all types** |
+  | R2007 | `RL` covers data *and* strings; the split point is not locatable yet (#110) | none — no AC1021 record reaches a decoder |
+  | R13 / R14 | record states no size | none — no record reaches a decoder (#104) |
+
+  Nine corpus records now fail the check. All nine are decoders whose
+  field list is genuinely unfinished, and each is documented at the
+  module that owns it:
+
+  | Type | Records | Delta | Why |
+  |---|---|---|---|
+  | VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of the record's 1125 bits by design (`entities/viewport.rs`); six records of one identical shape give no variation to derive the rest from |
+  | MESH | 2 (R2018) | −2 | two trailing bits reading `10` — the zero/default code of `BS`, `BL` and `BD` alike, so one file cannot say which (`entities/mesh.rs`) |
+  | LEADER | 1 (R2018) | −12 | twelve bits several continuations of the field list would fit; one record cannot choose (`entities/leader.rs`) |
+
+  Types whose check is wired but which no corpus record exercises:
+  POLYLINE_2D, POLYLINE_MESH, VERTEX_2D, VERTEX_MESH, TRACE, OLE2FRAME,
+  CAMERA, SUN, LIGHT, GEODATA, BODY, WIPEOUT, HELIX and the four
+  SURFACE variants. Their field lists are unverified; the check is what
+  will arbitrate them when a record appears.
 
 - **#33 remaining non-entity objects.** DICTIONARY, DICTIONARYVAR,
   XRECORD, ACDB_PLACEHOLDER, the ten `*_CONTROL` owners, ACAD_GROUP and
@@ -259,16 +301,17 @@ These have genuine open scope requiring focused work, not stubs.
   from the 16 bits an APPID record spends there; the names are
   unaffected because they come from the string stream either way.
 
-- **#103 remaining real-file decoder alignment** (P0, error side
-  closed). Every record of every corpus file that reaches a decoder
-  now decodes, and none errors: the R2007+ symbol table, TEXT /
-  ATTRIB / ATTDEF / MTEXT / TOLERANCE / HATCH / MULTILEADER / the
-  DIMENSION family / INSERT / SPLINE / LWPOLYLINE / 3DFACE / the
-  UNDERLAY family all read their `TV`s from the string stream, treat
-  an `H` slot as consuming no data bits, and assert the data fields
-  end exactly on the record's data-stream boundary. What is left under
-  this issue is *coverage*, not alignment: the 234 skipped records
-  belong to types with no field list matched against real bytes yet.
+- **#103 remaining real-file decoder alignment** (P0). The R2007+
+  symbol table, TEXT / ATTRIB / ATTDEF / MTEXT / TOLERANCE / HATCH /
+  MULTILEADER / the DIMENSION family / INSERT / SPLINE / LWPOLYLINE /
+  3DFACE / the UNDERLAY family read their `TV`s from the string
+  stream, treat an `H` slot as consuming no data bits, and assert the
+  data fields end exactly on the record's data-stream boundary — and
+  since #63 so does every other entity type, on the R2000/R2004 band
+  as well. What is left under this issue is mostly *coverage*: the 96
+  skipped records belong to types with no field list matched against
+  real bytes yet. The alignment residue is the nine errored records
+  tabulated in the #63 note above.
 - **#104 R14 / R2000 / R2007 handle-map walker.** Container layer
   ships for these versions, but the object-stream walker is
   R2004+ only. Unlocks `decoded_entities()` for those release

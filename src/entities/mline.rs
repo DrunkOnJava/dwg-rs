@@ -21,7 +21,7 @@
 //! BD3   extrusion
 //! BS    open_closed_flags    -- bit 0 = closed, bit 1 = suppressed_start,
 //!                               bit 2 = suppressed_end (et al.)
-//! BS    num_lines            -- parallel elements at each vertex (≤ 16 per spec)
+//! RC    num_lines            -- parallel elements at each vertex (≤ 16 per spec)
 //! BS    num_verts            -- vertices along the path
 //! // For each vertex:
 //! BD3     vertex_point
@@ -34,6 +34,23 @@
 //! BD × N   area_fill_parameters
 //! H     mline_style_handle
 //! ```
+//!
+//! # `num_lines` is an `RC`, not a `BS` — measured
+//!
+//! This module read `BS` there until the exact-boundary check reached
+//! MLINE (#63). With `BS` all three MLINE records of
+//! `sample_AC1032.dwg` (handles `0x38B`, `0x3A5`, `0x3A6`) decode
+//! nonsense immediately — `lines = 521`, `verts = -11716` on two of
+//! them — because the `BS` swallows the byte after it. Reading one
+//! `RC` instead is the single-token change that lands all three
+//! records exactly on their data-stream boundary (`delta 0`).
+//!
+//! The values corroborate the width rather than merely fitting it: all
+//! three read `num_lines = 2`, which is what a two-element multiline
+//! style produces, with `num_verts` 8 / 2 / 2, `justification`
+//! Zero / Top / Zero and `scale_factor` 1.5 / 2.13 / 1.598 — every one
+//! a value a drawing would plausibly hold, where the `BS` reading
+//! produced a negative vertex count.
 //!
 //! # Honest partial decode
 //!
@@ -125,17 +142,16 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<MLine> {
     let scale_point = read_bd3(c)?;
     let extrusion = read_bd3(c)?;
     let open_closed_flags = c.read_bs()?;
-    let num_lines_signed = c.read_bs()?;
+    let num_lines = c.read_rc()? as usize;
     let num_verts_signed = c.read_bs()?;
 
-    // Defensive: negative counts are nonsense — spec emits BS unsigned
-    // here but read_bs returns i16.
-    if num_lines_signed < 0 || num_verts_signed < 0 {
+    // Defensive: a negative vertex count is nonsense — the spec emits
+    // an unsigned value here but `read_bs` returns i16.
+    if num_verts_signed < 0 {
         return Err(Error::SectionMap(format!(
-            "MLINE negative counts (lines={num_lines_signed}, verts={num_verts_signed})"
+            "MLINE negative vertex count {num_verts_signed}"
         )));
     }
-    let num_lines = num_lines_signed as usize;
     let num_verts = num_verts_signed as usize;
 
     let remaining = c.remaining_bits();
@@ -244,7 +260,7 @@ mod tests {
         w.write_bd(0.0);
         w.write_bd(1.0); // extrusion
         w.write_bs(0); // open
-        w.write_bs(2); // 2 parallel lines
+        w.write_rc(2); // 2 parallel lines
         w.write_bs(3); // 3 vertices
 
         // Vertex 0
@@ -329,7 +345,7 @@ mod tests {
         w.write_bd(0.0);
         w.write_bd(1.0);
         w.write_bs(0);
-        w.write_bs(2);
+        w.write_rc(2);
         // Claim 30000 vertices but no further payload.
         w.write_bs(30000);
         let bytes = w.into_bytes();
@@ -349,7 +365,7 @@ mod tests {
         w.write_bd(0.0);
         w.write_bd(1.0);
         w.write_bs(0);
-        w.write_bs(0); // 0 lines
+        w.write_rc(0); // 0 lines
         w.write_bs(0); // 0 vertices
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

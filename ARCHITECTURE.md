@@ -1076,6 +1076,129 @@ mis-stepped.
 `examples/probe_acis_records.rs` reproduces the census, the field list
 and the arbitration table from the bytes.
 
+## 7i. The exact boundary, everywhere (2026-08-30, #63)
+
+§7a introduced the self-validating decode for the records that had to
+have it — the ones whose `TV` fields moved into the string stream. §7g
+tightened those from `<=` to `==`. Everything else still decoded with
+**no boundary check at all**: the POLYLINE family, MESH, IMAGE,
+WIPEOUT, VIEWPORT, LEADER, MLINE, the swept / lofted / extruded /
+revolved surfaces, RAY, XLINE, POINT, CIRCLE, ARC, LINE, ELLIPSE,
+SOLID, TRACE, ENDBLK, BLOCK — and, on the R2000/R2004 band, *every*
+entity type. Their zero error count was therefore a property of the
+dispatcher, not of the bytes.
+
+### One check, three boundary sources
+
+`entities::dispatch::checked_inline` is now the single path every
+fixed-code and custom-class entity decoder runs through. It asks
+`entity_data_end` where the record says its data fields stop:
+
+| Band | Boundary | Source |
+|---|---|---|
+| R2010 / R2013 / R2018 | string-stream start bit, or handle-stream start − 1 when the record carries no strings | `string_stream::data_field_end` (§7a) |
+| R2000 / R2004 | `RL` object-data-size-in-bits from the object prologue | `RawObject::obj_size_bits` (§7b) |
+| R2007 | none | the `RL` spans data **and** strings, and this crate cannot locate an AC1021 string stream yet (#110) |
+| R13 / R14 | none | the prologue has no size field |
+
+The same call also hands the decoder the record's string reader, which
+is what let BLOCK stop reading its name inline. Nothing about the check
+is version-specific beyond that table: a decoder writes one field list
+and is held to whichever boundary its release states.
+
+### What the check found
+
+Turning it on produced 55 errors across the corpus in five types, and
+a sixth — MLINE — surfaced at the same time because #63 also wired it
+into the dispatcher for the first time. Three of the six were cheap and
+are fixed; three are not and are reported.
+
+| Type | Records | Delta before | Cause | Outcome |
+|---|---|---|---|---|
+| BLOCK | 45 (R2010/R2013/R2018) | +58 … +266 | the one `TV` was read inline; on R2010+ it lives in the string stream and the record's field budget is **0 bits** on all 33 R2010+ records measured | fixed — names now decode as `*Model_Space`, `_ArchTick`, `MyBlock`, matching the BLOCK_RECORD entries they pair with |
+| POLYLINE_PFACE | 1 (R2018) | +52 | five `BS` counts and two inline `H` handles, where the record holds `BS`, `BS`, `BL` in 30 bits | fixed — reads 5 vertices, 2 faces, 7 owned objects |
+| MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
+| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported |
+| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported |
+| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
+
+The three fixes each meet the same bar as #58: `delta 0` **plus** a
+value that corroborates it independently of the bit count. BLOCK's
+names match the symbol table; POLYLINE_PFACE's counts match the object
+stream (below); MLINE's `num_lines = 2` on every record is what a
+two-element multiline style produces, where the `BS` reading produced a
+negative vertex count.
+
+The three reports each meet the other bar: documented offsets, and
+stop. VIEWPORT's six records are six copies of one shape, so there is
+no variation to separate candidate token sequences with. MESH's two
+bits are `10`, which is the zero/default code of `BS`, `BL` and `BD`
+alike — a zero corroborates nothing. LEADER's twelve bits admit several
+continuations of §19.4.19's list and there is one record.
+
+### The POLYLINE family reads itself back
+
+The check made five previously-`Unhandled` types decodable, and the
+object stream cross-checks them without reference to any bit count.
+Handles `0x422`..`0x431` of `sample_AC1032.dwg` are contiguous:
+
+```text
+0x422  POLYLINE_PFACE   BS 5, BS 2, BL 7          (30 bits, delta 0)
+0x423  VERTEX_PFACE     RC 0xC0, 3BD              (142 bits)   ┐
+ ...                                                            │ 5 vertices
+0x427  VERTEX_PFACE                                            ┘
+0x428  VERTEX_PFACE_FACE  BS [ 1, 2, 3, -4]       (48 bits)    ┐ 2 faces
+0x429  VERTEX_PFACE_FACE  BS [-1, 4, 5,  0]       (40 bits)    ┘
+0x42A  SEQEND           (no fields at all — 0 bits)
+0x42B  POLYLINE_3D      RC 0, RC 0, BL 5          (26 bits, delta 0)
+0x42C  VERTEX_3D        RC 0x20, 3BD              (142/206 bits) ┐
+ ...                                                             │ 5 vertices
+0x430  VERTEX_3D                                                ┘
+0x431  SEQEND           (0 bits)
+```
+
+Every declared count matches the records that follow it: 5 + 2 = the
+`BL 7` owned-object count, and 5 = POLYLINE_3D's. The face indices are
+all inside the 1..=5 range the mesh declares, with the negative-index
+invisible-edge convention and a `0` terminating the three-corner face.
+The flag bytes name themselves — `0x20` is the flag table's "3D
+polyline vertex" bit, `0xC0` its "polyface mesh vertex" and "3D polygon
+mesh vertex" bits together. None of that comes from the bit budget.
+
+`BS` and `BL` are indistinguishable for a value below 256 (both spend
+`01` plus one byte), so the owned-object counts are read as the `BL`
+`tables::block_record` already uses for the same purpose; only the
+width and the value are claimed.
+
+### Three readings that stay undetermined
+
+Gathered here because they are the crate's whole set of "the boundary
+closes, but the bits admit more than one grammar" cases. None is
+changed by this work; each waits on a second file.
+
+| Reading | Where | What is undetermined | What would settle it |
+|---|---|---|---|
+| MULTILEADER's 17 bits | §7g above, `entities/mleader.rs` | 17 bits between `B 293 is annotative` and the R2010+ `BS 271` that §20.4.48 does not list. Read as `MC` + `B`; `B` + `RS` and `B` + two `RC`s consume the same bits. The `MC` holds only `274`, `530`, `786` across 15 records and the `B` is `true` on all of them | one record whose value exceeds `RS` range, or whose `B` is false |
+| UNDERLAY clip-vertex encoding | `entities/underlay.rs` | whether a clip vertex is `2BD` or `2RD`. The single corpus record has a zero clip-vertex count, so no vertex is ever read | any UNDERLAY with a clip boundary |
+| LWPOLYLINE `0x200` | §7g table, `entities/lwpolyline.rs` | `0x200` is not one of §20.4.85's presence bits, and every record carrying it also carries no optional field, so it survives either reading. Treated as "closed" | a record with `0x200` set *and* an optional field present |
+| MESH's trailing `10` | `entities/mesh.rs` | `BS` 0, `BL` 0, `BD` 0.0 and "two spare bits" all encode identically | a MESH whose trailing value is non-zero |
+
+### Measured effect
+
+| Corpus slice | Before (`7b2afe2`) | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 582 / 15 / 0 / 97.5 % | 582 / 15 / 0 / 97.5 % |
+| R2010 (AC1024) × 3 | 531 / 12 / 0 / 97.8 % | 531 / 12 / 0 / 97.8 % |
+| R2013 (AC1027) × 3 | 384 / 12 / 0 / 97.0 % | 384 / 12 / 0 / 97.0 % |
+| R2018 (AC1032) × 1 | 765 / 77 / 0 / 90.9 % | **776 / 57 / 9 / 92.2 %** |
+| **Aggregate** | **2262 / 116 / 0 / 95.1 %** | **2273 / 96 / 9 / 95.6 %** |
+
+The R2004, R2010 and R2013 slices are unchanged in count — but every
+one of their entity records is now checked where none was before, and
+all of them pass. `examples/probe_entity_budgets.rs` prints the budget
+each record's field list has to fill; `examples/probe_decode_errors.rs`
+prints the nine that do not fill it.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

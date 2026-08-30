@@ -1,77 +1,77 @@
-//! POLYFACE_MESH entity (§19.4.29) — legacy face-list 3D mesh.
+//! POLYLINE_PFACE entity (§19.4.29) — legacy face-list 3D mesh header.
 //!
 //! Predates both ACIS solids and the R2010 subdivision [`super::mesh::Mesh`].
-//! A POLYFACE_MESH header holds only the counts and the endpoints of a
-//! handle chain — the actual vertex and face records live in separate
-//! `VERTEX_PFACE` / `VERTEX_PFACE_FACE` sub-entities whose traversal is
-//! a downstream concern (see [`crate::entities::vertex::Vertex`]).
+//! A POLYLINE_PFACE header holds only counts — the actual vertex and
+//! face records live in separate `VERTEX_PFACE` /
+//! `VERTEX_PFACE_FACE` sub-entities the object stream owns (see
+//! [`crate::entities::vertex`]), reached through the record's handle
+//! stream rather than through any field decoded here.
 //!
-//! The `m_vert_count` / `n_vert_count` naming is preserved verbatim from
-//! the ODA spec, which is regrettably misleading: in POLYFACE_MESH the
-//! two fields are **vertex count** and **face count**, not the M×N grid
-//! dimensions they imply in [`super::polygon_mesh::PolygonMesh`]. The
-//! doc-comments call this out explicitly to keep spec-matching code
-//! out of the naming trap.
-//!
-//! # Stream shape (all supported versions, L4-35)
+//! # Stream shape — measured
 //!
 //! ```text
-//! BS   flags
-//! BS   m_vert_count          -- vertices in the mesh
-//! BS   n_vert_count          -- faces in the mesh (see note above)
-//! BS   m_density             -- approximation density (carried for
-//!                                shape compatibility with POLYGON_MESH;
-//!                                ignored for POLYFACE semantics)
-//! BS   n_density             -- ditto
-//! H    first_vertex_handle   -- head of the VERTEX_PFACE chain
-//! H    last_vertex_handle    -- tail of the VERTEX_PFACE chain
+//! BS   vertex_count           -- VERTEX_PFACE sub-entities
+//! BS   face_count             -- VERTEX_PFACE_FACE sub-entities
+//! BL   num_owned_objects      -- R2004+ only
 //! ```
+//!
+//! The single POLYLINE_PFACE record of `sample_AC1032.dwg`
+//! (handle `0x422`) has a 30-bit data-field budget, and that reading is
+//! the one that lands on it exactly — `delta 0` with
+//! `examples/probe_entity_field_list.rs`. Its three values are `5`, `2`
+//! and `7`, and the same file carries exactly **5** `VERTEX_PFACE`
+//! records and **2** `VERTEX_PFACE_FACE` records, whose sum is 7. So
+//! the counts are corroborated by the object stream itself, not just by
+//! the bit budget.
+//!
+//! Two earlier readings are corrected here. The header used to claim
+//! five `BS` count/density fields followed by two inline `H` handles;
+//! the handles never sit in the data stream (they live in the record's
+//! handle stream, which is what the boundary marks the start of), and
+//! the density pair belongs to POLYGON_MESH, not to a face-list mesh.
+//! Together those two mistakes overran the boundary by 52 bits.
+//!
+//! `BS` and `BL` are indistinguishable at this value — both spend
+//! `01` plus one byte for a count below 256 — so the third field is
+//! read as the `BL num_owned_objects` that
+//! [`crate::tables::block_record`] already reads on R2004+ for the
+//! same purpose, rather than as a third count. Only its width and
+//! value are claimed by the corpus.
 
-use crate::bitcursor::{BitCursor, Handle};
+use crate::bitcursor::BitCursor;
 use crate::error::Result;
+use crate::version::Version;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PolyfaceMesh {
-    /// Flag bits per §19.4.29 (closed M / closed N / face-type bits).
-    /// Kept verbatim so round-trip writers can re-emit the same form.
-    pub flags: u16,
-    /// Number of vertices in the mesh. Despite the spec name (`m_vert_count`)
-    /// this is a linear vertex count — the mesh is not a grid.
+    /// Number of `VERTEX_PFACE` sub-entities the mesh owns.
     pub vertex_count: u16,
-    /// Number of faces in the mesh (`n_vert_count` in ODA naming).
+    /// Number of `VERTEX_PFACE_FACE` sub-entities the mesh owns.
     pub face_count: u16,
-    /// Approximation density, M direction. Semantically meaningful only
-    /// for POLYGON_MESH; carried here for shape compatibility.
-    pub m_density: u16,
-    /// Approximation density, N direction. See [`Self::m_density`].
-    pub n_density: u16,
-    /// First VERTEX_PFACE / VERTEX_PFACE_FACE sub-entity in the handle chain.
-    pub first_vertex_handle: Handle,
-    /// Last VERTEX_PFACE / VERTEX_PFACE_FACE sub-entity in the handle chain.
-    pub last_vertex_handle: Handle,
+    /// R2004+ owned-object count — the sub-entities reachable through
+    /// this record's handle stream. `None` before R2004, where the
+    /// field is absent.
+    pub num_owned_objects: Option<u32>,
 }
 
-/// Decode a POLYFACE_MESH header.
+/// Decode a POLYLINE_PFACE header from a cursor parked past the common
+/// entity preamble.
 ///
-/// Only the header is parsed here — the vertex handle chain between
-/// `first_vertex_handle` and `last_vertex_handle` is walked at the
-/// object-stream layer, not by this decoder.
-pub fn decode(c: &mut BitCursor<'_>) -> Result<PolyfaceMesh> {
-    let flags = c.read_bs_u()?;
+/// Only the header is parsed here — the `VERTEX_PFACE` /
+/// `VERTEX_PFACE_FACE` sub-entities are separate records in the object
+/// stream, walked at the object-stream layer.
+pub fn decode_record(c: &mut BitCursor<'_>, version: Version) -> Result<PolyfaceMesh> {
     let vertex_count = c.read_bs_u()?;
     let face_count = c.read_bs_u()?;
-    let m_density = c.read_bs_u()?;
-    let n_density = c.read_bs_u()?;
-    let first_vertex_handle = c.read_handle()?;
-    let last_vertex_handle = c.read_handle()?;
+    let num_owned_objects = if version.is_r2004_plus() {
+        Some(c.read_bl()? as u32)
+    } else {
+        None
+    };
     Ok(PolyfaceMesh {
-        flags,
         vertex_count,
         face_count,
-        m_density,
-        n_density,
-        first_vertex_handle,
-        last_vertex_handle,
+        num_owned_objects,
     })
 }
 
@@ -80,107 +80,37 @@ mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
 
-    struct PfaceFields {
-        flags: u16,
-        vc: u16,
-        fc: u16,
-        md: u16,
-        nd: u16,
-        first: (u8, u64),
-        last: (u8, u64),
-    }
-
-    fn write_pface(w: &mut BitWriter, f: &PfaceFields) {
-        w.write_bs_u(f.flags);
-        w.write_bs_u(f.vc);
-        w.write_bs_u(f.fc);
-        w.write_bs_u(f.md);
-        w.write_bs_u(f.nd);
-        w.write_handle(f.first.0, f.first.1);
-        w.write_handle(f.last.0, f.last.1);
-    }
-
+    /// The corpus record's own values: 5 vertices, 2 faces, 7 owned
+    /// objects, in exactly 30 bits.
     #[test]
-    fn roundtrip_minimal_header() {
+    fn roundtrip_measured_r2018_header() {
         let mut w = BitWriter::new();
-        write_pface(
-            &mut w,
-            &PfaceFields {
-                flags: 0,
-                vc: 8,
-                fc: 6,
-                md: 0,
-                nd: 0,
-                first: (3, 0x100),
-                last: (3, 0x110),
-            },
-        );
+        w.write_bs_u(5);
+        w.write_bs_u(2);
+        w.write_bl(7);
+        assert_eq!(w.position_bits(), 30);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let p = decode(&mut c).unwrap();
-        assert_eq!(p.flags, 0);
+        let p = decode_record(&mut c, Version::R2018).unwrap();
+        assert_eq!(p.vertex_count, 5);
+        assert_eq!(p.face_count, 2);
+        assert_eq!(p.num_owned_objects, Some(7));
+        assert_eq!(c.position_bits(), 30);
+    }
+
+    /// Before R2004 the owned-object count is absent, so the same two
+    /// counts close 10 bits earlier.
+    #[test]
+    fn r2000_header_has_no_owned_count() {
+        let mut w = BitWriter::new();
+        w.write_bs_u(8);
+        w.write_bs_u(6);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let p = decode_record(&mut c, Version::R2000).unwrap();
         assert_eq!(p.vertex_count, 8);
         assert_eq!(p.face_count, 6);
-        assert_eq!(p.m_density, 0);
-        assert_eq!(p.n_density, 0);
-        assert_eq!(p.first_vertex_handle.code, 3);
-        assert_eq!(p.first_vertex_handle.value, 0x100);
-        assert_eq!(p.last_vertex_handle.value, 0x110);
-    }
-
-    #[test]
-    fn roundtrip_nonzero_flags_and_densities() {
-        let mut w = BitWriter::new();
-        // flags bit 0x40 is the POLYFACE-MESH indicator in related
-        // POLYLINE flags; any nonzero mask round-trips here.
-        write_pface(
-            &mut w,
-            &PfaceFields {
-                flags: 0x0040,
-                vc: 24,
-                fc: 32,
-                md: 4,
-                nd: 6,
-                first: (3, 0xAB),
-                last: (3, 0xCD),
-            },
-        );
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let p = decode(&mut c).unwrap();
-        assert_eq!(p.flags, 0x0040);
-        assert_eq!(p.vertex_count, 24);
-        assert_eq!(p.face_count, 32);
-        assert_eq!(p.m_density, 4);
-        assert_eq!(p.n_density, 6);
-        assert_eq!(p.first_vertex_handle.value, 0xAB);
-        assert_eq!(p.last_vertex_handle.value, 0xCD);
-    }
-
-    #[test]
-    fn roundtrip_zero_handles() {
-        // A handle with value 0 encodes with counter = 0 (no payload
-        // bytes). Important edge case — round-tripping zero-valued
-        // handles is how empty meshes are expressed.
-        let mut w = BitWriter::new();
-        write_pface(
-            &mut w,
-            &PfaceFields {
-                flags: 0,
-                vc: 0,
-                fc: 0,
-                md: 0,
-                nd: 0,
-                first: (5, 0),
-                last: (5, 0),
-            },
-        );
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let p = decode(&mut c).unwrap();
-        assert_eq!(p.first_vertex_handle.counter, 0);
-        assert_eq!(p.first_vertex_handle.value, 0);
-        assert_eq!(p.last_vertex_handle.counter, 0);
-        assert_eq!(p.last_vertex_handle.value, 0);
+        assert_eq!(p.num_owned_objects, None);
+        assert_eq!(c.position_bits(), 20);
     }
 }
