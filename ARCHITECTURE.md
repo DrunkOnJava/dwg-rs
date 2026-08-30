@@ -299,6 +299,45 @@ found.
 | TEXT `height` is a raw `RD`, not a `BD` | With `DataFlags 0xFF`, object #236's remaining 66 bits are `BE` + `BT` + a 64-bit `1.0` at bit 220 |
 | LAYER `values` bits: `0x01` frozen, `0x02` off, `0x04` frozen-in-new, `0x08` locked, `0x10` plot, bits 5-9 lineweight index | `sample_AC1032.dwg` names its layers after their state and every one matches |
 
+## 7b. The R2000-R2007 object prologue (finding, 2026-08-30)
+
+Per §19.1 an object record's prologue is version-dependent:
+
+```
+ MS   size in bytes                       (all versions; stripped by the walker)
+ MC   handle-stream size in bits          R2010+ only
+ OT   object type                         all versions
+ RL   object DATA size in bits            R2000-R2007 only   <-- "obj_size"
+ H    object handle                       all versions
+```
+
+The `RL` spans the whole R2000..R2007 band; R2010+ dropped it in
+favour of the leading `MC`. The reader originally read it for R2000
+only, which left every AC1018 record 32 bits out of phase from the
+handle onwards and produced ~20 `Bit cursor exhausted` errors per
+R2004 sample.
+
+`obj_size` is the bit at which the object's **data** stream ends and
+its handle stream begins — the pre-R2010 analogue of the R2007+
+string-stream start bit, and therefore the invariant a decoder can
+validate itself against. It is surfaced as `RawObject::obj_size_bits`.
+
+Evidence (`examples/dump_line_payload.rs` on `line_2004.dwg`):
+
+| Reading | handle | preamble | LINE body | end vs `obj_size` |
+|---------|--------|----------|-----------|-------------------|
+| without `RL` | `0x18395D087600000` (nonsense) | "succeeds" at bit 276 | cursor exhausted | — |
+| with `RL` = 347 | `0x83` | bit 84 | `(50,50,0) -> (100,100,0)` | bit 347, delta **0** |
+
+Non-entity objects (symbol-table entries, dictionaries) then carry the
+§19.4.2 common object data rather than the §19.4.1 entity preamble:
+the EED chain, a `BL` reactor count, the R2004+ xdictionary-missing
+flag and the R2013+ DS-binary-data flag. Reading it is what turns
+`line_2004.dwg`'s table entries from empty/garbage names into `0`,
+`Standard`, `ACAD`, `ByLayer`, `Continuous`, `*Model_Space` — see
+`examples/probe_r2004_object_prefix.rs`, which prints every candidate
+prefix side by side.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

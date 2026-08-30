@@ -451,6 +451,13 @@ fn dispatch_split_stream_entity(
 /// [`crate::tables::read_table_entry_header`] for the shared
 /// table-entry preamble, so the cursor positioning here is the same
 /// as for drawing entities.
+///
+/// The pre-R2007 decoders read inline from `c`, so the common object
+/// data (§19.4.2 — EED chain, reactor count, xdictionary flag) is
+/// consumed here first. The R2007+ split-stream decoders take the
+/// bit offset instead and skip that prefix themselves
+/// ([`crate::tables::modern::open_table_entry`]), so `c` must stay
+/// parked immediately after the object handle for them.
 fn dispatch_table_entry(
     raw: &RawObject,
     c: &mut BitCursor<'_>,
@@ -458,6 +465,15 @@ fn dispatch_table_entry(
     kind: ObjectType,
     version: Version,
 ) -> DecodedEntity {
+    if !version.is_r2007_plus() {
+        if let Err(e) = crate::common_entity::read_common_object_data(c, version) {
+            return DecodedEntity::Error {
+                type_code,
+                kind,
+                message: format!("common object data: {e}"),
+            };
+        }
+    }
     let result: core::result::Result<DecodedEntity, String> = match kind {
         ObjectType::Layer if version.is_r2007_plus() => {
             crate::tables::layer::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
@@ -578,8 +594,8 @@ fn position_cursor_at_entity_body<'a>(
     // this; we need to re-consume exactly the same number of bits.
     crate::object::read_object_type(&mut cursor, version)?;
 
-    if matches!(version, Version::R2000) {
-        // R2000 only — 32-bit object-size-in-bits field.
+    if version.has_object_size_field() {
+        // R2000-R2007 — 32-bit object-data-size-in-bits field (§19.1).
         cursor.read_rl()?;
     }
 
@@ -824,10 +840,122 @@ mod tests {
                 value: 0,
             },
             raw: Vec::new(),
+            obj_size_bits: None,
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
         assert!(!decoded.is_decoded());
+    }
+
+    /// Build an R2004 (`AC1018`) object record from bits and walk it
+    /// through the public dispatcher.
+    ///
+    /// §19.1 puts an `RL` "object data size in bits" between the object
+    /// type and the object handle for the whole R2000..R2007 band.
+    /// Skipping it — as the reader did for every version but R2000 —
+    /// left the handle and everything after it 32 bits out of phase,
+    /// which is what produced the `Bit cursor exhausted` failures on
+    /// every AC1018 sample.
+    fn build_r2004_line_record(obj_size_bits: u32) -> Vec<u8> {
+        let mut w = crate::bitwriter::BitWriter::new();
+        w.write_bs_u(OBJECT_TYPE_LINE); // OT object type
+        w.write_rl(obj_size_bits); // RL object data size in bits
+        w.write_handle(0, 0x83); // H object handle
+        // -- common entity preamble (§19.4.1), R2004 shape --
+        w.write_bs_u(0); // EED terminator
+        w.write_b(false); // no graphics
+        w.write_bb(0b10); // entmode = InBlock
+        w.write_bl(0); // num_reactors
+        w.write_b(true); // xdictionary missing (R2004+)
+        w.write_bs(0); // CMC colour — BYLAYER
+        w.write_bd(1.0); // linetype scale
+        w.write_bb(0b00); // ltype flags
+        w.write_bb(0b00); // plotstyle flags
+        w.write_bs(0); // invisibility
+        w.write_rc(0x1D); // lineweight
+        // -- LINE body (§19.4.20) --
+        w.write_b(true); // 2D
+        w.write_rd(50.0);
+        w.write_dd(50.0, 100.0);
+        w.write_rd(50.0);
+        w.write_dd(50.0, 100.0);
+        w.write_b(true); // thickness default
+        w.write_b(true); // extrusion default
+        w.into_bytes()
+    }
+
+    #[test]
+    fn r2004_line_record_decodes_and_ends_on_obj_size() {
+        // First pass with a placeholder to learn the true data-stream
+        // length, then rebuild with it so the record is self-consistent.
+        let probe = build_r2004_line_record(0);
+        let mut c = BitCursor::new(&probe);
+        c.read_bs_u().unwrap();
+        c.read_rl().unwrap();
+        c.read_handle().unwrap();
+        crate::common_entity::read_common_entity_data(&mut c, Version::R2004).unwrap();
+        line::decode(&mut c).unwrap();
+        let obj_size_bits = c.position_bits() as u32;
+
+        let bytes = build_r2004_line_record(obj_size_bits);
+        let raw = RawObject {
+            stream_offset: 0,
+            size_bytes: bytes.len() as u32,
+            type_code: OBJECT_TYPE_LINE,
+            kind: ObjectType::Line,
+            handle: crate::bitcursor::Handle {
+                code: 0,
+                counter: 1,
+                value: 0x83,
+            },
+            raw: bytes,
+            obj_size_bits: Some(obj_size_bits),
+        };
+
+        match decode_from_raw(&raw, Version::R2004) {
+            DecodedEntity::Line(l) => {
+                assert!(l.is_2d);
+                assert_eq!(l.start.x, 50.0);
+                assert_eq!(l.start.y, 50.0);
+                assert_eq!(l.end.x, 100.0);
+                assert_eq!(l.end.y, 100.0);
+            }
+            other => panic!("expected a LINE, got {other:?}"),
+        }
+
+        // Without the RL the handle is misread and the walk overruns.
+        let mut misaligned = BitCursor::new(&raw.raw);
+        misaligned.read_bs_u().unwrap();
+        misaligned.read_handle().unwrap();
+        assert!(
+            crate::common_entity::read_common_entity_data(&mut misaligned, Version::R2004)
+                .and_then(|_| line::decode(&mut misaligned))
+                .is_err(),
+            "skipping the RL obj_size must not decode as a valid LINE"
+        );
+    }
+
+    /// The non-entity common object data (§19.4.2) is `EED + BL
+    /// num_reactors + B xdic-missing` on R2004 — three fields, not two.
+    #[test]
+    fn r2004_common_object_data_consumes_reactor_count() {
+        let mut w = crate::bitwriter::BitWriter::new();
+        w.write_bs_u(0); // EED terminator
+        w.write_bl(2); // num_reactors
+        w.write_b(true); // xdictionary missing (R2004+)
+        w.write_bs_u(4); // TV name length
+        for b in b"ACAD" {
+            w.write_rc(*b);
+        }
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let reactors =
+            crate::common_entity::read_common_object_data(&mut c, Version::R2004).expect("prefix");
+        assert_eq!(reactors, 2);
+        assert_eq!(
+            crate::tables::read_tv(&mut c, Version::R2004).unwrap(),
+            "ACAD"
+        );
     }
 
     #[test]

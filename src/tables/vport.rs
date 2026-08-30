@@ -70,13 +70,25 @@ pub struct VportEntry {
 pub type VPort = VportEntry;
 
 /// Decodes a `VportEntry` table entry that follows the common object header.
+///
+/// Reads the same field table as the R2007+ split-stream decoder
+/// below, minus the R2007+ lighting / ambient-colour block and the two
+/// trailing grid `BS` words, and with the entry name still inline.
+///
+/// # Measured
+///
+/// The `*Active` VPORT of `line_2004.dwg` has `obj_size = 1240` bits
+/// with its common object data ending at bit 113. Only this field
+/// list consumes exactly the remaining 1127 bits; the previous
+/// abbreviated list (2×`BD` view centre, `BS` view mode, and no UCS
+/// or grid tail) ran off the end of the record.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let header = read_table_entry_header(c, version)?;
     let view_height = c.read_bd()?;
     let aspect_ratio = c.read_bd()?;
     let view_center = Point2D {
-        x: c.read_bd()?,
-        y: c.read_bd()?,
+        x: c.read_rd()?,
+        y: c.read_rd()?,
     };
     let view_target = read_bd3(c)?;
     let view_direction = read_bd3(c)?;
@@ -84,7 +96,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = c.read_bs()?;
+    let view_mode = modern::read_4bits(c)? as i16;
     let render_mode = c.read_rc()?;
     let lower_left = Point2D {
         x: c.read_rd()?,
@@ -94,8 +106,19 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let ucs_at_origin = c.read_b()?;
-    let ucs_per_vport = c.read_b()?;
+    let _ucs_follow = c.read_b()?;
+    let _circle_zoom = c.read_bs()?;
+    let _fast_zoom = c.read_b()?;
+    let ucs_icon = c.read_bb()?;
+    let _grid_on = c.read_b()?;
+    let grid_spacing = Point2D {
+        x: c.read_rd()?,
+        y: c.read_rd()?,
+    };
+    let _snap_on = c.read_b()?;
+    let _snap_style = c.read_b()?;
+    let _snap_isopair = c.read_bs()?;
+    let snap_rotation = c.read_bd()?;
     let snap_base = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
@@ -104,11 +127,13 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let grid_spacing = Point2D {
-        x: c.read_rd()?,
-        y: c.read_rd()?,
-    };
-    let snap_rotation = c.read_bd()?;
+    let _unknown = c.read_b()?;
+    let ucs_per_vport = c.read_b()?;
+    let _ucs_origin = read_bd3(c)?;
+    let _ucs_x_direction = read_bd3(c)?;
+    let _ucs_y_direction = read_bd3(c)?;
+    let _ucs_elevation = c.read_bd()?;
+    let _ucs_ortho_view_type = c.read_bs()?;
     Ok(VportEntry {
         header,
         view_height,
@@ -124,7 +149,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         render_mode,
         lower_left,
         upper_right,
-        ucs_at_origin,
+        ucs_at_origin: ucs_icon & 0x02 != 0,
         ucs_per_vport,
         snap_base,
         snap_spacing,
@@ -408,9 +433,9 @@ mod tests {
         let mut w = BitWriter::new();
         write_header(&mut w, b"*Active");
         w.write_bd(10.0); // view height
-        w.write_bd(1.5); // aspect ratio
-        w.write_bd(0.0);
-        w.write_bd(0.0); // center
+        w.write_bd(1.5); // view width
+        w.write_rd(0.0);
+        w.write_rd(0.0); // view centre
         for _ in 0..3 {
             w.write_bd(0.0);
         } // target
@@ -421,21 +446,42 @@ mod tests {
         w.write_bd(50.0); // lens
         w.write_bd(0.0);
         w.write_bd(0.0); // clips
-        w.write_bs(0); // view mode
+        for bit in [false, false, false, false] {
+            w.write_b(bit); // 4BITS view mode
+        }
         w.write_rc(0x02); // render mode
         w.write_rd(0.0);
         w.write_rd(0.0); // lower left
         w.write_rd(1.0);
         w.write_rd(1.0); // upper right
-        w.write_b(true); // ucs at origin
-        w.write_b(false); // ucs per vport
+        w.write_b(false); // UCSFOLLOW
+        w.write_bs(1000); // circle zoom percent
+        w.write_b(true); // fast zoom
+        w.write_bb(0b11); // UCSICON — on, at origin
+        w.write_b(true); // grid on
+        w.write_rd(1.0);
+        w.write_rd(1.0); // grid spacing
+        w.write_b(false); // snap on
+        w.write_b(false); // snap style
+        w.write_bs(0); // snap isopair
+        w.write_bd(0.0); // snap rotation
         w.write_rd(0.0);
         w.write_rd(0.0); // snap base
         w.write_rd(0.5);
         w.write_rd(0.5); // snap spacing
-        w.write_rd(1.0);
-        w.write_rd(1.0); // grid spacing
-        w.write_bd(0.0); // snap rotation
+        w.write_b(false); // unknown
+        w.write_b(false); // UCS per viewport
+        for v in [0.0, 0.0, 0.0] {
+            w.write_bd(v); // ucs origin
+        }
+        for v in [1.0, 0.0, 0.0] {
+            w.write_bd(v); // ucs x-direction
+        }
+        for v in [0.0, 1.0, 0.0] {
+            w.write_bd(v); // ucs y-direction
+        }
+        w.write_bd(0.0); // ucs elevation
+        w.write_bs(0); // ucs orthographic view type
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let v = decode(&mut c, Version::R2000).unwrap();

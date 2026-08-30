@@ -57,6 +57,15 @@ pub struct RawObject {
     /// The entity/object's raw bytes as they appear on disk (for consumers
     /// that want to run their own entity-specific decoder).
     pub raw: Vec<u8>,
+    /// R2000-R2007 only: the `RL` "object data size in bits" from the
+    /// object prologue (spec §19.1), measured from bit 0 of [`raw`](Self::raw).
+    ///
+    /// It is the bit at which the object's data stream ends and its
+    /// handle stream begins — the pre-R2010 analogue of the R2007+
+    /// string-stream start bit, and therefore the invariant a decoder
+    /// can check itself against. `None` on R13/R14 (no such field) and
+    /// on R2010+ (replaced by the leading `MC` handle-stream size).
+    pub obj_size_bits: Option<u32>,
 }
 
 impl RawObject {
@@ -429,10 +438,16 @@ impl<'a> ObjectWalker<'a> {
 
         let type_code = read_object_type(&mut cur, self.version)?;
 
-        // For R2000 only (not R2010+): next is an RL Obj size-in-bits.
-        if matches!(self.version, Version::R2000) {
-            let _obj_size_bits = cur.read_rl()?;
-        }
+        // R2000-R2007 (spec §19.1): an RL "object data size in bits"
+        // sits between the object type and the object handle. R13/R14
+        // predate it; R2010+ replaces it with the leading MC above.
+        // Reading it for R2000 alone left every AC1018/AC1021 record
+        // 32 bits out of phase from the handle onwards.
+        let obj_size_bits = if self.version.has_object_size_field() {
+            Some(cur.read_rl()?)
+        } else {
+            None
+        };
 
         // Common: handle (code + counter + bytes).
         let handle = cur.read_handle()?;
@@ -448,6 +463,7 @@ impl<'a> ObjectWalker<'a> {
             kind,
             handle,
             raw,
+            obj_size_bits,
         }))
     }
 }

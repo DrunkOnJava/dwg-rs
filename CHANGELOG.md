@@ -8,6 +8,56 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — R2004 (AC1018) common object header (2026-08-30, #103, closes #24)
+
+- **`RL` object data size in bits was read for R2000 only.** ODA v5.4.1 §19.1
+  puts that field between the object type and the object handle for the whole
+  **R2000..R2007** band; R2010+ replaces it with the leading `MC`
+  handle-stream size. Reading it for R2000 alone left every AC1018 and AC1021
+  record 32 bits out of phase from the handle onwards, which is what produced
+  the `Bit cursor exhausted: wanted 8 bits, N bits remain` failures on all
+  three R2004 samples. Fixed in `object::ObjectWalker::read_one_at_pos` and
+  `entities::dispatch::position_cursor_at_entity_body` behind the new
+  `Version::has_object_size_field()` predicate.
+- **The value is now surfaced as `RawObject::obj_size_bits`** — the bit at
+  which an object's data stream ends and its handle stream begins, i.e. the
+  pre-R2010 analogue of the R2007+ string-stream start bit, and therefore a
+  decoder's self-check. Measured: the `line_2004.dwg` LINE reports
+  `obj_size = 347` and its LINE body ends at bit 347 exactly, recovering the
+  authored `(50, 50, 0) -> (100, 100, 0)` geometry.
+- **Non-entity objects were missing their common object data (§19.4.2).** The
+  pre-R2007 symbol-table decoders started reading at the entry name with the
+  cursor still parked on the EED chain. `common_entity::read_common_object_data`
+  now consumes `EED + BL num_reactors + B xdic-missing (R2004+) + B
+  has-DS-binary-data (R2013+)` first. Measured with
+  `examples/probe_r2004_object_prefix.rs`: only that prefix yields readable
+  names — `0`, `Standard`, `Annotative`, `ACAD`, `AcadAnnotative`, `ByBlock`,
+  `ByLayer`, `Continuous` — where every other candidate produced an empty
+  string or a 65-73 character `TV` length.
+- **`STYLE` legacy decoder read an `RC` where the field table has two `B`
+  bits** (shape file, vertical), overrunning each record by 6 bits.
+- **`VPORT` legacy decoder followed an abbreviated field list** (`2 × BD`
+  view centre, `BS` view mode, no UCS or grid tail). It now reads the same
+  field table as the already-verified R2007+ split-stream decoder minus the
+  R2007+ lighting/ambient-colour block and the trailing grid words, which is
+  the only list that consumes the `*Active` record's 1127 body bits exactly.
+- **Fixture regenerated.** `examples/build_fixtures.rs` now emits the `RL`
+  for the R2000..R2007 band (two-pass, since the field is fixed width but its
+  value depends on the body), so `tests/fixtures/canonical/synthetic_2004.dwg`
+  changed. The other three fixtures are byte-identical and the
+  `tests/canonical_corpus.rs` value pins are unchanged.
+
+Measured coverage on the 19-file `samples/` corpus:
+
+| Version | Before (dec / err / rate) | After (dec / err / rate) |
+|---------|---------------------------|--------------------------|
+| R2004 (AC1018) × 3 | 15 / 60 / 2.5 % | **75 / 0 / 12.6 %** |
+| R2010 (AC1024) × 3 | 69 / 0 / 12.7 % | 69 / 0 / 12.7 % |
+| R2013 (AC1027) × 3 | 69 / 0 / 17.4 % | 69 / 0 / 17.4 % |
+| R2018 (AC1032) × 1 | 374 / 34 / 50.2 % | 374 / 34 / 50.2 % |
+| **Aggregate** | **527 / 94 / 23.1 %** | **587 / 34 / 25.7 %** |
+
+
 ### Added — R2007+ object string stream (2026-08-30, #103, closes #14, closes #15)
 
 - **`src/string_stream.rs` (new)** — Locates the per-object string stream that
