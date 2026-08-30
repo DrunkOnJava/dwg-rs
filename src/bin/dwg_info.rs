@@ -144,11 +144,13 @@ fn run(args: Args) -> anyhow::Result<()> {
             .r2004_header()
             .map(|h| h.common.maint_version)
             .or_else(|| file.r13_header().map(|h| h.common.maint_version))
+            .or_else(|| file.r2007_common().map(|h| h.maint_version))
             .unwrap_or(0),
         codepage: file
             .r2004_header()
             .map(|h| h.common.codepage)
             .or_else(|| file.r13_header().map(|h| h.common.codepage))
+            .or_else(|| file.r2007_common().map(|h| h.codepage))
             .unwrap_or(0),
         sections,
         r2004_header: r2004_report,

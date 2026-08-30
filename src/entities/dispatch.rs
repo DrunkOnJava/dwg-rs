@@ -709,8 +709,10 @@ fn dispatch_object_class(
         // handle 14 and `arc_2013.dwg` handle 14, both of which close
         // on their boundary with the DICTIONARY body.
         "ACDBDICTIONARYWDFLT" | "ACDBDICTIONARYWITHDEFAULT" => {
-            crate::objects::dictionary::decode_object(payload, body_start, inline_end, version)
-                .map(DecodedEntity::Dictionary)
+            crate::objects::dictionary::decode_object_with_default(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::Dictionary)
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
@@ -807,25 +809,24 @@ fn dispatch_split_stream_class(
 /// honest answer until the R2007 object walk lands — no `AC1021` record
 /// reaches a decoder in this crate today.
 fn entity_data_end(raw: &RawObject, version: Version) -> Option<usize> {
-    if version.is_r2010_plus() {
+    if version.is_r2007_plus() {
+        // R2007 included: §19.1's `RL` object-data-size locates the
+        // trailer for AC1021 exactly as the leading `MC` does for
+        // R2010+, so `data_field_end` answers for both.
         return crate::string_stream::data_field_end(&raw.raw, version);
-    }
-    if version.is_r2007() {
-        return None;
     }
     raw.obj_size_bits.map(|b| b as usize)
 }
 
 /// Open the `TV` source for an entity record.
 ///
-/// R2010+ takes every `TV` from the object's string stream — a record
+/// R2007+ takes every `TV` from the object's string stream — a record
 /// whose *strings present* trailer bit is clear still has the slots,
 /// they simply hold nothing and consume no data-stream bits, which is
-/// what [`StringReader::empty`] models. Earlier releases (and R2007,
-/// whose stream this crate cannot locate) keep the characters inline,
-/// which `None` selects.
+/// what [`StringReader::empty`] models. Earlier releases keep the
+/// characters inline, which `None` selects.
 fn entity_strings<'a>(payload: &'a [u8], version: Version) -> Result<Option<StringReader<'a>>> {
-    if !version.is_r2010_plus() {
+    if !version.is_r2007_plus() {
         return Ok(None);
     }
     Ok(Some(match crate::string_stream::locate(payload, version) {
@@ -844,10 +845,11 @@ fn entity_strings<'a>(payload: &'a [u8], version: Version) -> Result<Option<Stri
 /// their values, but they still get the boundary for free, and the
 /// boundary is what turns a wrong field list into an error instead of
 /// plausible-looking geometry. Every fixed-code and custom-class entity
-/// decoder in this crate runs through here, so on R2010+ **no** entity
-/// decodes unchecked; on R13/R14/R2007 the record states no boundary
-/// and [`entity_data_end`] returns `None`, so the decode runs unchecked
-/// and says so in `STATUS.md`.
+/// decoder in this crate runs through here, and every release from R14
+/// on states a boundary — R13/R14 through the `RL` inside their common
+/// entity data (§20.4.1), R2000-R2007 through the same `RL` in the
+/// object prologue, R2010+ through the string-stream trailer — so **no**
+/// entity in the corpus decodes unchecked.
 fn checked_inline<T>(
     raw: &RawObject,
     object_body_start: usize,
@@ -860,11 +862,17 @@ fn checked_inline<T>(
         &mut Option<StringReader<'_>>,
     ) -> Result<T>,
 ) -> Result<T> {
-    let data_end = entity_data_end(raw, version);
+    let mut data_end = entity_data_end(raw, version);
     let mut strings = entity_strings(&raw.raw, version)?;
     let mut c = BitCursor::new(&raw.raw);
     crate::string_stream::seek(&mut c, object_body_start)?;
     let common = crate::common_entity::read_common_entity_data(&mut c, version)?;
+    // R13/R14 state the same boundary, but §20.4.1 puts their `RL`
+    // *inside* the common entity data rather than in the object
+    // prologue, so it is only knowable once the preamble has been read.
+    if data_end.is_none() {
+        data_end = common.data_end_bits.map(|b| b as usize);
+    }
     let value = decode_body(&mut c, version, &common, &mut strings)?;
     if let Some(end) = data_end {
         let at = c.position_bits();
@@ -970,13 +978,30 @@ fn dispatch_table_entry(
     kind: ObjectType,
     version: Version,
 ) -> DecodedEntity {
+    // The bit at which a pre-R2007 table entry's data fields must end:
+    // the `RL` object-data-size the record itself records. R2000-R2007
+    // put it in the object prologue (the walker reads it into
+    // `RawObject::obj_size_bits`); R13/R14 put it inside the common
+    // object data, so it is only knowable once that has been consumed
+    // (§20.1). Checking against it turns a wrong field list into an
+    // error instead of a plausible-looking struct — the same posture
+    // the R2007+ split-stream decoders already take.
+    let mut inline_data_end: Option<usize> = None;
     if !version.is_r2007_plus() {
-        if let Err(e) = crate::common_entity::read_common_object_data(c, version) {
-            return DecodedEntity::Error {
-                type_code,
-                kind,
-                message: format!("common object data: {e}"),
-            };
+        match crate::common_entity::read_common_object_data_full(c, version) {
+            Ok(common) => {
+                inline_data_end = common
+                    .data_end_bits
+                    .or(raw.obj_size_bits)
+                    .map(|b| b as usize);
+            }
+            Err(e) => {
+                return DecodedEntity::Error {
+                    type_code,
+                    kind,
+                    message: format!("common object data: {e}"),
+                };
+            }
         }
     }
     let result: core::result::Result<DecodedEntity, String> = match kind {
@@ -1052,7 +1077,15 @@ fn dispatch_table_entry(
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string())
         }
-        ObjectType::DimStyle => crate::tables::dimstyle::decode_partial(c, version)
+        // R13/R14 lay the dimension variables out in a different order
+        // and with different widths from R2000+ (§20.4.68 gives them
+        // their own block), and that order has not been matched against
+        // bytes; the record is reported unhandled rather than decoded
+        // from a list that cannot close.
+        ObjectType::DimStyle if matches!(version, Version::R14) => {
+            return DecodedEntity::Unhandled { type_code, kind };
+        }
+        ObjectType::DimStyle => crate::tables::dimstyle::decode_r2000_inline(c, version)
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string()),
         ObjectType::BlockHeader if version.is_r2007_plus() => {
@@ -1070,7 +1103,24 @@ fn dispatch_table_entry(
         _ => return DecodedEntity::Unhandled { type_code, kind },
     };
     match result {
-        Ok(decoded) => decoded,
+        Ok(decoded) => {
+            if let Some(end) = inline_data_end {
+                let at = c.position_bits();
+                if at != end {
+                    return DecodedEntity::Error {
+                        type_code,
+                        kind,
+                        message: format!(
+                            "{} data fields ended at bit {at}, data stream ends at {end} \
+                             (delta {})",
+                            kind.short_label(),
+                            at as isize - end as isize
+                        ),
+                    };
+                }
+            }
+            decoded
+        }
         Err(message) => DecodedEntity::Error {
             type_code,
             kind,
@@ -1178,7 +1228,7 @@ fn decode_fixed_entity_body(
 ) -> Result<DecodedEntity> {
     let _ = strings;
     Ok(match type_code {
-        OBJECT_TYPE_LINE => DecodedEntity::Line(line::decode(c)?),
+        OBJECT_TYPE_LINE => DecodedEntity::Line(line::decode_versioned(c, version)?),
         OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode(c)?),
         OBJECT_TYPE_CIRCLE => DecodedEntity::Circle(circle::decode(c)?),
         OBJECT_TYPE_ARC => DecodedEntity::Arc(arc::decode(c)?),

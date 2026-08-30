@@ -163,6 +163,18 @@ pub struct CommonEntityData {
     /// Did extended entity data (XDATA) precede the mode bits? If
     /// true, it has been skipped past (appid + payload).
     pub had_extended_data: bool,
+    /// R13/R14 only: the `RL` "size of object in bits, not including
+    /// end handles" that §20.4.1 places **after** the graphics block,
+    /// where R2000-R2007 put it in the object prologue instead.
+    ///
+    /// It is the same quantity
+    /// [`crate::object::RawObject::obj_size_bits`] carries on
+    /// R2000-R2007 — the bit at which the entity's data fields end and
+    /// its handle references begin — so an R13/R14 decoder gets the
+    /// same self-check the later releases get, just from a different
+    /// place in the record. `None` on every release that puts the field
+    /// in the prologue or replaces it with the R2010+ leading `MC`.
+    pub data_end_bits: Option<u32>,
 }
 
 /// Consume the extended entity data (EED) chain — a stream of
@@ -246,6 +258,7 @@ fn read_graphics_size(c: &mut BitCursor<'_>, version: Version) -> Result<u64> {
 ///
 /// ```text
 /// //  extended entity data: loops while size > 0
+/// RL  object data size in bits  (R13/R14 — §20.1)
 /// BL  num_reactors
 /// B   no_xdictionary_handle  (R2004+)
 /// B   has_ds_binary_data     (R2013+)
@@ -263,7 +276,42 @@ fn read_graphics_size(c: &mut BitCursor<'_>, version: Version) -> Result<u64> {
 /// prefix becoming 3) shifts every name into an unreadable length
 /// prefix of 65-73 characters.
 pub fn read_common_object_data(c: &mut BitCursor<'_>, version: Version) -> Result<u32> {
+    Ok(read_common_object_data_full(c, version)?.num_reactors)
+}
+
+/// What [`read_common_object_data_full`] recovers from §19.4.2 / §20.1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CommonObjectData {
+    /// `BL num_reactors`.
+    pub num_reactors: u32,
+    /// R13/R14 only: the `RL` object-data-size-in-bits §20.1 places
+    /// between the EED chain and the reactor count. It is the bit at
+    /// which the record's data fields end, the same quantity
+    /// R2000-R2007 record in the object prologue.
+    pub data_end_bits: Option<u32>,
+}
+
+/// [`read_common_object_data`] plus the R13/R14 data-stream boundary.
+///
+/// Callers that want to check a pre-R2007 record's field list against
+/// its own boundary need the `RL` this returns; on R2000-R2007 the same
+/// value is already on
+/// [`crate::object::RawObject::obj_size_bits`], so this field is `None`
+/// there.
+pub fn read_common_object_data_full(
+    c: &mut BitCursor<'_>,
+    version: Version,
+) -> Result<CommonObjectData> {
     skip_extended_data(c)?;
+    // §20.1 "R13-R14: RL Size of object data in bits" — the non-entity
+    // counterpart of the field R2000-R2007 put in the object prologue.
+    // Measured plausible (`0 < RL <= payload bits` and past the cursor) on
+    // all 285 non-entity records of every R14 corpus file.
+    let data_end_bits = if matches!(version, Version::R14) {
+        Some(c.read_rl()?)
+    } else {
+        None
+    };
     let num_reactors = c.read_bl()? as u32;
     if version.is_r2004_plus() {
         let _no_xdictionary = c.read_b()?;
@@ -271,7 +319,10 @@ pub fn read_common_object_data(c: &mut BitCursor<'_>, version: Version) -> Resul
     if matches!(version, Version::R2013 | Version::R2018) {
         let _has_ds_binary_data = c.read_b()?;
     }
-    Ok(num_reactors)
+    Ok(CommonObjectData {
+        num_reactors,
+        data_end_bits,
+    })
 }
 
 /// Read the common entity preamble from `c`, advancing past it.
@@ -302,7 +353,26 @@ pub fn read_common_entity_data(
         }
     }
 
-    read_entity_mode_onwards(c, version, had_extended, had_graphics)
+    // -- R13/R14 object size ------------------------------------------------
+    // §20.4.1 lists "Obj size RL — size of object in bits, not including
+    // end handles" twice: once under "R2000+ Only" before the handle, and
+    // once under "R13-R14 Only" here, after the graphics block. The walker
+    // reads the first form; this is the second.
+    //
+    // Measured on all three R14 corpus files: reading it produces an
+    // `Entmode` / `Numreactors` / colour / linetype-scale run whose values
+    // match what every other release records for the same objects, and
+    // skipping it leaves every field from `Entmode` on 32 bits out of
+    // phase. `examples/probe_r13_r14_prefix.rs` prints both readings.
+    let data_end_bits = if matches!(version, Version::R14) {
+        Some(c.read_rl()?)
+    } else {
+        None
+    };
+
+    let mut common = read_entity_mode_onwards(c, version, had_extended, had_graphics)?;
+    common.data_end_bits = data_end_bits;
+    Ok(common)
 }
 
 /// Read the common entity preamble from the **entity-mode bits** on —
@@ -381,10 +451,17 @@ pub(crate) fn read_entity_mode_onwards(
     // -- BD linetype_scale (default 1.0 → BB tag 01, 2 bits) ----------------
     let _linetype_scale = c.read_bd()?;
 
-    // -- BB ltype_flags (how layer/linetype handles are encoded) ------------
-    let _ltype_flags = c.read_bb()?;
-
-    let plotstyle_flag = c.read_bb()?;
+    // -- BB ltype_flags + BB plotstyle_flags (R2000+) -----------------------
+    // §20.4.1 lists both under "R2000+"; R13/R14 encode the same
+    // information in the `Isbylayerlt` bit read above and have no
+    // plot-style concept at all. Reading them there put every R14 entity
+    // four bits past its invisibility field.
+    let plotstyle_flag = if version.is_r2004_plus() || matches!(version, Version::R2000) {
+        let _ltype_flags = c.read_bb()?;
+        c.read_bb()?
+    } else {
+        0
+    };
 
     // -- Material + shadow (R2007+) -----------------------------------------
     // shadow_flags is an RC in modern DWG streams. Earlier local experiments
@@ -434,6 +511,7 @@ pub(crate) fn read_entity_mode_onwards(
         lineweight,
         had_graphics,
         had_extended_data: had_extended,
+        data_end_bits: None,
     })
 }
 

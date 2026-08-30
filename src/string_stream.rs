@@ -134,7 +134,28 @@ pub fn data_field_end(payload: &[u8], version: Version) -> Option<usize> {
 
 /// Bit offset at which the object's data + string area ends (and the
 /// handle stream begins), per the measured rule in the module docs.
+///
+/// # R2007 locates the same boundary from the front of the record
+///
+/// R2007 has no leading `MC`; instead §19.1's object prologue writes an
+/// `RL` "size of object data in bits" between the object type and the
+/// object handle, and that value *is* this boundary. Taking it as the
+/// trailer end and running the §19.1 trailer logic backwards from there
+/// produces a string stream whose first `TU` is the record's name on
+/// every named record of the corpus's three R2007 files — `0`,
+/// `Standard`, `ACAD`, `*Active`, `ISO-25`, `Annotative`, `ByBlock`,
+/// `ByLayer`, `Continuous`, `AcadAnnotative`, `*Model_Space`,
+/// `*Paper_Space`, `ACAD_NAV_VCDISPLAY`. See
+/// `examples/probe_r2007_container.rs`.
+///
+/// This is dwg-rs#65: before it, R2007 returned `None` here, so every
+/// split-stream decoder declined the whole release.
 pub fn data_section_end(payload: &[u8], version: Version) -> Option<usize> {
+    if matches!(version, Version::R2007) {
+        let bits = read_r2007_object_data_size(payload)? as usize;
+        let total = payload.len().checked_mul(8)?;
+        return if bits > total { None } else { Some(bits) };
+    }
     if !version.is_r2010_plus() {
         return None;
     }
@@ -142,6 +163,14 @@ pub fn data_section_end(payload: &[u8], version: Version) -> Option<usize> {
     let total = payload.len().checked_mul(8)?;
     let end = total.checked_sub(handle_bits)?.checked_add(mc_bits)?;
     if end > total { None } else { Some(end) }
+}
+
+/// Read the §19.1 `RL` object-data-size-in-bits out of an R2007 object
+/// payload: a `BS` object type, then the `RL`.
+fn read_r2007_object_data_size(payload: &[u8]) -> Option<u32> {
+    let mut c = BitCursor::new(payload);
+    c.read_bs_u().ok()?;
+    c.read_rl().ok()
 }
 
 /// Read the leading `MC` handle-stream size, returning `(value, field_bits)`.

@@ -201,7 +201,7 @@ pub(crate) fn open<'a>(
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<ObjectStream<'a>> {
-    let (strings, data_end) = if version.is_r2007_plus() {
+    let (strings, mut data_end) = if version.is_r2007_plus() {
         match string_stream::locate(payload, version) {
             Some(stream) => (
                 Some(StringReader::new(payload, stream)?),
@@ -225,26 +225,70 @@ pub(crate) fn open<'a>(
 
     let mut data = BitCursor::new(payload);
     string_stream::seek(&mut data, body_start)?;
-    let (num_reactors, has_ds_binary_data) = read_common_object_prefix(&mut data, version)?;
+    let prefix = read_common_object_prefix(&mut data, version)?;
+    // R13/R14 record the boundary inside the common object data rather
+    // than in the object prologue, so it is only knowable once the prefix
+    // has been read (§20.1 — see [`read_common_object_prefix`]).
+    if data_end.is_none() {
+        data_end = prefix.obj_size_bits.map(|b| b as usize);
+    }
 
     Ok(ObjectStream {
         data,
         strings,
         data_end,
-        num_reactors,
-        has_ds_binary_data,
+        num_reactors: prefix.num_reactors,
+        has_ds_binary_data: prefix.has_ds_binary_data,
     })
 }
 
-/// Consume the common object data of §19.4.2 and return the reactor
-/// count together with the R2013+ `has AcDs binary data` bit.
+/// What [`read_common_object_prefix`] recovers from §19.4.2 / §20.1.
+struct CommonObjectPrefix {
+    /// `BL num_reactors`.
+    num_reactors: u32,
+    /// R2013+ `has AcDs binary data`.
+    has_ds_binary_data: bool,
+    /// R13/R14 `RL` object-data-size-in-bits — the record's data-stream
+    /// boundary, which those releases write here instead of in the
+    /// object prologue.
+    obj_size_bits: Option<u32>,
+}
+
+/// Consume the common object data of §19.4.2 / §20.1 and return the
+/// reactor count, the R2013+ `has AcDs binary data` bit, and — on R13/R14
+/// — the record's data-stream boundary.
 ///
-/// The flag consumes **no further bits** — see the module docs for the
-/// three entity records that measure that.
-fn read_common_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<(u32, bool)> {
+/// The AcDs flag consumes **no further bits** — see the module docs for
+/// the three entity records that measure that.
+///
+/// # R13/R14 put the object size here
+///
+/// §20.1 lists `RL Size of object data in bits` under "R13-R14",
+/// immediately after the EED chain and before `BL Number of persistent
+/// reactors`. R2000-R2007 write the same field in the object prologue
+/// instead (where [`crate::object::ObjectWalker`] reads it), and R2010+
+/// replace it with the leading `MC`.
+///
+/// Measured: on all 285 non-entity records of `line_R14.dwg`,
+/// `arc_R14.dwg` and `circle_R14.dwg` the value read here is `> 0`, no
+/// larger than the record's payload in bits, and past the cursor — e.g.
+/// BLOCK_CONTROL `0x1` reads 72 of 144 payload bits, DICTIONARY `0xC`
+/// reads 3144 of 3536. Skipping it desynchronises every field from
+/// `num_reactors` on by exactly 32 bits, which is why every R14
+/// DICTIONARY / APPID / LTYPE / DIMSTYLE / BLOCK_HEADER record errored
+/// before this read existed.
+fn read_common_object_prefix(
+    c: &mut BitCursor<'_>,
+    version: Version,
+) -> Result<CommonObjectPrefix> {
     for _ in 0..MAX_EED_ITERATIONS {
         let size = c.read_bs_u()? as usize;
         if size == 0 {
+            let obj_size_bits = if matches!(version, Version::R14) {
+                Some(c.read_rl()?)
+            } else {
+                None
+            };
             let num_reactors = c.read_bl()? as u32;
             if version.is_r2004_plus() {
                 let _no_xdictionary = c.read_b()?;
@@ -254,7 +298,11 @@ fn read_common_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<
             } else {
                 false
             };
-            return Ok((num_reactors, has_ds_binary_data));
+            return Ok(CommonObjectPrefix {
+                num_reactors,
+                has_ds_binary_data,
+                obj_size_bits,
+            });
         }
         let _appid = c.read_handle()?;
         for _ in 0..size {

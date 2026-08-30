@@ -229,6 +229,7 @@ fn sample_ac1032_resolves_27_distinct_block_names() {
 fn canonical_fixtures_carry_no_block_definitions() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/canonical");
     for name in [
+        "synthetic_2000.dwg",
         "synthetic_2004.dwg",
         "synthetic_2010.dwg",
         "synthetic_2013.dwg",

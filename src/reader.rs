@@ -59,10 +59,13 @@ pub enum SectionMapStatus {
     /// discovered, plus any known-name entries whose payload size
     /// is unknown. Callers should treat this as advisory only.
     Fallback { reason: String },
-    /// R2007 — spec §5 layout not yet implemented by this crate.
-    /// `sections` contains a single `_R2007_UNSUPPORTED` placeholder
-    /// that covers the whole post-header byte range; it is not
-    /// individually decodable.
+    /// The container could not be walked and the `sections` list is a
+    /// placeholder covering the undecodable byte range.
+    ///
+    /// Reached only when an R2007 file's §5.1-§5.4 container fails to
+    /// parse — a truncated file, a page map that points outside it, or
+    /// a §5.10 stream that does not decompress to its recorded size.
+    /// A well-formed AC1021 file reports [`SectionMapStatus::Full`].
     Deferred { reason: String },
 }
 
@@ -82,9 +85,13 @@ pub struct DwgFile {
     r2004: Option<R2004Header>,
     /// Populated only for R13-R15 files.
     r13: Option<R13R15Header>,
-    /// Populated only for R2007 — Phase A records just the common header
-    /// and defers full layout parsing (spec §5, 33 pages) to Phase B.
+    /// Populated only for R2007 — the §5.2 meta-data prefix, which shares
+    /// its first 0x15 bytes with the other two families.
     r2007_common: Option<CommonHeader>,
+    /// Populated only for R2007 — the §5.1-§5.4 container (file header,
+    /// page map, section map). `None` when the container parse failed, in
+    /// which case [`DwgFile::section_map_status`] carries the reason.
+    r2007: Option<crate::r2007::Container>,
 }
 
 impl DwgFile {
@@ -146,6 +153,7 @@ impl DwgFile {
                 r2004: None,
                 r13: Some(header),
                 r2007_common: None,
+                r2007: None,
             })
         } else if version.is_r2004_family() {
             let header = R2004Header::parse(&bytes)?;
@@ -158,52 +166,69 @@ impl DwgFile {
                 r2004: Some(header),
                 r13: None,
                 r2007_common: None,
+                r2007: None,
             })
         } else {
-            // R2007: spec §5, distinct layout not yet implemented.
-            // Parse the common prefix so metadata tools can still identify
-            // the file, and emit a placeholder "Preview" section from the
-            // image seeker if present.
+            // R2007 (spec §5.1-§5.4): its own file header, page map and
+            // section map. See `crate::r2007`.
             let common = CommonHeader::parse(&bytes)?;
-            let mut sections = Vec::new();
-            if common.image_seeker != 0 && (common.image_seeker as u64) < bytes.len() as u64 {
-                sections.push(Section {
-                    name: "AcDb:Preview".to_string(),
-                    kind: SectionKind::Preview,
-                    offset: common.image_seeker as u64 + 0x20,
-                    size: 0,
-                    compressed: false,
-                    encrypted: false,
-                    ..Section::default()
-                });
+            match crate::r2007::Container::parse(&bytes) {
+                Ok(container) => {
+                    let sections = extract_r2007_sections(&container);
+                    Ok(Self {
+                        bytes,
+                        version,
+                        sections,
+                        section_map_status: SectionMapStatus::Full,
+                        r2004: None,
+                        r13: None,
+                        r2007_common: Some(common),
+                        r2007: Some(container),
+                    })
+                }
+                Err(e) => {
+                    // Keep the pre-#110 placeholder shape so a file this
+                    // crate cannot walk still opens with partial metadata,
+                    // and say why in the status rather than pretending.
+                    let mut sections = Vec::new();
+                    if common.image_seeker != 0 && (common.image_seeker as u64) < bytes.len() as u64
+                    {
+                        sections.push(Section {
+                            name: "AcDb:Preview".to_string(),
+                            kind: SectionKind::Preview,
+                            offset: common.image_seeker as u64 + 0x20,
+                            size: 0,
+                            compressed: false,
+                            encrypted: false,
+                            ..Section::default()
+                        });
+                    }
+                    sections.push(Section {
+                        name: "_R2007_UNREADABLE".to_string(),
+                        kind: SectionKind::Unknown,
+                        offset: 0x80,
+                        size: (bytes.len() as u64).saturating_sub(0x80),
+                        compressed: true,
+                        encrypted: false,
+                        ..Section::default()
+                    });
+                    Ok(Self {
+                        bytes,
+                        version,
+                        sections,
+                        section_map_status: SectionMapStatus::Deferred {
+                            reason: format!(
+                                "R2007 container parse failed ({e}); placeholder covers the \
+                                 post-header byte range only"
+                            ),
+                        },
+                        r2004: None,
+                        r13: None,
+                        r2007_common: Some(common),
+                        r2007: None,
+                    })
+                }
             }
-            // Synthetic placeholder. R2007 files have real sections but
-            // the two-layer Sec_Mask bookkeeping that locates them is
-            // not yet implemented. This entry signals "here be dragons"
-            // to callers iterating `file.sections()`; it is NOT a real
-            // decompressible section.
-            sections.push(Section {
-                name: "_R2007_UNSUPPORTED".to_string(),
-                kind: SectionKind::Unknown,
-                offset: 0x80,
-                size: (bytes.len() as u64).saturating_sub(0x80),
-                compressed: true,
-                encrypted: true,
-                ..Section::default()
-            });
-            Ok(Self {
-                bytes,
-                version,
-                sections,
-                section_map_status: SectionMapStatus::Deferred {
-                    reason: "R2007 two-layer Sec_Mask section locator not yet implemented \
-                             (spec §5); placeholder covers the post-header byte range only"
-                        .to_string(),
-                },
-                r2004: None,
-                r13: None,
-                r2007_common: Some(common),
-            })
         }
     }
 
@@ -295,10 +320,17 @@ impl DwgFile {
         self.r13.as_ref()
     }
 
-    /// Parsed common header for R2007 files — a minimal parse because
-    /// spec §5 full layout is deferred to Phase C.
+    /// Parsed §5.2 meta-data prefix for R2007 files.
     pub fn r2007_common(&self) -> Option<&CommonHeader> {
         self.r2007_common.as_ref()
+    }
+
+    /// Parsed R2007 container — file header, page map and section map
+    /// (spec §5.1-§5.4). `None` for every other release, and for an
+    /// R2007 file whose container parse failed (see
+    /// [`DwgFile::section_map_status`]).
+    pub fn r2007_container(&self) -> Option<&crate::r2007::Container> {
+        self.r2007.as_ref()
     }
 
     /// Read the decompressed bytes of a named section.
@@ -308,12 +340,71 @@ impl DwgFile {
     /// LZ77-decompresses the payload, and assembles the full content in
     /// page `start_offset` order.
     ///
-    /// Returns `None` if this is not an R2004-family file or the section
-    /// name is not present; otherwise returns the decompressed bytes
-    /// (or an error if a decrypt / decompress step fails).
+    /// Returns `None` if the section name is not present in this file;
+    /// otherwise returns the decompressed bytes (or an error if a decrypt
+    /// / decompress step fails).
+    ///
+    /// # Version families
+    ///
+    /// - **R13-R15** (§3.2.6): the flat locator list is already a byte
+    ///   range, so the "read" is a copy out of the file. The locators use
+    ///   the same canonical `AcDb:` names the other families do — see
+    ///   [`crate::header::R13R15Header::into_sections`]. `AcDb:AcDbObjects`
+    ///   is special-cased: these releases have no object *section*, the
+    ///   object records simply live in the file between the header block
+    ///   and the object map, and the object map's offsets are absolute
+    ///   file offsets — so the whole file is the object stream. See
+    ///   [`Self::object_stream`].
+    /// - **R2004 / R2010 / R2013 / R2018** (§4.5): page map → section info
+    ///   → per-page decrypt + LZ77.
+    /// - **R2007** (§5.2, §5.4): page map → section map → per-page
+    ///   Reed-Solomon de-interleave + §5.10 decompression.
     pub fn read_section(&self, name: &str) -> Option<Result<Vec<u8>>> {
+        if self.version.is_r13_r15() {
+            return self.read_section_r13(name);
+        }
+        if let Some(container) = self.r2007.as_ref() {
+            container.section_map.by_name(name)?;
+            return Some(container.read_section(&self.bytes, name));
+        }
         let header = self.r2004.as_ref()?;
         Some(self.read_section_r2004(header, name))
+    }
+
+    /// R13-R15 section read: slice the locator's byte range out of the
+    /// file. `AcDb:AcDbObjects` returns the whole file, because the object
+    /// map addresses objects by absolute file offset (§3.1, §3.2.6).
+    fn read_section_r13(&self, name: &str) -> Option<Result<Vec<u8>>> {
+        if name == "AcDb:AcDbObjects" {
+            return Some(Ok(self.bytes.clone()));
+        }
+        let section = self.sections.iter().find(|s| s.name == name)?;
+        let start = usize::try_from(section.offset).ok()?;
+        let len = usize::try_from(section.size).ok()?;
+        let end = start.checked_add(len)?;
+        if end > self.bytes.len() {
+            return Some(Err(Error::Truncated {
+                offset: section.offset,
+                wanted: len,
+                len: self.bytes.len() as u64,
+            }));
+        }
+        Some(Ok(self.bytes[start..end].to_vec()))
+    }
+
+    /// The byte buffer the `AcDb:Handles` offsets index into.
+    ///
+    /// For R2004+ and R2007 that is the decompressed `AcDb:AcDbObjects`
+    /// section. For R13-R15 there is no such section — §3.1 puts the
+    /// object records loose in the file between the class definitions and
+    /// the object map, and §3.2.6's object map records their **absolute
+    /// file offsets** — so the whole file plays the part.
+    ///
+    /// Returns `None` when the file has no reachable object stream (an
+    /// R2007 file whose container did not parse, or an R2004-family file
+    /// whose section map fell back).
+    pub fn object_stream(&self) -> Option<Result<Vec<u8>>> {
+        self.read_section("AcDb:AcDbObjects")
     }
 
     /// Re-assemble this file's readable sections into a DWG byte buffer.
@@ -450,8 +541,7 @@ impl DwgFile {
     /// a per-type decoder. The walker is version-aware and handles the
     /// R2010+ object-type encoding and the pre-section RL prefix.
     pub fn objects(&self) -> Option<Result<Vec<crate::object::RawObject>>> {
-        let _ = self.r2004.as_ref()?;
-        let bytes = match self.read_section("AcDb:AcDbObjects") {
+        let bytes = match self.object_stream() {
             Some(Ok(b)) => b,
             Some(Err(e)) => return Some(Err(e)),
             None => return None,
@@ -494,12 +584,11 @@ impl DwgFile {
     /// complete list of control objects, table entries, entities, and
     /// dictionaries.
     pub fn all_objects(&self) -> Option<Result<Vec<crate::object::RawObject>>> {
-        let _ = self.r2004.as_ref()?;
         let hmap = match self.handle_map()? {
             Ok(m) => m,
             Err(e) => return Some(Err(e)),
         };
-        let obj_bytes = match self.read_section("AcDb:AcDbObjects") {
+        let obj_bytes = match self.object_stream() {
             Some(Ok(b)) => b,
             Some(Err(e)) => return Some(Err(e)),
             None => return None,
@@ -529,12 +618,11 @@ impl DwgFile {
             crate::object::ObjectWalkSummary,
         )>,
     > {
-        let _ = self.r2004.as_ref()?;
         let hmap = match self.handle_map()? {
             Ok(m) => m,
             Err(e) => return Some(Err(e)),
         };
-        let obj_bytes = match self.read_section("AcDb:AcDbObjects") {
+        let obj_bytes = match self.object_stream() {
             Some(Ok(b)) => b,
             Some(Err(e)) => return Some(Err(e)),
             None => return None,
@@ -712,6 +800,38 @@ fn extract_r2004_sections(
             ))
         }
     }
+}
+
+/// Turn a parsed R2007 container's section map into the generic
+/// [`Section`] list (spec §5.2).
+///
+/// `offset` is the file offset of the section's first page and `size` is
+/// its total decompressed byte count — the same meaning the R2004-family
+/// list gives those fields. `compressed` is set when any page of the
+/// section stores fewer bytes than it decompresses to; `encrypted`
+/// mirrors the descriptor's non-zero encryption flag.
+fn extract_r2007_sections(container: &crate::r2007::Container) -> Vec<Section> {
+    container
+        .section_map
+        .sections
+        .iter()
+        .map(|d| {
+            let offset = d
+                .pages
+                .first()
+                .and_then(|p| container.page_map.file_offset_of(p.id))
+                .unwrap_or(0) as u64;
+            Section {
+                name: d.name.clone(),
+                kind: SectionKind::from_r2004_name(&d.name),
+                offset,
+                size: d.data_size,
+                compressed: d.pages.iter().any(|p| p.compressed < p.uncompressed),
+                encrypted: d.encryption != 0,
+                ..Section::default()
+            }
+        })
+        .collect()
 }
 
 /// Phase B: full named-section enumeration via LZ77-decompressed page map

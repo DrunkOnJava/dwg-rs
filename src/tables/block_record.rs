@@ -1,5 +1,5 @@
 //! BLOCK_HEADER (aka BLOCK_RECORD) table entry (ODA spec v5.4.1
-//! §20.4.50) — the record for a block definition. Holds the block's
+//! §20.4.52) — the record for a block definition. Holds the block's
 //! name, base point, and the handles of its first/last entities.
 //!
 //! # Stream shape
@@ -67,7 +67,7 @@
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, read_bd3};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::string_stream;
 use crate::tables::{TableEntryHeader, modern, read_table_entry_header, read_tv};
 use crate::version::Version;
@@ -90,7 +90,7 @@ pub struct BlockRecord {
     pub description: String,
     /// Handle of the `BLOCK` sentinel entity that opens this
     /// definition, read from the record's own handle stream
-    /// (§20.4.50). `None` before R2010, where this crate does not
+    /// (§20.4.52). `None` before R2010, where this crate does not
     /// locate the handle stream.
     ///
     /// The sentinel carries the block's full name; this record's
@@ -98,19 +98,56 @@ pub struct BlockRecord {
     pub block_sentinel_handle: Option<u64>,
 }
 
+/// Cap on the insert-count run of §20.4.52: a non-zero `RC` per insert
+/// handle, terminated by a zero. No realistic block carries more.
+const MAX_INSERT_COUNT: usize = 256;
+
+/// Cap on the §20.4.52 binary preview blob of one BLOCK_HEADER.
+const MAX_PREVIEW_BYTES: usize = 1_000_000;
+
 /// Decodes a `BlockRecord` table entry that follows the common object header.
 ///
-/// This is the inline (pre-R2007) layout. It stops after `xref_path`,
-/// so [`BlockRecord::description`] is empty and
-/// [`BlockRecord::block_sentinel_handle`] is `None` on this path —
-/// neither field is claimed rather than guessed.
+/// # Field list (§20.4.52)
+///
+/// ```text
+/// TV   entry name        -- via read_table_entry_header
+/// B    64-flag, BS xrefindex+1, B xdep
+/// B    anonymous, B hasatts, B blkisxref, B xrefoverlaid
+/// R2000+: B loaded bit
+/// R2004+: BL owned object count
+/// 3BD  base point
+/// TV   xref pathname
+/// R2000+: RC* insert count (non-zero bytes, terminated by a zero RC)
+///         TV block description
+///         BL size of preview data, then that many RC
+/// R2007+: BS insert units, B explodable, RC block scaling
+/// ```
+///
+/// # Measured
+///
+/// The three R2000 and three R2004 BLOCK_HEADER records of every corpus
+/// file ended their field list exactly **12 bits** before their
+/// data-stream boundary until the R2000+ tail above was added: the
+/// terminating zero `RC` of the insert count is 8 bits, an empty `TV`
+/// description is a `BS` on the `10` (value 0) code — 2 bits — and a
+/// zero preview size is a `BL` on the same code, another 2. All six now
+/// close on delta 0. The `B loaded bit` is likewise R2000+; reading it
+/// on R14 ran those records off the end of their payload.
+///
+/// This is the inline layout, so
+/// [`BlockRecord::block_sentinel_handle`] is `None` on this path — the
+/// handle stream is only located from R2010 on.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let header = read_table_entry_header(c, version)?;
     let is_anonymous = c.read_b()?;
     let has_attribs = c.read_b()?;
     let is_xref = c.read_b()?;
     let xref_overlay = c.read_b()?;
-    let is_loaded_xref = c.read_b()?;
+    let is_loaded_xref = if matches!(version, Version::R14) {
+        false
+    } else {
+        c.read_b()?
+    };
     let num_owned_objects = if version.is_r2004_plus() {
         Some(c.read_bl()? as u32)
     } else {
@@ -118,6 +155,31 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     };
     let base_point = read_bd3(c)?;
     let xref_path = read_tv(c, version)?;
+    let mut description = String::new();
+    if !matches!(version, Version::R14) {
+        // Insert-count run: zero or more non-zero `RC`s, then a zero.
+        for _ in 0..=MAX_INSERT_COUNT {
+            if c.read_rc()? == 0 {
+                break;
+            }
+        }
+        description = read_tv(c, version)?;
+        let preview_bytes = c.read_bl_u()? as usize;
+        if preview_bytes > MAX_PREVIEW_BYTES {
+            return Err(Error::SectionMap(format!(
+                "BLOCK_HEADER preview data claims {preview_bytes} bytes \
+                 (>{MAX_PREVIEW_BYTES} sanity cap)"
+            )));
+        }
+        for _ in 0..preview_bytes {
+            let _ = c.read_rc()?;
+        }
+    }
+    if version.is_r2007_plus() {
+        let _insert_units = c.read_bs()?;
+        let _explodable = c.read_b()?;
+        let _block_scaling = c.read_rc()?;
+    }
     Ok(BlockRecord {
         header,
         is_anonymous,
@@ -128,13 +190,13 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
         num_owned_objects,
         base_point,
         xref_path,
-        description: String::new(),
+        description,
         block_sentinel_handle: None,
     })
 }
 
 /// Decode an R2007+ BLOCK_HEADER whose `TV` fields live in the
-/// object's trailing string stream (§19.1 + §20.4.50).
+/// object's trailing string stream (§19.1 + §20.4.52).
 ///
 /// The data-stream fields are held to the string-stream boundary by
 /// [`modern::SplitStream::finish`], so a mis-read field surfaces as an
@@ -198,7 +260,7 @@ pub(crate) fn decode_modern_split_stream(
 }
 
 /// Skip the insert-count run: zero or more non-zero `RC` values
-/// terminated by `0x00` (§20.4.50).
+/// terminated by `0x00` (§20.4.52).
 fn read_insert_count(c: &mut BitCursor<'_>) -> Result<()> {
     for _ in 0..=256 {
         if c.read_rc()? == 0 {
@@ -219,7 +281,7 @@ fn read_preview(c: &mut BitCursor<'_>) -> Result<()> {
 
 /// Handle of the `BLOCK` sentinel entity a BLOCK_HEADER's handle
 /// stream names, or `None` when the stream does not have the shape
-/// §20.4.50 prescribes.
+/// §20.4.52 prescribes.
 ///
 /// # Why this exists
 ///
@@ -229,7 +291,7 @@ fn read_preview(c: &mut BitCursor<'_>) -> Result<()> {
 ///
 /// # Measured
 ///
-/// §20.4.50 lists the record's handle references in the order block
+/// §20.4.52 lists the record's handle references in the order block
 /// control (owner), reactors, xdictionary, a NULL handle, then the
 /// BLOCK entity. The NULL is a hard pointer with a zero-byte counter
 /// (`code 5`, `counter 0`), which makes it a self-identifying anchor:
@@ -287,7 +349,7 @@ mod tests {
         w.write_b(false);
         w.write_bs(0);
         w.write_b(false);
-        // 5 flag bits — all false
+        // 4 block flags + the R2000+ loaded bit — all false
         w.write_b(false);
         w.write_b(false);
         w.write_b(false);
@@ -301,12 +363,48 @@ mod tests {
         w.write_bd(0.0);
         // empty xref path
         w.write_bs_u(0);
+        // R2000+ tail: insert-count terminator, description, preview size
+        w.write_rc(0);
+        w.write_bs_u(0);
+        w.write_bl(0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let b = decode(&mut c, Version::R2004).unwrap();
         assert_eq!(b.header.name, "*Model_Space");
         assert_eq!(b.num_owned_objects, Some(42));
         assert!(!b.is_xref);
+    }
+
+    /// §20.4.52 puts the loaded bit, the insert-count run, the
+    /// description and the preview blob under "R2000+"; an R14 record
+    /// stops after the xref pathname.
+    #[test]
+    fn r14_block_record_stops_after_the_xref_path() {
+        let mut w = BitWriter::new();
+        let s = b"*MODEL_SPACE";
+        w.write_bs_u(s.len() as u16);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_b(false);
+        w.write_b(false); // anonymous
+        w.write_b(false); // has attribs
+        w.write_b(false); // is xref
+        w.write_b(false); // xref overlaid
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bs_u(0); // empty xref path
+        let end = w.position_bits();
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let b = decode(&mut c, Version::R14).unwrap();
+        assert_eq!(b.header.name, "*MODEL_SPACE");
+        assert_eq!(b.num_owned_objects, None);
+        assert!(!b.is_loaded_xref);
+        assert_eq!(c.position_bits(), end);
     }
 
     /// Body bits of a minimal R2018 BLOCK_HEADER, from the object's
@@ -418,7 +516,7 @@ mod tests {
         bytes
     }
 
-    /// §20.4.50 puts a NULL handle (hard pointer, zero-byte counter)
+    /// §20.4.52 puts a NULL handle (hard pointer, zero-byte counter)
     /// immediately before the BLOCK entity handle, so the NULL is a
     /// self-identifying anchor.
     #[test]

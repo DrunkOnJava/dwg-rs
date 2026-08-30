@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 
 /// Every fixture in the corpus, paired with the version it encodes.
 const FIXTURES: &[(&str, Version)] = &[
+    ("synthetic_2000.dwg", Version::R2000),
     ("synthetic_2004.dwg", Version::R2004),
     ("synthetic_2010.dwg", Version::R2010),
     ("synthetic_2013.dwg", Version::R2013),

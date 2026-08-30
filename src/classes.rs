@@ -187,7 +187,7 @@ impl ClassMap {
     pub fn parse(bytes: &[u8], version: Version) -> Result<Self> {
         // Byte offset at which the bit-packed class list begins — see
         // the measured table in the module docs.
-        let bit_start = if version.is_r2007_plus() { 28 } else { 20 };
+        let bit_start = Self::bit_stream_start(version);
         if bytes.len() < bit_start + 4 {
             return Ok(Self::default());
         }
@@ -198,15 +198,21 @@ impl ClassMap {
         ) as usize;
 
         let mut c = BitCursor::new(&bytes[bit_start..]);
-        // §5.8: `BL max_class_number` then one unknown `B`. §10.2
-        // spells the same 34 bits as `BS` + `RC 0x00` + `RC 0x00`; see
-        // the module docs for why only `BL` generalises.
-        let Ok(max_class_number) = c.read_bl_u() else {
-            return Ok(Self::default());
+        // R2004+: `BL max_class_number` then one unknown `B` (§5.8; §10.2
+        // spells the same 34 bits as `BS` + `RC 0x00` + `RC 0x00` — see the
+        // module docs for why only `BL` generalises). R13-R15 have neither:
+        // their first record starts on the first bit of the data area.
+        let declared_max = if version.is_r2004_plus() {
+            let Ok(v) = c.read_bl_u() else {
+                return Ok(Self::default());
+            };
+            if c.read_b().is_err() {
+                return Ok(Self::default());
+            }
+            Some(v)
+        } else {
+            None
         };
-        if c.read_b().is_err() {
-            return Ok(Self::default());
-        }
 
         // The class data area cannot run past either the declared size
         // or the bytes actually present.
@@ -214,12 +220,11 @@ impl ClassMap {
             .saturating_mul(8)
             .min(bytes.len().saturating_sub(bit_start).saturating_mul(8));
 
-        let expected = (max_class_number as usize)
-            .saturating_sub(FIRST_CUSTOM_CLASS_NUMBER as usize)
-            .saturating_add(1)
-            .min(MAX_CLASSES);
-
         let classes = if version.is_r2007_plus() {
+            let expected = (declared_max.unwrap_or(0) as usize)
+                .saturating_sub(FIRST_CUSTOM_CLASS_NUMBER as usize)
+                .saturating_add(1)
+                .min(MAX_CLASSES);
             read_split_stream_classes(&mut c, expected)
         } else {
             read_inline_classes(&mut c, version, max_bits)
@@ -233,10 +238,50 @@ impl ClassMap {
             .iter()
             .enumerate()
             .all(|(i, d)| d.class_number as usize == FIRST_CUSTOM_CLASS_NUMBER as usize + i);
+        // R13-R15 record no `max_class_number`; the highest class number
+        // the table actually carries is the same quantity.
+        let max_class_number = declared_max.unwrap_or(if classes.is_empty() {
+            0
+        } else {
+            FIRST_CUSTOM_CLASS_NUMBER as u32 + classes.len() as u32 - 1
+        });
         Ok(Self {
             max_class_number,
             classes: if consecutive { classes } else { Vec::new() },
         })
+    }
+
+    /// Byte offset of the first bit of the class list, per release.
+    ///
+    /// Everything before it is byte-aligned bookkeeping: the 16-byte
+    /// sentinel, then one to three `RL`s. The counts are measured, not
+    /// assumed — see the module docs for the R2004 / R2010+ evidence and
+    /// the two rows below for the other two families.
+    ///
+    /// | release | bytes 16.. | first bits of the stream | `max_class_number` |
+    /// |---|---|---|---|
+    /// | `line_R14.dwg` (AC1014) | `21 03 00 00` (size 801) | `3D 00 64 49 …` | *(none recorded)* |
+    /// | `line_2000.dwg` (AC1015) | `C0 02 00 00` (size 704) | `3D 00 64 49 …` | *(none recorded)* |
+    /// | `line_2007.dwg` (AC1021) | `42 04 00 00 0A 22 00 00` (size 1090, 8714 bits) | `3F 40 40 00 …` | 509 |
+    ///
+    /// R2007 writes the size-in-bits `RL` immediately after the
+    /// size-in-bytes `RL`, where R2010+ inserts a zero `RL` between them —
+    /// so its stream starts at byte 24, not 28. Reading it at 28 consumes
+    /// the first 32 bits of the class list as a header and the table
+    /// desynchronises on the first record.
+    ///
+    /// R13-R15 have only the one size `RL`, and their first record begins
+    /// at byte 20 with no `max_class_number` preamble. On `line_R14.dwg`
+    /// the fourteen records that follow run 500..=513 and end on bit 6406
+    /// of the declared 6408, and on `line_2000.dwg` the twelve records run
+    /// 500..=511 and end on bit 5628 of 5632 — the residue in both cases
+    /// is the byte-alignment padding before the CRC.
+    fn bit_stream_start(version: Version) -> usize {
+        match version {
+            Version::R14 | Version::R2000 | Version::R2004 => 20,
+            Version::R2007 => 24,
+            Version::R2010 | Version::R2013 | Version::R2018 => 28,
+        }
     }
 
     /// Look up a class by its type code (for object_type.rs `Custom(N)`).
@@ -252,6 +297,15 @@ fn read_inline_classes(c: &mut BitCursor<'_>, version: Version, max_bits: usize)
         let Some(def) = read_inline_class_record(c, version) else {
             break;
         };
+        // A record that ends past the declared data area was never in the
+        // table — the residue after the last real record is the padding
+        // that byte-aligns the CRC. Keeping such a record would give the
+        // consecutiveness check a class number to reject the whole table
+        // over. This matters on R13-R15, whose class list has no record
+        // count to stop at (see `ClassMap::bit_stream_start`).
+        if c.position_bits() > max_bits {
+            break;
+        }
         classes.push(def);
     }
     classes

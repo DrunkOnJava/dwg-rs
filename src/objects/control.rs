@@ -93,7 +93,12 @@ pub(crate) fn decode_object(
     kind: ObjectType,
 ) -> Result<Control> {
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
-    let out = if kind == ObjectType::DimStyleControl {
+    // The extra `RC` is not there on R14: the DIMSTYLE_CONTROL record of
+    // every R14 corpus file has a budget of exactly 10 bits from the end
+    // of its common object data to its `RL` boundary, which the `BL
+    // num_entries` (tag `01` + `RC 3`) fills on its own. Reading the byte
+    // there overshoots by 8, which is the delta those records reported.
+    let out = if kind == ObjectType::DimStyleControl && !matches!(version, Version::R14) {
         decode_dimstyle(&mut split.data)?
     } else {
         decode(&mut split.data)?

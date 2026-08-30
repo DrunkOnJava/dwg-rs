@@ -1,19 +1,23 @@
-//! LAYER table entry (§19.5.57) — named drawing layer with
-//! display flags, color, linetype, lineweight, plot style.
+//! LAYER table entry (§20.4.54) — named drawing layer with display
+//! flags, colour, linetype, lineweight and plot style.
 //!
-//! # Stream shape (R2004+)
+//! # Stream shape
 //!
 //! ```text
-//! common entity preamble     -- handled by caller
+//! common object data         -- handled by caller
 //! TV     name                -- handled by [`read_table_entry_header`]
-//! B      is_xref_dependent
+//! B      64-flag
 //! BS     xref_index_plus_1
-//! B      is_xref_resolved
-//! BS     flags               -- frozen/locked/plot/xref bits
-//! B      plotflag            -- R2000+
-//! BS     lineweight           -- R2000+ (enum codes, not mm)
-//! CMC    color                -- indexed or RGB
+//! B      is_xref_dependent
+//! R13-R14:  B frozen, B on, B frozen-in-new, B locked
+//! R2000+:   BS values        -- frozen / on / frozen-in-new / locked /
+//!                                plot flag / 5-bit lineweight index
+//! CMC    colour              -- bare BS index up to R2000 (§2.11),
+//!                                BS + BL + RC from R2004
 //! ```
+//!
+//! There is no separate plot flag and no separate lineweight field:
+//! from R2000 both live inside `values`, and R13/R14 have neither.
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
@@ -61,31 +65,92 @@ impl Layer {
 }
 
 /// Decodes a `Layer` table entry that follows the common object header.
+///
+/// # Field list (§20.4.54)
+///
+/// ```text
+/// TV   entry name          -- via read_table_entry_header
+/// B    64-flag
+/// BS   xrefindex + 1
+/// B    xdep
+/// R13-R14:  B frozen, B on, B frozen-in-new, B locked
+/// R2000+:   BS values      -- frozen 0x01, on 0x02, frz-new 0x04,
+///                             locked 0x08, plot 0x10, lineweight <<5
+/// CMC  colour              -- a bare BS index up to R2000 (§2.11)
+/// ```
+///
+/// An earlier revision read `BS values`, then a `B` plot flag, a `BS`
+/// lineweight and a `BS` colour — three fields §20.4.54 does not list,
+/// because `values` already carries the plot flag and the lineweight
+/// index. That reading overshot every pre-R2007 LAYER record's
+/// data-stream boundary; the `values` word itself was right (`0x03F0`
+/// on layer `0` of every corpus file, matching the R2007+ split-stream
+/// path exactly) but everything after it was noise — `line_2004.dwg`
+/// reported `lineweight = -32765`, `colour = -31231`.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Layer> {
     let header = read_table_entry_header(c, version)?;
-    let flags = c.read_bs()?;
-    let plot_flag = if matches!(
-        version,
-        Version::R2000
-            | Version::R2004
-            | Version::R2007
-            | Version::R2010
-            | Version::R2013
-            | Version::R2018
-    ) {
-        c.read_b()?
+    let flags = if matches!(version, Version::R14) {
+        // §20.4.54 gives R13-R14 four separate bits where R2000+ pack
+        // the same states into `values`. Reassembled into the R2000+
+        // word so `Layer::is_frozen` and friends mean one thing across
+        // every release; the plot flag and lineweight index have no
+        // R13/R14 counterpart and stay clear.
+        let frozen = c.read_b()?;
+        let on = c.read_b()?;
+        let frozen_in_new = c.read_b()?;
+        let locked = c.read_b()?;
+        let mut v = 0i16;
+        if frozen {
+            v |= LAYER_VALUE_FROZEN;
+        }
+        if on {
+            v |= LAYER_VALUE_OFF;
+        }
+        if frozen_in_new {
+            v |= LAYER_VALUE_FROZEN_IN_NEW;
+        }
+        if locked {
+            v |= LAYER_VALUE_LOCKED;
+        }
+        v
     } else {
-        true
+        c.read_bs()?
     };
-    let lineweight = c.read_bs()?;
-    let color_index = c.read_bs()?; // CMC simplified to BS
+    // §2.11: "R15 and earlier: BS color index". R2004 introduced the
+    // BS + BL + RC form.
+    let color_index = if version.is_r2004_plus() {
+        let (index, _rgb, _byte) = read_cmc_inline(c)?;
+        index
+    } else {
+        c.read_bs()?
+    };
     Ok(Layer {
         header,
         flags,
-        plot_flag,
-        lineweight,
+        plot_flag: flags & LAYER_VALUE_PLOT != 0,
+        lineweight: (flags >> LAYER_VALUE_LINEWEIGHT_SHIFT) & 0x1F,
         color_index,
     })
+}
+
+/// Read an R2004+ inline `CMC` (§2.11): `BS` index, `BL` RGB, `RC`
+/// colour byte, plus an optional colour name and book name.
+///
+/// Returns `(index, rgb, colour byte)`. The index is the ACI when the
+/// RGB word carries one (`0xC3` in its top byte), which is what every
+/// corpus LAYER records.
+fn read_cmc_inline(c: &mut BitCursor<'_>) -> Result<(i16, u32, u8)> {
+    let index = c.read_bs()?;
+    let rgb = c.read_bl()? as u32;
+    let color_byte = c.read_rc()?;
+    if color_byte & 0x01 != 0 {
+        let _name = crate::tables::read_tv(c, Version::R2004)?;
+    }
+    if color_byte & 0x02 != 0 {
+        let _book = crate::tables::read_tv(c, Version::R2004)?;
+    }
+    let index = if index == 0 { aci_from_cmc(rgb) } else { index };
+    Ok((index, rgb, color_byte))
 }
 
 /// Bit 0x01 of the R2007+ `values` word: the layer is frozen.
@@ -181,18 +246,47 @@ mod tests {
         w.write_b(false);
         w.write_bs(0);
         w.write_b(false);
-        // Body
-        w.write_bs(0); // flags
-        w.write_b(true); // plottable
-        w.write_bs(-3); // lineweight = BYBLOCK
+        // Body — §20.4.54 R2000+: `BS values` then a bare `BS` colour
+        // index (§2.11 "R15 and earlier: BS color index").
+        w.write_bs(LAYER_VALUE_PLOT | (31 << LAYER_VALUE_LINEWEIGHT_SHIFT));
         w.write_bs(7); // color = white
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let l = decode(&mut c, Version::R2000).unwrap();
         assert_eq!(l.header.name, "0");
         assert!(l.is_plottable());
+        assert_eq!(l.lineweight, 31);
         assert_eq!(l.color_index, 7);
         assert!(!l.is_frozen());
+    }
+
+    /// §20.4.54 gives R13/R14 four separate state bits where R2000+
+    /// pack one `values` word, and no plot flag or lineweight at all.
+    #[test]
+    fn r14_layer_reads_four_state_bits() {
+        let mut w = BitWriter::new();
+        let s = b"0";
+        w.write_bs_u(s.len() as u16);
+        for b in s {
+            w.write_rc(*b);
+        }
+        w.write_b(false); // 64-flag
+        w.write_bs(0); // xrefindex + 1
+        w.write_b(false); // xdep
+        w.write_b(true); // frozen
+        w.write_b(false); // on
+        w.write_b(false); // frozen in new viewports
+        w.write_b(true); // locked
+        w.write_bs(7); // colour index
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let l = decode(&mut c, Version::R14).unwrap();
+        assert_eq!(l.header.name, "0");
+        assert!(l.is_frozen());
+        assert!(l.is_locked());
+        assert!(!l.is_plottable());
+        assert_eq!(l.lineweight, 0);
+        assert_eq!(l.color_index, 7);
     }
 
     #[test]

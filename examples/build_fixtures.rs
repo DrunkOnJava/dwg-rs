@@ -37,10 +37,19 @@
 //! (LINE, CIRCLE, ARC, POINT); the corpus should grow as more encoders
 //! land.
 //!
-//! Only R2004-family versions are emitted. `assemble_dwg_bytes` rejects
-//! R14 / R2000 (flat locator table) and R2007 (two-layer Sec_Mask); those
-//! write paths are not implemented, so no fixture can be generated for
-//! them yet.
+//! Two container families are emitted. The R2004 family goes through
+//! [`assemble_dwg_bytes`] (page map + section info + LZ77). R2000 goes
+//! through [`build_flat_fixture`], which writes the §3.2.6 flat
+//! section-locator table directly — those releases have no page map, no
+//! compression and no section headers, so the "container" is three
+//! locator records and a byte layout.
+//!
+//! R14 is not emitted: its entity records need the §20.4.1 R13/R14
+//! preamble and the §20.4.21 `3BD` LINE body, neither of which the
+//! [`ElementEncoder`] implementations write. R2007 is not emitted
+//! either — the §5.1-§5.4 container is implemented read-only, and a
+//! writer for it would have to produce Reed-Solomon codewords and a
+//! §5.10-compressed stream this crate has no encoder for.
 
 use dwg::bitwriter::BitWriter;
 use dwg::element_encoder::ElementEncoder;
@@ -97,6 +106,11 @@ fn write_common_entity_preamble(w: &mut BitWriter, version: Version) {
     // R2013+: no DS binary data chain.
     if matches!(version, Version::R2013 | Version::R2018) {
         w.write_b(false);
+    }
+    // R13-R2000 carry a `Nolinks` bit before the colour (§20.4.1);
+    // R2004+ do not write it separately.
+    if version.is_r13_r15() {
+        w.write_b(true);
     }
     // CMC colour — raw 0 means BYLAYER with no alpha/RGB/name suffix.
     w.write_bs(0);
@@ -181,7 +195,7 @@ fn build_object_record<E: ElementEncoder>(
 /// The fixture's entity set — one of each encodable type, with values
 /// chosen so a mis-aligned decode produces visibly wrong numbers rather
 /// than plausible zeros.
-fn build_object_stream(version: Version) -> (Vec<u8>, HandleMap) {
+fn fixture_entities() -> (Line, Line, Circle, Arc, Point) {
     let line_2d = Line {
         start: Point3D {
             x: 0.0,
@@ -248,8 +262,13 @@ fn build_object_stream(version: Version) -> (Vec<u8>, HandleMap) {
         extrusion: default_extrusion(),
         x_axis_angle: 0.0,
     };
+    (line_2d, line_3d, circle, arc, point)
+}
 
-    let records: Vec<(u64, Vec<u8>)> = vec![
+/// The `(handle, record)` list both container assemblers share.
+fn build_object_records(version: Version) -> Vec<(u64, Vec<u8>)> {
+    let (line_2d, line_3d, circle, arc, point) = fixture_entities();
+    vec![
         (
             0x20,
             build_object_record(TYPE_LINE, 0x20, version, &line_2d),
@@ -264,8 +283,15 @@ fn build_object_stream(version: Version) -> (Vec<u8>, HandleMap) {
         ),
         (0x23, build_object_record(TYPE_ARC, 0x23, version, &arc)),
         (0x24, build_object_record(TYPE_POINT, 0x24, version, &point)),
-    ];
+    ]
+}
 
+/// Build the R2004-family `AcDb:AcDbObjects` section: the `0x0dca`
+/// prefix, the records back to back, and a handle map whose offsets are
+/// **section-relative** — which is what distinguishes it from the flat
+/// layout, where they are absolute file offsets.
+fn build_object_stream(version: Version) -> (Vec<u8>, HandleMap) {
+    let records = build_object_records(version);
     let mut stream = OBJECTS_STREAM_PREFIX.to_vec();
     let mut entries = Vec::with_capacity(records.len());
     for (handle, record) in &records {
@@ -302,6 +328,65 @@ fn build_fixture(version: Version) -> Result<Vec<u8>, String> {
     assemble_dwg_bytes(&built, version).map_err(|e| format!("assemble_dwg_bytes: {e}"))
 }
 
+/// Assemble a flat R13-R15 fixture (§3.1, §3.2.6).
+///
+/// These releases have no section *map*: the file header carries a
+/// short list of `(record number, absolute seeker, size)` locators, the
+/// object records sit loose in the file, and the object map addresses
+/// them by **absolute file offset**. So the fixture is laid out
+/// directly rather than assembled by [`WriterScaffold`].
+///
+/// ```text
+/// 0x00  magic, codepage, locator count, three locator records
+/// 0x100 AcDb:Header placeholder      -- locator 0
+/// 0x140 object records, back to back -- addressed by the object map
+/// ...   AcDb:Handles object map      -- locator 2
+/// ```
+fn build_flat_fixture(version: Version) -> Result<Vec<u8>, String> {
+    /// Where the placeholder header block starts.
+    const HEADER_AT: usize = 0x100;
+    /// Size of that placeholder.
+    const HEADER_LEN: usize = 64;
+    /// Where the first object record starts.
+    const OBJECTS_AT: usize = HEADER_AT + HEADER_LEN;
+
+    let records = build_object_records(version);
+    let mut objects = Vec::new();
+    let mut entries = Vec::with_capacity(records.len());
+    for (handle, record) in &records {
+        entries.push(HandleEntry {
+            handle: *handle,
+            offset: (OBJECTS_AT + objects.len()) as u64,
+        });
+        objects.extend_from_slice(record);
+    }
+    let handles = HandleMap { entries };
+    let handle_bytes = write_handle_map(&handles, &mut BitWriter::new(), version)
+        .map_err(|e| format!("write_handle_map: {e}"))?;
+
+    let map_at = OBJECTS_AT + objects.len();
+    let mut file = vec![0u8; map_at + handle_bytes.len()];
+    file[..6].copy_from_slice(&version.magic());
+    // Byte 0x0C is "0x00, 0x01, or 0x03" per §3.2.1; real files write 1.
+    file[0x0C] = 0x01;
+    file[0x13..0x15].copy_from_slice(&30u16.to_le_bytes()); // DWGCODEPAGE
+    file[0x15..0x19].copy_from_slice(&3u32.to_le_bytes());
+    let locators: [(u8, u32, u32); 3] = [
+        (0, HEADER_AT as u32, HEADER_LEN as u32),
+        (1, 0, 0),
+        (2, map_at as u32, handle_bytes.len() as u32),
+    ];
+    for (i, (number, seeker, size)) in locators.iter().enumerate() {
+        let at = 0x19 + i * 9;
+        file[at] = *number;
+        file[at + 1..at + 5].copy_from_slice(&seeker.to_le_bytes());
+        file[at + 5..at + 9].copy_from_slice(&size.to_le_bytes());
+    }
+    file[OBJECTS_AT..map_at].copy_from_slice(&objects);
+    file[map_at..].copy_from_slice(&handle_bytes);
+    Ok(file)
+}
+
 /// Canonical corpus directory, resolved relative to the crate root so
 /// the example works from any current directory.
 fn corpus_dir() -> PathBuf {
@@ -315,8 +400,10 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    // Every version `assemble_dwg_bytes` accepts.
+    // R2000 uses the §3.2.6 flat locator table; the rest go through
+    // the R2004-family page-map assembler.
     let versions = [
+        Version::R2000,
         Version::R2004,
         Version::R2010,
         Version::R2013,
@@ -324,7 +411,12 @@ fn main() -> ExitCode {
     ];
 
     for version in versions {
-        let bytes = match build_fixture(version) {
+        let built = if version.is_r13_r15() {
+            build_flat_fixture(version)
+        } else {
+            build_fixture(version)
+        };
+        let bytes = match built {
             Ok(b) => b,
             Err(e) => {
                 eprintln!("build_fixtures: {version} failed: {e}");

@@ -69,16 +69,25 @@ Ship bar:
 ## 0.3.0 — older-format object walking + R2007 full support
 
 **Theme: stop returning `None` from `decoded_entities()` on R14, R2000,
-and R2007.**
+and R2007.** Shipped — every one of the nineteen corpus files walks,
+with zero errored records outside the three named R2018 residues.
 
 Ship bar:
 
-- [ ] Object-stream walker for R14 / R2000 layouts (different from
-      the R2004+ page-addressable layout)
-- [ ] R2007 Sec_Mask layer-2 bookkeeping implemented — `.section`
-      payloads return decoded bytes instead of erroring
-- [ ] `decoded_entities()` returns `Some(Ok(...))` for all five
-      release families (R14, R2000, R2004, R2010, R2013, R2018)
+- [x] Object-stream walker for R14 / R2000 layouts — §3.2.6 flat
+      locators, object map offsets are absolute file offsets
+- [x] R2007 container implemented (§5.1-§5.4) — Reed-Solomon
+      de-interleave, the §5.10 LZ variant, page map, section map;
+      `.section` payloads return decoded bytes
+- [x] `decoded_entities()` returns `Some(Ok(...))` for all seven
+      release families (R14, R2000, R2004, R2007, R2010, R2013, R2018)
+
+Remaining under this theme, now that the records are visible:
+
+- [ ] VISUALSTYLE on R14 / R2000 / R2007 — 216 records; a third field
+      list that neither the R2004 nor the R2010+ one matches
+- [ ] DIMSTYLE on R14 — §20.4.68 gives R13/R14 their own block order
+- [ ] Password-protected R2007 files (refused, not mis-decoded)
 
 ## 0.4.0 — write path
 

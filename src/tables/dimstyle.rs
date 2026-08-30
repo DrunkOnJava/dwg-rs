@@ -69,6 +69,15 @@ pub struct DimStyleEntry {
 pub type DimStyle = DimStyleEntry;
 
 /// Decodes a `DimStyleEntry` table entry that follows the common object header.
+///
+/// This is a **partial** reader: it takes the first fifteen dimension
+/// variables in whatever order an earlier revision recorded, and stops.
+/// It cannot satisfy the record's data-stream boundary, so the
+/// dispatcher does not use it on real files — see
+/// [`decode_r2000_inline`], which reads the whole §20.4.68 R2000+ body,
+/// and `decode_modern_split_stream` for R2007+. It is kept for callers
+/// that only want the rendering-essential variables out of a synthetic
+/// stream.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
     let header = read_table_entry_header(c, version)?;
     let dimscale = c.read_bd()?;
@@ -100,6 +109,134 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> 
         dimtoh,
         dimtad,
         dimtolj,
+        dimaltf,
+        dimaltrnd,
+        dimupt,
+    })
+}
+
+/// Read a `CMC` colour field in the release's inline form (§2.11).
+///
+/// "R15 and earlier: BS color index"; from R2004 the same slot is `BS`
+/// index + `BL` true-colour word + `RC` colour byte, with an optional
+/// colour name and book name selected by the byte's low two bits.
+fn read_cmc_inline(c: &mut BitCursor<'_>, version: Version) -> Result<i16> {
+    let index = c.read_bs()?;
+    if !version.is_r2004_plus() {
+        return Ok(index);
+    }
+    let _rgb = c.read_bl_u()?;
+    let color_byte = c.read_rc()?;
+    if color_byte & 0x01 != 0 {
+        let _name = crate::tables::read_tv(c, version)?;
+    }
+    if color_byte & 0x02 != 0 {
+        let _book = crate::tables::read_tv(c, version)?;
+    }
+    Ok(index)
+}
+
+/// Decode the whole §20.4.68 "R2000+" DIMSTYLE body inline — the
+/// pre-R2007 counterpart of `decode_modern_split_stream`.
+///
+/// The two field lists are the same list; the only differences are that
+/// `DIMPOST` / `DIMAPOST` cost real bits here (they are `TV`s in the
+/// data stream rather than slots in a string stream), that the `CMC`
+/// colours take the release's inline form, and that the R2007+ and
+/// R2010+ blocks are absent.
+///
+/// # Measured
+///
+/// Reading the list below lands both DIMSTYLE records of every R2000
+/// and R2004 corpus file exactly on their `RL` data-stream boundary
+/// (delta 0), where the fifteen-field [`decode`] left 298-440 bits
+/// unread. The decoded `ISO-25` values agree field-for-field with what
+/// the R2007+ path reads from the same drawing saved as `line_2013.dwg`
+/// — dimscale 1.0, dimasz 2.5, dimexo 0.625, dimexe 1.25, dimtxt 2.5,
+/// dimcen 2.5.
+pub fn decode_r2000_inline(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
+    let header = read_table_entry_header(c, version)?;
+    let _dimpost = crate::tables::read_tv(c, version)?;
+    let _dimapost = crate::tables::read_tv(c, version)?;
+    let dimscale = c.read_bd()?;
+    let dimasz = c.read_bd()?;
+    let dimexo = c.read_bd()?;
+    let _dimdli = c.read_bd()?;
+    let dimexe = c.read_bd()?;
+    let _dimrnd = c.read_bd()?;
+    let _dimdle = c.read_bd()?;
+    let _dimtp = c.read_bd()?;
+    let _dimtm = c.read_bd()?;
+    let _dimtol = c.read_b()?;
+    let _dimlim = c.read_b()?;
+    let dimtih = c.read_b()?;
+    let dimtoh = c.read_b()?;
+    let _dimse1 = c.read_b()?;
+    let _dimse2 = c.read_b()?;
+    let dimtad = c.read_bs()?;
+    let _dimzin = c.read_bs()?;
+    let _dimazin = c.read_bs()?;
+    let dimtxt = c.read_bd()?;
+    let dimcen = c.read_bd()?;
+    let _dimtsz = c.read_bd()?;
+    let dimaltf = c.read_bd()?;
+    let dimlfac = c.read_bd()?;
+    let _dimtvp = c.read_bd()?;
+    let dimtfac = c.read_bd()?;
+    let _dimgap = c.read_bd()?;
+    let dimaltrnd = c.read_bd()?;
+    let _dimalt = c.read_b()?;
+    let _dimaltd = c.read_bs()?;
+    let _dimtofl = c.read_b()?;
+    let _dimsah = c.read_b()?;
+    let _dimtix = c.read_b()?;
+    let _dimsoxd = c.read_b()?;
+    let _dimclrd = read_cmc_inline(c, version)?;
+    let _dimclre = read_cmc_inline(c, version)?;
+    let _dimclrt = read_cmc_inline(c, version)?;
+    let _dimadec = c.read_bs()?;
+    let _dimdec = c.read_bs()?;
+    let _dimtdec = c.read_bs()?;
+    let _dimaltu = c.read_bs()?;
+    let _dimalttd = c.read_bs()?;
+    let _dimaunit = c.read_bs()?;
+    let _dimfrac = c.read_bs()?;
+    let _dimlunit = c.read_bs()?;
+    let _dimdsep = c.read_bs()?;
+    let _dimtmove = c.read_bs()?;
+    let _dimjust = c.read_bs()?;
+    let _dimsd1 = c.read_b()?;
+    let _dimsd2 = c.read_b()?;
+    let dimtolj = c.read_bs()?;
+    let _dimtzin = c.read_bs()?;
+    let _dimaltz = c.read_bs()?;
+    let _dimalttz = c.read_bs()?;
+    let dimupt = c.read_b()?;
+    let _dimfit = c.read_bs()?;
+    let _dimlwd = c.read_bs()?;
+    let _dimlwe = c.read_bs()?;
+    // One further bit that §20.4.68 does not list. The R2007+ path in
+    // this module reads the same bit after `DIMLWE`, measured on
+    // R2013/R2018; without it all four R2000 and R2004 DIMSTYLE records
+    // of the corpus land exactly one bit short of their boundary, and
+    // with it all four close on delta 0. Two release bands agreeing on
+    // an undocumented trailing bit is the strongest statement available
+    // about it, so it is consumed and not named.
+    let _unknown = c.read_b()?;
+    Ok(DimStyleEntry {
+        header,
+        dimscale,
+        dimasz,
+        dimexo,
+        dimexe,
+        dimtxt,
+        dimcen,
+        dimtfac,
+        dimlfac,
+        dimtih,
+        dimtoh,
+        dimtad: dimtad as u8,
+        dimtolj: dimtolj as u8,
         dimaltf,
         dimaltrnd,
         dimupt,
@@ -198,9 +335,17 @@ pub(crate) fn decode_modern_split_stream(
     let dimupt = c.read_b()?;
     let _dimatfit = c.read_bs()?;
     let _dimfxlon = c.read_b()?;
-    let _dimtxtdirection = c.read_b()?;
-    let _dimaltmzf = c.read_bd()?;
-    let _dimmzf = c.read_bd()?;
+    // §20.4.68 gates the next block on R2010+: `DIMTXTDIRECTION B 295`,
+    // `DIMALTMZF BD`, `DIMALTMZS T`, `DIMMZF BD`, `DIMMZS T`. R2007 stops
+    // at `DIMFXLON` and goes straight to `DIMLWD`. Reading the R2010+
+    // block on an R2007 record walks a `BD` onto the reserved `11` code
+    // — the failure both DIMSTYLE records of every R2007 corpus file
+    // reported.
+    if version.is_r2010_plus() {
+        let _dimtxtdirection = c.read_b()?;
+        let _dimaltmzf = c.read_bd()?;
+        let _dimmzf = c.read_bd()?;
+    }
     let _dimlwd = c.read_bs()?;
     let _dimlwe = c.read_bs()?;
     let _unknown = c.read_b()?;
@@ -208,8 +353,10 @@ pub(crate) fn decode_modern_split_stream(
     let name = split.strings.read_tv()?;
     let _dimpost = split.strings.read_tv()?;
     let _dimapost = split.strings.read_tv()?;
-    let _dimaltmzs = split.strings.read_tv()?;
-    let _dimmzs = split.strings.read_tv()?;
+    if version.is_r2010_plus() {
+        let _dimaltmzs = split.strings.read_tv()?;
+        let _dimmzs = split.strings.read_tv()?;
+    }
     Ok(DimStyleEntry {
         header: TableEntryHeader {
             name,

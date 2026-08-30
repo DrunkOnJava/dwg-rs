@@ -21,21 +21,21 @@ Legend:
 
 | Magic    | Release                 | Year   | Container parse | Metadata parse | Object walker | Per-entity decoder | Geometry export | Write   |
 |----------|-------------------------|--------|------------------|----------------|---------------|--------------------|-----------------|---------|
-| `AC1014` | R14                     | 1997   | ok               | ok             | pending       | pending            | pending         | pending |
-| `AC1015` | R2000 / 2000i / 2002    | 1999   | ok               | ok             | pending       | pending            | pending         | pending |
-| `AC1018` | R2004 / 2005 / 2006     | 2003   | ok               | ok             | ok            | partial (2.5% real) | pending         | pending |
-| `AC1021` | R2007 / 2008 / 2009     | 2006   | partial          | pending        | pending       | pending            | pending         | pending |
-| `AC1024` | R2010 / 2011 / 2012     | 2009   | ok               | ok             | ok            | partial (9.9% real) | pending         | pending |
-| `AC1027` | R2013 / 2014-2017       | 2012   | ok               | ok             | ok            | partial (15.2% real) | pending         | pending |
-| `AC1032` | R2018 / 2019-2025+      | 2017   | ok               | ok             | ok            | partial (44.2% real) | pending         | pending |
+| `AC1014` | R14                     | 1997   | ok               | ok             | ok            | partial (48.6% real) | pending         | pending |
+| `AC1015` | R2000 / 2000i / 2002    | 1999   | ok               | ok             | ok            | partial (84.4% real) | pending         | pending |
+| `AC1018` | R2004 / 2005 / 2006     | 2003   | ok               | ok             | ok            | partial (97.5% real) | pending         | pending |
+| `AC1021` | R2007 / 2008 / 2009     | 2006   | ok               | ok             | ok            | partial (82.8% real) | pending         | pending |
+| `AC1024` | R2010 / 2011 / 2012     | 2009   | ok               | ok             | ok            | partial (97.8% real) | pending         | pending |
+| `AC1027` | R2013 / 2014-2017       | 2012   | ok               | ok             | ok            | partial (97.0% real) | pending         | pending |
+| `AC1032` | R2018 / 2019-2025+      | 2017   | ok               | ok             | ok            | partial (92.2% real) | pending         | pending |
 | `AC10??` | R32 / future            | future | n/a              | n/a            | n/a           | n/a                | n/a             | n/a     |
 
 Notes, column by column:
 
-- **Container parse.** Identifier detection, file-open header, section page map, section info, LZ77 decompression, Sec_Mask layer-1. The only `partial` is R2007 because its Sec_Mask layer-2 bit-rotation is scaffolded but not finished; section payloads for R2007 currently error rather than decode.
+- **Container parse.** Three families, all `ok`: the R13-R15 flat section-locator list (§3.2.6), the R2004-family page map + section info with LZ77 and Sec_Mask layer-1 (§4), and the R2007 page map + section map with Reed-Solomon de-interleaving and the §5.10 LZ variant (§5.1-§5.4). Password-protected R2007 files are refused rather than mis-decoded.
 - **Metadata parse.** `SummaryInfo`, `AppInfo`, `Preview`, `FileDepList`. Works across every version the container layer parses. Auto-detects UTF-16 for R21+ and carves a PNG thumbnail from R24+ preview streams.
-- **Object walker.** `all_objects()` returns every `RawObject` with type code, handle, and raw payload bytes. Works on R2004 and newer (handle-map-driven walk). R14 / R2000 use a different object-stream layout that is not yet implemented (issue #104). R2007 is blocked by the Sec_Mask layer-2 gap above.
-- **Per-entity decoder.** The 27 typed decoders in [`src/entities/`](../../src/entities/) are verified against hand-crafted synthetic bit streams. Real-file decode rates are what the `(… % real)` numbers in the table report, measured by `examples/coverage_report.rs`. The aggregate real-file decode rate across all corpora is currently 20.1 %. Closing this gap is the 0.2.0 ship bar — see [`ROADMAP.md`](../../ROADMAP.md).
+- **Object walker.** `all_objects()` returns every `RawObject` with type code, handle, and raw payload bytes. Works on every release from R14 on. R13-R15 have no object *section*: their records sit loose in the file and the object map addresses them by absolute file offset, so `DwgFile::object_stream()` returns the whole file there. Every handle-map entry of every corpus file resolves to a record whose own handle field matches the map.
+- **Per-entity decoder.** The typed decoders in [`src/entities/`](../../src/entities/) are verified against hand-crafted synthetic bit streams *and* required to end exactly on each real record's data-stream boundary. Real-file decode rates are what the `(… % real)` numbers in the table report, measured by `examples/coverage_report.rs`. The aggregate across all seven versions is currently 83.1 %, over 19 files — a number that is only comparable to itself once the corpus stops growing. Closing the remaining gap is the 0.2.0 ship bar — see [`ROADMAP.md`](../../ROADMAP.md).
 - **Geometry export.** SVG / PNG / PDF / glTF output. The `svg` module exists in [`src/svg.rs`](../../src/svg.rs) but the full export path is pending until per-entity decoders stabilize — rendering broken geometry would publish confidently-wrong pictures.
 - **Write.** `file_writer.rs` is stage 1 of 5. LZ77 literal-only encoder works; Reed-Solomon encoder is tracked by issue #109; stages 2-5 (section encoding, buffer assembly, CRC splicing, file-level write) are the 0.4.0 milestone.
 
@@ -45,9 +45,13 @@ Consider the R2013 row. Container parse is `ok`, metadata parse is `ok`, object 
 
 The honest consequence: today on R2013 you can trust `DwgFile::version()`, `file.summary_info()`, `file.all_objects()`, and most `entities::*` decoders when you dispatch by hand. You cannot yet trust the fully automated `file.decoded_entities()` pipeline to cover 100 % of entities on arbitrary drawings — even though on R2013 specifically it gets most of the way there.
 
-## R2007 is deferred on purpose
+## R2007 was not what this page used to say it was
 
-R2007 is the only version where container parse is `partial` rather than `ok`. Its section-payload obfuscation adds a second bit-rotation layer on top of the R2004-family Sec_Mask. Implementing it without an authoritative reference has been a rabbit hole; this crate's posture is to ship R2007 support only when the layer-2 bookkeeping is correct end-to-end, rather than shipping something that half-works and silently returns wrong bytes. Issue-tracked under the `0.3.0` milestone.
+Earlier revisions of this page described R2007's container as the R2004 one plus "a second bit-rotation layer on top of the Sec_Mask". That was wrong, and it kept the version deferred for longer than it needed to be. §5.1-§5.4 of the ODA specification give R2007 a container that shares no *mechanism* with §4: a Reed-Solomon-encoded and separately-compressed file header at 0x80, bare data pages with no per-page header, a different LZ variant, and Reed-Solomon interleaving on the pages the section map marks. There is no Sec_Mask anywhere in it.
+
+The verification is the spec's own constants. `AcDb:...` section names carry a tabulated hash code in §5.2, and all twelve that the table lists match on every corpus AC1021 file. The file header names seven "normally X" values and one field that must equal the file's own byte count; all eight come back correct. `examples/probe_r2007_container.rs` prints them with a pass/fail verdict each.
+
+What is still out of scope for R2007: password-protected files (a section whose descriptor declares encryption is refused rather than decoded) and writing (the container is implemented read-only — a writer would need a Reed-Solomon encoder and a §5.10 compressor).
 
 ## How to test against your own files
 
