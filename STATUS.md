@@ -12,9 +12,9 @@ scrolling the changelog.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 1,706 decoded / 549 skipped /
-  26 errored / 74.8% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 488 / 231 / 26 / 65.5%, and it
+- **Current real-file decode coverage:** 1,751 decoded / 484 skipped /
+  46 errored / 76.8% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 533 / 166 / 46 / 71.5%, and it
   is the only file with any errors — the R2004, R2010 and R2013
   samples all decode with zero.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
@@ -198,8 +198,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 1706 decoded,
-  549 skipped, 26 errored, 74.8% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 1751 decoded,
+  484 skipped, 46 errored, 76.8% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
@@ -208,22 +208,25 @@ These have genuine open scope requiring focused work, not stubs.
   ACAD_SCALE now dispatch through `src/objects/modern.rs`, taking their
   `TV` fields from the R2007+ string stream and checking their data
   fields end exactly on the record's data-stream boundary. Still
-  unreached, in descending record count on the corpus: VISUALSTYLE
-  (216 records), MATERIAL (27), LAYOUT (31), MLEADERSTYLE (12),
-  TABLESTYLE (10), MLINESTYLE (10). MATERIAL / VISUALSTYLE /
+  unreached, in descending record count on the corpus (counts as of
+  the 2026-08-30 run, which names custom classes now that the R2018
+  class table resolves): VISUALSTYLE (240 records), LAYOUT (31),
+  MATERIAL (30), ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11),
+  MLEADERSTYLE (11), MLINESTYLE (10), TABLESTYLE (10).
+  MATERIAL / VISUALSTYLE /
   PROPERTYSET_DATA decode only a documented prefix of their fields, so
   they cannot satisfy the boundary check; LAYOUT (which embeds the
   PLOTSETTINGS field list) and MLINESTYLE have field lists this crate
   has not yet matched against real bytes.
 
-- **#33 R2018 `AcDb:Classes` record layout.** `ClassMap::parse` now
-  reads the class table correctly on R2004, R2010 and R2013 (10 / 10 /
-  9 classes, names and object counts matching the object stream). On
-  `sample_AC1032.dwg` the ninth record does not decode with the same
-  field list, so the parser's consecutiveness check rejects the table
-  and every `Custom(N)` object in that file — 194 records, including
-  its 33 SCALE records — stays `Unhandled`. This is the single largest
-  remaining lever on the R2018 sample.
+- **R2018 entity preamble for custom-class entities** (surfaced by
+  #37). With the class table resolving on `sample_AC1032.dwg`, its
+  MULTILEADER (10), MESH (3), ACAD_TABLE (2), WIPEOUT (1) and IMAGE
+  (1) records now reach their decoders and fail in the *common entity
+  preamble* — "Bit cursor exhausted: wanted 8 bits, 3 bits remain" —
+  before any per-entity field is read. That is the same R2007+
+  preamble/handle-stream boundary problem tracked under #103, now
+  visible on five more classes.
 
 - **R2007+ symbol-table common object prefix.** `tables/modern.rs`
   omits the `BL num_reactors` that `objects/modern.rs` measured as
