@@ -12,11 +12,12 @@ scrolling the changelog.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 1,755 decoded / 487 skipped /
-  39 errored / 76.9% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 537 / 169 / 39 / 72.1%, and it
+- **Current real-file decode coverage:** 1,923 decoded / 319 skipped /
+  39 errored / 84.3% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 561 / 145 / 39 / 75.3%, and it
   is the only file with any errors — the R2004, R2010 and R2013
-  samples all decode with zero.
+  samples all decode with zero. Per version: R2004 81.9%,
+  R2010 93.9%, R2013 91.7%.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
   Seed corpus: 30 hand-crafted inputs across all targets.
@@ -83,8 +84,10 @@ scrolling the changelog.
   decoder asserts its data fields end exactly on the string-stream
   start bit, so a wrong layout errors rather than returning garbage.
 - Named-object dictionary, ACAD_GROUP, ACAD_MLINESTYLE,
-  ACAD_PLOTSETTINGS, ACAD_SCALE, ACAD_MATERIAL, ACAD_VISUALSTYLE,
-  ACAD_PROPERTYSET_DATA, ACAD_LAYOUT.
+  ACAD_PLOTSETTINGS, ACAD_SCALE, ACAD_VISUALSTYLE (R2010+, 58
+  properties on R2013/R2018), ACAD_PROPERTYSET_DATA, ACAD_LAYOUT.
+  ACAD_MATERIAL reads only its strings and its measured bit budget —
+  its data-field layout is not determined.
 
 ### Graph + geometry (Phase 5 + 8)
 - `resolve_entity` / `owner_chain` / `reactor_chain`.
@@ -198,50 +201,22 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 1755 decoded,
-  487 skipped, 39 errored, 76.9% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 1923 decoded,
+  319 skipped, 39 errored, 84.3% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
-
-- **#42 R2007+ custom-class entity preamble — closed.** The
-  graphics-preview block that follows a set `graphics present` flag is
-  sized by a `BLL` (§2.4) from R2010 on, not the `RL` used up to R2007,
-  and the `BLL` byte-count prefix is three raw bits. AutoCAD writes
-  proxy graphics for classes it does not implement natively, so that
-  flag is set on exactly the custom-class entities and clear on
-  LINE / TEXT / MTEXT — which is why the whole failure population looked
-  class-shaped. Nothing about the class record changes the preamble.
-  Measured on `sample_AC1032.dwg`: IMAGE `0x662` and WIPEOUT `0x44D`
-  carry 140-byte previews (`001` + `8C`), MULTILEADER `0x66E` 848 bytes
-  (`010` + `50 03`), MESH `0x343` 9512 bytes. All 20 preamble failures
-  are gone; the ten MULTILEADER errors are now MLEADER *body* failures
-  (#31).
-
-- **#44 CUSTOM(727) — not a type-code bug.** The three records read
-  `tag = 01` + `0xE7` + `0x1F0` = 727, which is exactly what the byte
-  says. They are not objects: handle `0x1607` decodes a handle field
-  with `counter = 11` (an 11-byte handle value), handle `0x15E6`
-  decodes `code 9 counter 0 value 0`, and their `MS` sizes (29,927 /
-  23,087 bytes) are inconsistent with their `MC` handle-stream sizes
-  (14,220 / 687 bits). Two more handle-map entries show the same
-  signature (`0x13E2` → CUSTOM(517), `0x13E7` → CUSTOM(564)), and six
-  handle-map offsets already point past the end of the assembled
-  section: the map addresses up to byte 1,289,590 while
-  `AcDb:AcDbObjects` assembles to 1,192,851 bytes, its own declared
-  size. The defect is in the handle-map / section-assembly address
-  space (#43), not in `read_object_type`.
 
 - **#33 remaining non-entity objects.** DICTIONARY, DICTIONARYVAR,
   XRECORD, ACDB_PLACEHOLDER, the ten `*_CONTROL` owners, ACAD_GROUP and
   ACAD_SCALE now dispatch through `src/objects/modern.rs`, taking their
   `TV` fields from the R2007+ string stream and checking their data
   fields end exactly on the record's data-stream boundary. Still
-  unreached, in descending record count on the corpus (counts as of
-  the 2026-08-30 run, which names custom classes now that the R2018
-  class table resolves): VISUALSTYLE (240 records), LAYOUT (31),
-  MATERIAL (30), ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11),
-  MLEADERSTYLE (11), MLINESTYLE (10), TABLESTYLE (10).
-  MATERIAL / VISUALSTYLE /
+  VISUALSTYLE now dispatches too on R2010, R2013 and R2018 — 168 of
+  its 240 corpus records. Still unreached, in descending record count
+  on the corpus (counts as of the 2026-08-30 run): VISUALSTYLE on
+  R2004/R2007 (72 records), LAYOUT (31), MATERIAL (30),
+  ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11), MLEADERSTYLE
+  (11), MLINESTYLE (10), TABLESTYLE (10). MATERIAL and
   PROPERTYSET_DATA decode only a documented prefix of their fields, so
   they cannot satisfy the boundary check; LAYOUT (which embeds the
   PLOTSETTINGS field list) and MLINESTYLE have field lists this crate

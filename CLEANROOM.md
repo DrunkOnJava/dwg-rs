@@ -113,3 +113,19 @@ For direct questions about the clean-room posture, open a GitHub
 Discussion or email the maintainer. For legal questions about
 whether this project is safe for your specific use case, consult
 your own counsel.
+
+## 2026-08-30 — VISUALSTYLE property names (Autodesk public DXF Reference, recalled)
+
+PR #47 derives the R2010+ `VISUALSTYLE` field layout entirely from bytes: the
+one token sequence over `B/BS/BL/BD/CMC` that lands every record of a file
+exactly on its string-stream start bit (24/24 records per file, delta 0), with
+decoded values cross-checked against AutoCAD's Visual Styles Manager. The
+**names** given to the 28 (R2010) / 58 (R2013+) value/flag slots follow the
+conventional `AcDbVisualStyle` property ordering as recalled from Autodesk's
+public *DXF Reference* (published documentation, not SDK or product source).
+Only the face-group names are independently corroborated by values; the
+edge/display names are positional labels and may be renamed if a later file
+contradicts them. No code, structure, or layout was taken from that document —
+it contributed vocabulary only. ODA spec v5.4.1 has no VISUALSTYLE or MATERIAL
+section; the `§19.6.9` / `§19.6.10` citations previously in this tree were
+withdrawn in the same PR.

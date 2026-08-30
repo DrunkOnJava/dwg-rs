@@ -112,6 +112,7 @@ pub enum DecodedEntity {
     Placeholder(crate::objects::placeholder::Placeholder),
     Group(crate::objects::acad_group::AcadGroup),
     Scale(crate::objects::acad_scale::AcadScale),
+    VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -209,7 +210,7 @@ impl DecodedEntity {
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
             // to consult the class map.
-            Self::DictionaryVar(_) | Self::Scale(_) | Self::ImageDef(_) => 0,
+            Self::DictionaryVar(_) | Self::Scale(_) | Self::ImageDef(_) | Self::VisualStyle(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -584,6 +585,10 @@ fn dispatch_object_class(
             crate::objects::acad_scale::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::Scale)
         }
+        "VISUALSTYLE" | "ACDBVISUALSTYLE" => crate::objects::acad_visual_style::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::VisualStyle),
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
@@ -605,6 +610,13 @@ fn dispatch_object_class(
     };
     Some(match result {
         Ok(decoded) => decoded,
+        // "this release's layout is not determined" is not a decode
+        // failure — the record is simply one this crate does not handle
+        // yet, so it belongs in the Unhandled bucket rather than being
+        // reported as a broken record.
+        Err(crate::error::Error::Unsupported { .. }) => {
+            DecodedEntity::Unhandled { type_code, kind }
+        }
         Err(e) => DecodedEntity::Error {
             type_code,
             kind,

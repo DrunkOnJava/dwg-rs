@@ -25,31 +25,31 @@ local `samples/` set:
 |---------|--------------|---------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
 | R2004 (AC1018)      | 3 | 489 | 108 | 0 | **81.9 %** |
-| R2010 (AC1024)      | 3 | 438 | 105 | 0 | **80.7 %** |
-| R2013 (AC1027)      | 3 | 291 | 105 | 0 | **73.5 %** |
-| R2018 (AC1032)      | 1 | 537 | 169 | 39 | **72.1 %** |
-| **Aggregate** | **19** | **1755** | **487** | **39** | **76.9 %** |
+| R2010 (AC1024)      | 3 | 510 | 33 | 0 | **93.9 %** |
+| R2013 (AC1027)      | 3 | 363 | 33 | 0 | **91.7 %** |
+| R2018 (AC1032)      | 1 | 561 | 145 | 39 | **75.3 %** |
+| **Aggregate** | **19** | **1923** | **319** | **39** | **84.3 %** |
 
 Per-entity-type error concentration in the measured corpus:
 
-| DXF name | Occurrences as error |
-|----------|-----------------------|
-| `MULTILEADER` (custom class) | 10 |
-| `HATCH` (0x004E) | 5 |
-| `INSERT` (0x0007) | 3 |
-| `LTYPE` (0x0039) | 3 |
-| `DIMENSION_DIAMETER` (0x001A) | 2 |
-| `SPLINE` (0x0024) | 2 |
-| ... | (long tail, 1 each) | 14 |
+| Type code | DXF name | Occurrences as error |
+|-----------|----------|-----------------------|
+| 526 | `MULTILEADER` (custom class) | 10 |
+| 0x4E (78) | `HATCH` | 5 |
+| 0x39 (57) | `LTYPE` | 3 |
+| 0x07 (7) | `INSERT` | 3 |
+| 0x1A (26) | `DIMENSION` (diameter) | 2 |
+| 0x24 (36) | `SPLINE` | 2 |
+| 523 | `ACAD_TABLE` (custom class) | 2 |
+| ... | (long tail, 1 each) | 16 |
 
-All 39 remaining errors are in the single R2018 file. Every R2004, R2010 and
-R2013 sample decodes with **zero** errors. The R2018 count peaked at 46 when
-the `AcDb:Classes` table started resolving and 20 custom-class entities began
-reaching a decoder for the first time; the common entity preamble's
-graphics-preview block is now sized correctly on R2010+ (a `BLL`, not an `RL`
-— see [`src/common_entity.rs`](./src/common_entity.rs)), so IMAGE, WIPEOUT,
-ACAD_TABLE and both real MESH records get past it. The ten MULTILEADER
-failures are now in the MLEADER *body*, not the preamble.
+All 46 remaining errors are in the single R2018 file. Every R2004, R2010 and
+R2013 sample now decodes with **zero** errors. The error count rose from 26
+when the R2018 `AcDb:Classes` table started resolving: 65 records left
+*skipped*, 45 of them decoding and the other 20 now reaching a decoder and
+failing (mostly in the common entity preamble). Surfacing those 20 is honest
+reporting of a real gap, not a regression — they were always broken, they
+were previously invisible.
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
 are verified against hand-crafted synthetic input, and the R2013/R2018
@@ -87,7 +87,7 @@ real-file decode gap is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~76.9% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~84.3% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -271,8 +271,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 76.9 %
-aggregate / 72.1 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 84.3 %
+aggregate / 75.3 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety
