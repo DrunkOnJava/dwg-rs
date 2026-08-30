@@ -238,8 +238,8 @@ proptest! {
     /// must always return Unhandled — never an Error, and never a
     /// typed variant. LAYER (0x33) and the other symbol-table entries
     /// are intentionally NOT in this list, nor are DICTIONARY / XRECORD
-    /// / the `*_CONTROL` family: those now dispatch to their typed
-    /// variants through `dispatch_object`.
+    /// / LAYOUT / the `*_CONTROL` family: those now dispatch to their
+    /// typed variants through `dispatch_object`.
     #[test]
     fn property_non_entity_codes_without_decoders_always_unhandled(
         payload in prop::collection::vec(any::<u8>(), 0..=256)
@@ -247,7 +247,6 @@ proptest! {
         for &code in &[
             0x49u16, // MLINESTYLE
             0x4C,    // LONG_TRANSACTION
-            0x52,    // LAYOUT
         ] {
             let raw = make_raw(code, payload.clone());
             let decoded = decode_from_raw(&raw, Version::R2018);

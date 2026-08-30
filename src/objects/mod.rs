@@ -13,10 +13,10 @@
 //! | Object                   | Module                    | Spec             |
 //! |--------------------------|---------------------------|------------------|
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
-//! | ACAD_LAYOUT              | [`acad_layout`]           | §19.6.12 (L6-12) |
+//! | LAYOUT                   | [`acad_layout`]           | §20.4.84         |
 //! | ACAD_MATERIAL            | [`acad_material`]         | none — measured  |
 //! | ACAD_MLINESTYLE          | [`acad_mlinestyle`]       | §19.6.4 (L6-13)  |
-//! | ACAD_PLOTSETTINGS        | [`acad_plot_settings`]    | §19.6.6 (L6-14)  |
+//! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
 //! | ACAD_PROPERTYSET_DATA    | [`acad_property_set_data`]| §19.6.11 (L7-07) |
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured  |
@@ -35,14 +35,15 @@
 //!
 //! The decoders the dispatcher routes to — DICTIONARY, DICTIONARYVAR,
 //! XRECORD, ACDB_PLACEHOLDER, the `*_CONTROL` family, ACAD_GROUP,
-//! ACAD_SCALE and ACAD_VISUALSTYLE — all go through the crate-private
+//! ACAD_SCALE, ACAD_VISUALSTYLE, LAYOUT and PLOTSETTINGS — all go
+//! through the crate-private
 //! `objects::modern`, so
 //! their `TV` fields come
 //! from the object's string stream on R2007+ and each one checks that
 //! its data fields end exactly on the data-stream boundary.
 //!
 //! The remaining modules ([`acad_material`],
-//! [`acad_property_set_data`], [`acad_layout`], [`acad_plot_settings`],
+//! [`acad_property_set_data`],
 //! [`acad_mlinestyle`]) decode a documented *prefix* of their record's
 //! fields, or a field list this crate has not yet matched against real
 //! bytes, so they cannot satisfy that boundary check and are
@@ -56,6 +57,12 @@
 //! what their own byte measurements establish, and
 //! [`acad_material`] restricts itself to the strings and the budget
 //! precisely because its data-field layout is not among them.
+//!
+//! PLOTSETTINGS has no §20.4 prescription of its own either, but it
+//! does not need one: §20.4.84 LAYOUT opens with the whole
+//! plot-settings block, so [`acad_layout`] and [`acad_plot_settings`]
+//! share a single field list and one of them is measured on 31 real
+//! records.
 
 pub mod acad_group;
 pub mod acad_layout;
