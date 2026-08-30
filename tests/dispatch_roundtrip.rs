@@ -245,8 +245,8 @@ proptest! {
         payload in prop::collection::vec(any::<u8>(), 0..=256)
     ) {
         for &code in &[
-            0x49u16, // MLINESTYLE
-            0x4C,    // LONG_TRANSACTION
+            0x4Cu16, // LONG_TRANSACTION
+            0x51,    // VBA_PROJECT
         ] {
             let raw = make_raw(code, payload.clone());
             let decoded = decode_from_raw(&raw, Version::R2018);
@@ -271,6 +271,7 @@ proptest! {
             0x32,    // LAYER_CONTROL
             0x44,    // DIMSTYLE_CONTROL
             0x48,    // GROUP
+            0x49,    // MLINESTYLE
             0x4F,    // XRECORD
             0x50,    // ACDB_PLACEHOLDER
         ] {

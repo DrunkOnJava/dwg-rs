@@ -213,6 +213,7 @@ fn non_entity_codes_with_decoders_are_routed_not_unhandled() {
         (0x38, "LTYPE_CONTROL"),
         (0x44, "DIMSTYLE_CONTROL"),
         (0x48, "GROUP"),
+        (0x49, "MLINESTYLE"),
         (0x4F, "XRECORD"),
         (0x50, "ACDB_PLACEHOLDER"),
         (0x52, "LAYOUT"),
@@ -230,14 +231,15 @@ fn non_entity_codes_with_decoders_are_routed_not_unhandled() {
 
 /// Non-entity codes this crate has no self-validating decoder for must
 /// stay `Unhandled` — never fed to an entity decoder, and never counted
-/// as decoded. MLINESTYLE is here because its field list has not been
-/// matched against real bytes yet (see `src/objects/mod.rs`).
+/// as decoded. MLINESTYLE left this list once its §20.4.73 field list
+/// was matched against all ten corpus records (see
+/// `src/objects/acad_mlinestyle.rs`).
 #[test]
 fn non_entity_codes_without_decoders_stay_unhandled() {
     use dwg::Version;
     use dwg::entities::decode_from_raw;
 
-    let unhandled = [(0x49, "MLINESTYLE"), (0x4C, "LONG_TRANSACTION")];
+    let unhandled = [(0x4C, "LONG_TRANSACTION"), (0x51, "VBA_PROJECT")];
     for (code, label) in unhandled {
         match decode_from_raw(&zeroed_raw(code), Version::R2018) {
             DecodedEntity::Unhandled { .. } => { /* correct */ }

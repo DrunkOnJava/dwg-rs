@@ -8,6 +8,63 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — MLINESTYLE (§20.4.73) and three style classes the spec does not prescribe (2026-08-30, closes #55)
+
+`MLINESTYLE`, `MLEADERSTYLE`, `ACDBDETAILVIEWSTYLE` and
+`ACDBSECTIONVIEWSTYLE` now dispatch to typed decoders on every release
+band this crate walks. All 43 records of the local 19-file corpus close
+exactly on their own data-stream boundary — the first bit of the string
+stream on R2010+, the `RL` object-data-size on R2004 — so a wrong field
+list errors rather than returning a plausible struct.
+
+- **MLINESTYLE comes from the spec.** §20.4.73 prescribes the whole
+  record; the module previously cited a "§19.6.4 (L6-13)" that does not
+  exist and read `BS` where the spec prints `CMC` for both colour
+  fields. Read straight, it closes on all ten records: R2004 budget 526,
+  R2010 and R2013 442, R2018 406 — the R2018 drop being exactly the two
+  18-bit `BS ltindex` words that release moves into the handle stream.
+- **The other three have no §20.4 entry** and were derived by the
+  joint-boundary search over `B/BS/BL/BD/RC/CMC/TV`, with the pre-R2007
+  band — where a `TV` costs real data-stream bits — pinning the string
+  positions. 33 records, four release bands, delta 0 on every one.
+  Budgets: MLEADERSTYLE 744 / 692 / 693 / 693 · 749;
+  ACDBDETAILVIEWSTYLE 1209 / 667 / 667 / 677 · 605;
+  ACDBSECTIONVIEWSTYLE 2325 / 1301 / 1301 / 1263 · 1367.
+- **Values corroborate the layouts**: MLEADERSTYLE's `Standard` decodes
+  AutoCAD's shipped defaults (landing gap `0.09`, dogleg `0.36`,
+  arrowhead `0.18`, text height `0.18`, break gap `0.125`, block scales
+  `1,1,1`, ByBlock colours, lineweight `-2`); the view styles decode
+  `5` / `0.24` text heights for `Metric50` / `Imperial24`, lineweights
+  `25` and `50`, and ACDBSECTIONVIEWSTYLE ends in five doubles that are
+  90°, 15°, 75°, −15° and 105° in radians.
+- **TABLESTYLE is declined, not guessed.** Its structure is measured —
+  a 52-bit header plus four cell-style blocks of 1738 / 1696 / 1696 /
+  1662 bits, each ending in six 168-bit border sub-records — but one
+  record per corpus file cannot pin the token sequence inside a block.
+  Budgets recorded for a follow-up: R2004 1849, R2010 6836, R2013 6844,
+  R2018 5820. The records stay `Unhandled`.
+- New `objects::color::ObjectColor` gives the four decoders one `CMC`
+  reading that also honours the colour byte's two name-string bits.
+- New probe `examples/probe_token_scan.rs` reports the self-identifying
+  anchors (full-form `BD`s that decode to short decimals, `CMC`s whose
+  true-colour word carries a real method octet) a field list has to
+  reach exactly. `examples/probe_field_list.rs` and
+  `examples/probe_object_layout.rs` now consume the R2013+ AcDs
+  binary-data marker as 16 bits, matching `objects::modern`.
+
+Measured coverage on the local 19-file corpus, before → after:
+
+| Version | Decoded | Skipped | Errored | Ratio |
+|---|---|---|---|---|
+| R2004 (AC1018) | 498 → 510 | 99 → 87 | 0 | 83.4 % → **85.4 %** |
+| R2010 (AC1024) | 519 → 531 | 24 → 12 | 0 | 95.6 % → **97.8 %** |
+| R2013 (AC1027) | 372 → 384 | 24 → 12 | 0 | 93.9 % → **97.0 %** |
+| R2018 (AC1032) | 716 → 723 | 87 → 80 | 39 | 85.0 % → **85.9 %** |
+| **Aggregate** | **2105 → 2148** | **234 → 191** | **39** | 88.5 % → **90.3 %** |
+
+No new errors: every one of the 43 records moved from Unhandled to
+decoded.
+
 ### Fixed — the `AcDb:Handles` delta run: unsigned handle deltas, per-section restart (2026-08-30, closes #43, closes #44, closes #51)
 
 - **The handle delta is an UNSIGNED modular char; only the offset delta

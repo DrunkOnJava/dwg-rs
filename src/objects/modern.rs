@@ -274,6 +274,25 @@ pub(crate) mod tests {
         w
     }
 
+    /// The common object data an R2000-R2007 non-entity object leads
+    /// with: empty EED chain, `BL` reactor count, and — from R2004 —
+    /// the xdictionary-missing flag. No R2013+ AcDs binary-data bit.
+    pub(crate) fn r2004_object_prefix(num_reactors: i32) -> BitWriter {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // EED terminator
+        w.write_bl(num_reactors);
+        w.write_b(true); // no xdictionary
+        w
+    }
+
+    /// Write one pre-R2007 inline `TV`: `BS` length then that many bytes.
+    pub(crate) fn write_inline_tv(w: &mut BitWriter, s: &str) {
+        w.write_bs_u(s.len() as u16);
+        for b in s.as_bytes() {
+            w.write_rc(*b);
+        }
+    }
+
     /// Build an R2010+ object payload whose *strings present* trailer
     /// bit is clear — the shape every `*_CONTROL`, XRECORD and
     /// ACDB_PLACEHOLDER record actually has. The data fields then end

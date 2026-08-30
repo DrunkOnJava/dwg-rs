@@ -115,6 +115,10 @@ pub enum DecodedEntity {
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
+    MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
+    MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
+    DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
+    SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -210,6 +214,7 @@ impl DecodedEntity {
             Self::Placeholder(_) => OBJECT_TYPE_ACDB_PLACEHOLDER,
             Self::Group(_) => OBJECT_TYPE_GROUP,
             Self::Layout(_) => OBJECT_TYPE_LAYOUT,
+            Self::MLineStyle(_) => OBJECT_TYPE_MLINESTYLE,
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
             // to consult the class map.
@@ -217,7 +222,10 @@ impl DecodedEntity {
             | Self::Scale(_)
             | Self::ImageDef(_)
             | Self::VisualStyle(_)
-            | Self::PlotSettings(_) => 0,
+            | Self::PlotSettings(_)
+            | Self::MLeaderStyle(_)
+            | Self::DetailViewStyle(_)
+            | Self::SectionViewStyle(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -292,6 +300,7 @@ const OBJECT_TYPE_GROUP: u16 = 0x48; // 72
 const OBJECT_TYPE_XRECORD: u16 = 0x4F; // 79
 const OBJECT_TYPE_ACDB_PLACEHOLDER: u16 = 0x50; // 80
 const OBJECT_TYPE_LAYOUT: u16 = 0x52; // 82
+const OBJECT_TYPE_MLINESTYLE: u16 = 0x49; // 73
 
 const OBJECT_TYPE_CAMERA: u16 = 0x4F8; // 1272
 const OBJECT_TYPE_SUN: u16 = 0x4F9; // 1273
@@ -522,6 +531,7 @@ fn dispatch_object(
             | ObjectType::AcDbPlaceholder
             | ObjectType::Group
             | ObjectType::Layout
+            | ObjectType::MLineStyle
     ) || kind.is_control();
     if !has_decoder {
         return DecodedEntity::Unhandled { type_code, kind };
@@ -571,6 +581,11 @@ fn dispatch_object(
                 Err(e) => Err(e.to_string()),
             }
         }
+        ObjectType::MLineStyle => {
+            crate::objects::acad_mlinestyle::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::MLineStyle)
+                .map_err(|e| e.to_string())
+        }
         k if k.is_control() => control::decode_object(payload, body_start, inline_end, version, k)
             .map(|control| DecodedEntity::Control { kind: k, control })
             .map_err(|e| e.to_string()),
@@ -617,6 +632,22 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::PlotSettings),
+        "MLEADERSTYLE" | "ACDBMLEADERSTYLE" => crate::objects::acad_mleader_style::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|style| DecodedEntity::MLeaderStyle(Box::new(style))),
+        "ACDBDETAILVIEWSTYLE" | "DETAILVIEWSTYLE" => {
+            crate::objects::acad_detail_view_style::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(|style| DecodedEntity::DetailViewStyle(Box::new(style)))
+        }
+        "ACDBSECTIONVIEWSTYLE" | "SECTIONVIEWSTYLE" => {
+            crate::objects::acad_section_view_style::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
+        }
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
@@ -1066,8 +1097,8 @@ mod tests {
         let raw = RawObject {
             stream_offset: 0,
             size_bytes: 0,
-            type_code: 0x49,
-            kind: ObjectType::MLineStyle, // non-entity, no decoder
+            type_code: 0x51,
+            kind: ObjectType::VbaProject, // non-entity, no decoder
             handle: crate::bitcursor::Handle {
                 code: 0,
                 counter: 0,

@@ -115,6 +115,8 @@ fn main() -> Result<()> {
         let _ = c.read_b()?;
     }
     if matches!(version, Version::R2013 | Version::R2018) && c.read_b()? {
+        // 16 bits, measured — see `crate::objects::modern`.
+        let _ = c.read_rc()?;
         let _ = c.read_rc()?;
     }
 
