@@ -18,8 +18,8 @@ use proptest::prelude::*;
 proptest! {
     /// Every (bool, bool, bb_u2, 3b_representable) sequence round-trips.
     #[test]
-    fn bits_b_bb_3b_roundtrip(b1: bool, b2: bool, bb in 0u8..=3u8, choice in 0u8..4u8) {
-        let three_b = match choice { 0 => 0, 1 => 2, 2 => 6, _ => 7 };
+    fn bits_b_bb_3b_roundtrip(b1: bool, b2: bool, bb in 0u8..=3u8, choice in 0u8..=7u8) {
+        let three_b = choice;
         let mut w = BitWriter::new();
         w.write_b(b1);
         w.write_b(b2);

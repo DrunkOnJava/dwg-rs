@@ -12,9 +12,9 @@ scrolling the changelog.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 1,919 decoded / 316 skipped /
-  46 errored / 84.1% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 557 / 142 / 46 / 74.8%, and it
+- **Current real-file decode coverage:** 1,923 decoded / 319 skipped /
+  39 errored / 84.3% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 561 / 145 / 39 / 75.3%, and it
   is the only file with any errors — the R2004, R2010 and R2013
   samples all decode with zero. Per version: R2004 81.9%,
   R2010 93.9%, R2013 91.7%.
@@ -201,8 +201,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 1919 decoded,
-  316 skipped, 46 errored, 84.1% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 1923 decoded,
+  319 skipped, 39 errored, 84.3% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 

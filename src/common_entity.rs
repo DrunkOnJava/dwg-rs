@@ -15,7 +15,8 @@
 //!       BS   size_bits
 //!       H    appid_handle
 //!       RC*  app_data
-//! B   graphics_present     -- if true, RL size + bytes follow
+//! B   graphics_present     -- if true, a size field + that many bytes
+//!                             follow: RL up to R2007, BLL from R2010
 //! BB  entmode              -- entity mode (see [`EntityMode`])
 //! BL  num_reactors
 //! B   no_xdictionary_handle (R2004+)
@@ -163,6 +164,44 @@ fn skip_extended_data(c: &mut BitCursor<'_>) -> Result<bool> {
     )))
 }
 
+/// Size in bytes of the graphics-preview block that follows a set
+/// `graphics present` flag in the common entity preamble (§19.4.1).
+///
+/// # Measured
+///
+/// Up to R2007 the size is an `RL`. From R2010 it is a `BLL` (§2.4).
+/// On `sample_AC1032.dwg` (R2018) reading it as an `RL` yields sizes in
+/// the millions of bytes for records only a few hundred bytes long, and
+/// the preamble runs off the end of the record — the 20 errors of #42.
+/// Reading it as a `BLL` lands every one of those records on a preamble
+/// whose remaining fields match the values every plain entity in the
+/// same file carries (`entmode = 2`, `num_reactors = 0`,
+/// `no_xdictionary = true`, colour `0x0100`, linetype scale `1.0`, all
+/// flag fields `0`, `invisibility = 0`, `lineweight = 0x1D`):
+///
+/// | record            | `BLL` prefix bits | size (bytes) | preamble ends |
+/// |-------------------|-------------------|--------------|---------------|
+/// | IMAGE `0x662`     | `001` + `8C`      | 140          | bit 1213      |
+/// | WIPEOUT `0x44D`   | `001` + `8C`      | 140          | bit 1213      |
+/// | MULTILEADER `0x66E` | `010` + `50 03` | 848          | bit 6885      |
+/// | MESH `0x343`      | `010` + `28 25`   | 9512         | bit 76197     |
+///
+/// The preview block is what makes these records custom-class-only in
+/// practice: AutoCAD writes proxy graphics for entities whose class is
+/// not built in, so the `graphics present` flag is set on exactly the
+/// MULTILEADER / MESH / ACAD_TABLE / WIPEOUT / IMAGE records and clear
+/// on LINE / TEXT / MTEXT. Nothing about the *class* changes the
+/// preamble; the graphics block is simply never exercised without one.
+///
+/// `examples/probe_entity_preamble.rs` prints both readings side by side.
+fn read_graphics_size(c: &mut BitCursor<'_>, version: Version) -> Result<u64> {
+    if version.is_r2010_plus() {
+        c.read_bll()
+    } else {
+        Ok(c.read_rl()? as u64)
+    }
+}
+
 /// Read the **non-entity** object's common data (§19.4.2), advancing
 /// past it, and return the reactor count.
 ///
@@ -217,9 +256,12 @@ pub fn read_common_entity_data(
     let had_extended = skip_extended_data(c)?;
 
     // -- Graphics preview ----------------------------------------------------
+    // The size of the preview block is an `RL` up to R2007 and a `BLL`
+    // (§2.4 — three-bit byte count, then that many little-endian bytes)
+    // from R2010 on. See [`read_graphics_size`] for the measurement.
     let had_graphics = c.read_b()?;
     if had_graphics {
-        let gfx_size = c.read_rl()? as usize;
+        let gfx_size = read_graphics_size(c, version)?;
         // Skip exactly gfx_size bytes.
         for _ in 0..gfx_size {
             let _ = c.read_rc()?;
@@ -403,9 +445,9 @@ mod tests {
         w.write_rc(0xAA);
         w.write_rc(0xBB);
         w.write_bs_u(0); // terminator
-        // Graphics: present, 3 bytes.
+        // Graphics: present, 3 bytes. R2010+ sizes the block with a BLL.
         w.write_b(true);
-        w.write_rl(3);
+        w.write_bll(3).unwrap();
         w.write_rc(0x11);
         w.write_rc(0x22);
         w.write_rc(0x33);
@@ -445,5 +487,85 @@ mod tests {
         assert_eq!(ce.shadow_flags, 0b11);
         assert_eq!(ce.invisibility, 1);
         assert_eq!(ce.lineweight, 0x05);
+    }
+
+    /// The R2018 shape measured on `sample_AC1032.dwg`: a 140-byte
+    /// graphics-preview block sized by a `BLL` (`001` + `0x8C`), then a
+    /// preamble carrying the values every entity in that file shares.
+    ///
+    /// Written with the same size field read as an `RL` this record
+    /// claims millions of bytes of preview and the reader runs off the
+    /// end — the failure mode of #42.
+    #[test]
+    fn r2018_graphics_block_is_sized_by_a_bll() {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // no XDATA
+        w.write_b(true); // graphics present
+        w.write_bll(140).unwrap();
+        for i in 0..140u16 {
+            w.write_rc(i as u8);
+        }
+        let after_graphics = w.position_bits();
+        w.write_bb(0b10); // entmode = InBlock
+        w.write_bl(0); // num_reactors
+        w.write_b(true); // no xdictionary
+        w.write_b(false); // no AcDs binary data
+        w.write_bs_u(0x0100); // CMC colour, no suffixes
+        w.write_bd(1.0); // linetype scale
+        w.write_bb(0b00); // ltype flags
+        w.write_bb(0b00); // plotstyle flag
+        w.write_bb(0b00); // material flag
+        w.write_rc(0); // shadow flags
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bs(0); // invisibility
+        w.write_rc(0x1D); // lineweight (BYLAYER)
+        let end = w.position_bits();
+
+        // 1 BS tag + 1 flag bit + 3 count bits + 8 length bits + 140 bytes.
+        assert_eq!(after_graphics, 2 + 1 + 3 + 8 + 140 * 8);
+
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let ce = read_common_entity_data(&mut c, Version::R2018).unwrap();
+        assert!(ce.had_graphics);
+        assert!(!ce.had_extended_data);
+        assert_eq!(ce.mode, EntityMode::InBlock);
+        assert_eq!(ce.num_reactors, 0);
+        assert!(ce.no_xdictionary);
+        assert_eq!(ce.invisibility, 0);
+        assert_eq!(ce.lineweight, 0x1D);
+        assert_eq!(c.position_bits(), end);
+    }
+
+    /// Up to R2007 the same block is sized by an `RL`.
+    #[test]
+    fn r2004_graphics_block_is_sized_by_an_rl() {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0);
+        w.write_b(true);
+        w.write_rl(4);
+        for _ in 0..4 {
+            w.write_rc(0xEE);
+        }
+        w.write_bb(0b00);
+        w.write_bl(0);
+        w.write_b(true);
+        w.write_bs_u(0x0100);
+        w.write_bd(1.0);
+        w.write_bb(0b00);
+        w.write_bb(0b00);
+        w.write_bs(0);
+        w.write_rc(0x1D);
+        let end = w.position_bits();
+
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let ce = read_common_entity_data(&mut c, Version::R2004).unwrap();
+        assert!(ce.had_graphics);
+        assert_eq!(ce.mode, EntityMode::ByLayer);
+        assert_eq!(ce.lineweight, 0x1D);
+        assert_eq!(c.position_bits(), end);
     }
 }
