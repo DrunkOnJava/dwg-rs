@@ -253,7 +253,7 @@ pub fn decode_modern_split_stream(
     crate::common_entity::read_common_entity_data(&mut c, version)?;
     let decoded = decode_with_strings(&mut c, version, kind, Some(&mut strings))?;
     let at = c.position_bits();
-    if at > string_start {
+    if at != string_start {
         return Err(modern::misaligned("DIMENSION", at, string_start));
     }
     Ok(decoded)
@@ -322,14 +322,19 @@ fn decode_with_strings(
             })
         }
         DimensionKind::Angular2Line => {
-            let def_point_13 = read_bd3(c)?;
-            let def_point_14 = read_bd3(c)?;
-            let def_point_15 = read_bd3(c)?;
-            let def_point_10 = read_bd3(c)?;
+            // §20.4.27 puts the `2RD` 16-point *first*, before the four
+            // `3BD` def points. Read after them the single
+            // DIMENSION_ANG_2LN record of `sample_AC1032.dwg` lands on
+            // a reserved `11` bit pattern; read first it closes the
+            // record exactly on its string-stream start bit.
             let def_point_16 = Point2D {
                 x: c.read_rd()?,
                 y: c.read_rd()?,
             };
+            let def_point_13 = read_bd3(c)?;
+            let def_point_14 = read_bd3(c)?;
+            let def_point_15 = read_bd3(c)?;
+            let def_point_10 = read_bd3(c)?;
             Dimension::Angular2Line(Angular2LineDimension {
                 common,
                 def_point_13,

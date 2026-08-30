@@ -82,7 +82,7 @@
 //! | boundary paths         | 10_000  |
 //! | segments per path      | 100_000 |
 //! | boundary handles       | 1_024   |
-//! | pattern lines          | 100     |
+//! | pattern lines          | 4_096   |
 //! | dashes per pattern line| 64      |
 //! | seed points            | 1_024   |
 //!
@@ -91,8 +91,8 @@
 //! rejected immediately — defense against adversarial or truncated
 //! streams.
 
-use crate::bitcursor::{BitCursor, Handle};
-use crate::entities::{Point2D, Vec3D, read_bd2, read_bd3};
+use crate::bitcursor::BitCursor;
+use crate::entities::{Point2D, Vec3D, read_bd2, read_bd3, read_rd2};
 use crate::error::{Error, Result};
 use crate::string_stream::{self, StringReader};
 use crate::tables::modern;
@@ -106,9 +106,15 @@ const CAP_GRADIENT_COLORS: usize = 16;
 const CAP_PATHS: usize = 10_000;
 const CAP_PATH_SEGS: usize = 100_000;
 const CAP_BOUNDARY_HANDLES: usize = 1_024;
-const CAP_PATTERN_LINES: usize = 100;
+const CAP_PATTERN_LINES: usize = 4_096;
 const CAP_LINE_DASHES: usize = 64;
 const CAP_SEED_POINTS: usize = 1_024;
+
+/// `pathflag & 2` — the path is a polyline rather than an edge list.
+const FLAG_POLYLINE: u32 = 0x02;
+/// `pathflag & 4` — the path is derived from a boundary object. A hatch
+/// with any such path carries the `BD` pixel-size hint (§20.4.75).
+const FLAG_DERIVED: u32 = 0x04;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hatch {
@@ -119,12 +125,19 @@ pub struct Hatch {
     pub solid_fill: bool,
     pub associative: bool,
     pub paths: Vec<HatchPath>,
+    /// `BS 75` hatch style: 0 odd parity, 1 outermost, 2 whole area.
     pub pattern_style: u16,
+    /// `BS 76` pattern type: 0 user-defined, 1 predefined, 2 custom.
+    pub pattern_type: u16,
+    /// `BD 52` — only written when the hatch is not a solid fill.
     pub pattern_angle: f64,
+    /// `BD 41` — only written when the hatch is not a solid fill.
     pub pattern_scale: f64,
+    /// `B 77` — only written when the hatch is not a solid fill.
     pub pattern_double: bool,
     pub pattern_lines: Vec<PatternLine>,
-    pub pixel_size: u16,
+    /// `BD 47` — only written when some path flag has bit 4 set.
+    pub pixel_size: f64,
     pub seed_points: Vec<(f64, f64)>,
 }
 
@@ -146,8 +159,14 @@ pub struct GradientFill {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GradientColor {
+    /// `BD 463`.
     pub unknown_double: f64,
-    pub color: i16,
+    /// `BS` — undocumented in §20.4.75 beyond its type.
+    pub unknown_short: i16,
+    /// `BL 63/421` RGB word.
+    pub rgb: u32,
+    /// `RC` — the spec names this the "ignored color byte".
+    pub ignored_color_byte: u8,
 }
 
 /// A single boundary path in the HATCH tree. Stores the raw
@@ -157,7 +176,11 @@ pub struct GradientColor {
 pub struct HatchPath {
     pub flags: u32,
     pub segments: HatchPathSegments,
-    pub boundary_handles: Vec<Handle>,
+    /// `BL 97` — the number of boundary-object handles this path owns.
+    /// The handles themselves are **not** data-stream fields: §20.4.75
+    /// puts them in the record's "Common Entity Handle Data", after the
+    /// data stream, so the count is all the data stream carries.
+    pub num_boundary_handles: u32,
 }
 
 /// Path body — either a polyline (list of vertices with optional
@@ -201,7 +224,12 @@ pub enum HatchEdge {
         knots: Vec<f64>,
         control_points: Vec<Point2D>,
         weights: Vec<f64>,
+        /// R2010+ only (`R24` in §20.4.75); empty on earlier releases.
         fit_points: Vec<Point2D>,
+        /// R2010+ `2RD 12` start tangent.
+        start_tangent: Point2D,
+        /// R2010+ `2RD 13` end tangent.
+        end_tangent: Point2D,
     },
 }
 
@@ -262,7 +290,7 @@ pub fn decode_modern_split_stream(
     crate::common_entity::read_common_entity_data(&mut c, version)?;
     let hatch = decode_with_strings(&mut c, version, Some(&mut strings))?;
     let at = c.position_bits();
-    if at > string_start {
+    if at != string_start {
         return Err(modern::misaligned("HATCH", at, string_start));
     }
     Ok(hatch)
@@ -284,28 +312,42 @@ fn decode_with_strings(
     let num_paths = c.read_bl_u()? as usize;
     bounds_check(num_paths, "num_paths", CAP_PATHS, c.remaining_bits())?;
     let mut paths = Vec::with_capacity(num_paths);
+    let mut any_derived_path = false;
     for _ in 0..num_paths {
-        paths.push(decode_path(c)?);
+        let path = decode_path(c, version)?;
+        any_derived_path |= path.flags & FLAG_DERIVED != 0;
+        paths.push(path);
     }
 
     let pattern_style = c.read_bs_u()?;
-    let pattern_angle = c.read_bd()?;
-    let pattern_scale = c.read_bd()?;
-    let pattern_double = c.read_b()?;
+    let pattern_type = c.read_bs_u()?;
 
-    let num_pattern_lines = c.read_bs_u()? as usize;
-    bounds_check(
-        num_pattern_lines,
-        "num_pattern_lines",
-        CAP_PATTERN_LINES,
-        c.remaining_bits(),
-    )?;
-    let mut pattern_lines = Vec::with_capacity(num_pattern_lines);
-    for _ in 0..num_pattern_lines {
-        pattern_lines.push(decode_pattern_line(c)?);
+    // §20.4.75 guards the whole pattern-definition block with
+    // `if (!solidfill)`. A solid hatch writes none of it.
+    let mut pattern_angle = 0.0;
+    let mut pattern_scale = 0.0;
+    let mut pattern_double = false;
+    let mut pattern_lines = Vec::new();
+    if !solid_fill {
+        pattern_angle = c.read_bd()?;
+        pattern_scale = c.read_bd()?;
+        pattern_double = c.read_b()?;
+        let num_pattern_lines = c.read_bs_u()? as usize;
+        bounds_check(
+            num_pattern_lines,
+            "num_pattern_lines",
+            CAP_PATTERN_LINES,
+            c.remaining_bits(),
+        )?;
+        pattern_lines.reserve(num_pattern_lines);
+        for _ in 0..num_pattern_lines {
+            pattern_lines.push(decode_pattern_line(c)?);
+        }
     }
 
-    let pixel_size = c.read_bs_u()?;
+    // §20.4.75: `if (ANY of the pathflags & 4) { pixelsize BD }`.
+    let pixel_size = if any_derived_path { c.read_bd()? } else { 0.0 };
+
     let num_seed_points = c.read_bl_u()? as usize;
     bounds_check(
         num_seed_points,
@@ -315,15 +357,8 @@ fn decode_with_strings(
     )?;
     let mut seed_points = Vec::with_capacity(num_seed_points);
     for _ in 0..num_seed_points {
-        let p = read_bd2(c)?;
+        let p = read_rd2(c)?;
         seed_points.push((p.x, p.y));
-    }
-
-    // Plot-style handle is R2007+ only. Earlier formats don't emit it,
-    // and reading a trailing handle that isn't there would mis-align the
-    // next object in the stream.
-    if version.is_r2007_plus() {
-        let _plot_style = c.read_handle()?;
     }
 
     Ok(Hatch {
@@ -335,6 +370,7 @@ fn decode_with_strings(
         associative,
         paths,
         pattern_style,
+        pattern_type,
         pattern_angle,
         pattern_scale,
         pattern_double,
@@ -352,10 +388,16 @@ fn decode_gradient(
     if !version.is_r2004_plus() {
         return Ok(None);
     }
-    let is_gradient_fill = c.read_bs_u()?;
-    if is_gradient_fill == 0 {
-        return Ok(None);
-    }
+    // §20.4.75 types the gradient flag as a `BL`, not a `BS`, and does
+    // **not** guard the rest of the block behind it: the whole gradient
+    // record — including its `TV` name — is written on every R2004+
+    // HATCH. Measured on `sample_AC1032.dwg`, where all eight HATCH
+    // records carry two strings in their string stream (`"LINEAR"` then
+    // the pattern name `"ANSI31"` / `"AR-PARQ1"` / `"HVEGE100"` / ...)
+    // even though six of them have the flag clear. Returning early on a
+    // clear flag consumed one `TV` too few and shifted the boundary
+    // path tree.
+    let is_gradient_fill = c.read_bl_u()?;
     let _reserved = c.read_bl()?;
     let angle = c.read_bd()?;
     let shift = c.read_bd()?;
@@ -371,14 +413,20 @@ fn decode_gradient(
     let mut colors = Vec::with_capacity(num_colors);
     for _ in 0..num_colors {
         let unknown_double = c.read_bd()?;
-        // CMC simplified to ACI (matches the rest of the crate).
-        let color = c.read_bs()?;
+        let unknown_short = c.read_bs()?;
+        let rgb = c.read_bl_u()?;
+        let ignored_color_byte = c.read_rc()?;
         colors.push(GradientColor {
             unknown_double,
-            color,
+            unknown_short,
+            rgb,
+            ignored_color_byte,
         });
     }
     let name = modern::read_tv_field(c, version, strings)?;
+    if is_gradient_fill == 0 {
+        return Ok(None);
+    }
     Ok(Some(GradientFill {
         angle,
         shift,
@@ -389,29 +437,24 @@ fn decode_gradient(
     }))
 }
 
-fn decode_path(c: &mut BitCursor<'_>) -> Result<HatchPath> {
-    const FLAG_POLYLINE: u32 = 0x02;
+fn decode_path(c: &mut BitCursor<'_>, version: Version) -> Result<HatchPath> {
     let flags = c.read_bl_u()?;
     let segments = if flags & FLAG_POLYLINE != 0 {
         decode_polyline_path(c)?
     } else {
-        decode_edge_path(c)?
+        decode_edge_path(c, version)?
     };
-    let num_handles = c.read_bl_u()? as usize;
+    let num_boundary_handles = c.read_bl_u()?;
     bounds_check(
-        num_handles,
+        num_boundary_handles as usize,
         "num_boundary_handles",
         CAP_BOUNDARY_HANDLES,
         c.remaining_bits(),
     )?;
-    let mut boundary_handles = Vec::with_capacity(num_handles);
-    for _ in 0..num_handles {
-        boundary_handles.push(c.read_handle()?);
-    }
     Ok(HatchPath {
         flags,
         segments,
-        boundary_handles,
+        num_boundary_handles,
     })
 }
 
@@ -427,7 +470,7 @@ fn decode_polyline_path(c: &mut BitCursor<'_>) -> Result<HatchPathSegments> {
     )?;
     let mut vertices = Vec::with_capacity(num_vertices);
     for _ in 0..num_vertices {
-        let vertex = read_bd2(c)?;
+        let vertex = read_rd2(c)?;
         let bulge = if has_bulge { Some(c.read_bd()?) } else { None };
         vertices.push((vertex, bulge));
     }
@@ -438,7 +481,7 @@ fn decode_polyline_path(c: &mut BitCursor<'_>) -> Result<HatchPathSegments> {
     })
 }
 
-fn decode_edge_path(c: &mut BitCursor<'_>) -> Result<HatchPathSegments> {
+fn decode_edge_path(c: &mut BitCursor<'_>, version: Version) -> Result<HatchPathSegments> {
     let num_edges = c.read_bl_u()? as usize;
     bounds_check(
         num_edges,
@@ -448,41 +491,41 @@ fn decode_edge_path(c: &mut BitCursor<'_>) -> Result<HatchPathSegments> {
     )?;
     let mut edges = Vec::with_capacity(num_edges);
     for _ in 0..num_edges {
-        edges.push(decode_edge(c)?);
+        edges.push(decode_edge(c, version)?);
     }
     Ok(HatchPathSegments::Edges(edges))
 }
 
-fn decode_edge(c: &mut BitCursor<'_>) -> Result<HatchEdge> {
+fn decode_edge(c: &mut BitCursor<'_>, version: Version) -> Result<HatchEdge> {
     let seg_type = c.read_rc()?;
     match seg_type {
         1 => Ok(HatchEdge::Line {
-            start: read_bd2(c)?,
-            end: read_bd2(c)?,
+            start: read_rd2(c)?,
+            end: read_rd2(c)?,
         }),
         2 => Ok(HatchEdge::Arc {
-            center: read_bd2(c)?,
+            center: read_rd2(c)?,
             radius: c.read_bd()?,
             start_angle: c.read_bd()?,
             end_angle: c.read_bd()?,
             counter_clockwise: c.read_b()?,
         }),
         3 => Ok(HatchEdge::Ellipse {
-            center: read_bd2(c)?,
-            endpoint: read_bd2(c)?,
+            center: read_rd2(c)?,
+            endpoint: read_rd2(c)?,
             axis_ratio: c.read_bd()?,
             start_angle: c.read_bd()?,
             end_angle: c.read_bd()?,
             counter_clockwise: c.read_b()?,
         }),
-        4 => decode_spline_edge(c),
+        4 => decode_spline_edge(c, version),
         _ => Err(Error::SectionMap(format!(
             "HATCH edge seg_type {seg_type} not in {{1 line, 2 arc, 3 ellipse, 4 spline}}"
         ))),
     }
 }
 
-fn decode_spline_edge(c: &mut BitCursor<'_>) -> Result<HatchEdge> {
+fn decode_spline_edge(c: &mut BitCursor<'_>, version: Version) -> Result<HatchEdge> {
     let degree = c.read_bl_u()?;
     let is_rational = c.read_b()?;
     let is_periodic = c.read_b()?;
@@ -500,28 +543,31 @@ fn decode_spline_edge(c: &mut BitCursor<'_>) -> Result<HatchEdge> {
         knots.push(c.read_bd()?);
     }
     let mut control_points = Vec::with_capacity(num_control);
+    let mut weights = Vec::new();
     for _ in 0..num_control {
-        control_points.push(read_bd2(c)?);
-    }
-    let weights = if is_rational {
-        let mut w = Vec::with_capacity(num_control);
-        for _ in 0..num_control {
-            w.push(c.read_bd()?);
+        control_points.push(read_rd2(c)?);
+        if is_rational {
+            weights.push(c.read_bd()?);
         }
-        w
-    } else {
-        Vec::new()
-    };
-    let num_fit = c.read_bl_u()? as usize;
-    bounds_check(
-        num_fit,
-        "spline fit_points",
-        CAP_PATH_SEGS,
-        c.remaining_bits(),
-    )?;
-    let mut fit_points = Vec::with_capacity(num_fit);
-    for _ in 0..num_fit {
-        fit_points.push(read_bd2(c)?);
+    }
+    // The fit-point block is tagged `R24` in §20.4.75 — R2010 and later.
+    let mut fit_points = Vec::new();
+    let mut start_tangent = Point2D::default();
+    let mut end_tangent = Point2D::default();
+    if version.is_r2010_plus() {
+        let num_fit = c.read_bl_u()? as usize;
+        bounds_check(
+            num_fit,
+            "spline fit_points",
+            CAP_PATH_SEGS,
+            c.remaining_bits(),
+        )?;
+        fit_points.reserve(num_fit);
+        for _ in 0..num_fit {
+            fit_points.push(read_rd2(c)?);
+        }
+        start_tangent = read_rd2(c)?;
+        end_tangent = read_rd2(c)?;
     }
     Ok(HatchEdge::Spline {
         degree,
@@ -531,6 +577,8 @@ fn decode_spline_edge(c: &mut BitCursor<'_>) -> Result<HatchEdge> {
         control_points,
         weights,
         fit_points,
+        start_tangent,
+        end_tangent,
     })
 }
 
@@ -564,53 +612,65 @@ pub use decode as decode_header;
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
+    use crate::string_stream::tests::{bits_of, build_payload};
 
-    /// Build the header-plus-tail of a HATCH with zero paths.
-    /// Subsequent tests reuse this to append path fields in between.
-    fn write_hatch_no_gradient(
-        w: &mut BitWriter,
-        pattern_name: &[u8],
-        solid_fill: bool,
-        version: Version,
-    ) {
-        // R2004+ gets the gradient-flag BS. Tests for R2000 skip it.
-        if version.is_r2004_plus() {
-            w.write_bs_u(0); // not a gradient
+    /// Write the R2004+ gradient block. §20.4.75 writes it on every
+    /// R2004+ HATCH, gradient or not — the flag only says whether the
+    /// hatch *uses* it.
+    fn write_gradient_block(w: &mut BitWriter, is_gradient: u32, colors: &[(f64, u32)]) {
+        w.write_bl(is_gradient as i32);
+        w.write_bl(0); // reserved
+        w.write_bd(45.0); // angle
+        w.write_bd(0.5); // shift
+        w.write_bl(1); // single colour
+        w.write_bd(0.75); // tint
+        w.write_bl(colors.len() as i32);
+        for (unknown, rgb) in colors {
+            w.write_bd(*unknown);
+            w.write_bs(0);
+            w.write_bl(*rgb as i32);
+            w.write_rc(0);
         }
+        // The gradient name `TV` slot; inline on pre-R2007.
+        w.write_bs_u(0);
+    }
+
+    fn write_tv_8bit(w: &mut BitWriter, bytes: &[u8]) {
+        w.write_bs_u(bytes.len() as u16);
+        for b in bytes {
+            w.write_rc(*b);
+        }
+    }
+
+    /// Header of a non-gradient R2004 HATCH up to `num_paths`.
+    fn write_hatch_header(w: &mut BitWriter, pattern_name: &[u8], solid_fill: bool) {
+        write_gradient_block(w, 0, &[]);
         w.write_bd(0.0); // elevation
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(1.0); // extrusion (0,0,1)
-        w.write_bs_u(pattern_name.len() as u16);
-        for b in pattern_name {
-            w.write_rc(*b);
-        }
+        write_tv_8bit(w, pattern_name);
         w.write_b(solid_fill);
         w.write_b(false); // associative
     }
 
-    /// Tail fields for a hatch with no pattern lines + no seed points +
-    /// no R2007 plot-style handle. The BS num_pattern_lines = 0, the BL
-    /// num_seed_points = 0.
-    fn write_hatch_tail(w: &mut BitWriter) {
-        w.write_bs_u(0); // pattern_style
-        w.write_bd(0.0); // pattern_angle
-        w.write_bd(1.0); // pattern_scale
-        w.write_b(false); // pattern_double
-        w.write_bs_u(0); // num_pattern_lines
-        w.write_bs_u(0); // pixel_size
-        w.write_bl(0); // num_seed_points
+    /// Tail of a solid-fill hatch: style, pattern type, no pixel size
+    /// (no path has the derived bit), no seed points.
+    fn write_solid_tail(w: &mut BitWriter) {
+        w.write_bs_u(0); // style
+        w.write_bs_u(1); // pattern type
+        w.write_bl(0); // num seed points
     }
 
     #[test]
     fn roundtrip_solid_fill_no_paths() {
         let mut w = BitWriter::new();
-        write_hatch_no_gradient(&mut w, b"SOLID", true, Version::R2000);
+        write_hatch_header(&mut w, b"SOLID", true);
         w.write_bl(0); // 0 paths
-        write_hatch_tail(&mut w);
+        write_solid_tail(&mut w);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let h = decode(&mut c, Version::R2000).unwrap();
+        let h = decode(&mut c, Version::R2004).unwrap();
         assert_eq!(h.pattern_name, "SOLID");
         assert!(h.solid_fill);
         assert!(!h.associative);
@@ -618,29 +678,30 @@ mod tests {
         assert!(h.gradient.is_none());
         assert!(h.pattern_lines.is_empty());
         assert!(h.seed_points.is_empty());
+        assert_eq!(h.pattern_type, 1);
     }
 
     #[test]
     fn roundtrip_polyline_path() {
         let mut w = BitWriter::new();
-        write_hatch_no_gradient(&mut w, b"ANSI31", false, Version::R2004);
+        write_hatch_header(&mut w, b"ANSI31", true);
         w.write_bl(1); // 1 path
-        // Path 0: polyline (flag bit 0x02), closed, 3 vertices, no bulge.
         w.write_bl_u(0x02 | 0x10); // polyline + outermost
-        w.write_b(false); // has_bulge = false
-        w.write_b(true); // is_closed = true
-        w.write_bl(3); // num_vertices
+        w.write_b(false); // has_bulge
+        w.write_b(true); // is_closed
+        w.write_bl(3); // num vertices
         for (x, y) in [(0.0f64, 0.0), (10.0, 0.0), (10.0, 10.0)] {
-            w.write_bd(x);
-            w.write_bd(y);
+            w.write_rd(x);
+            w.write_rd(y);
         }
-        w.write_bl(0); // num_boundary_handles
-        write_hatch_tail(&mut w);
+        w.write_bl(0); // num boundary handles
+        write_solid_tail(&mut w);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let h = decode(&mut c, Version::R2004).unwrap();
         assert_eq!(h.paths.len(), 1);
         assert_eq!(h.paths[0].flags, 0x12);
+        assert_eq!(h.paths[0].num_boundary_handles, 0);
         match &h.paths[0].segments {
             HatchPathSegments::Polyline {
                 has_bulge,
@@ -661,9 +722,9 @@ mod tests {
     #[test]
     fn roundtrip_line_edge_path() {
         let mut w = BitWriter::new();
-        write_hatch_no_gradient(&mut w, b"ANSI31", false, Version::R2004);
+        write_hatch_header(&mut w, b"ANSI31", true);
         w.write_bl(1); // 1 path
-        w.write_bl_u(0x01); // external (not polyline)
+        w.write_bl_u(0x01); // external (edge list)
         w.write_bl(4); // 4 edges
         let square = [
             ((0.0f64, 0.0), (10.0, 0.0)),
@@ -673,17 +734,18 @@ mod tests {
         ];
         for ((sx, sy), (ex, ey)) in square {
             w.write_rc(1); // line
-            w.write_bd(sx);
-            w.write_bd(sy);
-            w.write_bd(ex);
-            w.write_bd(ey);
+            w.write_rd(sx);
+            w.write_rd(sy);
+            w.write_rd(ex);
+            w.write_rd(ey);
         }
-        w.write_bl(0); // num_boundary_handles
-        write_hatch_tail(&mut w);
+        w.write_bl(2); // num boundary handles — the handles are in the handle stream
+        write_solid_tail(&mut w);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let h = decode(&mut c, Version::R2004).unwrap();
         assert_eq!(h.paths.len(), 1);
+        assert_eq!(h.paths[0].num_boundary_handles, 2);
         match &h.paths[0].segments {
             HatchPathSegments::Edges(edges) => {
                 assert_eq!(edges.len(), 4);
@@ -709,12 +771,11 @@ mod tests {
     #[test]
     fn decode_errors_on_oversized_paths() {
         let mut w = BitWriter::new();
-        write_hatch_no_gradient(&mut w, b"SOLID", true, Version::R2000);
-        w.write_bl(20_000); // 20_000 paths — over cap
-        // No need to append any tail — decode should reject before reading paths.
+        write_hatch_header(&mut w, b"SOLID", true);
+        w.write_bl(20_000); // over cap
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, Version::R2000).unwrap_err();
+        let err = decode(&mut c, Version::R2004).unwrap_err();
         assert!(
             matches!(&err, Error::SectionMap(msg) if msg.contains("num_paths")),
             "err={err:?}"
@@ -724,13 +785,13 @@ mod tests {
     #[test]
     fn decode_errors_on_oversized_segs() {
         let mut w = BitWriter::new();
-        write_hatch_no_gradient(&mut w, b"SOLID", true, Version::R2000);
+        write_hatch_header(&mut w, b"SOLID", true);
         w.write_bl(1); // 1 path
-        w.write_bl_u(0x01); // external (edge path)
-        w.write_bl(200_000); // num_path_segs — over cap
+        w.write_bl_u(0x01); // edge path
+        w.write_bl(200_000); // over cap
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, Version::R2000).unwrap_err();
+        let err = decode(&mut c, Version::R2004).unwrap_err();
         assert!(
             matches!(&err, Error::SectionMap(msg) if msg.contains("num_path_segs")),
             "err={err:?}"
@@ -740,37 +801,16 @@ mod tests {
     #[test]
     fn roundtrip_gradient_fill() {
         let mut w = BitWriter::new();
-        // R2004+ — emit the gradient block.
-        w.write_bs_u(1); // is_gradient_fill = true
-        w.write_bl(0); // reserved
-        w.write_bd(45.0); // angle
-        w.write_bd(0.5); // shift
-        w.write_bl(1); // is_single_color = 1
-        w.write_bd(0.75); // tint
-        w.write_bl(2); // num_gradient_colors
-        for (ud, col) in [(0.0f64, 1i16), (1.0, 5)] {
-            w.write_bd(ud);
-            w.write_bs(col);
-        }
-        let name = b"SPHERICAL";
-        w.write_bs_u(name.len() as u16);
-        for b in name {
-            w.write_rc(*b);
-        }
-        // header tail (shared with non-gradient path)
+        write_gradient_block(&mut w, 1, &[(0.0, 0x00FF_0000), (1.0, 0x0000_00FF)]);
         w.write_bd(0.0); // elevation
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(1.0); // extrusion
-        let pn = b"SOLID";
-        w.write_bs_u(pn.len() as u16);
-        for b in pn {
-            w.write_rc(*b);
-        }
-        w.write_b(true); // solid_fill
+        write_tv_8bit(&mut w, b"SOLID");
+        w.write_b(true); // solid fill
         w.write_b(false); // associative
         w.write_bl(0); // 0 paths
-        write_hatch_tail(&mut w);
+        write_solid_tail(&mut w);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let h = decode(&mut c, Version::R2004).unwrap();
@@ -780,23 +820,27 @@ mod tests {
         assert_eq!(g.is_single_color, 1);
         assert_eq!(g.tint, 0.75);
         assert_eq!(g.colors.len(), 2);
-        assert_eq!(g.colors[0].color, 1);
-        assert_eq!(g.colors[1].color, 5);
-        assert_eq!(g.name, "SPHERICAL");
+        assert_eq!(g.colors[0].rgb, 0x00FF_0000);
+        assert_eq!(g.colors[1].rgb, 0x0000_00FF);
     }
 
+    /// A non-solid hatch writes the pattern-definition block; a derived
+    /// path (`pathflag & 4`) adds the `BD` pixel size.
     #[test]
     fn roundtrip_pattern_lines_and_seed_points() {
         let mut w = BitWriter::new();
-        write_hatch_no_gradient(&mut w, b"ANSI31", false, Version::R2000);
-        w.write_bl(0); // 0 paths
-        w.write_bs_u(1); // pattern_style
-        w.write_bd(45.0); // pattern_angle
-        w.write_bd(2.0); // pattern_scale
-        w.write_b(false); // pattern_double
-        w.write_bs_u(2); // num_pattern_lines
-        // line 0: 2 dashes
-        w.write_bd(0.0);
+        write_hatch_header(&mut w, b"ANSI31", false);
+        w.write_bl(1); // one path
+        w.write_bl_u(0x04); // derived path → pixel size is written
+        w.write_bl(0); // no edges
+        w.write_bl(0); // no boundary handles
+        w.write_bs_u(1); // style
+        w.write_bs_u(1); // pattern type
+        w.write_bd(45.0); // pattern angle
+        w.write_bd(2.0); // pattern scale
+        w.write_b(false); // pattern double
+        w.write_bs_u(2); // num pattern lines
+        w.write_bd(0.0); // line 0 angle
         w.write_bd(0.0);
         w.write_bd(0.0); // origin
         w.write_bd(1.0);
@@ -804,20 +848,19 @@ mod tests {
         w.write_bs_u(2);
         w.write_bd(1.0);
         w.write_bd(-0.5);
-        // line 1: 0 dashes
-        w.write_bd(90.0);
+        w.write_bd(90.0); // line 1 angle
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(1.0);
         w.write_bs_u(0);
-        w.write_bs_u(4); // pixel_size
-        w.write_bl(1); // num_seed_points
-        w.write_bd(5.0);
-        w.write_bd(5.0);
+        w.write_bd(4.0); // pixel size
+        w.write_bl(1); // one seed point
+        w.write_rd(5.0);
+        w.write_rd(5.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let h = decode(&mut c, Version::R2000).unwrap();
+        let h = decode(&mut c, Version::R2004).unwrap();
         assert_eq!(h.pattern_style, 1);
         assert_eq!(h.pattern_angle, 45.0);
         assert_eq!(h.pattern_scale, 2.0);
@@ -826,8 +869,90 @@ mod tests {
         assert_eq!(h.pattern_lines[0].angle, 0.0);
         assert_eq!(h.pattern_lines[1].angle, 90.0);
         assert!(h.pattern_lines[1].dashes.is_empty());
-        assert_eq!(h.pixel_size, 4);
+        assert_eq!(h.pixel_size, 4.0);
         assert_eq!(h.seed_points.len(), 1);
         assert_eq!(h.seed_points[0], (5.0, 5.0));
+    }
+
+    /// The R2018 shape: two strings in the string stream — the gradient
+    /// name and then the pattern name — even on a hatch whose gradient
+    /// flag is clear, and the data fields ending exactly on the
+    /// string-stream start bit.
+    #[test]
+    fn r2018_split_stream_hatch_reads_both_names() {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // no XDATA
+        w.write_b(false); // no graphics preview
+        w.write_bb(0b10);
+        w.write_bl(0);
+        w.write_b(true);
+        w.write_b(false);
+        w.write_bs_u(0x0100);
+        w.write_bd(1.0);
+        w.write_bb(0b00);
+        w.write_bb(0b00);
+        w.write_bb(0b00);
+        w.write_rc(0);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_rc(0x1D);
+        // Gradient block with the flag clear — the `TV` slot consumes
+        // no data bits on R2007+.
+        w.write_bl(0);
+        w.write_bl(0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bl(0);
+        w.write_bd(0.0);
+        w.write_bl(0);
+        w.write_bd(0.0); // elevation
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0); // extrusion, as the sample writes it
+        w.write_b(true); // solid fill
+        w.write_b(false); // associative
+        w.write_bl(0); // no paths
+        w.write_bs_u(0); // style
+        w.write_bs_u(1); // pattern type
+        w.write_bl(0); // no seed points
+        let body = bits_of(&w);
+        let payload = build_payload(&body, &["LINEAR", "ANSI31"]);
+        let h = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert!(h.gradient.is_none());
+        assert_eq!(h.pattern_name, "ANSI31");
+        assert!(h.solid_fill);
+        assert_eq!(h.pattern_type, 1);
+    }
+
+    /// The clear-flag early return this decoder used to take consumed
+    /// one `TV` too few, so the pattern name came back as the gradient
+    /// name and the record misaligned. Guard against the regression.
+    #[test]
+    fn r2018_clear_gradient_flag_still_consumes_the_gradient_name() {
+        let mut w = BitWriter::new();
+        w.write_bl(0); // gradient flag clear
+        w.write_bl(0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bl(0);
+        w.write_bd(0.0);
+        w.write_bl(0);
+        write_tv_8bit(&mut w, b"LINEAR"); // gradient name, inline on R2004
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        write_tv_8bit(&mut w, b"ANSI31");
+        w.write_b(true);
+        w.write_b(false);
+        w.write_bl(0);
+        write_solid_tail(&mut w);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let h = decode(&mut c, Version::R2004).unwrap();
+        assert!(h.gradient.is_none());
+        assert_eq!(h.pattern_name, "ANSI31");
     }
 }

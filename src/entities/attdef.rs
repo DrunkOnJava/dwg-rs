@@ -18,6 +18,8 @@
 //! ```
 
 use crate::bitcursor::BitCursor;
+use crate::entities::attrib;
+use crate::entities::mtext::MText;
 use crate::entities::text::{self, Text};
 use crate::error::{Error, Result};
 use crate::string_stream;
@@ -32,6 +34,11 @@ pub struct AttDef {
     pub field_length: i16,
     pub flags: u8,
     pub lock_position: bool,
+    /// R2018+ `RC 71` attribute type: 1 single line, 4 multi-line.
+    pub attribute_type: u8,
+    /// The embedded MTEXT record a multi-line attribute definition
+    /// carries (§20.4.4 via §20.4.5). `None` for a single-line ATTDEF.
+    pub mtext: Option<MText>,
 }
 
 /// Decodes the `AttDef` payload that follows the common entity header.
@@ -53,28 +60,36 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AttDef> {
         field_length,
         flags,
         lock_position,
+        attribute_type: 1,
+        mtext: None,
     })
 }
 
-/// Decode an R2007+ single-line ATTDEF whose `TV` fields live in the
-/// object's string stream (ODA v5.4.1 §19.1 split layout, §19.4.3).
+/// Decode an R2007+ ATTDEF through the object's split streams
+/// (§20.4.5), single-line or multi-line.
 ///
-/// Same data-stream body as ATTRIB plus one extra `RC`. The string
-/// stream carries the default value, the tag and then the prompt — the
-/// order the records in `sample_AC1032.dwg` observe
-/// (`["1", "ATTINFO", "Enter number:"]`), which is not the pre-R2007
-/// inline order.
+/// §20.4.5 defines ATTDEF as "Common ATTRIB Entity Data", then an
+/// R2010+ `RC` version byte of its own, then a `TV 3` prompt. So the
+/// whole ATTRIB body — including the R2018 attribute-type branch and
+/// the embedded MTEXT a multi-line definition carries — comes first,
+/// and only two fields are added.
 ///
-/// # The extra byte's position is not pinned
+/// # Measured (R2018, `sample_AC1032.dwg`)
 ///
-/// Every single-line ATTDEF in the sample corpus needs exactly eight
-/// more data-stream bits than the matching ATTRIB. Placing that `RC`
-/// before the field length or after the lock-position bit consumes the
-/// same eight bits and yields identical surfaced fields, so the
-/// samples cannot distinguish the two; it is read last here.
+/// | handle | type | body ends | boundary | strings |
+/// |--------|------|-----------|----------|---------|
+/// | `0x6F8` | 1 | 319 | 319 | value, tag, prompt |
+/// | `0x797` | 1 | 397 | 397 | value, tag, prompt |
+/// | `0x798` | 1 | 319 | 319 | value, tag, prompt |
+/// | `0x799` | 1 | 319 | 319 | value, tag, prompt |
+/// | `0x796` | 4 (multi-line) | 871 | 871 | value, MTEXT text, tag, prompt |
 ///
-/// Multi-line attribute definitions embed an MTEXT record and are not
-/// decoded; see [`super::attrib::decode_modern_split_stream`].
+/// The previous reading of this record placed a lone unexplained `RC`
+/// after the lock-position bit; it was the ATTDEF version byte, and the
+/// two bytes §20.4.4 puts *before* the tag were missing entirely. The
+/// three bytes cancel out on a single-line record, which is why the
+/// old field list closed on the four single-line ATTDEFs and failed on
+/// the multi-line one.
 pub(crate) fn decode_modern_split_stream(
     payload: &[u8],
     object_body_start: usize,
@@ -85,28 +100,30 @@ pub(crate) fn decode_modern_split_stream(
     string_stream::seek(&mut c, object_body_start)?;
     crate::common_entity::read_common_entity_data(&mut c, version)?;
     let mut text = text::read_modern_fields(&mut c)?;
-    let field_length = c.read_bs()?;
-    let flags = c.read_rc()?;
-    let lock_position = if matches!(version, Version::R2018) {
-        c.read_b()?
-    } else {
-        false
-    };
-    let _prompt_version = c.read_rc()?;
+    let body = attrib::read_attribute_body(&mut c, version)?;
+    if version.is_r2010_plus() {
+        let _attdef_version = c.read_rc()?;
+    }
     let at = c.position_bits();
     if at != string_start {
         return Err(modern::misaligned("ATTDEF", at, string_start));
     }
     text.text = strings.read_tv()?;
+    let mut embedded = body.mtext;
+    if let Some(m) = embedded.as_mut() {
+        m.text = strings.read_tv()?;
+    }
     let tag = strings.read_tv()?;
     let prompt = strings.read_tv()?;
     Ok(AttDef {
         text,
         prompt,
         tag,
-        field_length,
-        flags,
-        lock_position,
+        field_length: body.field_length,
+        flags: body.flags,
+        lock_position: body.lock_position,
+        attribute_type: body.attribute_type,
+        mtext: embedded,
     })
 }
 
@@ -154,10 +171,12 @@ mod tests {
         body.write_b(true); // extrusion default
         body.write_b(true); // thickness zero
         body.write_rd(2.5); // height
+        body.write_rc(0); // ATTRIB's R2010+ version byte
+        body.write_rc(1); // R2018+ attribute type = single line
         body.write_bs(0); // field length
         body.write_rc(0x00); // flags
         body.write_b(false); // lock position
-        body.write_rc(0); // trailing ATTDEF byte
+        body.write_rc(0); // ATTDEF's own R2010+ version byte
         let bits = crate::string_stream::tests::bits_of(&body);
         let payload =
             crate::string_stream::tests::build_payload(&bits, &["1", "ATTINFO", "Enter number:"]);
@@ -166,6 +185,8 @@ mod tests {
         assert_eq!(a.prompt, "Enter number:");
         assert_eq!(a.text.text, "1");
         assert_eq!(a.text.height, 2.5);
+        assert_eq!(a.attribute_type, 1);
+        assert!(a.mtext.is_none());
     }
 
     #[test]

@@ -200,16 +200,15 @@ pub(crate) fn open<'a>(
                 Some(stream.start_bit),
             ),
             None => {
-                let end = string_stream::data_section_end(payload, version).ok_or_else(|| {
-                    Error::SectionMap("object has no R2007+ data/handle stream split".into())
-                })?;
                 // The lone `B` "strings present" trailer bit is the whole
                 // trailer when it is clear, so the data fields end one
-                // bit before the handle stream.
-                (
-                    Some(StringReader::empty(payload)),
-                    Some(end.saturating_sub(1)),
-                )
+                // bit before the handle stream — the rule
+                // `string_stream::data_field_end` states once for both
+                // the object and the entity paths.
+                let end = string_stream::data_field_end(payload, version).ok_or_else(|| {
+                    Error::SectionMap("object has no R2007+ data/handle stream split".into())
+                })?;
+                (Some(StringReader::empty(payload)), Some(end))
             }
         }
     } else {

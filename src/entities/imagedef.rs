@@ -10,15 +10,21 @@
 //!
 //! ```text
 //! BL    class_version      -- always 0 in observed files
-//! BD2   image_size_pixels  -- (width, height) in image pixels
+//! 2RD   image_size_pixels  -- (width, height) in image pixels
 //! TV    file_path          -- absolute or relative path to the raster
 //! B     is_loaded
 //! RC    pixel_size_units   -- 0 = unitless, 1 = millimeter, 2 = centimeter,
 //!                             3 = meter, 4 = kilometer, 5 = inch, 6 = foot,
 //!                             7 = yard, 8 = mile
-//! BD    pixel_width_size   -- world units per pixel along U
-//! BD    pixel_height_size  -- world units per pixel along V
+//! 2RD   pixel size         -- world units per pixel along U and V
 //! ```
+//!
+//! # Measured: the two point fields are `2RD`, not `BD` pairs
+//!
+//! §20.4.81 types `Imgsize` and `Pixelsize` as `2RD` — raw doubles.
+//! Read as `BD`s the single IMAGEDEF of `sample_AC1032.dwg` (handle
+//! `0x8C4`) lands on a reserved `11` bit pattern; read as `2RD` it
+//! closes exactly on the record's data-stream boundary.
 //!
 //! The `TV` path is version-aware: R2007+ encodes it as UTF-16LE,
 //! earlier versions use 8-bit ASCII/MBCS — same rule as every other
@@ -85,16 +91,16 @@ fn read_body(
     version: Version,
 ) -> Result<ImageDef> {
     let class_version = c.read_bl()? as u32;
-    let image_width = c.read_bd()?;
-    let image_height = c.read_bd()?;
+    let image_width = c.read_rd()?;
+    let image_height = c.read_rd()?;
     let file_path = match strings.as_mut() {
         Some(reader) => reader.read_tv()?,
         None => read_tv(c, version)?,
     };
     let is_loaded = c.read_b()?;
     let pixel_size_units = c.read_rc()?;
-    let pixel_width_size = c.read_bd()?;
-    let pixel_height_size = c.read_bd()?;
+    let pixel_width_size = c.read_rd()?;
+    let pixel_height_size = c.read_rd()?;
     Ok(ImageDef {
         class_version,
         image_size_pixels: (image_width, image_height),
@@ -164,13 +170,13 @@ mod tests {
     fn roundtrip_minimal_imagedef() {
         let mut w = BitWriter::new();
         w.write_bl(0); // class_version
-        w.write_bd(1920.0);
-        w.write_bd(1080.0);
+        w.write_rd(1920.0);
+        w.write_rd(1080.0);
         write_tv_8bit(&mut w, "C:\\drawings\\bg.png");
         w.write_b(true); // is_loaded
         w.write_rc(1); // mm
-        w.write_bd(0.5);
-        w.write_bd(0.5);
+        w.write_rd(0.5);
+        w.write_rd(0.5);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c, Version::R2000).unwrap();
@@ -187,13 +193,13 @@ mod tests {
     fn roundtrip_empty_path() {
         let mut w = BitWriter::new();
         w.write_bl(0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
         w.write_bs_u(0); // empty TV
         w.write_b(false);
         w.write_rc(0); // unitless
-        w.write_bd(1.0);
-        w.write_bd(1.0);
+        w.write_rd(1.0);
+        w.write_rd(1.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c, Version::R2000).unwrap();
@@ -208,8 +214,8 @@ mod tests {
         // any RC reads (defensive-allocation).
         let mut w = BitWriter::new();
         w.write_bl(0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
         // Claim IMAGEDEF_MAX_PATH_UNITS + 1 — beyond the cap.
         // Because write_bs_u is u16 we can't encode past 65535; use the
         // cap itself (65536) by writing 0 in the BS_U and... actually
