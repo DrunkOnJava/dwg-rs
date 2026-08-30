@@ -443,8 +443,9 @@ boundary:
 A decoder that lands anywhere else returns `DecodedEntity::Error`, so a
 wrong field list can never inflate the coverage ratio. That is also why
 MATERIAL and PROPERTYSET_DATA — which read only what their bytes prove
-and stop — are deliberately **not** dispatched, along with MLINESTYLE,
-whose field list this crate has not yet matched against real bytes.
+and stop — are deliberately **not** dispatched, along with TABLESTYLE,
+whose block structure is measured (§7d.4) but whose token sequence a
+single record per file cannot pin.
 
 ### 7d.1 Deriving a field list the spec does not carry — VISUALSTYLE
 
@@ -537,6 +538,94 @@ that match their own name string (`215.9 × 279.4` mm for
 the sheet less its margins in inches, `(1,0,0)` / `(0,1,0)` UCS axes on
 all 31 records, and AutoCAD's `±1e20` uninitialised-extents sentinel on
 the empty layouts.
+
+### 7d.3 A second prescribed record — MLINESTYLE (§20.4.73)
+
+**§20.4.73 MLINESTYLE** prescribes the whole record: `TV` name, `TV`
+description, `BS` flags, `CMC` fill colour, `BD` start and end angles,
+`RC` line count, then per line a `BD` offset, a `CMC` colour and —
+"Before R2018" — a `BS` linetype index, which R2018 replaces with a
+handle. The module previously cited a "§19.6.4 (L6-13)" that does not
+exist and read `BS` where the spec prints `CMC` for both colour fields,
+which is 42 bits short per record on every real file; the citation is
+withdrawn.
+
+Read straight, the prescription closes all ten corpus records:
+
+| Release | Records | Budget | Delta |
+|---|---|---|---|
+| R2004 | 3 (`{arc,circle,line}_2004.dwg` handle 96) | 526 | 0 |
+| R2010 | 3 (`*_2010.dwg` handle 96) | 442 | 0 |
+| R2013 | 3 (`*_2013.dwg` handle 96) | 442 | 0 |
+| R2018 | 1 (`sample_AC1032.dwg` handle 24) | 406 | 0 |
+
+The R2013 → R2018 drop is exactly the two `BS ltindex` words R2018
+moves into the handle stream: both records carry two line elements,
+both write the index in the 16-bit `BS` form, and 442 − 2 × 18 = 406.
+Every record decodes `startang = endang = π/2`, a ByLayer fill colour,
+elements at `+0.5` and `−0.5`, and the `32767` no-linetype sentinel.
+
+### 7d.4 The joint-boundary search — MLEADERSTYLE and the view styles
+
+§20.4 has no entry for MLEADERSTYLE, ACDBDETAILVIEWSTYLE,
+ACDBSECTIONVIEWSTYLE or TABLESTYLE. The first three were derived the
+way VISUALSTYLE was, with one addition: because the corpus stores the
+same style in four release bands, a candidate token sequence has to
+close **every** band, and the pre-R2007 band is the strongest
+constraint of the four — there a `TV` is inline and costs real bits, so
+a string in the wrong slot moves everything after it by hundreds of
+bits. `ACDBSECTIONVIEWSTYLE`'s four strings cost 82, 146, 730 and 66
+bits on R2004; that is what fixes their positions, and what settles the
+order of `hatch_pattern_name` and the byte beside it, which are
+interchangeable on R2010+ where a `TV` is free.
+
+`H` fields are invisible to this search on every band the walker
+reaches: R2000+ puts the handle references past the object-data-size
+boundary, so a handle costs no data-stream bits and leaves no trace.
+The field lists in `objects::acad_mleader_style`,
+`objects::acad_detail_view_style` and `objects::acad_section_view_style`
+are therefore the data stream only.
+
+| Object | Records | R2004 | R2010 | R2013 | R2018 |
+|---|---|---|---|---|---|
+| MLEADERSTYLE | 11 | 744 | 692 | 693 | 693 / 749 |
+| ACDBDETAILVIEWSTYLE | 11 | 1209 | 667 | 667 | 677 / 605 |
+| ACDBSECTIONVIEWSTYLE | 11 | 2325 | 1301 | 1301 | 1263 / 1367 |
+
+Every one of those 33 records closes with delta 0. The version switches
+are measured: MLEADERSTYLE gains a leading `BS version` and three
+trailing attachment-direction words in R2010 and one further `B` in
+R2013; both view styles gain a second name `TV` and two `B`s in R2018,
+and only placing those two bits *after* the record's leading `BS` keeps
+`flags` reading the `32` (detail) / `44` (section) that R2004, R2010 and
+R2013 all carry — the other placement turns it into `72` and
+desynchronises the first `CMC` on both R2018 records.
+
+Corroboration is in the values. MLEADERSTYLE's `Standard` decodes
+AutoCAD's shipped defaults to the last digit — landing gap `0.09`,
+dogleg `0.36`, arrowhead `0.18`, text height `0.18`, break gap `0.125`,
+block scales `1, 1, 1`, ByBlock (`0xC1……`) for all three colours and
+`-2` for the leader lineweight. The view styles decode text heights of
+`5` on every `Metric50` record and `0.24` on every `Imperial24` one,
+lineweights of `25` and `50` (0.25 mm and 0.50 mm), ByLayer for every
+colour but the section hatch background, which is the `0xC8……` "no
+colour" method. ACDBSECTIONVIEWSTYLE ends in five consecutive
+full-width doubles that decode to 90°, 15°, 75°, −15° and 105° in
+radians — the cutting-plane angle set — and carries `I, O, Q, S, X, Z`,
+the identifier letters AutoCAD excludes, and `ANSI31` as the cut-surface
+pattern.
+
+**TABLESTYLE is declined.** Its R2013 record on `arc_2013.dwg` budgets
+6,844 bits and its structure is measurable —
+`examples/probe_token_scan.rs` shows a 52-bit header followed by four
+cell-style blocks (the string stream names them `Table`, `_TITLE`,
+`_HEADER`, `_DATA`) of 1738 / 1696 / 1696 / 1662 bits, each ending in
+six 168-bit border sub-records of the shape `CMC` + 36 bits + `BD` + 22
+bits — but the blocks' internal token sequence is not determined: each
+corpus file carries exactly one TABLESTYLE record, and one record with
+a 52-bit header admits thousands of parses over `B/BS/BL/BD/RC/CMC`.
+Measured budgets, for whoever picks this up: R2004 1849, R2010 6836,
+R2013 6844, R2018 5820. The records stay `Unhandled`.
 
 ## 7e. `AcDb:Classes` — where the class list actually starts
 

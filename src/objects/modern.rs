@@ -200,16 +200,15 @@ pub(crate) fn open<'a>(
                 Some(stream.start_bit),
             ),
             None => {
-                let end = string_stream::data_section_end(payload, version).ok_or_else(|| {
-                    Error::SectionMap("object has no R2007+ data/handle stream split".into())
-                })?;
                 // The lone `B` "strings present" trailer bit is the whole
                 // trailer when it is clear, so the data fields end one
-                // bit before the handle stream.
-                (
-                    Some(StringReader::empty(payload)),
-                    Some(end.saturating_sub(1)),
-                )
+                // bit before the handle stream — the rule
+                // `string_stream::data_field_end` states once for both
+                // the object and the entity paths.
+                let end = string_stream::data_field_end(payload, version).ok_or_else(|| {
+                    Error::SectionMap("object has no R2007+ data/handle stream split".into())
+                })?;
+                (Some(StringReader::empty(payload)), Some(end))
             }
         }
     } else {
@@ -272,6 +271,25 @@ pub(crate) mod tests {
         w.write_b(true); // no xdictionary
         w.write_b(false); // no AcDs binary data
         w
+    }
+
+    /// The common object data an R2000-R2007 non-entity object leads
+    /// with: empty EED chain, `BL` reactor count, and — from R2004 —
+    /// the xdictionary-missing flag. No R2013+ AcDs binary-data bit.
+    pub(crate) fn r2004_object_prefix(num_reactors: i32) -> BitWriter {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // EED terminator
+        w.write_bl(num_reactors);
+        w.write_b(true); // no xdictionary
+        w
+    }
+
+    /// Write one pre-R2007 inline `TV`: `BS` length then that many bytes.
+    pub(crate) fn write_inline_tv(w: &mut BitWriter, s: &str) {
+        w.write_bs_u(s.len() as u16);
+        for b in s.as_bytes() {
+            w.write_rc(*b);
+        }
     }
 
     /// Build an R2010+ object payload whose *strings present* trailer

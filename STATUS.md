@@ -6,17 +6,17 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 722 passing in default/debug and release-all-features
+- **Lib tests:** 734 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 2,144 decoded / 234 skipped /
-  **0 errored** / 90.2% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 755 / 87 / 0 / 89.7%. **No file
+- **Current real-file decode coverage:** 2,187 decoded / 191 skipped /
+  **0 errored** / 92.0% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 762 / 80 / 0 / 90.5%. **No file
   in the corpus has a single errored record.** Per version:
-  R2004 83.4%, R2010 95.6%, R2013 93.9%, R2018 89.7%. What remains is
+  R2004 85.4%, R2010 97.8%, R2013 97.0%, R2018 90.5%. What remains is
   the *skipped* column — types with no decoder at all — not records
   that decode wrongly.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
@@ -88,11 +88,15 @@ scrolling the changelog.
   HATCH / DIMENSION entities. Each modern
   decoder asserts its data fields end exactly on the string-stream
   start bit, so a wrong layout errors rather than returning garbage.
-- Named-object dictionary, ACAD_GROUP, ACAD_MLINESTYLE,
-  ACAD_SCALE, ACAD_VISUALSTYLE (R2010+, 58
-  properties on R2013/R2018), ACAD_PROPERTYSET_DATA, and LAYOUT +
-  PLOTSETTINGS (one §20.4.84 field list, closing on all 31 corpus
-  LAYOUT records across R2004, R2010, R2013 and R2018).
+- Named-object dictionary, ACAD_GROUP, ACAD_SCALE, ACAD_VISUALSTYLE
+  (R2010+, 58 properties on R2013/R2018), ACAD_PROPERTYSET_DATA, and
+  LAYOUT + PLOTSETTINGS (one §20.4.84 field list, closing on all 31
+  corpus LAYOUT records across R2004, R2010, R2013 and R2018).
+- MLINESTYLE from the §20.4.73 prescription, closing on all 10 corpus
+  records across R2004, R2010, R2013 and R2018, and MLEADERSTYLE,
+  ACDBDETAILVIEWSTYLE and ACDBSECTIONVIEWSTYLE from the joint-boundary
+  search — 33 further records, all four release bands, delta 0 on every
+  one (ARCHITECTURE.md §7d.3, §7d.4).
   ACAD_MATERIAL reads only its strings and its measured bit budget —
   its data-field layout is not determined.
 
@@ -208,8 +212,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 2105 decoded,
-  234 skipped, 39 errored, 88.5% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 2187 decoded,
+  191 skipped, 0 errored, 92.0% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
@@ -219,15 +223,17 @@ These have genuine open scope requiring focused work, not stubs.
   `TV` fields from the R2007+ string stream and checking their data
   fields end exactly on the record's data-stream boundary.
   VISUALSTYLE dispatches on R2010, R2013 and R2018 — 168 of its 240
-  corpus records — and LAYOUT (with its embedded PLOTSETTINGS block)
-  dispatches on all 31 of its corpus records. Still unreached, in
-  descending record count on the corpus (counts as of the 2026-08-30
-  run): VISUALSTYLE on R2004/R2007 (72 records), MATERIAL (38),
-  ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11), MLEADERSTYLE
-  (11), MLINESTYLE (10), TABLESTYLE (10). MATERIAL and
-  PROPERTYSET_DATA decode only a documented prefix of their fields, so
-  they cannot satisfy the boundary check; MLINESTYLE has a field list
-  this crate has not yet matched against real bytes.
+  corpus records — LAYOUT (with its embedded PLOTSETTINGS block)
+  dispatches on all 31 of its corpus records, and MLINESTYLE (10),
+  MLEADERSTYLE (11), ACDBDETAILVIEWSTYLE (11) and
+  ACDBSECTIONVIEWSTYLE (11) dispatch on all of theirs. Still
+  unreached, in descending record count on the corpus (counts as of
+  the 2026-08-30 run): VISUALSTYLE on R2004/R2007 (72 records),
+  MATERIAL (38), TABLESTYLE (10). MATERIAL and PROPERTYSET_DATA decode
+  only a documented prefix of their fields, so they cannot satisfy the
+  boundary check; TABLESTYLE's block structure is measured
+  (ARCHITECTURE.md §7d.4) but a single record per corpus file cannot
+  pin the token sequence inside its cell-style blocks.
 
 - **#54 the R2013+ `has AcDs binary data` marker on *entities*.**
   `objects/modern.rs` consumes 16 bits after the flag (measured on the

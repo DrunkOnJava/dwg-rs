@@ -24,17 +24,16 @@ local `samples/` set:
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
-| R2004 (AC1018)      | 3 | 498 | 99 | 0 | **83.4 %** |
-| R2010 (AC1024)      | 3 | 519 | 24 | 0 | **95.6 %** |
-| R2013 (AC1027)      | 3 | 372 | 24 | 0 | **93.9 %** |
-| R2018 (AC1032)      | 1 | 755 | 87 | 0 | **89.7 %** |
-| **Aggregate** | **19** | **2144** | **234** | **0** | **90.2 %** |
+| R2004 (AC1018)      | 3 | 510 | 87 | 0 | **85.4 %** |
+| R2010 (AC1024)      | 3 | 531 | 12 | 0 | **97.8 %** |
+| R2013 (AC1027)      | 3 | 384 | 12 | 0 | **97.0 %** |
+| R2018 (AC1032)      | 1 | 762 | 80 | 0 | **90.5 %** |
+| **Aggregate** | **19** | **2187** | **191** | **0** | **92.0 %** |
 
 **Every record of every file in the corpus that reaches a decoder now
-decodes, and none errors.** What is left is the *skipped* column — 234
+decodes, and none errors.** What is left is the *skipped* column — 191
 records of types this crate has no decoder for at all (VISUALSTYLE on
-R2004/R2007, MATERIAL, MLEADERSTYLE, TABLESTYLE, MLINESTYLE, the
-detail/section view styles) — not records it reads wrongly.
+R2004/R2007, MATERIAL, TABLESTYLE) — not records it reads wrongly.
 
 That matters more than the ratio, because every R2007+ decoder in this
 crate is *self-validating*: its data fields must end exactly on the first
@@ -58,9 +57,8 @@ type and the object handle on the whole R2000..R2007 band, and skipping it
 put every AC1018 record 32 bits out of phase.
 
 The remaining gap is the *unhandled* list, not the errored one: VISUALSTYLE
-on R2004/R2007, MATERIAL, MLEADERSTYLE, MLINESTYLE, TABLESTYLE and the
-detail/section view styles have no field list matched against real bytes
-yet. Closing those is the 0.2.0 milestone.
+on R2004/R2007, MATERIAL and TABLESTYLE have no field list matched against
+real bytes yet. Closing those is the 0.2.0 milestone.
 
 ## Capability matrix at a glance
 
@@ -78,7 +76,7 @@ yet. Closing those is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 90.2 %, zero errors (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 92.0 %, zero errors (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -262,8 +260,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 88.5 %
-aggregate / 85.0 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 90.3 %
+aggregate / 85.9 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety

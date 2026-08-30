@@ -107,6 +107,8 @@ fn main() -> Result<()> {
             if matches!(version, dwg::Version::R2013 | dwg::Version::R2018) {
                 let has_binary = c.read_b().ok()?;
                 if has_binary {
+                    // 16 bits, measured — see `crate::objects::modern`.
+                    c.read_rc().ok()?;
                     c.read_rc().ok()?;
                 }
             }

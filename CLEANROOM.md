@@ -153,3 +153,34 @@ the modules; neither came from a third-party implementation.
 The "§19.6.12 (L6-12)" and "§19.6.6 (L6-14)" citations the two modules
 previously carried are withdrawn — the spec has no §19.6 chapter, and
 §20.4 carries no standalone PLOTSETTINGS entry.
+
+## 2026-08-30 — MLEADERSTYLE / view-style property names (Autodesk public documentation, recalled)
+
+The PR for #55 derives the field lists of `MLEADERSTYLE`,
+`ACDBDETAILVIEWSTYLE` and `ACDBSECTIONVIEWSTYLE` entirely from bytes:
+the one token sequence over `B/BS/BL/BD/RC/CMC/TV` that lands every one
+of the 33 corpus records — across R2004, R2010, R2013 and R2018 —
+exactly on its own data-stream boundary, with the pre-R2007 band, where
+a `TV` costs real bits, pinning the string positions. ODA spec v5.4.1
+§20.4 carries **no** prescription for any of the three; no citation is
+claimed for them.
+
+As with the VISUALSTYLE entry above, the **names** given to the slots
+are outside vocabulary, not outside structure. `MLEADERSTYLE`'s follow
+the conventional `AcDbMLeaderStyle` property ordering as recalled from
+Autodesk's public *DXF Reference*; the two view styles' follow the field
+vocabulary of AutoCAD's Detail View Style and Section View Style
+dialogs as recalled from Autodesk's public product documentation. Both
+are published documentation, not SDK or product source. No code,
+structure or layout was taken from either — they contributed vocabulary
+only, and the slots whose decoded values do not corroborate a name are
+labelled `unknown_*` / `flag_*` or documented as positional rather than
+given a plausible-sounding one.
+
+`MLINESTYLE` needed no outside vocabulary: **§20.4.73 MLINESTYLE** of
+the freely-redistributable ODA specification prescribes the whole
+record, and every field name and type in
+`src/objects/acad_mlinestyle.rs` comes from that table. The
+"§19.6.4 (L6-13)" citation that module previously carried is withdrawn
+— the spec has no §19.6 chapter — along with the `BS`-where-the-spec-
+prints-`CMC` reading that came with it.
