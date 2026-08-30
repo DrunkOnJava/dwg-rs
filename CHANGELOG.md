@@ -8,6 +8,67 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — MTEXT and friends decoded silently wrong on R2007+ (2026-08-30, #103, closes #25, closes #26)
+
+- **`MTEXT` (0x2C) returned a garbage one-character string for every record.**
+  It read its `TV` from the data cursor, which on R2007+ holds the *next data
+  field*, so it never errored — the coverage report counted every record as
+  decoded. `src/entities/mtext.rs` now has a `decode_modern_split_stream`
+  that reads the text from the object's string stream. Verified on
+  `sample_AC1032.dwg`: 33 records recover real text
+  (`"this is a Mtext\nwith multiple lines in it"`, `"Table sample"`,
+  `"4'-0{\\H1x;\\S1#4;}\""`, a 3,436-character paragraph).
+- **Self-validating:** MTEXT's only `TV` is its text, so its string stream must
+  hold exactly one string and nothing else. Measured across all 22 MTEXT
+  records in the main object stream: the stream length equals that string's
+  encoded length to the bit (74 of 74, 202 of 202, 282 of 282, 666 of 666,
+  54,978 of 54,978). The decoder requires the reader to be exhausted after one
+  `read_tv`, and the data fields not to run past the string-stream start bit.
+- **`background_scale_factor` is a `BD`, not a `BL`** (§19.4.44). The one
+  record in the corpus with the background bit set (handle `0x6D8`) recovers
+  `1.25`; reading a `BL` left the following `CMC` on a 16-bit code and then a
+  reserved `11` pattern.
+- **`TOLERANCE` (0x2E)** ported to the split stream, fully self-validating —
+  its `text_string` is the last data field, so the data fields must end
+  *exactly* on the string-stream start bit. Measured: all three records span
+  exactly 146 bits of body, parsing as three `BD3` triples with nothing left
+  over, which also shows the `BS unknown_short` / `BD height` / `BD dimgap`
+  fields are absent on R2018. 3 errors → 0, recovering the GD&T frames.
+- **`DIMENSION` (0x14-0x1A)** and **`HATCH` (0x4E)** now take their `TV`
+  fields (`user_text`, pattern and gradient names) from the string stream, so
+  every field after them keeps its alignment. DIMENSION: 10 errors → 2.
+- **`StringReader::empty`** covers R2007+ records whose *strings present*
+  trailer bit is clear: the `TV` slots exist but hold nothing and still
+  consume no data-stream bits, so a decoder must read through an empty string
+  stream rather than fall back to the inline layout.
+- **`Layer::is_locked` tested the wrong bit (#26).** The DWG `values` word is
+  not the DXF group-70 flag word: DXF puts locked at `0x04`, DWG puts *frozen
+  in new viewports* there and locked at `0x08`. Every layer frozen in new
+  viewports read as locked and every locked layer read as unlocked.
+  `is_locked` now tests `0x08` and the new `is_frozen_in_new_viewports` tests
+  `0x04`.
+
+### Added
+
+- **`examples/audit_string_streams.rs`** — census of which object types carry
+  `TV` fields in their R2007+ string stream, and what those strings are. This
+  is the instrument behind the #25 audit table: a type with strings here whose
+  decoder reads `TV` inline is silently wrong on that file.
+- **`examples/probe_mtext_fields.rs`** — per-field bit walk of an R2007+ MTEXT
+  against the string-stream start bit.
+
+Measured coverage on the 19-file `samples/` corpus:
+
+| Version | Before (dec / err / rate) | After (dec / err / rate) |
+|---------|---------------------------|--------------------------|
+| R2004 (AC1018) × 3 | 75 / 0 / 12.6 % | 75 / 0 / 12.6 % |
+| R2010 (AC1024) × 3 | 69 / 0 / 12.7 % | 69 / 0 / 12.7 % |
+| R2013 (AC1027) × 3 | 69 / 0 / 17.4 % | 69 / 0 / 17.4 % |
+| R2018 (AC1032) × 1 | 374 / 34 / 50.2 % | **384 / 24 / 51.5 %** |
+| **Aggregate** | **587 / 34 / 25.7 %** | **597 / 24 / 26.2 %** |
+
+
+||||||| 9d6adbe
 ### Fixed — R2004 (AC1018) common object header (2026-08-30, #103, closes #24)
 
 - **`RL` object data size in bits was read for R2000 only.** ODA v5.4.1 §19.1

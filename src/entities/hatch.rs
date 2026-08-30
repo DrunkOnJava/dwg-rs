@@ -94,7 +94,8 @@
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point2D, Vec3D, read_bd2, read_bd3};
 use crate::error::{Error, Result};
-use crate::tables::read_tv;
+use crate::string_stream::{self, StringReader};
+use crate::tables::modern;
 use crate::version::Version;
 
 // ========================================================================
@@ -237,11 +238,46 @@ fn bounds_check(n: usize, field: &'static str, cap: usize, remaining_bits: usize
 /// function reads every field defined by §19.4.75, including the
 /// boundary path tree.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Hatch> {
-    let gradient = decode_gradient(c, version)?;
+    decode_with_strings(c, version, None)
+}
+
+/// Decode an R2007+ HATCH whose pattern / gradient names live in the
+/// object's string stream (§19.1 split layout, §19.4.75).
+///
+/// The boundary-path tree and the pattern-line table follow the
+/// pattern name, so reading the `TV` inline shifted all of them; the
+/// five HATCH records of `sample_AC1032.dwg` recover the names
+/// `"ANSI31"`, `"LINEAR"` and `"SOLID"` through the string stream.
+/// The record's data fields are not yet proven to end exactly on the
+/// string-stream start bit, so this asserts the weaker
+/// `<= string_start` bound.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<Hatch> {
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let hatch = decode_with_strings(&mut c, version, Some(&mut strings))?;
+    let at = c.position_bits();
+    if at > string_start {
+        return Err(modern::misaligned("HATCH", at, string_start));
+    }
+    Ok(hatch)
+}
+
+fn decode_with_strings(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    mut strings: Option<&mut StringReader<'_>>,
+) -> Result<Hatch> {
+    let gradient = decode_gradient(c, version, strings.as_deref_mut())?;
 
     let elevation = c.read_bd()?;
     let extrusion = read_bd3(c)?;
-    let pattern_name = read_tv(c, version)?;
+    let pattern_name = modern::read_tv_field(c, version, strings)?;
     let solid_fill = c.read_b()?;
     let associative = c.read_b()?;
 
@@ -308,7 +344,11 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Hatch> {
     })
 }
 
-fn decode_gradient(c: &mut BitCursor<'_>, version: Version) -> Result<Option<GradientFill>> {
+fn decode_gradient(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    strings: Option<&mut StringReader<'_>>,
+) -> Result<Option<GradientFill>> {
     if !version.is_r2004_plus() {
         return Ok(None);
     }
@@ -338,7 +378,7 @@ fn decode_gradient(c: &mut BitCursor<'_>, version: Version) -> Result<Option<Gra
             color,
         });
     }
-    let name = read_tv(c, version)?;
+    let name = modern::read_tv_field(c, version, strings)?;
     Ok(Some(GradientFill {
         angle,
         shift,

@@ -27,8 +27,8 @@ local `samples/` set:
 | R2004 (AC1018)      | 3 | 75 | 522 | 0 | **12.6 %** |
 | R2010 (AC1024)      | 3 | 69 | 474 | 0 | **12.7 %** |
 | R2013 (AC1027)      | 3 | 69 | 327 | 0 | **17.4 %** |
-| R2018 (AC1032)      | 1 | 374 | 337 | 34 | **50.2 %** |
-| **Aggregate** | **19** | **587** | **1660** | **34** | **25.7 %** |
+| R2018 (AC1032)      | 1 | 384 | 337 | 24 | **51.5 %** |
+| **Aggregate** | **19** | **597** | **1660** | **24** | **26.2 %** |
 
 Per-entity-type error concentration in the measured corpus:
 
@@ -36,14 +36,13 @@ Per-entity-type error concentration in the measured corpus:
 |-----------|----------|-----------------------|
 | 0x4E (78) | `HATCH` | 5 |
 | 0x39 (57) | `LTYPE` | 3 |
-| 0x2E (46) | `TOLERANCE` | 3 |
 | 0x07 (7) | `INSERT` | 3 |
+| 0x1A (26) | `DIMENSION` (diameter) | 2 |
 | 0x24 (36) | `SPLINE` | 2 |
-| 0x14–0x1A | `DIMENSION` family | 10 |
 | 0x2C (44) | `MTEXT` | 1 |
-| ... | (long tail) | 7 |
+| ... | (long tail) | 8 |
 
-All 34 remaining errors are in the single R2018 file. Every R2004, R2010 and
+All 24 remaining errors are in the single R2018 file. Every R2004, R2010 and
 R2013 sample now decodes with **zero** errors.
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
@@ -59,9 +58,12 @@ bit, so a mis-read layout errors instead of returning plausible garbage. The
 R2004 (AC1018) object prologue is now read correctly too — an `RL` object
 data size in bits sits between the object type and the object handle on the
 whole R2000..R2007 band, and skipping it put every AC1018 record 32 bits out
-of phase. The remaining gap: MTEXT / INSERT / DIMENSION / HATCH split
-streams, and multi-line attributes. Closing that real-file decode gap is the
-0.2.0 milestone.
+of phase. MTEXT, TOLERANCE, HATCH and the DIMENSION family read their text
+through the string stream as well; before that MTEXT returned a garbage
+one-character string for every record without ever erroring. The remaining
+gap: HATCH boundary paths, INSERT, MLEADER, and the non-entity objects
+(DICTIONARY, LAYOUT, XRECORD) that still read `TV` inline. Closing that
+real-file decode gap is the 0.2.0 milestone.
 
 ## Capability matrix at a glance
 
@@ -79,7 +81,7 @@ streams, and multi-line attributes. Closing that real-file decode gap is the
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~25.7% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~26.2% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -263,8 +265,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 25.7 %
-aggregate / 50.2 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 26.2 %
+aggregate / 51.5 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety
@@ -314,7 +316,7 @@ Coverage numbers in this README are measured with
 
 The project needs help, in rough order of impact:
 
-1. **Per-version entity preamble fixes** — figuring out why MTEXT, INSERT, HATCH and the DIMENSION family still fail on R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
+1. **Per-version entity preamble fixes** — figuring out why HATCH boundary paths, INSERT and MLEADER still fail on R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
 2. **R14 / R2000 object-stream walker** — completely different layout from R2004-family.
 3. **R2007 Sec_Mask layer-2 bookkeeping** — spec §5.2.
 4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.

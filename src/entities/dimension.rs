@@ -45,7 +45,8 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Point3D, Vec3D, read_bd3};
 use crate::error::Result;
-use crate::tables::read_tv;
+use crate::string_stream::{self, StringReader};
+use crate::tables::modern;
 use crate::version::Version;
 
 /// Shared dimension preamble (§19.4.10.1).
@@ -72,6 +73,21 @@ pub struct DimensionCommon {
 
 /// Reads the fields shared by every DIMENSION subtype that precede the subtype-specific data.
 pub fn read_common(c: &mut BitCursor<'_>, version: Version) -> Result<DimensionCommon> {
+    read_common_with_strings(c, version, None)
+}
+
+/// [`read_common`] with an explicit source for the `user_text` `TV`.
+///
+/// On R2007+ that field's characters live in the object's string
+/// stream, so passing the reader keeps every field after it — text
+/// rotation, insertion scale, attachment, the def points — on the
+/// right bit. Reading it inline instead shifts all of them, which is
+/// why the DIMENSION family errored on `sample_AC1032.dwg`.
+fn read_common_with_strings(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    strings: Option<&mut StringReader<'_>>,
+) -> Result<DimensionCommon> {
     let version_flag = if version.is_r2010_plus() {
         c.read_rc()?
     } else {
@@ -84,7 +100,7 @@ pub fn read_common(c: &mut BitCursor<'_>, version: Version) -> Result<DimensionC
     };
     let elevation = c.read_bd()?;
     let flags = c.read_rc()?;
-    let user_text = read_tv(c, version)?;
+    let user_text = modern::read_tv_field(c, version, strings)?;
     let text_rotation = c.read_bd()?;
     let horiz_dir = c.read_bd()?;
     let ins_scale = read_bd3(c)?;
@@ -214,7 +230,42 @@ pub struct DiameterDimension {
 /// Decode a complete dimension of `kind` (caller already consumed
 /// the common entity preamble).
 pub fn decode(c: &mut BitCursor<'_>, version: Version, kind: DimensionKind) -> Result<Dimension> {
-    let common = read_common(c, version)?;
+    decode_with_strings(c, version, kind, None)
+}
+
+/// Decode an R2007+ DIMENSION whose `user_text` lives in the object's
+/// string stream (§19.1 split layout, §19.4.10).
+///
+/// The subtype suffixes end before the handle stream, and the R2018
+/// records in `sample_AC1032.dwg` do not land the data fields exactly
+/// on the string-stream start bit, so this asserts the weaker
+/// `<= string_start` bound. What it does fix is the alignment of every
+/// field after `user_text`, which the inline read shifted.
+pub fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+    kind: DimensionKind,
+) -> Result<Dimension> {
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let decoded = decode_with_strings(&mut c, version, kind, Some(&mut strings))?;
+    let at = c.position_bits();
+    if at > string_start {
+        return Err(modern::misaligned("DIMENSION", at, string_start));
+    }
+    Ok(decoded)
+}
+
+fn decode_with_strings(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    kind: DimensionKind,
+    strings: Option<&mut StringReader<'_>>,
+) -> Result<Dimension> {
+    let common = read_common_with_strings(c, version, strings)?;
     Ok(match kind {
         DimensionKind::Ordinate => {
             let def_point_10 = read_bd3(c)?;

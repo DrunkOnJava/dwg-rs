@@ -166,9 +166,42 @@ pub(crate) fn read_4bits(c: &mut BitCursor<'_>) -> Result<u8> {
 /// ([`crate::common_entity::read_common_entity_data`]), so unlike
 /// [`open_table_entry`] this only returns the string reader and the bit
 /// at which the entity's data fields must end.
+///
+/// A record whose `strings present` trailer bit is clear gets an empty
+/// reader ([`StringReader::empty`]) and the start of its handle stream
+/// as the bound: its `TV` slots exist but hold nothing, so a decoder
+/// must still take them from the (empty) string stream rather than
+/// inline.
 pub(crate) fn open_entity(payload: &[u8], version: Version) -> Result<(StringReader<'_>, usize)> {
-    let stream = locate_stream(payload, version)?;
-    Ok((StringReader::new(payload, stream)?, stream.start_bit))
+    match string_stream::locate(payload, version) {
+        Some(stream) => Ok((StringReader::new(payload, stream)?, stream.start_bit)),
+        None => {
+            let end = string_stream::data_section_end(payload, version).ok_or_else(|| {
+                Error::SectionMap("object has no R2007+ data/handle stream split".into())
+            })?;
+            Ok((StringReader::empty(payload), end))
+        }
+    }
+}
+
+/// Read a `TV` field from whichever stream actually holds it.
+///
+/// `Some(reader)` means the caller opened the object's R2007+ string
+/// stream: the field's characters live there and the slot consumes no
+/// data-stream bits, so `c` is left untouched. `None` is the pre-R2007
+/// inline layout.
+///
+/// This is what lets one field-list implementation serve both layouts
+/// for records whose only R2007+ difference is where the text sits.
+pub(crate) fn read_tv_field(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    strings: Option<&mut StringReader<'_>>,
+) -> Result<String> {
+    match strings {
+        Some(reader) => reader.read_tv(),
+        None => crate::tables::read_tv(c, version),
+    }
 }
 
 /// Error describing a data cursor that did not land on the string stream.
