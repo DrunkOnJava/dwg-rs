@@ -366,7 +366,7 @@ pub(crate) mod tests {
             w.write_b(false);
         }
         let mut bytes = w.into_bytes();
-        bytes[0] = (8 + pad) as u8;
+        bytes[0] = pad as u8;
         bytes
     }
 

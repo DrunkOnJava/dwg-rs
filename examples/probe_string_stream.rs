@@ -75,7 +75,13 @@ fn main() -> ExitCode {
         };
         let bits = raw.raw.len() * 8;
         println!();
-        let predicted = data_end.map(|d| d + mc_bits);
+        // R2010+: the trailer ends where the handle stream begins, i.e.
+        // `payload_bits - handle_stream_bits`. Before #77 this line
+        // added `mc_bits` back, because the walker's slice was short by
+        // the width of the record's own leading `MC` (the `MS` does not
+        // count it); the slice is now the whole record, so the raw rule
+        // predicts the trailer directly.
+        let predicted = data_end;
         println!(
             "#{i} handle=0x{:X} size={} bits={bits} header_end={header_end} \
              data_end={data_end:?} mc_bits={mc_bits} predicted_end={predicted:?}",

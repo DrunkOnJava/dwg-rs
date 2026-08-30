@@ -6,6 +6,29 @@
 //! content bytes excluding the trailing 2-byte CRC — followed by a bit-
 //! level payload and byte-aligned CRC.
 //!
+//! # The `MS` does not count the R2010+ leading `MC` (#77)
+//!
+//! From R2010 the payload opens with an `MC` holding the handle-stream
+//! size in bits, and the record's `MS` **excludes that field's own
+//! bytes**. Measured on the object stream itself: every inter-record run
+//! left over by an `MS`-only span equals the width of the *preceding*
+//! record's `MC` field — 841 of 841 agreements on `sample_AC1032.dwg`
+//! (R2018) and 100 % on `arc_2010.dwg`, `line_2010.dwg` and
+//! `line_2013.dwg`, against 734 of 841 for the "following record"
+//! reading; only 8 of those 916 bytes are zero, so they are content and
+//! not alignment padding. So a record occupies
+//!
+//! ```text
+//! MS field | MC field | MS bytes of payload | 2-byte CRC
+//! ```
+//!
+//! and the walker sizes [`RawObject::raw`] as `mc_width + size_bytes`.
+//! Before #77 the slice stopped `mc_width` bytes early and the
+//! sequential (handle-map-less) walk drifted by one `MC` width per
+//! record on R2010+. Pre-R2010 records carry no such field and their
+//! `MS` covers the whole payload, which is why the R2004 and R2007
+//! corpus files tile their object stream exactly.
+//!
 //! # Two navigation modes
 //!
 //! The on-disk stream is **not strictly sequential**: objects are aligned
@@ -46,7 +69,13 @@ use crate::version::Version;
 pub struct RawObject {
     /// Byte offset into the decompressed section where this object begins.
     pub stream_offset: usize,
-    /// Size of the object in bytes (from the leading MS; excludes CRC).
+    /// The record's leading `MS` value, verbatim.
+    ///
+    /// This is **not** `raw.len()` on R2010+: the `MS` excludes the
+    /// record's own leading `MC` handle-stream-size field (#77), so
+    /// `raw.len() == size_bytes + mc_width` there and
+    /// `raw.len() == size_bytes` before R2010. It never counts the
+    /// trailing 2-byte CRC on any release.
     pub size_bytes: u32,
     /// Raw type code as encoded in the stream.
     pub type_code: u16,
@@ -56,6 +85,10 @@ pub struct RawObject {
     pub handle: Handle,
     /// The entity/object's raw bytes as they appear on disk (for consumers
     /// that want to run their own entity-specific decoder).
+    ///
+    /// Spans the whole record between the `MS` and the CRC — including
+    /// the R2010+ leading `MC` field that the `MS` does not count (see
+    /// the module docs and [`size_bytes`](Self::size_bytes)).
     pub raw: Vec<u8>,
     /// R2000-R2007 only: the `RL` "object data size in bits" from the
     /// object prologue (spec §19.1), measured from bit 0 of [`raw`](Self::raw).
@@ -441,9 +474,29 @@ impl<'a> ObjectWalker<'a> {
             self.pos = self.bytes.len();
             return Ok(None);
         }
-        // Record spans MS + size_bytes payload + 2-byte CRC.
+        // Record spans MS + [R2010+ MC] + size_bytes payload + 2-byte
+        // CRC. The `MS` excludes the record's own leading `MC`
+        // handle-stream-size field, so the payload runs `mc_width`
+        // bytes past `size_bytes` on R2010+ (#77, see the module docs).
         let payload_start = start + ms_consumed;
-        let payload_end = payload_start + size_bytes as usize;
+        if payload_start > self.bytes.len() {
+            self.pos = self.bytes.len();
+            return Ok(None);
+        }
+        let mc_width = if self.version.is_r2010_plus() {
+            match mc_field_width(&self.bytes[payload_start..]) {
+                Some(w) => w,
+                None => {
+                    // No terminating byte in the first ten: not an MC,
+                    // so this is not a record start.
+                    self.pos = self.bytes.len();
+                    return Ok(None);
+                }
+            }
+        } else {
+            0
+        };
+        let payload_end = payload_start + size_bytes as usize + mc_width;
         let crc_end = payload_end + 2;
         if crc_end > self.bytes.len() {
             // Malformed — truncate gracefully.
@@ -523,6 +576,22 @@ fn read_ms_bytealigned(bytes: &[u8]) -> Result<(u32, usize)> {
             return Ok((value, i));
         }
     }
+}
+
+/// Width in bytes of the leading `MC` handle-stream-size field of an
+/// R2010+ object record (spec §20.1) — the count of bytes up to and
+/// including the first with its continuation bit clear.
+///
+/// `None` when none of the first ten bytes terminates the field, which
+/// is not a value any `u64`-bounded handle-stream size can produce and
+/// therefore proves the offset is not a record start.
+fn mc_field_width(bytes: &[u8]) -> Option<usize> {
+    for (i, b) in bytes.iter().enumerate().take(10) {
+        if b & 0x80 == 0 {
+            return Some(i + 1);
+        }
+    }
+    None
 }
 
 /// Read an unsigned modular char (MC) — the 0x40 bit is NOT sign, per
@@ -615,6 +684,131 @@ pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bitwriter::BitWriter;
+
+    /// Build one `AcDb:AcDbObjects` record by hand: `MS` + payload +
+    /// 2-byte CRC slot. `mc` is the R2010+ leading handle-stream-size
+    /// field (`None` before R2010), and the `MS` is written per the
+    /// measured rule — the payload length *minus* that field's width.
+    fn build_record(version: Version, mc: Option<u8>, handle: u64, filler: usize) -> Vec<u8> {
+        let mut w = BitWriter::new();
+        let mut mc_width = 0usize;
+        if let Some(v) = mc {
+            assert!(v < 0x80, "test helper only builds single-byte MC values");
+            w.write_rc(v);
+            mc_width = 1;
+        }
+        if version.is_r2010_plus() {
+            w.write_bb(0b00); // one raw type byte follows
+            w.write_rc(0x11); // ARC
+        } else {
+            w.write_bs(0x11);
+        }
+        if version.has_object_size_field() {
+            w.write_rl(0);
+        }
+        w.write_handle(0, handle);
+        for _ in 0..filler {
+            w.write_rc(0xAB);
+        }
+        let payload = w.into_bytes();
+
+        let mut header = BitWriter::new();
+        header.write_ms((payload.len() - mc_width) as u64);
+        let mut record = header.into_bytes();
+        record.extend_from_slice(&payload);
+        record.extend_from_slice(&[0x00, 0x00]);
+        record
+    }
+
+    /// #77 — on R2010+ the record's `MS` excludes its own leading `MC`
+    /// handle-stream-size field, so the walker's slice is one `MC`
+    /// width longer than the declared size and the next record starts
+    /// there. Two back-to-back records pin both halves: the slice width
+    /// and the advance.
+    #[test]
+    fn r2010_raw_slice_spans_the_mc_the_ms_does_not_count() {
+        let mut stream = vec![0xCA, 0x0D, 0x00, 0x00];
+        let first = build_record(Version::R2018, Some(0x04), 0x2A, 3);
+        let second = build_record(Version::R2018, Some(0x04), 0x2B, 5);
+        stream.extend_from_slice(&first);
+        stream.extend_from_slice(&second);
+
+        let objects = ObjectWalker::new(&stream, Version::R2018)
+            .collect_all()
+            .expect("walk");
+        assert_eq!(objects.len(), 2);
+
+        // `MS` + 1-byte `MC` + `MS` bytes of payload + 2-byte CRC.
+        assert_eq!(objects[0].stream_offset, 4);
+        assert_eq!(objects[0].raw.len(), objects[0].size_bytes as usize + 1);
+        assert_eq!(objects[0].raw.len(), first.len() - 2 - 2);
+        assert_eq!(objects[0].raw[0], 0x04, "slice starts at the MC field");
+        assert_eq!(objects[0].handle.value, 0x2A);
+
+        // The advance is the whole record, so the second record's
+        // header is read in phase. A slice that stopped at `MS` would
+        // land one byte early and mis-read the type code.
+        assert_eq!(objects[1].stream_offset, 4 + first.len());
+        assert_eq!(objects[1].raw.len(), objects[1].size_bytes as usize + 1);
+        assert_eq!(objects[1].handle.value, 0x2B);
+    }
+
+    /// The same record shape before R2010 carries no `MC`, and there
+    /// the `MS` covers the whole payload.
+    #[test]
+    fn pre_r2010_raw_slice_is_exactly_the_declared_ms() {
+        let mut stream = vec![0xCA, 0x0D, 0x00, 0x00];
+        let record = build_record(Version::R2004, None, 0x2A, 3);
+        stream.extend_from_slice(&record);
+
+        let objects = ObjectWalker::new(&stream, Version::R2004)
+            .collect_all()
+            .expect("walk");
+        assert_eq!(objects.len(), 1);
+        assert_eq!(objects[0].raw.len(), objects[0].size_bytes as usize);
+        assert_eq!(objects[0].raw.len(), record.len() - 2 - 2);
+        assert_eq!(objects[0].handle.value, 0x2A);
+    }
+
+    /// A multi-byte `MC` widens the slice by its full width, not by one.
+    #[test]
+    fn a_two_byte_mc_widens_the_slice_by_two() {
+        // 0x80 0x01 — continuation byte then terminator: a 2-byte MC
+        // holding 128 bits of handle stream.
+        let mut w = BitWriter::new();
+        w.write_rc(0x80);
+        w.write_rc(0x01);
+        w.write_bb(0b00);
+        w.write_rc(0x11);
+        w.write_handle(0, 0x2A);
+        for _ in 0..4 {
+            w.write_rc(0xAB);
+        }
+        let payload = w.into_bytes();
+        let mut header = BitWriter::new();
+        header.write_ms((payload.len() - 2) as u64);
+        let mut stream = vec![0xCA, 0x0D, 0x00, 0x00];
+        stream.extend_from_slice(&header.into_bytes());
+        stream.extend_from_slice(&payload);
+        stream.extend_from_slice(&[0x00, 0x00]);
+
+        let objects = ObjectWalker::new(&stream, Version::R2018)
+            .collect_all()
+            .expect("walk");
+        assert_eq!(objects.len(), 1);
+        assert_eq!(objects[0].raw.len(), objects[0].size_bytes as usize + 2);
+        assert_eq!(objects[0].raw.len(), payload.len());
+    }
+
+    #[test]
+    fn mc_field_width_counts_to_the_terminating_byte() {
+        assert_eq!(mc_field_width(&[0x00, 0xFF]), Some(1));
+        assert_eq!(mc_field_width(&[0x7F]), Some(1));
+        assert_eq!(mc_field_width(&[0x80, 0x01, 0x02]), Some(2));
+        assert_eq!(mc_field_width(&[0x80; 10]), None);
+        assert_eq!(mc_field_width(&[]), None);
+    }
 
     #[test]
     fn ms_single_module_zero() {

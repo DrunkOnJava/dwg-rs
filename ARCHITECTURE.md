@@ -207,8 +207,7 @@ Sec_Mask and works today.
 ## 7. Object stream navigation
 
 The `AcDb:AcDbObjects` section holds one variable-length record per
-drawing object. Records are **not** sequential — there are padding
-gaps between them. The authoritative enumeration comes from
+drawing object. The authoritative enumeration comes from
 `AcDb:Handles`, which is a compact index of `(handle, byte_offset)`
 pairs:
 
@@ -246,6 +245,88 @@ For R2010+, a 2-bit "object type tag" preceeds the 16-bit type code
 to compress common type numbers into 1 byte — see `object_type.rs`
 `ObjectType::read` for the dispatch.
 
+### A record's `MS` excludes its own `MC` (finding, 2026-08-30, #75 / #77)
+
+A record is framed `MS field | MC field | MS bytes of payload | 2-byte
+CRC`, where the `MC` — the handle-stream size in bits, R2010+ only —
+is **not counted by the `MS`**. The stream is its own evidence: laying
+every walked record's `MS`-sized span end to end leaves a run of bytes
+between each pair of records, and every one of those runs equals the
+width of the *preceding* record's `MC` field.
+
+| Reading | Agreements |
+|---|---|
+| run = preceding record's `MC` width | **841 of 841** |
+| run = following record's `MC` width | 734 of 841 |
+
+Measured on `sample_AC1032.dwg` (R2018), with 100 % agreement on
+`arc_2010.dwg`, `line_2010.dwg` and `line_2013.dwg` as well. Only 8 of
+those 916 bytes are zero, so they are content, not alignment padding;
+772 one-byte plus 70 two-byte `MC` fields plus the 4-byte `0x0dca`
+section prologue account for all 916 exactly.
+
+Consequences, all of them visible in `cargo run --release --example
+probe_class_census`:
+
+- `RawObject::raw` spans `mc_width + size_bytes`, so the slice reaches
+  the last bytes of the record's handle stream. `size_bytes` still
+  reports the `MS` verbatim, so `raw.len() != size_bytes` on R2010+.
+- **Records are sequential after all.** Every R2004+ corpus file tiles
+  its object stream with zero bytes between records; the only unclaimed
+  bytes are the 4-byte prologue. Pre-R2010 records carry no `MC` and
+  always tiled.
+- The sequential (handle-map-less) walk no longer drifts by one `MC`
+  width per record on R2010+.
+- `string_stream::data_section_end` drops its `+ mc_field_bits`
+  correction, which existed only to compensate for the short slice.
+
+### Is a declared-but-unwalked object missing, or absent? (finding, 2026-08-30, #76)
+
+`AcDb:Classes` carries a `num_objects` instance count per custom class
+(DXF group 91), which makes it a cheap oracle for walker completeness —
+but only if it is a live census. `examples/probe_reference_closure`
+decides the question from the bytes with three measurements that never
+consult the class table:
+
+1. **Stream tiling** — bytes between two walked records are room an
+   unreferenced record could occupy. Zero on every R2004+ corpus file.
+2. **Reference closure** — decode every record's handle stream and
+   resolve each reference against `AcDb:Handles`. Every *hard*
+   reference (§2.13 codes 3 and 5) in the corpus resolves. The only
+   unanswered references anywhere are six code-4 **soft** pointers, the
+   class the spec permits to dangle: BLOCK_HEADER `0xA0B` of
+   `sample_AC1032.dwg` names ten owned entities and six of them
+   (`0xD17`, `0xD18`, `0xD40`, `0xD41`, `0xD95`, `0xD96`) have no
+   record, in a drawing that leaves 2,841 of the 3,683 handle values in
+   `0x1..=0xE63` unused.
+3. **Owner census** — a dictionary key is the only way a
+   dictionary-owned object is reachable, so the key count bounds the
+   population.
+
+Applied to the DICTIONARYVAR shortfall, measurement 3 is decisive:
+
+| File | `AcDbVariableDictionary` keys | DICTIONARYVAR walked | declared |
+|---|---|---|---|
+| `*_2004.dwg` | 10 | 10 | 16 |
+| `*_2007.dwg` | 6 | 6 | 11 |
+| `*_2010.dwg` | 5 | 5 | 10 |
+| `*_2013.dwg` | 5 | 5 | 5 |
+| `sample_AC1032.dwg` | 11 | 11 | 11 |
+
+Keys and walked records agree on every file, including the two whose
+class table also agrees. CELLSTYLEMAP says the same thing more sharply:
+`arc_2010.dwg` declares one, contains none, and carries no
+`ACAD_ROUNDTRIP_2008_TABLESTYLE_CELLSTYLEMAP` dictionary key for one to
+hang from — a live census cannot declare an instance with no owner
+slot.
+
+The class-table parse is not in doubt: on `arc_2004.dwg` the ten class
+records consume 5161 of the declared 5168 bits (7 bits of byte
+padding), the class numbers run 500..509 with no gap, and eight of the
+ten declared counts match the walk exactly. **So `num_objects` is not a
+live census on every release**, and a shortfall on it is evidence to be
+explained, not automatically a walker bug.
+
 ## 7a. R2007+ split streams (finding, 2026-08-30)
 
 From R2007 (`AC1021`) an object's body is three streams, not one:
@@ -272,15 +353,11 @@ end: one *strings-present* bit, a 16-bit size in bits, and — when bit
 15 of that size is set — a second 16-bit word supplying the high bits.
 `src/string_stream.rs` implements this.
 
-The end of that trailer is **not** `payload_bits - handle_stream_bits`.
-It is:
+The trailer ends where the handle stream begins:
 
 ```
-trailer_end = payload_bits - handle_stream_bits + mc_field_bits
+trailer_end = payload_bits - handle_stream_bits
 ```
-
-where `mc_field_bits` is the width of the leading `MC` handle-stream-size
-field (8 bits for a one-byte `MC`, 16 for two).
 
 | Evidence | Value |
 |---|---|
@@ -291,9 +368,16 @@ field (8 bits for a one-byte `MC`, 16 for two).
 
 Reproduce with `cargo run --release --example probe_string_stream --
 <file.dwg> <type-code>`; the probe prints `delta_vs_predicted` per
-object. Two readings fit the evidence — either the record's `MS` byte
-count excludes the `MC` field, or the recorded handle-stream size counts
-the `MC` field itself — and this crate does not need to choose.
+object.
+
+Until dwg-rs#77 this rule carried a `+ mc_field_bits` correction on the
+right-hand side — the width of the record's leading `MC`
+handle-stream-size field. Two readings fitted the evidence: either the
+record's `MS` byte count excludes that `MC`, or the recorded
+handle-stream size counts it. The object stream itself decided the
+question (see *A record's `MS` excludes its own `MC`* below), so the
+correction moved to where it belongs — the walker's record slice — and
+`payload_bits` now spans the whole record. The bit offset is unchanged.
 
 ### The self-validating decode
 
@@ -831,10 +915,14 @@ exactly on the high-count classes — VISUALSTYLE 240 / 240, SCALE
 186 / 186, ACDBDETAILVIEWSTYLE 11 / 11, ACDBSECTIONVIEWSTYLE 11 / 11,
 MLEADERSTYLE 11 / 11, TABLESTYLE 10 / 10,
 BLOCKGRIPLOCATIONCOMPONENT 6 / 6 — a coincidence the mis-aligned
-reading could not produce. Where the two disagree (DICTIONARYVAR
-104 / 72, MULTILEADER 15 / 10, LAYOUT 4 / 0, CELLSTYLEMAP 18 / 3) the
-shortfall is on the *walk* side, i.e. objects the handle-map walker
-does not reach — a separate gap, not a class-table one.
+reading could not produce. The classes that disagreed when this was
+first measured (DICTIONARYVAR 104 / 72, MULTILEADER 15 / 10,
+LAYOUT 4 / 0, CELLSTYLEMAP 18 / 3) have since split two ways: the
+MULTILEADER and LAYOUT gaps were genuine walk failures and #43/#44
+closed them, while DICTIONARYVAR and CELLSTYLEMAP turned out to be
+files that declare instances they do not contain — see §7's
+*Is a declared-but-unwalked object missing, or absent?* (#76). Either
+way the shortfall was never a class-table one.
 
 Reproduce with `cargo run --release --example probe_class_layout --
 samples/sample_AC1032.dwg`, which prints the per-field bit offsets,

@@ -552,9 +552,9 @@ mod tests {
         }
         let total_bits = w.position_bits();
         let mut bytes = w.into_bytes();
-        // `data_section_end` reads total - MC + mc_field_bits, so the
-        // recorded MC must be `total - trailer_end + 8`.
-        let mc = total_bits - trailer_end + 8;
+        // `data_section_end` reads total - MC, so the recorded MC must
+        // be `total - trailer_end`.
+        let mc = total_bits - trailer_end;
         assert!(mc < 0x80, "test helper only builds single-byte MC values");
         bytes[0] = mc as u8;
         bytes
