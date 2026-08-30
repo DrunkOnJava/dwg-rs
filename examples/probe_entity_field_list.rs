@@ -82,7 +82,9 @@ fn main() -> Result<()> {
     let handle: u64 = if let Some(hex) = handle_arg.strip_prefix("0x") {
         u64::from_str_radix(hex, 16).expect("handle must be decimal or 0x-hex")
     } else {
-        handle_arg.parse().expect("handle must be decimal or 0x-hex")
+        handle_arg
+            .parse()
+            .expect("handle must be decimal or 0x-hex")
     };
     let spec = args.next().unwrap_or_default();
     let start_at: Option<usize> = args.next().and_then(|a| {
@@ -163,10 +165,16 @@ fn main() -> Result<()> {
                 let flag = c.read_rc()?;
                 let mut extra = String::new();
                 if flag & 1 != 0 {
-                    extra.push_str(&format!(" name {:?}", read_tv(&mut c, &mut strings, version)?));
+                    extra.push_str(&format!(
+                        " name {:?}",
+                        read_tv(&mut c, &mut strings, version)?
+                    ));
                 }
                 if flag & 2 != 0 {
-                    extra.push_str(&format!(" book {:?}", read_tv(&mut c, &mut strings, version)?));
+                    extra.push_str(&format!(
+                        " book {:?}",
+                        read_tv(&mut c, &mut strings, version)?
+                    ));
                 }
                 format!("idx {idx} rgb {rgb:#010X} flag {flag}{extra}")
             }
@@ -184,13 +192,19 @@ fn main() -> Result<()> {
             // ATTRIB / ATTDEF all open with it.
             "TEXTFIELDS" => {
                 let t = dwg::entities::text::read_modern_fields(&mut c)?;
-                format!("ins {:?} h {} rot {}", t.insertion_point, t.height, t.rotation_angle)
+                format!(
+                    "ins {:?} h {} rot {}",
+                    t.insertion_point, t.height, t.rotation_angle
+                )
             }
             // The R2007+ MTEXT field body (§20.4.46) — what a
             // multi-line ATTRIB embeds.
             "MTEXTFIELDS" => {
                 let m = dwg::entities::mtext::read_modern_fields_probe(&mut c, version)?;
-                format!("ins {:?} h {} cols {}", m.insertion_point, m.nominal_text_height, m.column_type)
+                format!(
+                    "ins {:?} h {} cols {}",
+                    m.insertion_point, m.nominal_text_height, m.column_type
+                )
             }
             // The common entity preamble from the entity-mode bits on —
             // what an embedded MTEXT object writes inside an ATTRIB.
@@ -210,7 +224,9 @@ fn main() -> Result<()> {
                 let _ = c.read_b()?;
                 let invis = c.read_bs()?;
                 let lw = c.read_rc()?;
-                format!("entmode {bb} reactors {reactors} color {color:#06X} lts {lts} invis {invis} lw {lw:#04X}")
+                format!(
+                    "entmode {bb} reactors {reactors} color {color:#06X} lts {lts} invis {invis} lw {lw:#04X}"
+                )
             }
             other => panic!("unknown field token {other}"),
         };

@@ -32,24 +32,23 @@
 //! that overran three of the four INSERT records and mis-scaled the
 //! fourth.
 //!
-//! # Measured: the owned-object count is conditional, and one bit trails
+//! # Measured: the owned-object count is conditional
 //!
-//! §20.4.9 tags `Owned Object Count` `R2004+` with no further guard and
-//! lists nothing after it. On the four R2018 INSERT records of
-//! `sample_AC1032.dwg` the count appears **only** when `has_attribs` is
-//! set, and exactly one further bit follows in either case:
+//! §20.4.9 tags `Owned Object Count` `R2004+` with no further guard.
+//! On the four R2018 INSERT records of `sample_AC1032.dwg` the count
+//! appears **only** when `has_attribs` is set:
 //!
-//! | handle | data flags | x scale | rotation | has_attribs | count | trailing `B` | ends |
-//! |--------|-----------|---------|----------|-------------|-------|--------------|------|
-//! | `0x660` | `10` | 2.5 | 3.9269908 | false | — | false | bit 406 = boundary |
-//! | `0x661` | `10` | 2.5 | 3.9269908 | false | — | false | bit 406 = boundary |
-//! | `0xC9E` | `10` | 2.5 | 3.9269908 | false | — | false | bit 406 = boundary |
-//! | `0x79C` | `10` | 4.1911332 | 0 | true | 3 | false | bit 310 = boundary |
+//! | handle | data flags | x scale | rotation | has_attribs | count | ends | boundary |
+//! |--------|-----------|---------|----------|-------------|-------|------|----------|
+//! | `0x660` | `10` | 2.5 | 3.9269908 | false | — | 405 | 405 |
+//! | `0x661` | `10` | 2.5 | 3.9269908 | false | — | 405 | 405 |
+//! | `0xC9E` | `10` | 2.5 | 3.9269908 | false | — | 405 | 405 |
+//! | `0x79C` | `10` | 4.1911332 | 0 | true | 3 | 309 | 309 |
 //!
 //! Reading the count unconditionally leaves `0x660` one bit short of a
-//! `BL`; dropping the trailing bit leaves every record one bit short of
-//! its string-stream start. The trailing bit is surfaced as
-//! [`Insert::undocumented_flag`] rather than named.
+//! `BL`. (These records carry no string stream, so their boundary is
+//! the bit *before* the `strings present` trailer flag — see
+//! [`crate::string_stream::data_field_end`].)
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, Vec3D, read_bd3};
@@ -128,20 +127,47 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
+    use crate::string_stream::tests::{bits_of, build_payload};
+
+    /// Write the R2018 common entity preamble a synthetic record needs
+    /// in front of its body: no XDATA, no graphics preview, the values
+    /// every entity of `sample_AC1032.dwg` carries.
+    fn write_preamble(w: &mut BitWriter) {
+        w.write_bs_u(0); // no XDATA
+        w.write_b(false); // no graphics preview
+        w.write_bb(0b10); // entmode
+        w.write_bl(0); // num_reactors
+        w.write_b(true); // no xdictionary
+        w.write_b(false); // no AcDs binary data
+        w.write_bs_u(0x0100); // colour
+        w.write_bd(1.0); // linetype scale
+        w.write_bb(0b00); // ltype flags
+        w.write_bb(0b00); // plotstyle
+        w.write_bb(0b00); // material
+        w.write_rc(0); // shadow
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bs(0); // invisibility
+        w.write_rc(0x1D); // lineweight
+    }
 
     #[test]
-    fn roundtrip_insert_unit_scale() {
+    fn roundtrip_insert_uniform_scale_data_flag_10() {
         let mut w = BitWriter::new();
         w.write_bd(5.0);
         w.write_bd(10.0);
         w.write_bd(0.0);
-        w.write_bb(0b10); // scale flag = unit
+        w.write_bb(0b10); // data flags: x as RD, y and z equal x
+        w.write_rd(2.5);
         w.write_bd(0.0); // rotation
-        w.write_b(true); // default extrusion
-        w.write_b(false); // no attribs
+        w.write_bd(0.0); // extrusion
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_b(false); // no attribs, so no owned-object count
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let i = decode(&mut c).unwrap();
+        let i = decode(&mut c, Version::R2018).unwrap();
         assert_eq!(
             i.insertion_point,
             Point3D {
@@ -153,30 +179,41 @@ mod tests {
         assert_eq!(
             i.scale,
             Point3D {
-                x: 1.0,
-                y: 1.0,
+                x: 2.5,
+                y: 2.5,
+                z: 2.5
+            }
+        );
+        assert_eq!(
+            i.extrusion,
+            Vec3D {
+                x: 0.0,
+                y: 0.0,
                 z: 1.0
             }
         );
         assert!(!i.has_attribs);
+        assert_eq!(i.owned_object_count, 0);
     }
 
     #[test]
-    fn roundtrip_insert_non_uniform_scale() {
+    fn roundtrip_insert_scale_data_flag_00() {
         let mut w = BitWriter::new();
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
-        w.write_bb(0b00); // explicit xyz
-        w.write_bd(2.0);
-        w.write_bd(3.0);
-        w.write_bd(4.0);
+        w.write_bb(0b00); // x as RD, y and z as DDs defaulting to x
+        w.write_rd(2.0);
+        w.write_dd(2.0, 3.0);
+        w.write_dd(2.0, 4.0);
         w.write_bd(std::f64::consts::FRAC_PI_4);
-        w.write_b(true);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
         w.write_b(false);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let i = decode(&mut c).unwrap();
+        let i = decode(&mut c, Version::R2018).unwrap();
         assert_eq!(
             i.scale,
             Point3D {
@@ -186,5 +223,64 @@ mod tests {
             }
         );
         assert!((i.rotation - std::f64::consts::FRAC_PI_4).abs() < 1e-12);
+    }
+
+    #[test]
+    fn roundtrip_insert_unit_scale_data_flag_11() {
+        let mut w = BitWriter::new();
+        w.write_bd(1.0);
+        w.write_bd(2.0);
+        w.write_bd(0.0);
+        w.write_bb(0b11); // scale is (1, 1, 1), nothing stored
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_b(false);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        let i = decode(&mut c, Version::R2018).unwrap();
+        assert_eq!(
+            i.scale,
+            Point3D {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0
+            }
+        );
+    }
+
+    /// The R2018 shape measured on `sample_AC1032.dwg` handle `0x79C`:
+    /// data flags `10`, an ATTRIB-carrying INSERT whose owned-object
+    /// count is `3`. The whole record is framed with its string stream
+    /// so the decode is checked against the data-stream boundary.
+    #[test]
+    fn r2018_insert_with_attribs_closes_on_the_boundary() {
+        let mut w = BitWriter::new();
+        write_preamble(&mut w);
+        w.write_bd(-3024.0);
+        w.write_bd(1.95);
+        w.write_bd(0.0);
+        w.write_bb(0b10);
+        w.write_rd(4.1911331805470775);
+        w.write_bd(0.0); // rotation
+        w.write_bd(0.0); // extrusion
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_b(true); // has attribs
+        w.write_bl(3); // owned object count
+        let body = bits_of(&w);
+        let payload = build_payload(&body, &[]);
+
+        // Reproduce the dispatcher's boundary check.
+        let end = crate::string_stream::data_field_end(&payload, Version::R2018).unwrap();
+        let mut c = BitCursor::new(&payload);
+        crate::string_stream::seek(&mut c, 8).unwrap();
+        crate::common_entity::read_common_entity_data(&mut c, Version::R2018).unwrap();
+        let i = decode(&mut c, Version::R2018).unwrap();
+        assert_eq!(c.position_bits(), end);
+        assert!(i.has_attribs);
+        assert_eq!(i.owned_object_count, 3);
+        assert_eq!(i.scale.x, 4.1911331805470775);
     }
 }

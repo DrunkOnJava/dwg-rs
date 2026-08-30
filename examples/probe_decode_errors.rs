@@ -95,7 +95,9 @@ fn main() -> ExitCode {
             object.type_code,
             object.handle.value,
             body.map(|b| b.to_string()).unwrap_or_else(|| "?".into()),
-            data_end.map(|e| e.to_string()).unwrap_or_else(|| "?".into()),
+            data_end
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "?".into()),
         );
         println!("       {message}");
         shown += 1;

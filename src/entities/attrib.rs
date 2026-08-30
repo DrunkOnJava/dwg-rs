@@ -264,6 +264,8 @@ mod tests {
         body.write_b(true); // extrusion default
         body.write_b(true); // thickness zero
         body.write_rd(2.5); // height
+        body.write_rc(0); // R2010+ version byte
+        body.write_rc(1); // R2018+ attribute type = single line
         body.write_bs(0); // field length
         body.write_rc(0x01); // flags — invisible
         body.write_b(false); // lock position
@@ -273,8 +275,86 @@ mod tests {
         assert_eq!(a.tag, "ATTINFO");
         assert_eq!(a.text.text, "17");
         assert_eq!(a.text.height, 2.5);
+        assert_eq!(a.attribute_type, 1);
+        assert!(a.mtext.is_none());
         assert!(a.is_invisible());
         assert!(!a.lock_position);
+    }
+
+    /// The R2018 multi-line shape measured on `sample_AC1032.dwg`
+    /// handle `0x79D`: attribute type `2`, then a whole MTEXT record
+    /// embedded from its entity-mode bits on, then the annotative-data
+    /// size and the attribute's own flags. Its three strings are the
+    /// (empty) TEXT value, the embedded MTEXT's text, and the tag.
+    #[test]
+    fn r2018_multi_line_attrib_embeds_an_mtext() {
+        let mut body = BitWriter::new();
+        text::tests::write_r2018_preamble(&mut body);
+        body.write_rc(0xFF); // TEXT data flags: nothing optional present
+        body.write_rd(977.28); // insertion x
+        body.write_rd(27.03); // insertion y
+        body.write_b(true); // extrusion default
+        body.write_b(true); // thickness zero
+        body.write_rd(1.72); // height
+        body.write_rc(0); // R2010+ version byte
+        body.write_rc(2); // R2018+ attribute type = multi-line ATTRIB
+        // Embedded MTEXT: the common entity preamble from entmode on.
+        body.write_bb(0b00); // entmode
+        body.write_bl(0); // num reactors
+        body.write_b(true); // no xdictionary
+        body.write_b(false); // no AcDs binary data
+        body.write_bs(0); // colour
+        body.write_bd(1.0); // linetype scale
+        body.write_bb(0b00);
+        body.write_bb(0b00);
+        body.write_bb(0b00);
+        body.write_rc(0);
+        body.write_b(false);
+        body.write_b(false);
+        body.write_b(false);
+        body.write_bs(0); // invisibility
+        body.write_rc(0x1D); // lineweight
+        // Embedded MTEXT field body.
+        for v in [977.28, 28.75, 0.0] {
+            body.write_bd(v);
+        }
+        for v in [0.0, 0.0, 1.0] {
+            body.write_bd(v);
+        }
+        for v in [1.0, 0.0, 0.0] {
+            body.write_bd(v);
+        }
+        body.write_bd(0.0); // rect width
+        body.write_bd(0.0); // rect height
+        body.write_bd(1.72); // nominal text height
+        body.write_bs(1); // attachment point
+        body.write_bs(5); // drawing direction
+        body.write_bd(1.84); // extents height
+        body.write_bd(16.37); // extents width
+        body.write_bs(1); // linespace style
+        body.write_bd(1.0); // linespace factor
+        body.write_b(false); // unknown bit
+        body.write_bl(0); // background flags
+        body.write_b(false); // R2018 "is NOT annotative" — clear
+        // Back in the ATTRIB.
+        body.write_bs(0); // annotative data size
+        body.write_bs(0); // unknown 73
+        body.write_rc(0x00); // flags
+        body.write_b(true); // lock position
+
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::string_stream::tests::build_payload(
+            &bits,
+            &["", "my multi line text for the attrrib", "MULTI_LINE_ATT"],
+        );
+        let a = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(a.attribute_type, 2);
+        assert_eq!(a.tag, "MULTI_LINE_ATT");
+        assert_eq!(a.text.text, "");
+        let m = a.mtext.expect("embedded MTEXT");
+        assert_eq!(m.text, "my multi line text for the attrrib");
+        assert_eq!(m.extents_width, 16.37);
+        assert!(a.lock_position);
     }
 
     #[test]

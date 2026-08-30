@@ -313,28 +313,65 @@ mod tests {
     }
 
     #[test]
-    fn r2007_split_stream_ltype_reads_name_and_description_from_string_stream() {
+    fn r2018_split_stream_ltype_reads_name_and_description_from_string_stream() {
         let mut w = BitWriter::new();
-        // Object common prefix for table objects: no EED, no xdic.
+        // Common object prefix: EED terminator, xdictionary flag,
+        // AcDs binary-data flag.
         w.write_bs_u(0);
         w.write_b(true);
-
+        w.write_b(false);
+        // Common table-entry flags, in the measured `B, B, BS` order.
         w.write_b(false); // 64 flag
-        w.write_bs(0); // xref index + 1
         w.write_b(false); // xdep
+        w.write_bs(0); // xref index + 1
         w.write_bd(1.0); // pattern length
         w.write_rc(b'A'); // alignment
         w.write_rc(0); // no dashes
 
-        write_tu(&mut w, "Continuous");
-        write_tu(&mut w, "Solid line");
-
-        let bytes = w.into_bytes();
-        let entry = decode_modern_split_stream(&bytes, 0, Version::R2007).unwrap();
+        let bits = crate::string_stream::tests::bits_of(&w);
+        let payload =
+            crate::string_stream::tests::build_payload(&bits, &["Continuous", "Solid line"]);
+        let entry = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
         assert_eq!(entry.header.name, "Continuous");
         assert_eq!(entry.description, "Solid line");
         assert_eq!(entry.alignment, b'A');
         assert!(entry.dashes.is_empty());
+    }
+
+    /// A dash record is `BD` length, `BS` shape code, two `RD`
+    /// offsets, `BD` scale, `BD` rotation, `BS` shape flag — §20.4.58's
+    /// order, with the two raw doubles in the middle. The 512-byte text
+    /// area follows only when some dash sets `shapeflag & 0x02`.
+    #[test]
+    fn r2018_split_stream_ltype_reads_a_dash_record() {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0);
+        w.write_b(true);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_bd(2.0); // pattern length
+        w.write_rc(b'A');
+        w.write_rc(2); // two dashes
+        for (len, shape) in [(0.5f64, 0i16), (-0.25, 0)] {
+            w.write_bd(len);
+            w.write_bs(shape);
+            w.write_rd(0.0);
+            w.write_rd(0.0);
+            w.write_bd(1.0);
+            w.write_bd(0.0);
+            w.write_bs(0); // shape flag — no text area
+        }
+        let bits = crate::string_stream::tests::bits_of(&w);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["DASHED", ""]);
+        let entry = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(entry.header.name, "DASHED");
+        assert_eq!(entry.pattern_length, 2.0);
+        assert_eq!(entry.dashes.len(), 2);
+        assert_eq!(entry.dashes[0].length, 0.5);
+        assert_eq!(entry.dashes[1].length, -0.25);
+        assert_eq!(entry.dashes[0].scale, 1.0);
     }
 
     #[test]
@@ -362,13 +399,5 @@ mod tests {
         let err = decode(&mut c, Version::R2000);
         assert!(err.is_err(), "expected error for adversarial dash count");
         assert_eq!(MAX_DASHES, 256);
-    }
-
-    fn write_tu(w: &mut BitWriter, s: &str) {
-        w.write_bs_u(s.encode_utf16().count() as u16);
-        for unit in s.encode_utf16() {
-            w.write_rc((unit & 0xFF) as u8);
-            w.write_rc((unit >> 8) as u8);
-        }
     }
 }

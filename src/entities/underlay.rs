@@ -111,11 +111,7 @@ const UNDERLAY_MAX_CLIP_VERTS: usize = 100_000;
 
 /// Decode an UNDERLAY payload. The cursor must already be positioned
 /// past the common entity preamble.
-pub fn decode(
-    c: &mut BitCursor<'_>,
-    kind: UnderlayKind,
-    version: Version,
-) -> Result<Underlay> {
+pub fn decode(c: &mut BitCursor<'_>, kind: UnderlayKind, version: Version) -> Result<Underlay> {
     let normal = read_bd3(c)?;
     let insertion_point = read_bd3(c)?;
     let rotation = c.read_bd()?;
@@ -169,19 +165,19 @@ mod tests {
 
     fn write_minimal_underlay(flags: u8, clip_verts: &[(f64, f64)]) -> Vec<u8> {
         let mut w = BitWriter::new();
+        // normal
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
         // insertion_point
         w.write_bd(1.0);
         w.write_bd(2.0);
         w.write_bd(0.0);
+        // rotation
+        w.write_bd(0.0);
         // scale
         w.write_bd(1.0);
         w.write_bd(1.0);
-        w.write_bd(1.0);
-        // rotation
-        w.write_bd(0.0);
-        // normal
-        w.write_bd(0.0);
-        w.write_bd(0.0);
         w.write_bd(1.0);
         // flags / contrast / fade
         w.write_rc(flags);
@@ -202,7 +198,7 @@ mod tests {
     fn roundtrip_pdf_underlay_with_rect_clip() {
         let bytes = write_minimal_underlay(0x03, &[(0.0, 0.0), (10.0, 10.0)]);
         let mut c = BitCursor::new(&bytes);
-        let u = decode(&mut c, UnderlayKind::Pdf).unwrap();
+        let u = decode(&mut c, UnderlayKind::Pdf, Version::R2004).unwrap();
         assert_eq!(u.kind, UnderlayKind::Pdf);
         assert_eq!(
             u.insertion_point,
@@ -227,7 +223,7 @@ mod tests {
     fn roundtrip_dwf_underlay_no_clip() {
         let bytes = write_minimal_underlay(0x02, &[]);
         let mut c = BitCursor::new(&bytes);
-        let u = decode(&mut c, UnderlayKind::Dwf).unwrap();
+        let u = decode(&mut c, UnderlayKind::Dwf, Version::R2004).unwrap();
         assert_eq!(u.kind, UnderlayKind::Dwf);
         assert!(u.clip_polygon.is_empty());
         assert!(!u.is_clip_on());
@@ -238,7 +234,7 @@ mod tests {
     fn roundtrip_dgn_underlay_preserves_flags() {
         let bytes = write_minimal_underlay(0x0F, &[(0.0, 0.0)]);
         let mut c = BitCursor::new(&bytes);
-        let u = decode(&mut c, UnderlayKind::Dgn).unwrap();
+        let u = decode(&mut c, UnderlayKind::Dgn, Version::R2004).unwrap();
         assert_eq!(u.kind, UnderlayKind::Dgn);
         assert_eq!(u.flags, 0x0F);
         assert!(u.is_monochrome());
@@ -253,13 +249,13 @@ mod tests {
         let mut w = BitWriter::new();
         w.write_bd(0.0);
         w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(1.0);
         w.write_bd(1.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(1.0);
         w.write_bd(1.0);
         w.write_rc(0);
         w.write_rc(0);
@@ -269,7 +265,7 @@ mod tests {
         w.write_bs(32767);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c, UnderlayKind::Pdf).unwrap_err();
+        let err = decode(&mut c, UnderlayKind::Pdf, Version::R2004).unwrap_err();
         assert!(
             matches!(&err, Error::SectionMap(msg) if msg.contains("UNDERLAY clip verts")),
             "err={err:?}"

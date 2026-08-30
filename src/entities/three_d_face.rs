@@ -73,20 +73,24 @@ mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
 
+    /// A triangle: the fourth corner repeats the third, so every `DD`
+    /// of the fourth `3DD` takes the "use default" code.
     #[test]
     fn roundtrip_triangle_face() {
         let mut w = BitWriter::new();
-        w.write_b(true); // has_no_flag → 3 corners
+        w.write_b(true); // has_no_flag_ind → no invisible-edge mask
         w.write_b(true); // z_is_zero
-        // corner 1
-        w.write_rd(0.0);
-        w.write_rd(0.0);
-        // corner 2 deltas
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        // corner 3 deltas
-        w.write_bd(0.0);
-        w.write_bd(1.0);
+        w.write_rd(0.0); // corner 1 x
+        w.write_rd(0.0); // corner 1 y
+        w.write_dd(0.0, 1.0); // corner 2 (1, 0, 0)
+        w.write_dd(0.0, 0.0);
+        w.write_dd(0.0, 0.0);
+        w.write_dd(1.0, 1.0); // corner 3 (1, 1, 0)
+        w.write_dd(0.0, 1.0);
+        w.write_dd(0.0, 0.0);
+        w.write_dd(1.0, 1.0); // corner 4 repeats corner 3
+        w.write_dd(1.0, 1.0);
+        w.write_dd(0.0, 0.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let f = decode(&mut c).unwrap();
@@ -115,22 +119,27 @@ mod tests {
                 z: 0.0
             }
         );
-        assert_eq!(f.corners[3], f.corners[2]); // triangle
+        assert_eq!(f.corners[3], f.corners[2]);
+        assert_eq!(f.invisible_edges, 0);
     }
 
     #[test]
-    fn roundtrip_quad_face() {
+    fn roundtrip_quad_face_with_invisible_edges() {
         let mut w = BitWriter::new();
-        w.write_b(false); // has all 4 corners
-        w.write_b(true); // z_is_zero
+        w.write_b(false); // has_no_flag_ind clear → mask follows
+        w.write_b(false); // z is stored
         w.write_rd(0.0);
         w.write_rd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(-1.0);
-        w.write_bd(0.0);
+        w.write_rd(0.0);
+        w.write_dd(0.0, 1.0); // corner 2 (1, 0, 0)
+        w.write_dd(0.0, 0.0);
+        w.write_dd(0.0, 0.0);
+        w.write_dd(1.0, 1.0); // corner 3 (1, 1, 0)
+        w.write_dd(0.0, 1.0);
+        w.write_dd(0.0, 0.0);
+        w.write_dd(1.0, 0.0); // corner 4 (0, 1, 0)
+        w.write_dd(1.0, 1.0);
+        w.write_dd(0.0, 0.0);
         w.write_bs_u(0b0101); // edges 0 and 2 invisible
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);

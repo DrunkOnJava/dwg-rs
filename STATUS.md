@@ -6,18 +6,19 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 703 passing in default/debug and release-all-features
+- **Lib tests:** 722 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 2,105 decoded / 234 skipped /
-  39 errored / 88.5% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 716 / 87 / 39 / 85.0%, and it
-  is the only file with any errors — the R2004, R2010 and R2013
-  samples all decode with zero. Per version: R2004 81.9%,
-  R2010 93.9%, R2013 91.7%.
+- **Current real-file decode coverage:** 2,144 decoded / 234 skipped /
+  **0 errored** / 90.2% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 755 / 87 / 0 / 89.7%. **No file
+  in the corpus has a single errored record.** Per version:
+  R2004 83.4%, R2010 95.6%, R2013 93.9%, R2018 89.7%. What remains is
+  the *skipped* column — types with no decoder at all — not records
+  that decode wrongly.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
   entries on `sample_AC1032.dwg` resolves to a record whose own handle
   field matches the map, and the walked records cover 1,191,935 of the
@@ -221,21 +222,24 @@ These have genuine open scope requiring focused work, not stubs.
   corpus records — and LAYOUT (with its embedded PLOTSETTINGS block)
   dispatches on all 31 of its corpus records. Still unreached, in
   descending record count on the corpus (counts as of the 2026-08-30
-  run): VISUALSTYLE on R2004/R2007 (72 records), MATERIAL (30),
+  run): VISUALSTYLE on R2004/R2007 (72 records), MATERIAL (38),
   ACDBDETAILVIEWSTYLE (11), ACDBSECTIONVIEWSTYLE (11), MLEADERSTYLE
   (11), MLINESTYLE (10), TABLESTYLE (10). MATERIAL and
   PROPERTYSET_DATA decode only a documented prefix of their fields, so
   they cannot satisfy the boundary check; MLINESTYLE has a field list
   this crate has not yet matched against real bytes.
 
-- **R2018 entity preamble for custom-class entities** (surfaced by
-  #37). With the class table resolving on `sample_AC1032.dwg`, its
-  MULTILEADER (10), MESH (3), ACAD_TABLE (2), WIPEOUT (1) and IMAGE
-  (1) records now reach their decoders and fail in the *common entity
-  preamble* — "Bit cursor exhausted: wanted 8 bits, 3 bits remain" —
-  before any per-entity field is read. That is the same R2007+
-  preamble/handle-stream boundary problem tracked under #103, now
-  visible on five more classes.
+- **#54 the R2013+ `has AcDs binary data` marker on *entities*.**
+  `objects/modern.rs` consumes 16 bits after the flag (measured on the
+  four LAYOUTs of `sample_AC1032.dwg`), `tables/modern.rs` consumes an
+  `RC`, and `common_entity.rs` consumes nothing. Exactly three entity
+  records in the corpus set the bit — 3DSOLID `0xD65` and `0xD6A` and
+  REGION `0xD69` — and all three are ACIS pass-through decoders whose
+  field lists this crate does not close, so they cannot arbitrate the
+  width either. None of the 39 records fixed in the residual-entity
+  pass sets the bit, so the reading did not matter for any of them.
+  Settling it still needs a file with a flag-setting record of a type
+  whose field list closes.
 
 - **R2007+ symbol-table common object prefix.** `tables/modern.rs`
   omits the `BL num_reactors` that `objects/modern.rs` measured as
@@ -245,18 +249,16 @@ These have genuine open scope requiring focused work, not stubs.
   from the 16 bits an APPID record spends there; the names are
   unaffected because they come from the string stream either way.
 
-- **#103 remaining real-file decoder alignment** (P0). The
-  R2013/R2018 common-entity/body boundary is fixed for LINE/CIRCLE/ARC,
-  common LWPOLYLINE vertices now use DD correctly, the whole R2007+
-  symbol table plus TEXT/ATTRIB/ATTDEF read through the split string
-  stream, and the R2004 (AC1018) object prologue now reads its `RL`
-  object-data-size field so all three AC1018 samples decode with zero
-  errors. MTEXT, TOLERANCE, HATCH and the DIMENSION family now read
-  their `TV` fields through the string stream as well. The next
-  blockers are HATCH boundary paths, INSERT rotation, MLEADER (which
-  also reads handles from the data stream) and the non-entity objects
-  that still read `TV` inline — all now isolated to the R2018
-  sample.
+- **#103 remaining real-file decoder alignment** (P0, error side
+  closed). Every record of every corpus file that reaches a decoder
+  now decodes, and none errors: the R2007+ symbol table, TEXT /
+  ATTRIB / ATTDEF / MTEXT / TOLERANCE / HATCH / MULTILEADER / the
+  DIMENSION family / INSERT / SPLINE / LWPOLYLINE / 3DFACE / the
+  UNDERLAY family all read their `TV`s from the string stream, treat
+  an `H` slot as consuming no data bits, and assert the data fields
+  end exactly on the record's data-stream boundary. What is left under
+  this issue is *coverage*, not alignment: the 234 skipped records
+  belong to types with no field list matched against real bytes yet.
 - **#104 R14 / R2000 / R2007 handle-map walker.** Container layer
   ships for these versions, but the object-stream walker is
   R2004+ only. Unlocks `decoded_entities()` for those release

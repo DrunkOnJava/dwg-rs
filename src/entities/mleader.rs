@@ -411,7 +411,12 @@ fn read_cmc(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<Cmc
 
 fn read_leader_line(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<LeaderLine> {
     let num_points = c.read_bl_u()? as usize;
-    bounds_check(num_points, "leader-line points", MAX_LEADER_POINTS, c.remaining_bits())?;
+    bounds_check(
+        num_points,
+        "leader-line points",
+        MAX_LEADER_POINTS,
+        c.remaining_bits(),
+    )?;
     let mut points = Vec::with_capacity(num_points);
     for _ in 0..num_points {
         points.push(read_bd3(c)?);
@@ -419,11 +424,21 @@ fn read_leader_line(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
     // `BL` break-info count, then that many `<BL segment index, BL pair
     // count, 3BD start, 3BD end ...>` groups.
     let num_breaks = c.read_bl_u()? as usize;
-    bounds_check(num_breaks, "leader-line break info", MAX_BREAK_PAIRS, c.remaining_bits())?;
+    bounds_check(
+        num_breaks,
+        "leader-line break info",
+        MAX_BREAK_PAIRS,
+        c.remaining_bits(),
+    )?;
     for _ in 0..num_breaks {
         let _segment_index = c.read_bl()?;
         let pairs = c.read_bl_u()? as usize;
-        bounds_check(pairs, "leader-line break pairs", MAX_BREAK_PAIRS, c.remaining_bits())?;
+        bounds_check(
+            pairs,
+            "leader-line break pairs",
+            MAX_BREAK_PAIRS,
+            c.remaining_bits(),
+        )?;
         for _ in 0..pairs {
             let _start = read_bd3(c)?;
             let _end = read_bd3(c)?;
@@ -456,7 +471,12 @@ fn read_leader_root(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
     let connection_point = read_bd3(c)?;
     let direction = read_bd3(c)?;
     let num_break_pairs = c.read_bl_u()? as usize;
-    bounds_check(num_break_pairs, "leader-root break pairs", MAX_BREAK_PAIRS, c.remaining_bits())?;
+    bounds_check(
+        num_break_pairs,
+        "leader-root break pairs",
+        MAX_BREAK_PAIRS,
+        c.remaining_bits(),
+    )?;
     let mut break_points = Vec::with_capacity(num_break_pairs);
     for _ in 0..num_break_pairs {
         let start = read_bd3(c)?;
@@ -466,7 +486,12 @@ fn read_leader_root(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
     let index = c.read_bl()?;
     let landing_distance = c.read_bd()?;
     let num_lines = c.read_bl_u()? as usize;
-    bounds_check(num_lines, "leader lines", MAX_LEADER_LINES, c.remaining_bits())?;
+    bounds_check(
+        num_lines,
+        "leader lines",
+        MAX_LEADER_LINES,
+        c.remaining_bits(),
+    )?;
     let mut lines = Vec::with_capacity(num_lines);
     for _ in 0..num_lines {
         lines.push(read_leader_line(c, strings)?);
@@ -510,7 +535,12 @@ fn read_text_content(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> R
     let column_gutter = c.read_bd()?;
     let column_flow_reversed = c.read_b()?;
     let num_sizes = c.read_bl_u()? as usize;
-    bounds_check(num_sizes, "column sizes", MAX_COLUMN_SIZES, c.remaining_bits())?;
+    bounds_check(
+        num_sizes,
+        "column sizes",
+        MAX_COLUMN_SIZES,
+        c.remaining_bits(),
+    )?;
     let mut column_sizes = Vec::with_capacity(num_sizes);
     for _ in 0..num_sizes {
         column_sizes.push(c.read_bd()?);
@@ -574,7 +604,12 @@ fn read_block_content(
 
 fn read_context(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<MLeaderContext> {
     let num_roots = c.read_bl_u()? as usize;
-    bounds_check(num_roots, "leader roots", MAX_LEADER_ROOTS, c.remaining_bits())?;
+    bounds_check(
+        num_roots,
+        "leader roots",
+        MAX_LEADER_ROOTS,
+        c.remaining_bits(),
+    )?;
     let mut leader_roots = Vec::with_capacity(num_roots);
     for _ in 0..num_roots {
         leader_roots.push(read_leader_root(c, strings)?);
@@ -865,6 +900,8 @@ mod tests {
         w.write_bd(0.0); // block rotation
         w.write_bs(0); // block attachment type
         w.write_b(false); // is annotative
+        w.write_mc(274).unwrap(); // the undocumented MC
+        w.write_b(true); // the undocumented flag
         w.write_bs(0); // attachment direction
         w.write_bs(9); // top attachment
         w.write_bs(9); // bottom attachment
@@ -933,6 +970,8 @@ mod tests {
             }
         );
         assert!(!m.is_annotative);
+        assert_eq!(m.undocumented_mc, 274);
+        assert!(m.undocumented_flag);
         assert_eq!(m.bottom_attachment, 9);
         assert!(!m.leader_extended_to_text);
     }

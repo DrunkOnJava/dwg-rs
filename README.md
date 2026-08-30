@@ -27,49 +27,40 @@ local `samples/` set:
 | R2004 (AC1018)      | 3 | 498 | 99 | 0 | **83.4 %** |
 | R2010 (AC1024)      | 3 | 519 | 24 | 0 | **95.6 %** |
 | R2013 (AC1027)      | 3 | 372 | 24 | 0 | **93.9 %** |
-| R2018 (AC1032)      | 1 | 716 | 87 | 39 | **85.0 %** |
-| **Aggregate** | **19** | **2105** | **234** | **39** | **88.5 %** |
+| R2018 (AC1032)      | 1 | 755 | 87 | 0 | **89.7 %** |
+| **Aggregate** | **19** | **2144** | **234** | **0** | **90.2 %** |
 
-Per-entity-type error concentration in the measured corpus:
+**Every record of every file in the corpus that reaches a decoder now
+decodes, and none errors.** What is left is the *skipped* column — 234
+records of types this crate has no decoder for at all (VISUALSTYLE on
+R2004/R2007, MATERIAL, MLEADERSTYLE, TABLESTYLE, MLINESTYLE, the
+detail/section view styles) — not records it reads wrongly.
 
-| Type code | DXF name | Occurrences as error |
-|-----------|----------|-----------------------|
-| 526 | `MULTILEADER` (custom class) | 10 |
-| 0x4E (78) | `HATCH` | 5 |
-| 0x39 (57) | `LTYPE` | 3 |
-| 0x07 (7) | `INSERT` | 3 |
-| 0x1A (26) | `DIMENSION` (diameter) | 2 |
-| 0x24 (36) | `SPLINE` | 2 |
-| 523 | `ACAD_TABLE` (custom class) | 2 |
-| ... | (long tail, 1 each) | 16 |
+That matters more than the ratio, because every R2007+ decoder in this
+crate is *self-validating*: its data fields must end exactly on the first
+bit of the record's string stream, or — for a record that carries no
+strings — on the bit before the `strings present` trailer flag. A field
+list that is wrong anywhere lands somewhere else and reports an error
+rather than returning plausible-looking geometry. Zero errors therefore
+means zero known mis-reads, not zero unchecked reads.
 
-All 46 remaining errors are in the single R2018 file. Every R2004, R2010 and
-R2013 sample now decodes with **zero** errors. The error count rose from 26
-when the R2018 `AcDb:Classes` table started resolving: 65 records left
-*skipped*, 45 of them decoding and the other 20 now reaching a decoder and
-failing (mostly in the common entity preamble). Surfacing those 20 is honest
-reporting of a real gap, not a regression — they were always broken, they
-were previously invisible.
+**Translation:** R2007+ objects store every `TV` field in a separate string
+stream and every `H` object reference in a separate handle stream (ODA
+§19.1); [`src/string_stream.rs`](./src/string_stream.rs) locates both, and
+every modern decoder reads its text from the first, treats a handle slot as
+consuming no data-stream bits, and then asserts it landed exactly on the
+boundary. LAYER, LTYPE, STYLE, UCS, VIEW, VPORT, APPID, DIMSTYLE,
+BLOCK_HEADER, TEXT, ATTRIB, ATTDEF, MTEXT, TOLERANCE, HATCH, MULTILEADER,
+the DIMENSION family, INSERT, SPLINE, LWPOLYLINE, 3DFACE and the UNDERLAY
+family all go through it. The R2004 (AC1018) object prologue is read
+correctly too — an `RL` object data size in bits sits between the object
+type and the object handle on the whole R2000..R2007 band, and skipping it
+put every AC1018 record 32 bits out of phase.
 
-**Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
-are verified against hand-crafted synthetic input, and the R2013/R2018
-common-entity/body boundary is now pinned by real-DWG tests for LINE,
-CIRCLE, ARC, the `sample_AC1032.dwg` LINE population, and common LWPOLYLINE
-vertices. R2007+ objects store every `TV` field in a separate string stream
-(ODA v5.4.1 §19.1); [`src/string_stream.rs`](./src/string_stream.rs) locates
-it, and LAYER, LTYPE, STYLE, UCS, VIEW, VPORT, APPID, DIMSTYLE,
-BLOCK_HEADER, TEXT, ATTRIB and ATTDEF read through it. Those decoders reject
-themselves unless their data fields end exactly on the string-stream start
-bit, so a mis-read layout errors instead of returning plausible garbage. The
-R2004 (AC1018) object prologue is now read correctly too — an `RL` object
-data size in bits sits between the object type and the object handle on the
-whole R2000..R2007 band, and skipping it put every AC1018 record 32 bits out
-of phase. MTEXT, TOLERANCE, HATCH and the DIMENSION family read their text
-through the string stream as well; before that MTEXT returned a garbage
-one-character string for every record without ever erroring. The remaining
-gap: HATCH boundary paths, INSERT, MLEADER, and the non-entity objects
-(DICTIONARY, LAYOUT, XRECORD) that still read `TV` inline. Closing that
-real-file decode gap is the 0.2.0 milestone.
+The remaining gap is the *unhandled* list, not the errored one: VISUALSTYLE
+on R2004/R2007, MATERIAL, MLEADERSTYLE, MLINESTYLE, TABLESTYLE and the
+detail/section view styles have no field list matched against real bytes
+yet. Closing those is the 0.2.0 milestone.
 
 ## Capability matrix at a glance
 
@@ -87,7 +78,7 @@ real-file decode gap is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~88.5% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 90.2 %, zero errors (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |

@@ -8,6 +8,140 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — the last 39 R2018 errors: MULTILEADER, HATCH and seven more field lists (2026-08-30, closes #57, closes #30, closes #29, refs #31, refs #54)
+
+`sample_AC1032.dwg` now decodes with **zero errors**, and so does every
+other file in the 19-file corpus. Every R2007+ decoder involved is
+self-validating: its data fields must end exactly on the record's
+data-stream boundary, so zero errors means zero known mis-reads.
+
+- **The `strings present` trailer bit is not an entity field.** A record
+  with no string stream still writes the one-bit flag that says so, and
+  it is the last bit before the handle stream — so such a record's data
+  fields end one bit *before* `string_stream::data_section_end`. All 20
+  LWPOLYLINEs, the 3DFACE, the four INSERTs and the two SPLINEs of the
+  sample carry no strings and every one of them ended exactly one bit
+  short of the old boundary. Modelling that as a trailing `B` would have
+  put a fabricated field at the end of four different field lists. New
+  `string_stream::data_field_end`; `object::data_end_bit` and
+  `tables::modern::open_entity` both route through it.
+- **Object references consume no data-stream bits.** MULTILEADER read
+  three `H` fields inline, HATCH read its per-path boundary handles
+  inline, UNDERLAY read its definition handle inline. §20.4.75 is
+  explicit for HATCH: the boundary handles are "Common Entity Handle
+  Data", after the data stream, so the data stream carries only the
+  `BL` count.
+- **MULTILEADER embeds a whole `MLeaderAnnotContext` (§20.4.48 +
+  §20.4.86).** Leader roots, leader lines, vertices, and the text or
+  block content all live inside the MLEADER record. The inherited
+  `AcDbAnnotScaleObjectContextData` / `AcDbObjectContextData` prefix is
+  **not** written when embedded — the `BL` leader-root count follows the
+  `BS 270` version directly — and the `-R2007` arrowhead / block-label
+  block is genuinely absent on R2018, because in R2010+ the arrowhead
+  moved into the leader line. All 15 records close on their
+  string-stream start bit and recover their authored text from it:
+  `"MLeader text, hello!"`, `"MULTILEADER TEST"`,
+  `"MULTILEADER\PTEST\P123"`. **Not established:** 17 bits between
+  `B 293 is annotative` and the R2010+ `BS 271` that §20.4.48 does not
+  list — an `MC` (two bytes on all 15 records, holding only `274`, `530`
+  and `786`) then a `B` (`true` on all 15). `B` + `RS` and `B` + two
+  `RC`s consume the same bits; they are surfaced as
+  `MLeader::undocumented_mc` / `undocumented_flag` rather than named.
+- **The HATCH gradient block is unconditional and the flag is a `BL`.**
+  §20.4.75 does not guard the gradient record behind `Is Gradient Fill`.
+  All eight HATCH records carry two strings — `"LINEAR"` then the
+  pattern name — even though six have the flag clear; returning early
+  consumed one `TV` too few and shifted the entire boundary-path tree.
+  Four more corrections from the same section: path points and seed
+  points are `2RD`, a `BS pattern type` follows `BS style`, the whole
+  pattern-definition block is written only `if (!solidfill)`, and the
+  pixel size is a `BD` written only when some path flag has bit 4 set.
+  `HatchPath::boundary_handles` becomes `num_boundary_handles`;
+  `Hatch::pixel_size` becomes an `f64`; `Hatch::pattern_type` is new.
+- **INSERT (§20.4.9):** the `BB` data flags select four different scale
+  encodings (`RD` + `DD` forms), the extrusion is a `3BD`, and the `BL`
+  owned-object count is written only when `has_attribs` is set. The old
+  reading overran three of the four records and mis-scaled the fourth.
+- **SPLINE (§20.4.40):** `Degree` is a `BL`, not a `BD`, and on R2013+
+  the fit/control branch is **derived**, not read — "the scenario flag
+  becomes 1 if the knot parameter is Custom or has no fit data,
+  otherwise 2". Both records of the sample store `1`; one is a fit
+  spline. `Spline::degree` is now an `i32`.
+- **LWPOLYLINE (§20.4.85):** the flag bits are `0x001` normal, `0x002`
+  thickness, `0x004` constant width (read *first*, before the counts),
+  `0x008` elevation, `0x010` bulges, `0x020` widths, `0x400` vertex ids.
+  19 of the sample's 20 records carry flag `0` or `0x200` and survive
+  either reading; handle `0x4A6` carries flag `4` and does not. `0x200`
+  is not one of the spec's presence bits and is read as the closed flag.
+- **3DFACE (§20.4.32):** corners 2-4 are `3DD` triples defaulting to the
+  previous corner, not `BD` offsets added to it, and all four corners
+  are always present — only the invisible-edge `BS` is conditional.
+- **IMAGEDEF (§20.4.81):** `Imgsize` and `Pixelsize` are `2RD`.
+- **DIMENSION (angular 2-line, §20.4.27):** the `2RD` 16-point comes
+  *first*, before the four `3BD` def points. `DIMENSION`'s split-stream
+  decode also moves from `<= string_start` to exact equality.
+- **LTYPE (§20.4.58):** the dash record is `BD` length, `BS` shape code,
+  two `RD` offsets, `BD` scale, `BD` rotation, `BS` shape flag, and the
+  512-byte text area is present only when some `shapeflag & 0x02`. The
+  heuristic string-scanning fallback the modern path used is gone; it
+  now goes through `tables::modern::open_table_entry` like every other
+  table entry.
+- **UNDERLAY:** normal, insertion point, rotation, scale — measured, not
+  specified (the v5.4 spec has no UNDERLAY section). The old order put
+  the scale on `(0, 0, 1)` and the normal on `(1, 1, 1)`. The clip
+  vertex encoding is **not established**: the single record carries none.
+- **MTEXT's R2018 tail — the 567 bits of #29 (§20.4.46).** A `B` "is
+  NOT annotative" and, when set, a version, a default flag, a handle
+  slot, a redundant copy of the record's own attachment point, axes,
+  insertion point, rectangle and extents, then the column block. They
+  repeat the record's own values because the spec says they are a
+  redundant copy. MTEXT now asserts exact equality with the string-stream
+  start instead of `<=`, and surfaces `is_annotative`, `column_type`,
+  `column_width`, `column_gutter` and `column_heights`. The background
+  block is also entered on the R2018 text-frame bit `0x10`.
+- **ATTRIB / ATTDEF multi-line attributes (§20.4.4, §20.4.5).** An
+  R2010+ `RC` version and an R2018+ `RC` attribute type sit between the
+  shared TEXT body and the attribute's own fields; a multi-line
+  attribute then embeds a whole MTEXT record "starting from the Entmode
+  (entity mode)". Handle `0x79D` spends 683 data bits there and carries
+  three strings — the empty TEXT value, the MTEXT text, and the tag.
+  ATTDEF is ATTRIB plus its own `RC` version and a `TV` prompt; the lone
+  unexplained `RC` the old ATTDEF field list carried was that version
+  byte, and the two bytes §20.4.4 puts *before* the tag were missing
+  entirely, which is why the old list closed on the four single-line
+  ATTDEFs and failed on the multi-line one.
+- **#54, measured not settled.** Exactly three *entity* records in the
+  corpus set the R2013+ `has AcDs binary data` bit — 3DSOLID `0xD65`
+  and `0xD6A`, REGION `0xD69` — and all three are ACIS pass-through
+  decoders whose field lists this crate does not close, so they cannot
+  arbitrate the marker width either. None of the 39 records fixed here
+  sets the bit, so the reading did not matter for any of them.
+- New probes: `examples/probe_decode_errors.rs` (every erroring record
+  with its handle, body-start bit and data boundary) and
+  `examples/probe_entity_field_list.rs` (walk a candidate token list
+  against one *entity* record — the entity-side twin of
+  `probe_field_list`, with `H` and `TV` slots consuming no data bits,
+  plus `TEXTFIELDS` / `MTEXTFIELDS` / `ENTMODE` composites and an
+  `--at=<bit>` start offset).
+- `DecodedEntity::MLeader` is boxed; a MULTILEADER now carries its whole
+  context inline and was 1120 bytes.
+
+Measured on the 19-file local corpus, `examples/coverage_report.rs`:
+
+| Corpus slice | Before (`fa7fcc8`) | After |
+|---|---|---|
+| R2004 (AC1018) × 3 | 498 / 99 / 0 / 83.4 % | 498 / 99 / 0 / 83.4 % |
+| R2010 (AC1024) × 3 | 519 / 24 / 0 / 95.6 % | 519 / 24 / 0 / 95.6 % |
+| R2013 (AC1027) × 3 | 372 / 24 / 0 / 93.9 % | 372 / 24 / 0 / 93.9 % |
+| R2018 (AC1032) × 1 | 716 / 87 / 39 / 85.0 % | **755 / 87 / 0 / 89.7 %** |
+| **Aggregate** | **2105 / 234 / 39 / 88.5 %** | **2144 / 234 / 0 / 90.2 %** |
+
+The R2018 error histogram before this change was MULTILEADER 15, HATCH
+8, INSERT 4, LTYPE 3, SPLINE 2, and one each of 3DFACE, LWPOLYLINE,
+DIMENSION_ANG_2LN, ATTDEF, ATTRIB, IMAGEDEF and PDFUNDERLAY. It is now
+empty.
+
+
 ### Fixed — the `AcDb:Handles` delta run: unsigned handle deltas, per-section restart (2026-08-30, closes #43, closes #44, closes #51)
 
 - **The handle delta is an UNSIGNED modular char; only the offset delta

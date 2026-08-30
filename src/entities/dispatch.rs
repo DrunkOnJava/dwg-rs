@@ -75,7 +75,9 @@ pub enum DecodedEntity {
     Leader(leader::Leader),
     Image(image::Image),
     Hatch(hatch::Hatch),
-    MLeader(mleader::MLeader),
+    /// Boxed because a MULTILEADER carries its embedded
+    /// `MLeaderAnnotContext` inline and is by far the largest variant.
+    MLeader(Box<mleader::MLeader>),
     Viewport(viewport::Viewport),
     Camera(camera::Camera),
     Sun(sun::Sun),
@@ -401,9 +403,6 @@ pub fn decode_from_raw_with_class_map(
             .map(DecodedEntity::Helix)
             .map_err(|e| e.to_string()),
         // UNDERLAY family (§19.4.86) — PDF / DWF / DGN share one payload.
-
-
-
         "WIPEOUT" | "ACDBWIPEOUT" => wipeout::decode(&mut cursor, version)
             .map(DecodedEntity::Wipeout)
             .map_err(|e| e.to_string()),
@@ -674,11 +673,11 @@ fn dispatch_split_stream_class(
     let result = match dxf_class_name {
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
-                .map(DecodedEntity::MLeader)
+                .map(|m| DecodedEntity::MLeader(Box::new(m)))
         }
         // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
-        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY"
-        | "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => {
+        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
+        | "ACDBDGNUNDERLAY" => {
             let kind = match dxf_class_name {
                 "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
                 "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
@@ -775,14 +774,12 @@ fn dispatch_split_stream_entity(
             checked_inline(raw, object_body_start, version, "INSERT", insert::decode)
                 .map(DecodedEntity::Insert)
         }
-        OBJECT_TYPE_3DFACE if version.is_r2010_plus() => checked_inline(
-            raw,
-            object_body_start,
-            version,
-            "3DFACE",
-            |c, _v| three_d_face::decode(c),
-        )
-        .map(DecodedEntity::ThreeDFace),
+        OBJECT_TYPE_3DFACE if version.is_r2010_plus() => {
+            checked_inline(raw, object_body_start, version, "3DFACE", |c, _v| {
+                three_d_face::decode(c)
+            })
+            .map(DecodedEntity::ThreeDFace)
+        }
         OBJECT_TYPE_LWPOLYLINE if version.is_r2010_plus() => checked_inline(
             raw,
             object_body_start,

@@ -71,7 +71,7 @@ pub struct ControlForm {
 /// Decodes the `Spline` payload that follows the common entity header
 /// (§20.4.40).
 ///
-/// # Measured: `degree` is a `BL`, the branch is derived, and a bit trails
+/// # Measured: `degree` is a `BL` and the branch is derived
 ///
 /// §20.4.40 types `Degree` as a `BL`, not a `BD` — the two SPLINE
 /// records of `sample_AC1032.dwg` read `3` as a `BL` and land their
@@ -85,12 +85,12 @@ pub struct ControlForm {
 ///
 /// | handle | scenario | flags1 | knot param | branch taken | ends | boundary |
 /// |--------|----------|--------|------------|--------------|------|----------|
-/// | `0x433` | 1 | 0 | 15 (Custom) | control: 8 knots `0,0,0,0,1,1,1,1`, 4 control points | 823 | 823 |
-/// | `0x434` | 1 | 9 (fit points + use knot param) | 2 (Uniform) | fit: tol `1e-10`, 2 fit points | 735 | 735 |
+/// | `0x433` | 1 | 0 | 15 (Custom) | control: 8 knots `0,0,0,0,1,1,1,1`, 4 control points | 822 | 822 |
+/// | `0x434` | 1 | 9 (fit points + use knot param) | 2 (Uniform) | fit: tol `1e-10`, 2 fit points | 734 | 734 |
 ///
-/// One further bit — `false` on both records — trails the field list on
-/// R2013+ and is not listed in §20.4.40. It is surfaced as
-/// [`Spline::undocumented_flag`] rather than named.
+/// Neither record carries a string stream, so the boundary each closes
+/// on is the bit before the `strings present` trailer flag — see
+/// [`crate::string_stream::data_field_end`].
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Spline> {
     let scenario = c.read_bl()? as u32;
     let r2013_plus = matches!(version, Version::R2013 | Version::R2018);
@@ -225,7 +225,11 @@ pub(crate) fn decode_modern_split_stream(
     let spline = decode(&mut c, version)?;
     let at = c.position_bits();
     if at != string_start {
-        return Err(crate::tables::modern::misaligned("SPLINE", at, string_start));
+        return Err(crate::tables::modern::misaligned(
+            "SPLINE",
+            at,
+            string_start,
+        ));
     }
     Ok(spline)
 }
@@ -251,53 +255,72 @@ fn bounds_check(n: usize, field: &'static str, remaining_bits: usize) -> Result<
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
+    use crate::string_stream::tests::{bits_of, build_payload};
+
+    fn write_preamble(w: &mut BitWriter) {
+        w.write_bs_u(0);
+        w.write_b(false);
+        w.write_bb(0b10);
+        w.write_bl(0);
+        w.write_b(true);
+        w.write_b(false);
+        w.write_bs_u(0x0100);
+        w.write_bd(1.0);
+        w.write_bb(0b00);
+        w.write_bb(0b00);
+        w.write_bb(0b00);
+        w.write_rc(0);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bs(0);
+        w.write_rc(0x1D);
+    }
 
     #[test]
-    fn roundtrip_fit_spline() {
+    fn roundtrip_fit_spline_pre_r2013() {
         let mut w = BitWriter::new();
         w.write_bl(2); // scenario = fit
-        w.write_bd(3.0); // degree
-        w.write_bd(0.01); // tolerance
+        w.write_bl(3); // degree is a BL
+        w.write_bd(0.01); // fit tolerance
         w.write_bd(1.0);
         w.write_bd(0.0);
-        w.write_bd(0.0); // begin_tangent
+        w.write_bd(0.0); // begin tangent
         w.write_bd(0.0);
         w.write_bd(1.0);
-        w.write_bd(0.0); // end_tangent
+        w.write_bd(0.0); // end tangent
         w.write_bl(3); // 3 fit points
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        w.write_bd(2.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
+        for (x, y, z) in [(0.0, 0.0, 0.0), (1.0, 1.0, 0.0), (2.0, 0.0, 0.0)] {
+            w.write_bd(x);
+            w.write_bd(y);
+            w.write_bd(z);
+        }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let s = decode(&mut c, Version::R2000).unwrap();
         let fit = s.fit.unwrap();
+        assert_eq!(s.degree, 3);
         assert_eq!(fit.fit_points.len(), 3);
         assert_eq!(fit.tolerance, 0.01);
         assert!(s.control.is_none());
     }
 
     #[test]
-    fn roundtrip_control_spline() {
+    fn roundtrip_control_spline_pre_r2013() {
         let mut w = BitWriter::new();
         w.write_bl(1); // control-based
-        w.write_bd(3.0);
+        w.write_bl(3); // degree
         w.write_b(false); // not rational
         w.write_b(false); // not closed
         w.write_b(false); // not periodic
         w.write_bd(1e-6); // knot tolerance
         w.write_bd(1e-6); // control tolerance
         w.write_bl(5); // 5 knots
+        w.write_bl(3); // 3 control points
+        w.write_b(false); // no weights
         for k in [0.0, 0.0, 0.5, 1.0, 1.0] {
             w.write_bd(k);
         }
-        w.write_bl(3); // 3 control points
         for (x, y, z) in [(0.0, 0.0, 0.0), (1.0, 2.0, 0.0), (2.0, 0.0, 0.0)] {
             w.write_bd(x);
             w.write_bd(y);
@@ -310,5 +333,111 @@ mod tests {
         assert_eq!(ctl.knots.len(), 5);
         assert_eq!(ctl.control_points.len(), 3);
         assert!(ctl.weights.is_empty());
+    }
+
+    /// The R2018 shape measured on `sample_AC1032.dwg` handle `0x433`:
+    /// stored scenario `1`, spline flags `0`, knot parameter `15`
+    /// (Custom) — so the control branch is taken — with 8 knots and 4
+    /// control points, and the whole record closing on its
+    /// data-stream boundary.
+    #[test]
+    fn r2018_control_spline_closes_on_the_boundary() {
+        let mut w = BitWriter::new();
+        write_preamble(&mut w);
+        w.write_bl(1); // scenario
+        w.write_bl(0); // spline flags 1
+        w.write_bl(15); // knot parameter = Custom
+        w.write_bl(3); // degree
+        w.write_b(false); // rational
+        w.write_b(false); // closed
+        w.write_b(false); // periodic
+        w.write_bd(1e-9);
+        w.write_bd(1e-10);
+        w.write_bl(8); // num knots
+        w.write_bl(4); // num control points
+        w.write_b(false); // no weights
+        for k in [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0] {
+            w.write_bd(k);
+        }
+        for i in 0..4u8 {
+            w.write_bd(f64::from(i));
+            w.write_bd(f64::from(i) * 2.0);
+            w.write_bd(0.0);
+        }
+        let body = bits_of(&w);
+        let payload = build_payload(&body, &[]);
+        let s = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(s.scenario, 1);
+        assert_eq!(s.knot_param, Some(15));
+        assert_eq!(s.degree, 3);
+        let ctl = s.control.expect("control form");
+        assert_eq!(ctl.knots.len(), 8);
+        assert_eq!(ctl.control_points.len(), 4);
+        assert!(s.fit.is_none());
+    }
+
+    /// The R2018 shape measured on handle `0x434`: the same stored
+    /// scenario `1`, but spline flags `9` (method fit points + use knot
+    /// parameter) and knot parameter `2` (Uniform), which §20.4.40's
+    /// derivation turns into the *fit* branch.
+    #[test]
+    fn r2018_derived_scenario_takes_the_fit_branch() {
+        let mut w = BitWriter::new();
+        write_preamble(&mut w);
+        w.write_bl(1); // stored scenario says control...
+        w.write_bl(9); // ...but the flags say method-fit-points
+        w.write_bl(2); // knot parameter = Uniform (not Custom)
+        w.write_bl(3); // degree
+        w.write_bd(1e-10); // fit tolerance
+        w.write_bd(0.0);
+        w.write_bd(1.0);
+        w.write_bd(0.0); // begin tangent
+        w.write_bd(0.0);
+        w.write_bd(-1.0);
+        w.write_bd(0.0); // end tangent
+        w.write_bl(2); // 2 fit points
+        for (x, y) in [(250.0, 17.0), (259.0, 27.0)] {
+            w.write_bd(x);
+            w.write_bd(y);
+            w.write_bd(0.0);
+        }
+        let body = bits_of(&w);
+        let payload = build_payload(&body, &[]);
+        let s = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(s.scenario, 1);
+        assert_eq!(s.flag1, Some(9));
+        let fit = s.fit.expect("fit form");
+        assert_eq!(fit.fit_points.len(), 2);
+        assert_eq!(fit.tolerance, 1e-10);
+        assert!(s.control.is_none());
+    }
+
+    /// A field list one bit short of the boundary must be rejected,
+    /// not returned.
+    #[test]
+    fn misaligned_field_list_errors() {
+        let mut w = BitWriter::new();
+        write_preamble(&mut w);
+        w.write_bl(1);
+        w.write_bl(0);
+        w.write_bl(15);
+        w.write_bl(3);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bd(1e-9);
+        w.write_bd(1e-10);
+        w.write_bl(0); // num knots
+        w.write_bl(0); // num control points
+        w.write_b(false);
+        let mut body = bits_of(&w);
+        body.push(false); // one bit the field list will not consume
+        let payload = build_payload(&body, &[]);
+        let err = decode_modern_split_stream(&payload, 8, Version::R2018)
+            .expect_err("an extra bit must be rejected");
+        assert!(
+            matches!(&err, Error::SectionMap(m) if m.contains("SPLINE data fields ended")),
+            "err={err:?}"
+        );
     }
 }

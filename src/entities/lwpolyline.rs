@@ -234,7 +234,7 @@ mod tests {
         w.write_dd(0.0, 10.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let p = decode(&mut c).unwrap();
+        let p = decode(&mut c, Version::R2018).unwrap();
         assert_eq!(p.flag, 0);
         assert!(!p.closed);
         assert_eq!(p.vertices.len(), 3);
@@ -262,7 +262,7 @@ mod tests {
         }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let p = decode(&mut c).unwrap();
+        let p = decode(&mut c, Version::R2018).unwrap();
         assert!(p.closed);
         assert_eq!(p.bulges.len(), 4);
         assert_eq!(p.bulges[1], 0.5);
@@ -296,7 +296,7 @@ mod tests {
         // attempting to allocate ~160 MiB of Vec<Point2D>.
         let bytes = build_oversized_claim(10_000_000);
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c).unwrap_err();
+        let err = decode(&mut c, Version::R2018).unwrap_err();
         assert!(
             matches!(&err, crate::error::Error::SectionMap(msg) if msg.contains("LWPOLYLINE")),
             "expected LWPOLYLINE SectionMap error, got: {err:?}"
@@ -308,7 +308,7 @@ mod tests {
         // Exactly one past the cap — still must reject.
         let bytes = build_oversized_claim(1_000_001);
         let mut c = BitCursor::new(&bytes);
-        assert!(decode(&mut c).is_err());
+        assert!(decode(&mut c, Version::R2018).is_err());
     }
 
     #[test]
@@ -326,7 +326,7 @@ mod tests {
         }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c).unwrap_err();
+        let err = decode(&mut c, Version::R2018).unwrap_err();
         // Error message must mention both the claim and the tighter
         // derivation so debuggers can diagnose adversarial inputs.
         if let crate::error::Error::SectionMap(msg) = &err {
@@ -356,7 +356,7 @@ mod tests {
         }
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c).unwrap_err();
+        let err = decode(&mut c, Version::R2018).unwrap_err();
         assert!(matches!(err, crate::error::Error::SectionMap(_)));
     }
 }

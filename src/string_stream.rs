@@ -316,6 +316,54 @@ pub(crate) mod tests {
         bytes
     }
 
+    /// Build an R2010+ payload whose `strings present` trailer bit is
+    /// **clear**: `MC` handle-stream size, `body` bits, the flag, then
+    /// filler standing in for the handle stream.
+    pub(crate) fn build_payload_without_strings(body: &[bool]) -> Vec<u8> {
+        let mut w = BitWriter::new();
+        w.write_rc(0x00); // MC placeholder, patched below
+        for bit in body {
+            w.write_b(*bit);
+        }
+        w.write_b(false); // strings present = false
+        let pad = (8 - w.position_bits() % 8) % 8;
+        for _ in 0..pad {
+            w.write_b(false);
+        }
+        let mut bytes = w.into_bytes();
+        bytes[0] = (8 + pad) as u8;
+        bytes
+    }
+
+    /// A record with no string stream still writes the `strings
+    /// present` trailer bit, and that bit is not one of the record's
+    /// own fields — so its data fields end one bit before
+    /// [`data_section_end`].
+    #[test]
+    fn data_field_end_excludes_the_trailer_flag_when_no_strings() {
+        let body = vec![true, false, true, true, false, true, false];
+        let payload = build_payload_without_strings(&body);
+        assert!(locate(&payload, Version::R2018).is_none());
+        let section_end = data_section_end(&payload, Version::R2018).unwrap();
+        let field_end = data_field_end(&payload, Version::R2018).unwrap();
+        assert_eq!(field_end, section_end - 1);
+        assert_eq!(field_end, 8 + body.len());
+    }
+
+    /// With a string stream present the two agree on nothing — the
+    /// fields end where the string data begins, well before the
+    /// trailer.
+    #[test]
+    fn data_field_end_is_the_string_start_when_strings_are_present() {
+        let body = vec![true, false, true, true];
+        let payload = build_payload(&body, &["Standard"]);
+        let stream = locate(&payload, Version::R2018).expect("string stream");
+        assert_eq!(
+            data_field_end(&payload, Version::R2018),
+            Some(stream.start_bit)
+        );
+    }
+
     #[test]
     fn locates_and_reads_two_strings() {
         let body = vec![true, false, true, true];

@@ -170,13 +170,13 @@ mod tests {
     fn roundtrip_minimal_imagedef() {
         let mut w = BitWriter::new();
         w.write_bl(0); // class_version
-        w.write_bd(1920.0);
-        w.write_bd(1080.0);
+        w.write_rd(1920.0);
+        w.write_rd(1080.0);
         write_tv_8bit(&mut w, "C:\\drawings\\bg.png");
         w.write_b(true); // is_loaded
         w.write_rc(1); // mm
-        w.write_bd(0.5);
-        w.write_bd(0.5);
+        w.write_rd(0.5);
+        w.write_rd(0.5);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c, Version::R2000).unwrap();
@@ -193,13 +193,13 @@ mod tests {
     fn roundtrip_empty_path() {
         let mut w = BitWriter::new();
         w.write_bl(0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
         w.write_bs_u(0); // empty TV
         w.write_b(false);
         w.write_rc(0); // unitless
-        w.write_bd(1.0);
-        w.write_bd(1.0);
+        w.write_rd(1.0);
+        w.write_rd(1.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let i = decode(&mut c, Version::R2000).unwrap();
@@ -214,8 +214,8 @@ mod tests {
         // any RC reads (defensive-allocation).
         let mut w = BitWriter::new();
         w.write_bl(0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
+        w.write_rd(0.0);
+        w.write_rd(0.0);
         // Claim IMAGEDEF_MAX_PATH_UNITS + 1 — beyond the cap.
         // Because write_bs_u is u16 we can't encode past 65535; use the
         // cap itself (65536) by writing 0 in the BS_U and... actually

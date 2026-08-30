@@ -394,6 +394,8 @@ mod tests {
         body.write_bd(1.0); // linespace factor
         body.write_b(false); // unknown bit
         body.write_bl(0); // background flags (R2004+), no background
+        body.write_b(false); // R2018+ "is NOT annotative" — clear, so
+        // none of the redundant fields or the column block follow.
 
         let bits = crate::string_stream::tests::bits_of(&body);
         let payload = crate::string_stream::tests::build_payload(&bits, &["Hello\\PMTEXT"]);
@@ -493,5 +495,130 @@ mod tests {
         assert_eq!(m.rect_width, 100.0);
         assert_eq!(m.text, "Hi\\PEveryone");
         assert_eq!(m.attachment_point, 1);
+    }
+
+    /// The R2018+ block §20.4.46 puts after the background flags — the
+    /// `B` "is NOT annotative", then a version, a default flag, a
+    /// handle slot, and a redundant copy of the record's own geometry,
+    /// then the column data. This is the 567 bits of #29.
+    #[test]
+    fn r2018_not_annotative_block_and_dynamic_columns() {
+        let mut body = BitWriter::new();
+        body.write_bs_u(0);
+        body.write_b(false);
+        body.write_bb(0b00);
+        body.write_bl(0);
+        body.write_b(true);
+        body.write_b(false);
+        body.write_bs(0);
+        body.write_bd(1.0);
+        body.write_bb(0b00);
+        body.write_bb(0b00);
+        body.write_bb(0b00);
+        body.write_rc(0);
+        body.write_b(false);
+        body.write_b(false);
+        body.write_b(false);
+        body.write_bs(0);
+        body.write_rc(0);
+        for v in [741.0, 14.7, 0.0] {
+            body.write_bd(v);
+        }
+        for v in [0.0, 0.0, 1.0] {
+            body.write_bd(v);
+        }
+        for v in [1.0, 0.0, 0.0] {
+            body.write_bd(v);
+        }
+        body.write_bd(0.0); // rect width
+        body.write_bd(0.0); // rect height
+        body.write_bd(1.0); // nominal text height
+        body.write_bs(7); // attachment point
+        body.write_bs(5); // drawing direction
+        body.write_bd(1.84); // extents height
+        body.write_bd(16.37); // extents width
+        body.write_bs(1); // linespace style
+        body.write_bd(1.0); // linespace factor
+        body.write_b(false); // unknown bit
+        body.write_bl(0); // background flags
+        // R2018+ block.
+        body.write_b(true); // is NOT annotative
+        body.write_bs(4); // version
+        body.write_b(true); // default flag
+        // `H` registered application — handle stream, no data bits.
+        body.write_bl(7); // attachment point (redundant)
+        for v in [1.0, 0.0, 0.0] {
+            body.write_bd(v); // x-axis dir (redundant)
+        }
+        for v in [741.0, 14.7, 0.0] {
+            body.write_bd(v); // insertion point (redundant)
+        }
+        body.write_bd(0.0); // rect width (redundant)
+        body.write_bd(0.0); // rect height (redundant)
+        body.write_bd(16.37); // extents width (redundant)
+        body.write_bd(1.84); // extents height (redundant)
+        body.write_bs(2); // column type = dynamic
+        body.write_bl(2); // column height count
+        body.write_bd(50.0); // column width
+        body.write_bd(5.0); // gutter
+        body.write_b(false); // auto height
+        body.write_b(false); // flow reversed
+        body.write_bd(30.0);
+        body.write_bd(20.0);
+
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["Sample annotation"]);
+        let m = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(m.text, "Sample annotation");
+        assert!(!m.is_annotative);
+        assert_eq!(m.column_type, 2);
+        assert_eq!(m.column_width, 50.0);
+        assert_eq!(m.column_gutter, 5.0);
+        assert_eq!(m.column_heights, vec![30.0, 20.0]);
+    }
+
+    /// A field list that stops before the R2018 block must be rejected
+    /// by the exact-boundary check, not returned.
+    #[test]
+    fn r2018_missing_annotative_block_errors() {
+        let mut body = BitWriter::new();
+        body.write_bs_u(0);
+        body.write_b(false);
+        body.write_bb(0b00);
+        body.write_bl(0);
+        body.write_b(true);
+        body.write_b(false);
+        body.write_bs(0);
+        body.write_bd(1.0);
+        body.write_bb(0b00);
+        body.write_bb(0b00);
+        body.write_bb(0b00);
+        body.write_rc(0);
+        body.write_b(false);
+        body.write_b(false);
+        body.write_b(false);
+        body.write_bs(0);
+        body.write_rc(0);
+        for _ in 0..9 {
+            body.write_bd(0.0);
+        }
+        body.write_bd(0.0);
+        body.write_bd(0.0);
+        body.write_bd(1.0);
+        body.write_bs(1);
+        body.write_bs(5);
+        body.write_bd(0.0);
+        body.write_bd(0.0);
+        body.write_bs(1);
+        body.write_bd(1.0);
+        body.write_b(false);
+        body.write_bl(0);
+        body.write_b(true); // is NOT annotative — but nothing follows
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["x"]);
+        assert!(
+            decode_modern_split_stream(&payload, 8, Version::R2018).is_err(),
+            "a truncated R2018 block must be rejected"
+        );
     }
 }

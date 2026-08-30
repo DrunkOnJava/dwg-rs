@@ -200,6 +200,7 @@ mod tests {
 
     fn insert_at(x: f64, y: f64) -> Insert {
         Insert {
+            owned_object_count: 0,
             insertion_point: Point3D { x, y, z: 0.0 },
             scale: Point3D {
                 x: 1.0,

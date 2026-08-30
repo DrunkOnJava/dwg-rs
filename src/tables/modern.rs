@@ -173,9 +173,8 @@ pub(crate) fn read_4bits(c: &mut BitCursor<'_>) -> Result<u8> {
 /// must still take them from the (empty) string stream rather than
 /// inline.
 pub(crate) fn open_entity(payload: &[u8], version: Version) -> Result<(StringReader<'_>, usize)> {
-    let end = string_stream::data_field_end(payload, version).ok_or_else(|| {
-        Error::SectionMap("object has no R2007+ data/handle stream split".into())
-    })?;
+    let end = string_stream::data_field_end(payload, version)
+        .ok_or_else(|| Error::SectionMap("object has no R2007+ data/handle stream split".into()))?;
     match string_stream::locate(payload, version) {
         Some(stream) => Ok((StringReader::new(payload, stream)?, end)),
         None => Ok((StringReader::empty(payload), end)),

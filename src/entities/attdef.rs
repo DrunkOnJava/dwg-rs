@@ -171,10 +171,12 @@ mod tests {
         body.write_b(true); // extrusion default
         body.write_b(true); // thickness zero
         body.write_rd(2.5); // height
+        body.write_rc(0); // ATTRIB's R2010+ version byte
+        body.write_rc(1); // R2018+ attribute type = single line
         body.write_bs(0); // field length
         body.write_rc(0x00); // flags
         body.write_b(false); // lock position
-        body.write_rc(0); // trailing ATTDEF byte
+        body.write_rc(0); // ATTDEF's own R2010+ version byte
         let bits = crate::string_stream::tests::bits_of(&body);
         let payload =
             crate::string_stream::tests::build_payload(&bits, &["1", "ATTINFO", "Enter number:"]);
@@ -183,6 +185,8 @@ mod tests {
         assert_eq!(a.prompt, "Enter number:");
         assert_eq!(a.text.text, "1");
         assert_eq!(a.text.height, 2.5);
+        assert_eq!(a.attribute_type, 1);
+        assert!(a.mtext.is_none());
     }
 
     #[test]
