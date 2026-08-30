@@ -215,6 +215,7 @@ fn non_entity_codes_with_decoders_are_routed_not_unhandled() {
         (0x48, "GROUP"),
         (0x4F, "XRECORD"),
         (0x50, "ACDB_PLACEHOLDER"),
+        (0x52, "LAYOUT"),
     ];
     for (code, label) in routed {
         match decode_from_raw(&zeroed_raw(code), Version::R2018) {
@@ -229,18 +230,14 @@ fn non_entity_codes_with_decoders_are_routed_not_unhandled() {
 
 /// Non-entity codes this crate has no self-validating decoder for must
 /// stay `Unhandled` — never fed to an entity decoder, and never counted
-/// as decoded. LAYOUT and MLINESTYLE are here because their field lists
-/// have not been matched against real bytes yet (see `src/objects/mod.rs`).
+/// as decoded. MLINESTYLE is here because its field list has not been
+/// matched against real bytes yet (see `src/objects/mod.rs`).
 #[test]
 fn non_entity_codes_without_decoders_stay_unhandled() {
     use dwg::Version;
     use dwg::entities::decode_from_raw;
 
-    let unhandled = [
-        (0x49, "MLINESTYLE"),
-        (0x52, "LAYOUT"),
-        (0x4C, "LONG_TRANSACTION"),
-    ];
+    let unhandled = [(0x49, "MLINESTYLE"), (0x4C, "LONG_TRANSACTION")];
     for (code, label) in unhandled {
         match decode_from_raw(&zeroed_raw(code), Version::R2018) {
             DecodedEntity::Unhandled { .. } => { /* correct */ }
