@@ -80,15 +80,18 @@ fn main() -> Result<()> {
 
     println!();
     println!(
-        "{:<8} {:<24} {:>10}  {}",
-        "header", "stored stem", "sentinel", "resolved name"
+        "{:<8} {:<24} {:>10}  resolved name",
+        "header", "stored stem", "sentinel"
     );
     for (handle, name) in dwg::graph::resolve_block_names(&objects, version) {
         let stem = objects
             .iter()
             .find(|o| o.handle.value == handle)
             .map(|o| match dwg::entities::decode_from_raw(o, version) {
-                DecodedEntity::BlockRecord(b) => (b.header.name, b.block_sentinel_handle),
+                DecodedEntity::BlockRecord(b) => (
+                    b.header.name,
+                    dwg::tables::block_record::block_sentinel_handle_of(o, version),
+                ),
                 _ => (String::new(), None),
             })
             .unwrap_or_default();

@@ -47,9 +47,18 @@ fn open_if_present(name: &str) -> Option<DwgFile> {
 fn resolved_block_names_agree_with_their_block_sentinels() {
     for name in [
         "sample_AC1032.dwg",
+        "arc_2000.dwg",
+        "arc_2004.dwg",
+        "arc_2007.dwg",
         "arc_2010.dwg",
         "arc_2013.dwg",
+        "circle_2000.dwg",
+        "circle_2004.dwg",
         "circle_2010.dwg",
+        "circle_2013.dwg",
+        "line_2000.dwg",
+        "line_2004.dwg",
+        "line_2010.dwg",
         "line_2013.dwg",
     ] {
         let Some(file) = open_if_present(name) else {
@@ -100,14 +109,18 @@ fn resolved_block_names_agree_with_their_block_sentinels() {
             let DecodedEntity::BlockRecord(record) =
                 dwg::entities::decode_from_raw(header, version)
             else {
-                panic!("{name}: BLOCK_HEADER {} did not decode", header.handle.value);
-            };
-            let sentinel = record.block_sentinel_handle.unwrap_or_else(|| {
                 panic!(
-                    "{name}: BLOCK_HEADER {} names no BLOCK sentinel",
+                    "{name}: BLOCK_HEADER {} did not decode",
                     header.handle.value
-                )
-            });
+                );
+            };
+            let sentinel = dwg::tables::block_record::block_sentinel_handle_of(header, version)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{name}: BLOCK_HEADER {} names no BLOCK sentinel",
+                        header.handle.value
+                    )
+                });
             let sentinel_name = sentinels.get(&sentinel).unwrap_or_else(|| {
                 panic!(
                     "{name}: BLOCK_HEADER {} points at {sentinel}, which is not a BLOCK",
@@ -219,6 +232,37 @@ fn sample_ac1032_resolves_27_distinct_block_names() {
             "my_block_v2",
         ]
     );
+}
+
+/// R13/R14 records carry neither the R2007+ string-stream trailer nor
+/// the `RL` object-data size, so this crate cannot locate their handle
+/// stream and the join has nothing to follow. `arc_R14.dwg` therefore
+/// still reports two blocks named `*PAPER_SPACE` — the same shortfall
+/// the R2000+ bands used to have. Pinned so the day the R14 handle
+/// stream becomes locatable, this test fails and the limitation note
+/// comes out of `src/tables/block_record.rs`.
+#[test]
+fn r14_block_names_stay_unresolved_for_want_of_a_handle_stream() {
+    let Some(file) = open_if_present("arc_R14.dwg") else {
+        return;
+    };
+    let version = file.version();
+    let objects = file.all_objects().expect("walk").expect("walk");
+    for object in &objects {
+        if object.kind != ObjectType::BlockHeader {
+            continue;
+        }
+        assert_eq!(
+            dwg::tables::block_record::block_sentinel_handle_of(object, version),
+            None,
+            "R14 BLOCK_HEADER {} unexpectedly resolved a sentinel",
+            object.handle.value
+        );
+    }
+    let resolved = dwg::graph::resolve_block_names(&objects, version);
+    let mut names: Vec<&str> = resolved.values().map(String::as_str).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["*MODEL_SPACE", "*PAPER_SPACE", "*PAPER_SPACE"]);
 }
 
 /// The committed canonical corpus carries no block definitions, so the

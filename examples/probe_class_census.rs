@@ -16,10 +16,12 @@
 //!
 //! # The allowlist (#56)
 //!
-//! Two classes of `sample_AC1032.dwg` declare more instances than the
-//! drawing contains. [`ALLOWLIST`] names them with the reason and the
-//! probe reports them as `ALLOWED` instead of failing; `--strict`
-//! disables it so the open question stays measurable.
+//! Four classes of the sample corpus are under-walked today: two
+//! because the drawing declares instances it does not contain, two
+//! because of an open walker gap. [`ALLOWLIST`] names each with its
+//! reason and the probe reports them as `ALLOWED` instead of failing;
+//! `--strict` disables it so the open questions stay measurable, and
+//! is what CI runs over the canonical fixtures.
 
 use dwg::error::Result;
 use dwg::{DwgFile, ObjectType};
@@ -49,6 +51,14 @@ use std::process::ExitCode;
 /// embedded inside the two ACAD_TABLE records is not decidable from a
 /// one-file, two-table corpus, so the gate tolerates a *shortfall* on
 /// exactly these two classes and never a surplus.
+///
+/// The R2004, R2007 and R2010 files of the corpus each under-walk
+/// DICTIONARYVAR and CELLSTYLEMAP. That shortfall is *not* explained —
+/// unlike the two table classes it is an open walker gap, present on
+/// `main` before this probe grew an allowlist. It is listed here so a
+/// diagnostic run on those files does not drown the signal, and pinned
+/// per file and per count by `tests/class_census.rs` so it can only
+/// shrink. `--strict` shows it.
 pub const ALLOWLIST: &[(&str, &str)] = &[
     (
         "TABLECONTENT",
@@ -59,6 +69,16 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
         "TABLEGEOMETRY",
         "declares 5 against 2 ACAD_TABLE entities; the object stream is \
          99.92 % covered and no handle reference is unresolved (#56)",
+    ),
+    (
+        "DICTIONARYVAR",
+        "open walker gap on the R2004/R2007/R2010 corpus files, not \
+         explained; pinned per file by tests/class_census.rs",
+    ),
+    (
+        "CELLSTYLEMAP",
+        "open walker gap on the R2004/R2007/R2010 corpus files, not \
+         explained; pinned per file by tests/class_census.rs",
     ),
 ];
 
@@ -163,40 +183,44 @@ fn run(path: &str, strict: bool) -> Result<bool> {
             stream.len()
         );
 
-        // What are the unclaimed bytes? Not alignment padding — they
-        // are not zero. Each run equals the *width of the leading `MC`
-        // handle-stream-size field* of the record it follows, which is
-        // what a record's `MS` object size does not count. Reported as
-        // an agreement count so a regression shows up as a
-        // disagreement rather than as a changed byte total.
-        let mut by_offset: Vec<(usize, usize)> = objects
-            .iter()
-            .map(|o| (o.stream_offset, mc_field_width(&o.raw)))
-            .collect();
-        by_offset.sort_unstable();
-        let mc_widths: Vec<usize> = by_offset.iter().map(|(_, w)| *w).collect();
+        // What are the unclaimed bytes? On R2010+ they are not
+        // alignment padding — they are not zero. Each run equals the
+        // *width of the leading `MC` handle-stream-size field* of the
+        // record it follows, which is what a record's `MS` object size
+        // does not count. Reported as an agreement count so a
+        // regression shows up as a disagreement rather than as a
+        // changed byte total. Earlier bands carry no such field, so
+        // the attribution does not apply to them.
+        if file.version().is_r2010_plus() {
+            let mut by_offset: Vec<(usize, usize)> = objects
+                .iter()
+                .map(|o| (o.stream_offset, mc_field_width(&o.raw)))
+                .collect();
+            by_offset.sort_unstable();
+            let mc_widths: Vec<usize> = by_offset.iter().map(|(_, w)| *w).collect();
 
-        let mut agree = 0usize;
-        let mut disagree = 0usize;
-        let mut end = 0usize;
-        let mut leading = 0usize;
-        for (i, (s, e)) in spans.iter().enumerate() {
-            if i == 0 {
-                leading = *s;
-            } else if s.saturating_sub(end) == mc_widths[i - 1] {
-                agree += 1;
-            } else {
-                disagree += 1;
+            let mut agree = 0usize;
+            let mut disagree = 0usize;
+            let mut end = 0usize;
+            let mut leading = 0usize;
+            for (i, (s, e)) in spans.iter().enumerate() {
+                if i == 0 {
+                    leading = *s;
+                } else if s.saturating_sub(end) == mc_widths[i - 1] {
+                    agree += 1;
+                } else {
+                    disagree += 1;
+                }
+                end = end.max(*e);
             }
-            end = end.max(*e);
+            let trailing = stream.len().saturating_sub(end);
+            let attributed: usize = mc_widths.iter().sum::<usize>() + leading;
+            println!(
+                "unclaimed bytes explained : {attributed} of {unclaimed} \
+                 ({agree} inter-record runs equal the preceding record\'s MC width, \
+                 {disagree} do not; {leading} leading, {trailing} trailing)"
+            );
         }
-        let trailing = stream.len().saturating_sub(end);
-        let attributed: usize = mc_widths.iter().sum::<usize>() + leading;
-        println!(
-            "unclaimed bytes explained : {attributed} of {unclaimed} \
-             ({agree} inter-record runs equal the preceding record\'s MC width, \
-             {disagree} do not; {leading} leading, {trailing} trailing)"
-        );
     }
     println!();
     println!(

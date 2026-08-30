@@ -587,19 +587,25 @@ pub enum BlockSpace {
 ///
 /// This function walks the BLOCK_HEADER records, follows the sentinel
 /// handle each one's handle stream names
-/// ([`crate::tables::block_record::block_sentinel_handle`]), and takes
-/// the sentinel's name when the target really is a `BLOCK` record. A
-/// header whose sentinel cannot be resolved keeps its own stored name
-/// rather than being dropped.
+/// ([`crate::tables::block_record::block_sentinel_handle_of`]), and
+/// takes the sentinel's name when the target really is a `BLOCK`
+/// record. A header whose sentinel cannot be resolved keeps its own
+/// stored name rather than being dropped — which is the R13/R14 case,
+/// where the record carries neither the R2010+ string-stream trailer
+/// nor the `RL` object-data size that locate the handle stream.
 ///
 /// # Measured
 ///
 /// On `sample_AC1032.dwg` this resolves 27 of 27 definitions to 27
-/// distinct names; the stored stems collapse to 20. On `arc_2010.dwg`,
-/// `arc_2013.dwg`, `circle_2010.dwg` and `line_2013.dwg` it resolves
-/// 3 of 3, turning two records both storing `*Paper_Space` into
-/// `*Paper_Space` and `*Paper_Space0` — which is what AutoCAD's own
-/// DXF export of those drawings names them.
+/// distinct names; the stored stems collapse to 20. On every
+/// R2000-R2018 file of the sample corpus it resolves 3 of 3, turning
+/// two records that both store `*Paper_Space` into `*Paper_Space` and
+/// `*Paper_Space0` — which is what AutoCAD's own DXF export of those
+/// drawings names them.
+///
+/// The split is not an artefact of the R2007+ string stream: the R14,
+/// R2000 and R2004 files of the corpus store their names inline and
+/// show exactly the same disagreement.
 pub fn resolve_block_names(
     objects: &[RawObject],
     version: Version,
@@ -626,8 +632,7 @@ pub fn resolve_block_names(
         else {
             continue;
         };
-        let name = record
-            .block_sentinel_handle
+        let name = crate::tables::block_record::block_sentinel_handle_of(object, version)
             .and_then(|h| sentinel_names.get(&h))
             .cloned()
             .unwrap_or(record.header.name);

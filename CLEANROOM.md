@@ -301,3 +301,36 @@ two-layer "Sec_Mask" — a byte XOR plus a 7-byte bit rotation. That
 description matched nothing in the spec and nothing in the bytes; the
 module and its tests are removed rather than kept as a misleading
 scaffold.
+
+## 2026-08-30 — Block-name ground truth (public DXF twin + AutoCAD DXF Reference vocabulary)
+
+The PR for #70 settles which of two disagreeing readers carries a
+block's real name. Two outside sources contributed, both public and
+both allowed above:
+
+- **`arc_2013.dxf`** from the `nextgis/dwg_samples` repository — the
+  DXF twin AutoCAD exported of the same drawing as `arc_2013.dwg`,
+  which the corpus already carries. It is a *data* file under the
+  "publicly-available files whose redistribution terms permit use for
+  interoperability testing" clause, not documentation and not source.
+  It is read only as an oracle: its `BLOCK_RECORD` table names handle
+  `6C` `*Paper_Space` and handle `74` `*Paper_Space0`, where the DWG
+  stores `*Paper_Space` in both records. No structure, layout or code
+  was taken from it — the field list, the string-stream arithmetic and
+  the handle-stream anchor are all derived from the DWG bytes and from
+  §19.1 / §20.4.52 of the freely-redistributable ODA specification.
+  The file is not vendored into this repository.
+- **AutoCAD's anonymous-block naming convention** — `*D<n>`, `*T<n>`,
+  `*U<n>` and `*Paper_Space<n>`, i.e. a family letter plus a decimal
+  suffix — as recalled from Autodesk's public *DXF Reference*. This is
+  published documentation, not SDK or product source, and it
+  contributed **vocabulary only**: it is the reason the crate asserts
+  that the difference between a BLOCK_HEADER's stored string and its
+  `BLOCK` sentinel's name is always a decimal suffix. The assertion is
+  independently measured (27 of 27 definitions on
+  `sample_AC1032.dwg`), so the document supplied the name of the
+  pattern, not the pattern itself.
+
+The `§19.5.51` citation `src/tables/block_record.rs` previously carried
+is withdrawn in favour of `§20.4.52`, which is where the ODA
+specification prescribes BLOCK_HEADER.

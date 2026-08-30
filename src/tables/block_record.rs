@@ -60,10 +60,23 @@
 //! sentinel name in 27/27 cases and the remainder is decimal digits
 //! every time.
 //!
+//! ## Not an artefact of the string stream
+//!
+//! The split predates the R2007 split-stream layout. `arc_R14.dwg`,
+//! `arc_2000.dwg` and `arc_2004.dwg` store their names *inline* and
+//! show exactly the same disagreement: BLOCK_HEADER `0x74` reads
+//! `*Paper_Space` where its `BLOCK` sentinel `0x75` reads
+//! `*Paper_Space0`. Whatever the R2007+ string stream does or does not
+//! do, the BLOCK_HEADER field simply does not carry the generated
+//! suffix.
+//!
 //! A decoder cannot recover the suffix from the BLOCK_HEADER alone, so
-//! [`BlockRecord::block_sentinel_handle`] surfaces the handle the
-//! record's own handle stream gives the `BLOCK` entity and
-//! [`crate::graph::resolve_block_names`] performs the join.
+//! [`block_sentinel_handle_of`] surfaces the handle the record's own
+//! handle stream gives the `BLOCK` entity and
+//! [`crate::graph::resolve_block_names`] performs the join. R13/R14
+//! records carry neither the §19.1 trailer nor the `RL` object-data
+//! size, so the join declines to resolve them and their stored name
+//! stands.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, read_bd3};
@@ -90,11 +103,15 @@ pub struct BlockRecord {
     pub description: String,
     /// Handle of the `BLOCK` sentinel entity that opens this
     /// definition, read from the record's own handle stream
-    /// (§20.4.52). `None` before R2010, where this crate does not
-    /// locate the handle stream.
+    /// (§20.4.52).
     ///
     /// The sentinel carries the block's full name; this record's
     /// [`header`](Self::header) name may be only its stem.
+    ///
+    /// `None` on the inline (pre-R2007) path, which decodes from a
+    /// payload alone and so cannot locate the handle stream. Callers
+    /// holding the walked record should use
+    /// [`block_sentinel_handle_of`], which resolves R2000-R2018.
     pub block_sentinel_handle: Option<u64>,
 }
 
@@ -298,16 +315,25 @@ fn read_preview(c: &mut BitCursor<'_>) -> Result<()> {
 /// scanning forward to it and taking the next reference needs no
 /// reactor count and no xdictionary flag. On `sample_AC1032.dwg` that
 /// rule names a record the walker classifies as `BLOCK` for 27 of 27
-/// BLOCK_HEADERs, and 3 of 3 on each of `arc_2010.dwg`,
-/// `arc_2013.dwg`, `circle_2010.dwg` and `line_2013.dwg`.
+/// BLOCK_HEADERs, and 3 of 3 on each R2000-R2018 file of the sample
+/// corpus.
 pub fn block_sentinel_handle(payload: &[u8], version: Version) -> Option<u64> {
+    block_sentinel_handle_at(payload, string_stream::data_section_end(payload, version)?)
+}
+
+/// [`block_sentinel_handle`] with the handle stream's start bit supplied.
+///
+/// R2000-R2007 records locate that bit through the `RL` object-data
+/// size in their prologue ([`crate::object::RawObject::obj_size_bits`])
+/// rather than through the R2010+ string-stream trailer, so callers
+/// holding the walked record can resolve those bands too.
+pub fn block_sentinel_handle_at(payload: &[u8], handle_stream_start: usize) -> Option<u64> {
     // References past the NULL anchor are a mis-read, not a longer
     // prologue; bound the scan so garbage terminates.
     const MAX_SCAN: usize = 16;
 
-    let start = string_stream::data_section_end(payload, version)?;
     let mut c = BitCursor::new(payload);
-    string_stream::seek(&mut c, start).ok()?;
+    string_stream::seek(&mut c, handle_stream_start).ok()?;
     let mut saw_null = false;
     for _ in 0..MAX_SCAN {
         if c.remaining_bits() < 8 {
@@ -325,13 +351,29 @@ pub fn block_sentinel_handle(payload: &[u8], version: Version) -> Option<u64> {
     None
 }
 
+/// Bit at which a walked BLOCK_HEADER's handle stream begins, across
+/// every band this crate walks.
+///
+/// R2010+ records carry the §19.1 string-stream trailer, R2000-R2007
+/// carry the `RL` object-data size, and R13/R14 carry neither — so
+/// [`block_sentinel_handle_of`] declines to guess there.
+pub fn handle_stream_start(raw: &crate::object::RawObject, version: Version) -> Option<usize> {
+    string_stream::data_section_end(&raw.raw, version)
+        .or_else(|| raw.obj_size_bits.map(|bits| bits as usize))
+}
+
+/// [`block_sentinel_handle`] for a walked record, using whichever
+/// handle-stream anchor the record's version provides.
+pub fn block_sentinel_handle_of(raw: &crate::object::RawObject, version: Version) -> Option<u64> {
+    block_sentinel_handle_at(&raw.raw, handle_stream_start(raw, version)?)
+}
+
 fn skip_to(c: &mut BitCursor<'_>, bit: usize) -> Result<()> {
     while c.position_bits() < bit {
         let _ = c.read_b()?;
     }
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -448,7 +490,9 @@ mod tests {
         assert!(block.header.is_xref_resolved);
         assert!(!block.header.is_xref_dependent);
         assert_eq!(block.header.xref_index_plus_1, 1);
-        assert!(block.base_point.x == 0.0 && block.base_point.y == 0.0 && block.base_point.z == 0.0);
+        assert!(
+            block.base_point.x == 0.0 && block.base_point.y == 0.0 && block.base_point.z == 0.0
+        );
     }
 
     /// A data field read one bit wide leaves the cursor off the string
@@ -561,13 +605,5 @@ mod tests {
             &[0x41, 0x01, 0x41, 0x02],
         );
         assert_eq!(block_sentinel_handle(&payload, Version::R2018), None);
-    }
-
-    fn write_tu(w: &mut BitWriter, s: &str) {
-        w.write_bs_u(s.encode_utf16().count() as u16);
-        for unit in s.encode_utf16() {
-            w.write_rc((unit & 0xFF) as u8);
-            w.write_rc((unit >> 8) as u8);
-        }
     }
 }
