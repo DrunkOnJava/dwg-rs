@@ -1,39 +1,53 @@
-//! LWPOLYLINE entity (§19.4.25) — lightweight polyline.
+//! LWPOLYLINE entity (ODA Open Design Specification for .dwg files
+//! v5.4 §20.4.85 "LWPLINE") — lightweight polyline.
 //!
 //! LWPOLYLINE is the most common modern 2D polyline — it replaces the
 //! older 2D POLYLINE with per-vertex records by packing all vertices
-//! into a single entity. Widths, bulges (arc segments), and variable
-//! vertex IDs are all optional via a flag set.
+//! into a single entity. Widths, bulges (arc segments) and vertex IDs
+//! are optional, and the leading `BS` flag word says which are present.
 //!
-//! # Stream shape
+//! # Stream shape (R2000+)
 //!
 //! ```text
-//! BS   flag               -- bits: 0x01=has_elev, 0x02=has_thick, 0x04=has_ext,
-//!                                   0x08=closed,   0x10=plinegen, 0x20=default-width,
-//!                                   0x80=has_variable_width, 0x400=has_bulge,
-//!                                   0x8000=has_vertex_id (R2010+)
-//! (if flag & 0x01) BD  elevation
-//! (if flag & 0x02) BD  thickness
-//! (if flag & 0x04) BD3 extrusion
+//! BS   flag
+//! (flag & 0x004) BD  constant_width
+//! (flag & 0x008) BD  elevation
+//! (flag & 0x002) BD  thickness
+//! (flag & 0x001) 3BD extrusion
 //! BL   num_points
-//! (if flag & 0x400) BL num_bulges
-//! (if flag & 0x8000) BL num_ids      -- R2010+
-//! (if flag & 0x80) BL num_widths
-//! (if flag & 0x20) BD  constant_width
-//! RD2  point_1
-//! (R15+: subsequent points as DD — delta-double — for compression)
-//! BD*  bulges             -- one per bulge_count
-//! BL*  vertex_ids         -- one per id_count (R2010+)
-//! (BD BD)* per-vertex widths
+//! (flag & 0x010) BL  num_bulges
+//! (flag & 0x400) BL  num_vertex_ids    -- R2010+
+//! (flag & 0x020) BL  num_widths
+//! 2RD  vertex[0]
+//! 2DD  vertex[1..]                     -- previous vertex as default
+//! BD × num_bulges
+//! BL × num_vertex_ids
+//! 2BD × num_widths
 //! ```
 //!
-//! This decoder supports the common R2000+ shape with the most
-//! prevalent flags: closed, bulges, default-width. Real AutoCAD
-//! writes almost all drawings this way.
+//! # Measured: the flag bits and the field order
+//!
+//! An earlier reading of this entity used a different bit assignment
+//! (`0x01` elevation, `0x02` thickness, `0x04` extrusion, `0x20`
+//! constant width, `0x80` variable width, `0x400` bulges, `0x8000`
+//! vertex ids) and put the constant width *after* the counts. That
+//! reading survives on a polyline whose flag word is `0` or `0x200`,
+//! which is 19 of the 20 LWPOLYLINE records of `sample_AC1032.dwg`. The
+//! twentieth (handle `0x4A6`) has flag `4`: under §20.4.85 that is a
+//! constant width read straight after the flag, and under the old
+//! reading it was an extrusion read three fields later — which put the
+//! vertex count on a reserved `11` bit pattern.
+//!
+//! `0x200` is not one of §20.4.85's presence bits ({`0x001`, `0x002`,
+//! `0x004`, `0x008`, `0x010`, `0x020`, `0x400`}), and twelve records of
+//! the sample carry exactly `0x200` with no optional field at all. It
+//! is read here as the closed flag, the conventional meaning; nothing
+//! in this corpus contradicts it and nothing in it proves it either.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Vec3D};
 use crate::error::Result;
+use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LwPolyline {
@@ -49,24 +63,38 @@ pub struct LwPolyline {
     pub closed: bool,
 }
 
-/// Flag bits (§19.4.25).
+/// Flag bits of the leading `BS` (§20.4.85).
 pub mod flag_bits {
-    pub const HAS_ELEVATION: u16 = 0x0001;
+    /// `0x001` — an extrusion (`3BD`) is stored.
+    pub const HAS_EXTRUSION: u16 = 0x0001;
+    /// `0x002` — a thickness (`BD`) is stored.
     pub const HAS_THICKNESS: u16 = 0x0002;
-    pub const HAS_EXTRUSION: u16 = 0x0004;
-    pub const CLOSED: u16 = 0x0008;
-    pub const PLINEGEN: u16 = 0x0010;
-    pub const CONSTANT_WIDTH: u16 = 0x0020;
-    pub const HAS_VARIABLE_WIDTH: u16 = 0x0080;
-    pub const HAS_BULGES: u16 = 0x0400;
-    pub const HAS_VERTEX_ID: u16 = 0x8000;
+    /// `0x004` — a constant width (`BD`) is stored.
+    pub const CONSTANT_WIDTH: u16 = 0x0004;
+    /// `0x008` — an elevation (`BD`) is stored.
+    pub const HAS_ELEVATION: u16 = 0x0008;
+    /// `0x010` — a bulge count (`BL`) and that many `BD`s are stored.
+    pub const HAS_BULGES: u16 = 0x0010;
+    /// `0x020` — a width count (`BL`) and that many `2BD`s are stored.
+    pub const HAS_VARIABLE_WIDTH: u16 = 0x0020;
+    /// `0x200` — the polyline is closed. Not a presence bit; see the
+    /// module docs for how far the corpus supports the name.
+    pub const CLOSED: u16 = 0x0200;
+    /// `0x400` — a vertex-id count (`BL`) and that many `BL`s are
+    /// stored (R2010+).
+    pub const HAS_VERTEX_ID: u16 = 0x0400;
 }
 
 /// Decodes the `LwPolyline` payload that follows the common entity header.
-pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LwPolyline> {
     use flag_bits::*;
     let flag = c.read_bs_u()?;
 
+    let constant_width = if flag & CONSTANT_WIDTH != 0 {
+        Some(c.read_bd()?)
+    } else {
+        None
+    };
     let elevation = if flag & HAS_ELEVATION != 0 {
         Some(c.read_bd()?)
     } else {
@@ -93,7 +121,7 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
     } else {
         0
     };
-    let num_ids = if flag & HAS_VERTEX_ID != 0 {
+    let num_ids = if version.is_r2010_plus() && flag & HAS_VERTEX_ID != 0 {
         c.read_bl()? as usize
     } else {
         0
@@ -104,52 +132,28 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<LwPolyline> {
         0
     };
 
-    let constant_width = if flag & CONSTANT_WIDTH != 0 {
-        Some(c.read_bd()?)
-    } else {
-        None
-    };
-
     // Defensive caps. Three layered checks (L4-12):
     //
     // 1. Hard sanity ceiling — 1 million vertices is already far beyond
-    //    any real drawing. Previously this was 10M; the lower value
-    //    still accommodates real-world usage and shrinks the worst-case
-    //    allocation envelope by an order of magnitude.
+    //    any real drawing.
     //
     // 2. Coarse remaining-payload derivation — a count larger than the
-    //    number of BITS left on the cursor cannot possibly be real. Each
-    //    claimed item needs at least 1 bit to exist; so
-    //    `remaining_bits() >= count` is the cheapest sound upper bound.
+    //    number of BITS left on the cursor cannot possibly be real.
     //
-    // 3. Tighter per-item minimum-bits derivation (L4-12) — the spec
-    //    requires each LWPOLYLINE vertex to carry at least two compressed
-    //    doubles (x + y). A compressed double (BD, spec §2.10) occupies
-    //    at least 2 bits (the 2-bit prefix selecting one of the three
-    //    small-value sentinels — `00` = next BD, `01` = 1.0, `10` = 0.0,
-    //    `11` = previous). Even in the densest encoding path a vertex
-    //    therefore costs ≥ 2 × 2 = 4 bits; we use 2 × 2 = 4 as the floor
-    //    here. The same 2×BD floor applies per bulge (1 × BD) and per
-    //    width pair (2 × BD). This rejects adversarial counts that pass
-    //    the coarse 1-bit check but whose *realised* bit cost would still
-    //    blow past the remaining payload.
+    // 3. Tighter per-item minimum-bits derivation (L4-12) — each vertex
+    //    costs at least two 2-bit `DD` prefixes, each bulge at least one
+    //    2-bit `BD` prefix, each id at least a 2-bit `BL` prefix and each
+    //    width pair at least two 2-bit `BD` prefixes.
     const LWPOLYLINE_MAX: usize = 1_000_000;
-    // 2 bits-per-BD × 2 BDs = 4 bits minimum per vertex point.
     const MIN_BITS_PER_POINT: usize = 4;
-    // 2 bits-per-BD × 1 BD = 2 bits minimum per bulge.
     const MIN_BITS_PER_BULGE: usize = 2;
-    // 32-bit BL vertex-id. BL encoding packs small values but the
-    // shortest form is still 2 bits (00 prefix = 0).
     const MIN_BITS_PER_VERTEX_ID: usize = 2;
-    // Variable-width entry is (start-width, end-width) — 2 × BD ⇒ 4 bits.
     const MIN_BITS_PER_WIDTH: usize = 4;
     let remaining = c.remaining_bits();
     let total_claimed = num_points
         .saturating_add(num_bulges)
         .saturating_add(num_ids)
         .saturating_add(num_widths);
-    // Tighter cap-derived check: realised bit cost per field, then sum.
-    // Use saturating math so a claimed count of usize::MAX doesn't wrap.
     let realised_bits = num_points
         .saturating_mul(MIN_BITS_PER_POINT)
         .saturating_add(num_bulges.saturating_mul(MIN_BITS_PER_BULGE))

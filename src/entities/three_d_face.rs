@@ -1,20 +1,30 @@
-//! 3DFACE entity (§19.4.32) — 3 or 4 point 3D face.
+//! 3DFACE entity (ODA Open Design Specification for .dwg files v5.4
+//! §20.4.32) — 3 or 4 point 3D face.
 //!
 //! # Stream shape (R2000+)
 //!
 //! ```text
-//! B    hasNoFlagInd     -- R2000+; if true, 3 BD3 corners follow, no edge flags
-//! B    Z-is-zero-flag   -- R24+; if true, all-z defaulted to 0
-//! RD3  corner_1
-//! BD3  corner_2         -- delta-encoded from corner_1
-//! BD3  corner_3         -- delta from corner_2
-//! (if has 4 corners)
-//!   BD3  corner_4       -- delta from corner_3
-//! BS   invisible_edges_mask (bits 0..3 mark edges as invisible)
+//! B    has_no_flag_ind         -- when set, no invisible-edge mask follows
+//! B    z_is_zero               -- when set, the first corner's z is not stored
+//! RD   corner_1.x              10
+//! RD   corner_1.y              20
+//! RD   corner_1.z              30   -- only when z_is_zero is clear
+//! 3DD  corner_2                11   -- defaults to corner_1
+//! 3DD  corner_3                12   -- defaults to corner_2
+//! 3DD  corner_4                13   -- defaults to corner_3
+//! BS   invisible_edges         70   -- only when has_no_flag_ind is clear
 //! ```
 //!
-//! For simpler handling we treat the face as always 4 corners, with
-//! corner_4 = corner_3 for triangles.
+//! # Measured: the trailing corners are `3DD`, not `BD` deltas
+//!
+//! The previous reading treated corners 2-4 as `BD` offsets added to the
+//! previous corner, and dropped corner 4 entirely when
+//! `has_no_flag_ind` was set. §20.4.32 types them as `3DD` — "default
+//! double" triples that reuse the previous corner as the default — and
+//! makes only the invisible-edge `BS` conditional. On the 3DFACE record
+//! of `sample_AC1032.dwg` (handle `0x322`) the `BD` reading hits a
+//! reserved `11` bit pattern; the `3DD` reading closes the record
+//! exactly on its data-stream boundary at bit 503.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::Point3D;
@@ -27,53 +37,30 @@ pub struct ThreeDFace {
     pub is_triangle: bool,
 }
 
+/// Read a `3DD` (§2.6) — three `DD`s defaulting componentwise to `d`.
+fn read_dd3(c: &mut BitCursor<'_>, d: Point3D) -> Result<Point3D> {
+    Ok(Point3D {
+        x: c.read_dd(d.x)?,
+        y: c.read_dd(d.y)?,
+        z: c.read_dd(d.z)?,
+    })
+}
+
 /// Decodes the `ThreeDFace` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<ThreeDFace> {
     let has_no_flag = c.read_b()?;
     let z_is_zero = c.read_b()?;
-    let c1x = c.read_rd()?;
-    let c1y = c.read_rd()?;
-    let c1z = if z_is_zero { 0.0 } else { c.read_rd()? };
     let c1 = Point3D {
-        x: c1x,
-        y: c1y,
-        z: c1z,
+        x: c.read_rd()?,
+        y: c.read_rd()?,
+        z: if z_is_zero { 0.0 } else { c.read_rd()? },
     };
-    let c2 = {
-        let dx = c.read_bd()?;
-        let dy = c.read_bd()?;
-        let dz = if z_is_zero { 0.0 } else { c.read_bd()? };
-        Point3D {
-            x: c1.x + dx,
-            y: c1.y + dy,
-            z: c1.z + dz,
-        }
-    };
-    let c3 = {
-        let dx = c.read_bd()?;
-        let dy = c.read_bd()?;
-        let dz = if z_is_zero { 0.0 } else { c.read_bd()? };
-        Point3D {
-            x: c2.x + dx,
-            y: c2.y + dy,
-            z: c2.z + dz,
-        }
-    };
-    // Per spec, when hasNoFlagInd==true there are only 3 corners and no invisible mask.
-    let (c4, invisible, is_triangle) = if has_no_flag {
-        (c3, 0u16, true)
-    } else {
-        let dx = c.read_bd()?;
-        let dy = c.read_bd()?;
-        let dz = if z_is_zero { 0.0 } else { c.read_bd()? };
-        let c4 = Point3D {
-            x: c3.x + dx,
-            y: c3.y + dy,
-            z: c3.z + dz,
-        };
-        let mask = c.read_bs_u()?;
-        (c4, mask, false)
-    };
+    let c2 = read_dd3(c, c1)?;
+    let c3 = read_dd3(c, c2)?;
+    let c4 = read_dd3(c, c3)?;
+    let invisible = if has_no_flag { 0u16 } else { c.read_bs_u()? };
+    // A face whose fourth corner repeats the third is a triangle.
+    let is_triangle = c4 == c3;
     Ok(ThreeDFace {
         corners: [c1, c2, c3, c4],
         invisible_edges: invisible,

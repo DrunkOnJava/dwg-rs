@@ -56,6 +56,9 @@ use crate::string_stream;
 use crate::tables::modern;
 use crate::version::Version;
 
+/// Cap on the R2018+ per-column height list (§20.4.46 `BD 46`).
+pub const MAX_COLUMN_HEIGHTS: usize = 4_096;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MText {
     pub insertion_point: Point3D,
@@ -71,6 +74,18 @@ pub struct MText {
     pub text: String,
     pub linespace_style: i16,
     pub linespace_factor: f64,
+    /// R2018+ `B` — the record stores "is NOT annotative"; this is its
+    /// negation. `true` on pre-R2018 records, which do not carry it.
+    pub is_annotative: bool,
+    /// R2018+ `BS 71` column type: 0 none, 1 static, 2 dynamic.
+    pub column_type: i16,
+    /// R2018+ `BD 44` column width (0 when there are no columns).
+    pub column_width: f64,
+    /// R2018+ `BD 45` column gutter (0 when there are no columns).
+    pub column_gutter: f64,
+    /// R2018+ `BD 46` per-column heights — written only for dynamic
+    /// columns that are not auto-height.
+    pub column_heights: Vec<f64>,
 }
 
 /// Decodes the `MText` payload that follows the common entity header.
@@ -107,6 +122,11 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
         text,
         linespace_style,
         linespace_factor,
+        is_annotative: true,
+        column_type: 0,
+        column_width: 0.0,
+        column_gutter: 0.0,
+        column_heights: Vec::new(),
     })
 }
 
@@ -170,7 +190,7 @@ pub fn decode_modern_split_stream(
         return Ok(mtext);
     };
     let at = c.position_bits();
-    if at > stream.start_bit {
+    if at != stream.start_bit {
         return Err(modern::misaligned("MTEXT", at, stream.start_bit));
     }
 
@@ -188,7 +208,13 @@ pub fn decode_modern_split_stream(
 
 /// Read the R2007+ MTEXT field body from the data stream, leaving
 /// [`MText::text`] empty for the caller to fill from the string stream.
-fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
+/// Public wrapper over the R2007+ MTEXT field body, for probes under
+/// `examples/` that need to walk an embedded MTEXT record.
+pub fn read_modern_fields_probe(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
+    read_modern_fields(c, version)
+}
+
+pub(crate) fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
     let insertion_point = read_bd3(c)?;
     let extrusion = read_bd3(c)?;
     let x_axis_direction = read_bd3(c)?;
@@ -210,12 +236,61 @@ fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Result<MText> 
     let _unknown_b = c.read_b()?;
     if version.is_r2004_plus() {
         let background_flags = c.read_bl()?;
-        if background_flags & 0x01 != 0 {
+        // §20.4.46: the background block follows when bit 0x01 is set,
+        // "or in case of R2018 bit 0x10" — the R2018 text-frame bit.
+        let frame_bit = if matches!(version, Version::R2018) {
+            0x10
+        } else {
+            0
+        };
+        if background_flags & (0x01 | frame_bit) != 0 {
             let _background_scale = c.read_bd()?;
             let _background_color_index = c.read_bs_u()?;
             let _background_color_rgb = c.read_bl_u()?;
             let _background_color_byte = c.read_rc()?;
             let _background_transparency = c.read_bl()?;
+        }
+    }
+    let mut is_annotative = true;
+    let mut column_type = 0i16;
+    let mut column_width = 0.0f64;
+    let mut column_gutter = 0.0f64;
+    let mut column_heights = Vec::new();
+    if matches!(version, Version::R2018) {
+        let is_not_annotative = c.read_b()?;
+        is_annotative = !is_not_annotative;
+        if is_not_annotative {
+            let _version = c.read_bs()?;
+            let _default_flag = c.read_b()?;
+            // `H` registered application — handle stream, no data bits.
+            let _attachment_point = c.read_bl()?;
+            let _x_axis_dir = read_bd3(c)?;
+            let _insertion_point = read_bd3(c)?;
+            let _rect_width = c.read_bd()?;
+            let _rect_height = c.read_bd()?;
+            let _extents_width = c.read_bd()?;
+            let _extents_height = c.read_bd()?;
+            column_type = c.read_bs()?;
+            if column_type != 0 {
+                let height_count = c.read_bl_u()? as usize;
+                column_width = c.read_bd()?;
+                column_gutter = c.read_bd()?;
+                let auto_height = c.read_b()?;
+                let _flow_reversed = c.read_b()?;
+                if !auto_height && column_type == 2 {
+                    if height_count > MAX_COLUMN_HEIGHTS || height_count > c.remaining_bits() {
+                        return Err(Error::SectionMap(format!(
+                            "MTEXT column height count {height_count} exceeds cap \
+                             ({MAX_COLUMN_HEIGHTS}) or remaining_bits ({})",
+                            c.remaining_bits()
+                        )));
+                    }
+                    column_heights.reserve(height_count);
+                    for _ in 0..height_count {
+                        column_heights.push(c.read_bd()?);
+                    }
+                }
+            }
         }
     }
     Ok(MText {
@@ -232,6 +307,11 @@ fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Result<MText> 
         text: String::new(),
         linespace_style,
         linespace_factor,
+        is_annotative,
+        column_type,
+        column_width,
+        column_gutter,
+        column_heights,
     })
 }
 

@@ -109,6 +109,29 @@ pub fn locate(payload: &[u8], version: Version) -> Option<StringStream> {
     Some(StringStream { start_bit, end_bit })
 }
 
+/// Bit offset at which an object's **data fields** must end.
+///
+/// With a string stream present that is its first bit. With none, the
+/// `strings present` trailer bit is still written — it is the last bit
+/// before the handle stream, and it is not one of the record's own
+/// fields — so the fields end one bit earlier than
+/// [`data_section_end`].
+///
+/// # Measured
+///
+/// Every LWPOLYLINE (20 records), 3DFACE (1), INSERT (4) and SPLINE (2)
+/// of `sample_AC1032.dwg` carries no string stream, and every one of
+/// them ends its field list exactly one bit short of
+/// [`data_section_end`]. Treating that bit as a trailing entity field
+/// would put a fabricated `B` at the end of four different field lists;
+/// it is the trailer flag, once, for all of them.
+pub fn data_field_end(payload: &[u8], version: Version) -> Option<usize> {
+    match locate(payload, version) {
+        Some(stream) => Some(stream.start_bit),
+        None => data_section_end(payload, version)?.checked_sub(1),
+    }
+}
+
 /// Bit offset at which the object's data + string area ends (and the
 /// handle stream begins), per the measured rule in the module docs.
 pub fn data_section_end(payload: &[u8], version: Version) -> Option<usize> {

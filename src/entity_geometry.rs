@@ -771,20 +771,10 @@ pub fn spline_to_curve(spline: &crate::entities::spline::Spline) -> Result<Curve
     })
 }
 
-/// Clamp the on-wire SPLINE degree (read as `f64` per spec) into a
+/// Clamp the on-wire SPLINE degree (a `BL` per §20.4.40) into a
 /// reasonable `u32` range for the renderer.
-fn clamp_spline_degree(d: f64) -> u32 {
-    if !d.is_finite() {
-        return 3;
-    }
-    let truncated = d.trunc();
-    if truncated < 1.0 {
-        1
-    } else if truncated > 15.0 {
-        15
-    } else {
-        truncated as u32
-    }
+fn clamp_spline_degree(d: i32) -> u32 {
+    d.clamp(1, 15) as u32
 }
 
 /// True when every entry in `weights` equals the first within a tight

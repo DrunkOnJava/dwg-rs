@@ -598,10 +598,7 @@ pub fn body_cursor<'a>(raw: &'a RawObject, version: Version) -> Result<BitCursor
 /// - R13/R14 — unknown; returns `None`.
 pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
     if version.is_r2010_plus() {
-        return match crate::string_stream::locate(&raw.raw, version) {
-            Some(stream) => Some(stream.start_bit),
-            None => crate::string_stream::data_section_end(&raw.raw, version),
-        };
+        return crate::string_stream::data_field_end(&raw.raw, version);
     }
     raw.obj_size_bits.map(|b| b as usize)
 }

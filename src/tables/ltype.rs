@@ -29,6 +29,7 @@
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::error::{Error, Result};
+use crate::tables::modern;
 use crate::tables::{TableEntryHeader, read_table_entry_header, read_tv};
 use crate::version::Version;
 
@@ -137,13 +138,24 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
     })
 }
 
-/// Decode an R2007+ LTYPE whose `TV` fields live in the object's string stream.
+/// Decode an R2007+ LTYPE through the object's split streams (§20.4.58).
 ///
-/// ODA v5.4.1 §19.1 says modern Unicode strings are read from the string
-/// stream even when the LTYPE field table lists `TV` inline. The data cursor
-/// therefore parses only the non-string fields at each `TV` site: entry name
-/// and description come from the string stream, while dash text uses LTYPE's
-/// fixed text area/index scheme.
+/// # Measured field order and widths
+///
+/// §20.4.58 lists the dash record as `BD 49 dash length`, `BS 75
+/// complex shapecode`, `RD 44 x-offset`, `RD 45 y-offset`, `BD 46
+/// scale`, `BD 50 rotation`, `BS 74 shapeflag` — note the two raw
+/// doubles in the middle, and that the shape flag comes *after* the
+/// geometry, not before it. The pre-R2007 [`decode`] path in this
+/// module reads a different order inherited from an earlier revision;
+/// it is left alone because no R2004-or-earlier sample in the corpus
+/// exercises a dash record.
+///
+/// The `X 9` text area at the end is R2007+ 512 bytes **only if some
+/// dash sets `shapeflag & 0x02`**, and absent otherwise (§20.4.58).
+/// All three failing LTYPE records of `sample_AC1032.dwg` have that bit
+/// clear on every dash and close exactly on their string-stream start
+/// bit with no text area read.
 pub(crate) fn decode_modern_split_stream(
     payload: &[u8],
     object_body_start: usize,
@@ -155,31 +167,11 @@ pub(crate) fn decode_modern_split_stream(
         return decode(&mut c, version);
     }
 
-    let data_end = pre_handle_data_end(payload, version).unwrap_or(payload.len() * 8);
-    decode_modern_split_stream_ordered(payload, object_body_start, data_end, version).or_else(
-        |ordered_error| {
-            decode_simple_ltype_from_string_scan(payload, object_body_start, data_end, version)
-                .map_err(|_| ordered_error)
-        },
-    )
-}
-
-fn decode_modern_split_stream_ordered(
-    payload: &[u8],
-    object_body_start: usize,
-    data_end: usize,
-    version: Version,
-) -> Result<LtypeEntry> {
-    let mut data = BitCursor::new(payload);
-    skip_to(&mut data, object_body_start)?;
-    skip_table_object_prefix(&mut data, version)?;
-
-    let flag64 = data.read_b()?;
-    let xref_index_plus_1 = data.read_bs()?;
-    let is_xref_dependent = data.read_b()?;
-    let pattern_length = data.read_bd()?;
-    let alignment = data.read_rc()?;
-    let num_dashes = data.read_rc()? as usize;
+    let mut split = modern::open_table_entry(payload, object_body_start, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let pattern_length = split.data.read_bd()?;
+    let alignment = split.data.read_rc()?;
+    let num_dashes = split.data.read_rc()? as usize;
     if num_dashes > MAX_DASHES {
         return Err(Error::SectionMap(format!(
             "LTYPE num_dashes {num_dashes} exceeds spec cap of {MAX_DASHES}"
@@ -187,16 +179,16 @@ fn decode_modern_split_stream_ordered(
     }
 
     let mut dashes = Vec::with_capacity(num_dashes);
-    let mut has_r2007_text_area = false;
+    let mut has_text_area = false;
     for _ in 0..num_dashes {
-        let length = data.read_bd()?;
-        let shape_number = data.read_bs()?;
-        let x_offset = data.read_rd()?;
-        let y_offset = data.read_rd()?;
-        let scale = data.read_bd()?;
-        let rotation = data.read_bd()?;
-        let shape_flag = data.read_bs()?;
-        has_r2007_text_area |= shape_flag & 0x02 != 0 || shape_flag & 0x04 != 0;
+        let length = split.data.read_bd()?;
+        let shape_number = split.data.read_bs()?;
+        let x_offset = split.data.read_rd()?;
+        let y_offset = split.data.read_rd()?;
+        let scale = split.data.read_bd()?;
+        let rotation = split.data.read_bd()?;
+        let shape_flag = split.data.read_bs()?;
+        has_text_area |= shape_flag & 0x02 != 0;
         dashes.push(LtypeDash {
             length,
             shape_flag,
@@ -208,26 +200,15 @@ fn decode_modern_split_stream_ordered(
             text: DashText::None,
         });
     }
-    if has_r2007_text_area {
+    if has_text_area {
         for _ in 0..512 {
-            let _ = data.read_rc()?;
+            let _ = split.data.read_rc()?;
         }
     }
+    split.finish("LTYPE")?;
 
-    let mut strings = BitCursor::new(payload);
-    skip_to(&mut strings, data.position_bits())?;
-    let name = read_tv(&mut strings, version)?;
-    if !plausible_ltype_name(&name) {
-        return Err(Error::SectionMap(
-            "LTYPE string stream name not found".into(),
-        ));
-    }
-    let description = read_tv(&mut strings, version).unwrap_or_default();
-    if strings.position_bits() > data_end {
-        return Err(Error::SectionMap(
-            "LTYPE string stream overran pre-handle data".into(),
-        ));
-    }
+    let name = split.strings.read_tv()?;
+    let description = split.strings.read_tv()?;
 
     Ok(LtypeEntry {
         header: TableEntryHeader {
@@ -245,129 +226,11 @@ fn decode_modern_split_stream_ordered(
     })
 }
 
-fn decode_simple_ltype_from_string_scan(
-    payload: &[u8],
-    object_body_start: usize,
-    data_end: usize,
-    version: Version,
-) -> Result<LtypeEntry> {
-    for string_start in object_body_start..data_end {
-        let Some((name, description)) = read_ltype_string_pair_at(payload, string_start, version)
-        else {
-            continue;
-        };
-        if !plausible_ltype_name(&name) {
-            continue;
-        }
-        let Some(pattern_start) = string_start.checked_sub(18) else {
-            continue;
-        };
-        if pattern_start < object_body_start {
-            continue;
-        }
-        let mut fields = BitCursor::new(payload);
-        skip_to(&mut fields, pattern_start)?;
-        let pattern_length = fields.read_bd()?;
-        let alignment = fields.read_rc()?;
-        let num_dashes = fields.read_rc()?;
-        if fields.position_bits() != string_start || alignment != b'A' || num_dashes != 0 {
-            continue;
-        }
-        return Ok(LtypeEntry {
-            header: TableEntryHeader {
-                name,
-                ..TableEntryHeader::default()
-            },
-            flags: 0,
-            used_count: 0,
-            description,
-            pattern_length,
-            alignment,
-            dashes: Vec::new(),
-        });
-    }
-    Err(Error::SectionMap(
-        "LTYPE string stream name not found".into(),
-    ))
-}
-
-fn read_ltype_string_pair_at(
-    payload: &[u8],
-    string_start: usize,
-    version: Version,
-) -> Option<(String, String)> {
-    let mut strings = BitCursor::new(payload);
-    skip_to(&mut strings, string_start).ok()?;
-    let name = read_tv(&mut strings, version).ok()?;
-    let description = read_tv(&mut strings, version).unwrap_or_default();
-    Some((name, description))
-}
-
-fn plausible_ltype_name(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= 255
-        && s.chars().all(|ch| {
-            ch.is_ascii_alphanumeric()
-                || matches!(
-                    ch,
-                    '$' | '-' | '_' | '.' | '*' | ' ' | ',' | '/' | '\\' | '[' | ']'
-                )
-        })
-}
-
-fn skip_table_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<()> {
-    const MAX_XDATA_ITERATIONS: usize = 256;
-    for _ in 0..MAX_XDATA_ITERATIONS {
-        let size = c.read_bs_u()? as usize;
-        if size == 0 {
-            break;
-        }
-        let _appid = c.read_handle()?;
-        for _ in 0..size {
-            let _ = c.read_rc()?;
-        }
-    }
-
-    if version.is_r2004_plus() {
-        let _no_xdictionary = c.read_b()?;
-    }
-    if matches!(version, Version::R2013 | Version::R2018) {
-        let _has_binary_data = c.read_b()?;
-    }
-    Ok(())
-}
-
-fn pre_handle_data_end(payload: &[u8], version: Version) -> Option<usize> {
-    if !version.is_r2010_plus() {
-        return None;
-    }
-    let mut c = BitCursor::new(payload);
-    let handle_bits = read_mc_unsigned(&mut c).ok()? as usize;
-    payload.len().checked_mul(8)?.checked_sub(handle_bits)
-}
-
 fn skip_to(c: &mut BitCursor<'_>, bit: usize) -> Result<()> {
     while c.position_bits() < bit {
         let _ = c.read_b()?;
     }
     Ok(())
-}
-
-fn read_mc_unsigned(cursor: &mut BitCursor<'_>) -> Result<u64> {
-    let mut value: u64 = 0;
-    let mut shift: u32 = 0;
-    for _ in 0..10 {
-        let b = cursor.read_rc()? as u64;
-        value |= (b & 0x7F) << shift;
-        if b & 0x80 == 0 {
-            return Ok(value);
-        }
-        shift += 7;
-        if shift >= 64 {
-            break;
-        }
-    }
-    Err(Error::SectionMap("MC length exceeded 10 bytes".into()))
 }
 
 #[cfg(test)]

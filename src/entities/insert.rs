@@ -1,34 +1,64 @@
-//! INSERT entity (§19.4.34) — block reference.
+//! INSERT entity (ODA Open Design Specification for .dwg files v5.4
+//! §20.4.9) — block reference.
 //!
 //! An INSERT places one instance of a BLOCK (external or internal)
-//! at a specific insertion point with optional scale, rotation, and
-//! rectangular array parameters.
+//! at a specific insertion point with optional scale and rotation.
 //!
-//! # Stream shape
+//! # Stream shape (R2000+)
 //!
 //! ```text
-//! BD3  insertion_point
-//! BB   scale_flag        -- 00=all three BD, 01=scaled by BD-shared,
-//!                           10=scaled (1.0, 1.0, 1.0) implicit,
-//!                           11=reserved
-//! (scale_flag == 00)
-//!   BD  scale_x
-//!   BD  scale_y
-//!   BD  scale_z
-//! (scale_flag == 01)
-//!   BD  scale_x  (y and z = scale_x)
-//! BD   rotation
-//! BE   extrusion
-//! B    has_attribs       -- legacy; modern DWG always false, attribs
-//!                           come in via sub-entities referenced by
-//!                           following handles
-//! (if has_attribs in R13-R14 only)
-//!   BL  num_attribs
+//! 3BD  insertion_point       10
+//! BB   data_flags                -- how the scale is stored, below
+//! ...  scale data
+//! BD   rotation              50
+//! 3BD  extrusion             210
+//! B    has_attribs           66
+//! (R2004+, and only when has_attribs)
+//!   BL owned_object_count
+//! B    (undocumented — see below)
 //! ```
+//!
+//! `data_flags` selects one of four scale encodings (§20.4.9):
+//!
+//! | flags | meaning |
+//! |-------|---------|
+//! | `11`  | scale is `(1, 1, 1)`; nothing stored |
+//! | `01`  | x is `1.0`; y and z are `DD`s defaulting to `1.0` |
+//! | `10`  | x is an `RD`; y and z equal x |
+//! | `00`  | x is an `RD`; y and z are `DD`s defaulting to x |
+//!
+//! The previous reading of this entity used `BD` scale components, a
+//! `BE` extrusion and no owned-object count. On `sample_AC1032.dwg`
+//! that overran three of the four INSERT records and mis-scaled the
+//! fourth.
+//!
+//! # Measured: the owned-object count is conditional, and one bit trails
+//!
+//! §20.4.9 tags `Owned Object Count` `R2004+` with no further guard and
+//! lists nothing after it. On the four R2018 INSERT records of
+//! `sample_AC1032.dwg` the count appears **only** when `has_attribs` is
+//! set, and exactly one further bit follows in either case:
+//!
+//! | handle | data flags | x scale | rotation | has_attribs | count | trailing `B` | ends |
+//! |--------|-----------|---------|----------|-------------|-------|--------------|------|
+//! | `0x660` | `10` | 2.5 | 3.9269908 | false | — | false | bit 406 = boundary |
+//! | `0x661` | `10` | 2.5 | 3.9269908 | false | — | false | bit 406 = boundary |
+//! | `0xC9E` | `10` | 2.5 | 3.9269908 | false | — | false | bit 406 = boundary |
+//! | `0x79C` | `10` | 4.1911332 | 0 | true | 3 | false | bit 310 = boundary |
+//!
+//! Reading the count unconditionally leaves `0x660` one bit short of a
+//! `BL`; dropping the trailing bit leaves every record one bit short of
+//! its string-stream start. The trailing bit is surfaced as
+//! [`Insert::undocumented_flag`] rather than named.
 
 use crate::bitcursor::BitCursor;
-use crate::entities::{Point3D, Vec3D, read_bd3, read_be};
+use crate::entities::{Point3D, Vec3D, read_bd3};
 use crate::error::Result;
+use crate::version::Version;
+
+/// Maximum `owned_object_count` accepted — an INSERT owns one ATTRIB
+/// per attribute definition of its block.
+pub const MAX_OWNED_OBJECTS: u32 = 65_536;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Insert {
@@ -36,43 +66,61 @@ pub struct Insert {
     pub scale: Point3D,
     pub rotation: f64,
     pub extrusion: Vec3D,
+    /// `B 66` — ATTRIB sub-entities follow this INSERT.
     pub has_attribs: bool,
+    /// `BL` owned-object count (R2004+, only when `has_attribs`).
+    pub owned_object_count: u32,
 }
 
 /// Decodes the `Insert` payload that follows the common entity header.
-pub fn decode(c: &mut BitCursor<'_>) -> Result<Insert> {
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
     let insertion_point = read_bd3(c)?;
-    let scale_flag = c.read_bb()?;
-    let scale = match scale_flag {
-        0b00 => Point3D {
-            x: c.read_bd()?,
-            y: c.read_bd()?,
-            z: c.read_bd()?,
+    let data_flags = c.read_bb()?;
+    let scale = match data_flags {
+        0b11 => Point3D {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
         },
-        0b01 => {
-            let s = c.read_bd()?;
-            Point3D { x: s, y: s, z: s }
+        0b01 => Point3D {
+            x: 1.0,
+            y: c.read_dd(1.0)?,
+            z: c.read_dd(1.0)?,
+        },
+        0b10 => {
+            let x = c.read_rd()?;
+            Point3D { x, y: x, z: x }
         }
-        0b10 => Point3D {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-        _ => Point3D {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
+        _ => {
+            let x = c.read_rd()?;
+            Point3D {
+                x,
+                y: c.read_dd(x)?,
+                z: c.read_dd(x)?,
+            }
+        }
     };
     let rotation = c.read_bd()?;
-    let extrusion = read_be(c)?;
+    let extrusion = read_bd3(c)?;
     let has_attribs = c.read_b()?;
+    let owned_object_count = if has_attribs && version.is_r2004_plus() {
+        let n = c.read_bl_u()?;
+        if n > MAX_OWNED_OBJECTS {
+            return Err(crate::error::Error::SectionMap(format!(
+                "INSERT owned_object_count {n} exceeds cap {MAX_OWNED_OBJECTS}"
+            )));
+        }
+        n
+    } else {
+        0
+    };
     Ok(Insert {
         insertion_point,
         scale,
         rotation,
         extrusion,
         has_attribs,
+        owned_object_count,
     })
 }
 

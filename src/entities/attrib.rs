@@ -23,6 +23,7 @@
 //! the TEXT-shaped preamble, then reads the ATTRIB-specific trailer.
 
 use crate::bitcursor::BitCursor;
+use crate::entities::mtext::{self, MText};
 use crate::entities::text::{self, Text};
 use crate::error::{Error, Result};
 use crate::string_stream;
@@ -36,6 +37,13 @@ pub struct Attrib {
     pub field_length: i16,
     pub flags: u8,
     pub lock_position: bool,
+    /// R2018+ `RC 71` attribute type: 1 single line, 2 multi-line
+    /// ATTRIB, 4 multi-line ATTDEF. `1` on earlier releases, which do
+    /// not carry the field.
+    pub attribute_type: u8,
+    /// The embedded MTEXT record a multi-line attribute carries
+    /// (§20.4.4). `None` for a single-line attribute.
+    pub mtext: Option<MText>,
 }
 
 impl Attrib {
@@ -74,24 +82,37 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Attrib> {
         field_length,
         flags,
         lock_position,
+        attribute_type: 1,
+        mtext: None,
     })
 }
 
-/// Decode an R2007+ single-line ATTRIB whose `TV` fields live in the
-/// object's string stream (ODA v5.4.1 §19.1 split layout, §19.4.2).
+/// Decode an R2007+ ATTRIB through the object's split streams
+/// (§20.4.4), single-line or multi-line.
 ///
-/// The data stream carries the TEXT field body (see
-/// [`text::read_modern_fields`]), then the field length, the flags and
-/// the R2018 lock-position bit; the string stream carries the
-/// attribute value then the tag.
+/// # Measured field list (R2018)
 ///
-/// # Multi-line attributes are not decoded
+/// §20.4.4 puts an `RC` version byte (R2010+) and an `RC` attribute
+/// type (R2018+) between the shared TEXT body and the attribute's own
+/// fields, and branches on the type. On `sample_AC1032.dwg` all four
+/// ATTRIB records close exactly on their string-stream start bit under
+/// that reading:
 ///
-/// R2010 added multi-line attributes, which embed a whole MTEXT record
-/// between the TEXT body and the tag. `sample_AC1032.dwg` contains one
-/// (`MULTI_LINE_ATT`, three strings in its stream rather than two);
-/// this decoder does not model the embedded record and reports the
-/// misalignment rather than guessing at it.
+/// | handle | version | type | body ends | boundary |
+/// |--------|---------|------|-----------|----------|
+/// | `0x705` | 0 | 1 (single line) | 311 | 311 |
+/// | `0x79F` | 0 | 1 (single line) | 389 | 389 |
+/// | `0x7A0` | 0 | 1 (single line) | 311 | 311 |
+/// | `0x79D` | 0 | 2 (multi-line)  | 1111 | 1111 |
+///
+/// The multi-line record embeds a whole MTEXT — "all fields of an
+/// embedded MTEXT object … starting from the Entmode (entity mode)",
+/// so the embedded record has no length, type code, handle, EED chain
+/// or graphics block. Its 683 data bits sit between the attribute
+/// type byte and the `BS` annotative-data size, and its text
+/// (`"my multi line text for the attrrib"`) is the second of the
+/// record's three strings — the first being the (empty) TEXT value and
+/// the third the tag `"MULTI_LINE_ATT"`.
 pub(crate) fn decode_modern_split_stream(
     payload: &[u8],
     object_body_start: usize,
@@ -102,25 +123,100 @@ pub(crate) fn decode_modern_split_stream(
     string_stream::seek(&mut c, object_body_start)?;
     crate::common_entity::read_common_entity_data(&mut c, version)?;
     let mut text = text::read_modern_fields(&mut c)?;
-    let field_length = c.read_bs()?;
-    let flags = c.read_rc()?;
-    let lock_position = if matches!(version, Version::R2018) {
-        c.read_b()?
-    } else {
-        false
-    };
+    let body = read_attribute_body(&mut c, version)?;
     let at = c.position_bits();
     if at != string_start {
         return Err(modern::misaligned("ATTRIB", at, string_start));
     }
     text.text = strings.read_tv()?;
+    let mut embedded = body.mtext;
+    if let Some(m) = embedded.as_mut() {
+        m.text = strings.read_tv()?;
+    }
     let tag = strings.read_tv()?;
     Ok(Attrib {
         text,
         tag,
-        field_length,
+        field_length: body.field_length,
+        flags: body.flags,
+        lock_position: body.lock_position,
+        attribute_type: body.attribute_type,
+        mtext: embedded,
+    })
+}
+
+/// The attribute-specific fields shared by ATTRIB and ATTDEF: the
+/// version byte, the attribute type, and whichever branch it selects.
+pub(crate) struct AttributeBody {
+    pub attribute_type: u8,
+    pub field_length: i16,
+    pub flags: u8,
+    pub lock_position: bool,
+    pub mtext: Option<MText>,
+}
+
+/// Maximum `annotative data size` accepted (§20.4.4 `BS`).
+pub const MAX_ANNOTATIVE_DATA: usize = 65_535;
+
+/// Read the R2010+ attribute body that follows the shared TEXT fields.
+pub(crate) fn read_attribute_body(
+    c: &mut BitCursor<'_>,
+    version: Version,
+) -> Result<AttributeBody> {
+    if version.is_r2010_plus() {
+        let _version_byte = c.read_rc()?;
+    }
+    let attribute_type = if matches!(version, Version::R2018) {
+        c.read_rc()?
+    } else {
+        1
+    };
+    if attribute_type == 1 {
+        let field_length = c.read_bs()?;
+        let flags = c.read_rc()?;
+        let lock_position = if version.is_r2007_plus() {
+            c.read_b()?
+        } else {
+            false
+        };
+        return Ok(AttributeBody {
+            attribute_type,
+            field_length,
+            flags,
+            lock_position,
+            mtext: None,
+        });
+    }
+    // Multi-line: an embedded MTEXT record, starting at its entity-mode
+    // bits, then the annotative-data block and the attribute's flags.
+    crate::common_entity::read_entity_mode_onwards(c, version, false, false)?;
+    let embedded = mtext::read_modern_fields(c, version)?;
+    let annotative_size = c.read_bs_u()? as usize;
+    if annotative_size > MAX_ANNOTATIVE_DATA || annotative_size * 8 > c.remaining_bits() {
+        return Err(Error::SectionMap(format!(
+            "ATTRIB annotative data size {annotative_size} exceeds cap \
+             ({MAX_ANNOTATIVE_DATA}) or remaining_bits ({})",
+            c.remaining_bits()
+        )));
+    }
+    if annotative_size > 0 {
+        for _ in 0..annotative_size {
+            let _ = c.read_rc()?;
+        }
+        // `H` registered application — handle stream, no data bits.
+        let _unknown_72 = c.read_bs()?;
+    }
+    // `TV 2` tag string sits here in field order and consumes no data
+    // bits on R2007+.
+    let _unknown_73 = c.read_bs()?;
+    let flags = c.read_rc()?;
+    let lock_position = c.read_b()?;
+    Ok(AttributeBody {
+        attribute_type,
+        field_length: 0,
         flags,
         lock_position,
+        mtext: Some(embedded),
     })
 }
 

@@ -268,6 +268,23 @@ pub fn read_common_entity_data(
         }
     }
 
+    read_entity_mode_onwards(c, version, had_extended, had_graphics)
+}
+
+/// Read the common entity preamble from the **entity-mode bits** on —
+/// i.e. everything after the EED chain and the graphics-preview block.
+///
+/// This is the form an *embedded* entity takes. §20.4.4 says an R2018+
+/// multi-line ATTRIB writes "all fields of an embedded MTEXT object …
+/// starting from the Entmode (entity mode)", so the embedded record has
+/// no length, no type code, no handle, no EED chain and no graphics
+/// block — it starts here.
+pub(crate) fn read_entity_mode_onwards(
+    c: &mut BitCursor<'_>,
+    version: Version,
+    had_extended: bool,
+    had_graphics: bool,
+) -> Result<CommonEntityData> {
     // -- Entity mode ---------------------------------------------------------
     let raw_mode = c.read_bb()?;
     let mode = EntityMode::from_bb(raw_mode);
