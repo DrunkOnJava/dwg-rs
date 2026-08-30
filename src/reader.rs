@@ -510,6 +510,43 @@ impl DwgFile {
         )
     }
 
+    /// Same handle-driven walk as [`all_objects`](Self::all_objects),
+    /// but also returns the [`crate::object::ObjectWalkSummary`] listing
+    /// every handle-map entry the walker could not turn into a record.
+    ///
+    /// These skips are *walker* diagnostics, not decoder errors: they
+    /// mean the handle map pointed somewhere that does not hold an
+    /// object record (a truncated stream, an offset past the end, or a
+    /// handle field whose counter is impossible — see
+    /// [`crate::Error::HandleCounterTooLarge`]). They are deliberately
+    /// kept out of the per-entity dispatch counts so coverage numbers
+    /// stay comparable across releases.
+    pub fn all_objects_lossy(
+        &self,
+    ) -> Option<
+        Result<(
+            Vec<crate::object::RawObject>,
+            crate::object::ObjectWalkSummary,
+        )>,
+    > {
+        let _ = self.r2004.as_ref()?;
+        let hmap = match self.handle_map()? {
+            Ok(m) => m,
+            Err(e) => return Some(Err(e)),
+        };
+        let obj_bytes = match self.read_section("AcDb:AcDbObjects") {
+            Some(Ok(b)) => b,
+            Some(Err(e)) => return Some(Err(e)),
+            None => return None,
+        };
+        Some(Ok(crate::object::ObjectWalker::with_handle_map(
+            &obj_bytes,
+            self.version,
+            &hmap,
+        )
+        .collect_all_lossy()))
+    }
+
     /// End-to-end entity decode: walk every object via the handle map,
     /// then dispatch each one through the per-type decoder. Returns the
     /// list of [`crate::entities::DecodedEntity`] plus a

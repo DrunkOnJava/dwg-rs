@@ -6,18 +6,22 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 691 passing in default/debug and release-all-features
+- **Lib tests:** 703 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 1,954 decoded / 288 skipped /
-  39 errored / 85.7% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 565 / 141 / 39 / 75.8%, and it
+- **Current real-file decode coverage:** 2,105 decoded / 234 skipped /
+  39 errored / 88.5% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 716 / 87 / 39 / 85.0%, and it
   is the only file with any errors — the R2004, R2010 and R2013
-  samples all decode with zero. Per version: R2004 83.4%,
-  R2010 95.6%, R2013 93.9%.
+  samples all decode with zero. Per version: R2004 81.9%,
+  R2010 93.9%, R2013 91.7%.
+- **Handle-map completeness:** every one of the 842 `AcDb:Handles`
+  entries on `sample_AC1032.dwg` resolves to a record whose own handle
+  field matches the map, and the walked records cover 1,191,935 of the
+  section's 1,192,851 bytes (916 unclaimed, longest run 4 bytes).
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
   Seed corpus: 30 hand-crafted inputs across all targets.
@@ -203,8 +207,8 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 1954 decoded,
-  288 skipped, 39 errored, 85.7% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 2105 decoded,
+  234 skipped, 39 errored, 88.5% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 

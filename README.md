@@ -27,8 +27,8 @@ local `samples/` set:
 | R2004 (AC1018)      | 3 | 498 | 99 | 0 | **83.4 %** |
 | R2010 (AC1024)      | 3 | 519 | 24 | 0 | **95.6 %** |
 | R2013 (AC1027)      | 3 | 372 | 24 | 0 | **93.9 %** |
-| R2018 (AC1032)      | 1 | 565 | 141 | 39 | **75.8 %** |
-| **Aggregate** | **19** | **1954** | **288** | **39** | **85.7 %** |
+| R2018 (AC1032)      | 1 | 716 | 87 | 39 | **85.0 %** |
+| **Aggregate** | **19** | **2105** | **234** | **39** | **88.5 %** |
 
 Per-entity-type error concentration in the measured corpus:
 
@@ -87,7 +87,7 @@ real-file decode gap is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~85.7% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~88.5% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -271,8 +271,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 85.7 %
-aggregate / 75.8 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 88.5 %
+aggregate / 85.0 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety

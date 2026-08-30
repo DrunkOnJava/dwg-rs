@@ -164,3 +164,82 @@ fn fixture_sections_are_readable() {
         assert_eq!(map.len(), ENTITIES_PER_FIXTURE, "{name}: handle map size");
     }
 }
+
+/// Handle-map address-space gate (#43 / #44).
+///
+/// Every record in `AcDb:AcDbObjects` repeats its own handle, so the
+/// object stream can check the handle map against itself: the record at
+/// the offset the map produced must carry the handle the map produced.
+/// The R2018 sample audit found that invariant broken for 570 of 842
+/// entries because the handle delta was decoded as a *signed* modular
+/// char and the per-section accumulators were carried across handle
+/// sections. Pin it on every fixture so a regression in either the
+/// reader or the writer trips here.
+#[test]
+fn fixture_handle_maps_resolve_to_records_that_agree_with_them() {
+    for (name, _version) in FIXTURES {
+        let path = corpus_dir().join(name);
+        let file = DwgFile::open(&path).unwrap_or_else(|e| panic!("{name}: open failed: {e}"));
+        let (objects, walk) = file
+            .all_objects_lossy()
+            .unwrap_or_else(|| panic!("{name}: no handle-map-driven walk"))
+            .unwrap_or_else(|e| panic!("{name}: walk failed: {e}"));
+        let map = file
+            .handle_map()
+            .expect("handle map section present")
+            .expect("handle map parses");
+
+        assert!(
+            walk.skipped.is_empty(),
+            "{name}: {} handle-map entries yielded no record: {:?}",
+            walk.skipped.len(),
+            walk.skipped
+        );
+        assert!(
+            walk.handle_mismatches.is_empty(),
+            "{name}: {} records disagree with the handle map \
+             (map_handle, record_handle, offset): {:?}",
+            walk.handle_mismatches.len(),
+            walk.handle_mismatches
+        );
+        assert_eq!(
+            objects.len(),
+            map.len(),
+            "{name}: walked record count must equal the handle-map entry count"
+        );
+    }
+}
+
+/// Completeness oracle from the class table (#43): `AcDb:Classes`
+/// records how many instances of each custom class the drawing holds,
+/// so the walk must reach at least that many objects of each class.
+/// The synthetic fixtures carry no custom classes today; the assertion
+/// is written so it starts gating the moment `build_fixtures` declares
+/// one.
+#[test]
+fn fixture_walks_reach_every_declared_class_instance() {
+    for (name, _version) in FIXTURES {
+        let path = corpus_dir().join(name);
+        let file = DwgFile::open(&path).unwrap_or_else(|e| panic!("{name}: open failed: {e}"));
+        let Some(Ok(classes)) = file.class_map() else {
+            continue;
+        };
+        let objects = file
+            .all_objects()
+            .unwrap_or_else(|| panic!("{name}: no handle-map-driven walk"))
+            .unwrap_or_else(|e| panic!("{name}: walk failed: {e}"));
+        for def in &classes.classes {
+            let walked = objects
+                .iter()
+                .filter(|o| o.type_code == def.class_number)
+                .count();
+            assert!(
+                walked >= def.num_objects as usize,
+                "{name}: class {} ({}) declares {} instances, walk reached {walked}",
+                def.class_number,
+                def.dxf_class_name,
+                def.num_objects
+            );
+        }
+    }
+}

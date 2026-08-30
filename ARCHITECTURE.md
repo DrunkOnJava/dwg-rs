@@ -214,15 +214,33 @@ pairs:
 
 ```
  AcDb:Handles section bytes:
-   [count][handle₁][offset₁][handle₂ delta][offset₂ delta]...
-            └─────────┐                 ┌────┘
-                      ▼                 ▼
-                 handle values     signed MC deltas from previous
+   [BE u16 size][pairs ...][CRC]  [BE u16 size][pairs ...][CRC]  [0x0000]
+   └──── handle section 1 ─────┘  └──── handle section 2 ─────┘  terminator
+        pair = (unsigned MC handle delta, signed MC offset delta)
 ```
 
 `HandleMap::parse` walks this index, applies the deltas to recover
 absolute handles and offsets, and returns a sorted list. The walker
 then seeks to each offset, reads the object's size + type code + body.
+
+Two encoding rules govern the pair run, both established by the
+`sample_AC1032.dwg` audit in #43/#44:
+
+- The **handle delta is an unsigned modular char**; only the **offset
+  delta is signed**. Handles grow monotonically inside a handle
+  section, so the encoder spends all seven low bits of the terminating
+  byte on magnitude; byte offsets genuinely move backward when deleted
+  objects' space is reused, so those keep the 0x40 negation bit.
+- **Both accumulators restart at zero on every handle section.** The
+  first pair of each section is absolute, not relative to the previous
+  section's last entry.
+
+The object stream checks the map against itself: every record repeats
+its own handle, so "does the record at the offset this map produced
+carry the handle this map produced?" is a free oracle.
+`ObjectWalkSummary::handle_mismatches` reports each disagreement, and
+`examples/probe_class_census.rs` cross-checks the walk against the
+`num_objects` instance counts in `AcDb:Classes`.
 
 For R2010+, a 2-bit "object type tag" preceeds the 16-bit type code
 to compress common type numbers into 1 byte — see `object_type.rs`

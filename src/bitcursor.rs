@@ -421,9 +421,21 @@ impl<'a> BitCursor<'a> {
     // ================================================================
 
     /// Reads an `H` (handle reference): a code/counter byte followed by `counter` big-endian value bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::HandleCounterTooLarge`] when the counter nibble
+    /// is above 8. The nibble can hold 0..=15, but a handle value is at
+    /// most a `u64`, so a wider counter is not a large handle — it is
+    /// proof that the cursor is not sitting on a handle field. Reading
+    /// it anyway shifted the excess bytes out silently and produced a
+    /// plausible-looking handle from garbage.
     pub fn read_handle(&mut self) -> Result<Handle> {
         let code = self.read_bits(4)? as u8;
         let counter = self.read_bits(4)? as u8;
+        if counter > 8 {
+            return Err(Error::HandleCounterTooLarge { code, counter });
+        }
         let mut value: u64 = 0;
         for _ in 0..counter {
             value = (value << 8) | self.read_rc()? as u64;
@@ -471,6 +483,39 @@ impl Handle {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bitwriter::BitWriter;
+
+    #[test]
+    fn read_handle_accepts_a_full_eight_byte_counter() {
+        let mut w = BitWriter::new();
+        w.write_handle(4, u64::MAX);
+        let bytes = w.into_bytes();
+        let h = BitCursor::new(&bytes).read_handle().unwrap();
+        assert_eq!(h.code, 4);
+        assert_eq!(h.counter, 8);
+        assert_eq!(h.value, u64::MAX);
+    }
+
+    #[test]
+    fn read_handle_rejects_a_counter_above_eight() {
+        // Code 2, counter 11 — the signature the sample_AC1032.dwg
+        // phantom records carried (#44/#51). Eleven value bytes cannot
+        // fit a u64, so the cursor is provably not on a handle field.
+        let mut w = BitWriter::new();
+        w.write_rc(0x2B);
+        for b in 0..11u8 {
+            w.write_rc(b);
+        }
+        let bytes = w.into_bytes();
+        let err = BitCursor::new(&bytes).read_handle().unwrap_err();
+        match err {
+            Error::HandleCounterTooLarge { code, counter } => {
+                assert_eq!(code, 2);
+                assert_eq!(counter, 11);
+            }
+            other => panic!("expected HandleCounterTooLarge, got {other:?}"),
+        }
+    }
 
     /// Helper: pack a sequence of `(value, bit_count)` pairs MSB-first into a
     /// byte vector. Pads the final byte with zeros. Used to construct bit

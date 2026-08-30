@@ -47,12 +47,19 @@ fn main() -> ExitCode {
     let mut totals = DispatchSummary::default();
     let mut type_histo: BTreeMap<String, usize> = BTreeMap::new();
     let mut unhandled_histo: BTreeMap<String, usize> = BTreeMap::new();
+    // Walker diagnostics are tracked separately from dispatch counts:
+    // a handle-map entry the walker could not turn into a record never
+    // reaches a decoder, so folding it into `err` would make coverage
+    // ratios incomparable across releases.
+    let mut walk_skips: BTreeMap<String, usize> = BTreeMap::new();
+    let mut total_walk_skips = 0usize;
+    let mut total_handle_mismatches = 0usize;
 
     println!(
-        "{:<32} {:<12} {:>6} {:>6} {:>6} {:>7}",
-        "file", "version", "deco", "skip", "err", "ratio%"
+        "{:<32} {:<12} {:>6} {:>6} {:>6} {:>6} {:>7}",
+        "file", "version", "deco", "skip", "err", "wskip", "ratio%"
     );
-    println!("{}", "-".repeat(80));
+    println!("{}", "-".repeat(87));
 
     for path in &files {
         let filename = path
@@ -75,7 +82,7 @@ fn main() -> ExitCode {
             }
             None => {
                 println!(
-                    "{:<32} {:<12} n/a    n/a    n/a       (no-handle-map)",
+                    "{:<32} {:<12} n/a    n/a    n/a    n/a       (no-handle-map)",
                     filename,
                     format!("{version}")
                 );
@@ -83,13 +90,28 @@ fn main() -> ExitCode {
             }
         };
 
+        // Walker-level diagnostic pass: how many handle-map entries did
+        // not resolve to a record at all?
+        let file_walk_skips = match file.all_objects_lossy() {
+            Some(Ok((_, walk))) => {
+                for entry in &walk.skipped {
+                    *walk_skips.entry(classify_skip(&entry.reason)).or_default() += 1;
+                }
+                total_handle_mismatches += walk.handle_mismatches.len();
+                walk.skipped.len()
+            }
+            _ => 0,
+        };
+        total_walk_skips += file_walk_skips;
+
         println!(
-            "{:<32} {:<12} {:>6} {:>6} {:>6} {:>7.1}",
+            "{:<32} {:<12} {:>6} {:>6} {:>6} {:>6} {:>7.1}",
             filename,
             format!("{version}"),
             summary.decoded,
             summary.unhandled,
             summary.errored,
+            file_walk_skips,
             summary.decoded_ratio() * 100.0
         );
 
@@ -125,16 +147,32 @@ fn main() -> ExitCode {
         totals.errored += summary.errored;
     }
 
-    println!("{}", "-".repeat(80));
+    println!("{}", "-".repeat(87));
     println!(
-        "{:<32} {:<12} {:>6} {:>6} {:>6} {:>7.1}",
+        "{:<32} {:<12} {:>6} {:>6} {:>6} {:>6} {:>7.1}",
         "TOTAL",
         "",
         totals.decoded,
         totals.unhandled,
         totals.errored,
+        total_walk_skips,
         totals.decoded_ratio() * 100.0
     );
+    println!();
+    println!(
+        "Handle-map self-check: {total_handle_mismatches} record(s) carry a handle \
+         that disagrees with the map."
+    );
+    if walk_skips.is_empty() {
+        println!("Walker diagnostics: every handle-map entry resolved to a record.");
+    } else {
+        println!("Walker diagnostics (handle-map entries that yielded no record):");
+        let mut rows: Vec<(&String, &usize)> = walk_skips.iter().collect();
+        rows.sort_by_key(|(label, cnt)| (std::cmp::Reverse(**cnt), (*label).clone()));
+        for (label, cnt) in rows {
+            println!("  {label:<44} → {cnt}");
+        }
+    }
     println!();
     if !type_histo.is_empty() {
         println!("Error histogram by kind (top 10):");
@@ -155,4 +193,24 @@ fn main() -> ExitCode {
     }
 
     ExitCode::SUCCESS
+}
+
+/// Collapse a per-record skip reason into a stable bucket so the
+/// diagnostic histogram stays readable. Offsets and handle values are
+/// dropped; the failure mode is what matters.
+fn classify_skip(reason: &str) -> String {
+    if reason.contains("past end of object stream") {
+        "offset past end of object stream".to_string()
+    } else if reason.contains("handle counter") {
+        "handle counter above 8 (not a handle field)".to_string()
+    } else if reason.contains("returned None") {
+        "no record at offset (zero-length or truncated)".to_string()
+    } else {
+        reason
+            .split(':')
+            .next()
+            .unwrap_or(reason)
+            .trim()
+            .to_string()
+    }
 }

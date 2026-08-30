@@ -8,6 +8,79 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — the `AcDb:Handles` delta run: unsigned handle deltas, per-section restart (2026-08-30, closes #43, closes #44, closes #51)
+
+- **The handle delta is an UNSIGNED modular char; only the offset delta
+  is signed.** Reading it as a signed MC steals bit `0x40` of the
+  terminating byte as a negation flag, so every single-byte delta in
+  `0x40..=0x7F` decoded as a small negative number and the multi-byte
+  form split its limbs one bit short. On `sample_AC1032.dwg` the first
+  divergence is handle-map entry 272, from which point every recovered
+  handle ran 108 low: the map claimed `0x438` at offset 148,422 where
+  the record at that offset carries `0x4A4`.
+- **Both accumulators restart at zero on every handle section.** The
+  first `(handle, offset)` pair of a section is absolute. Carrying the
+  running totals across the boundary threw the whole of this file's
+  second handle section — entries 656..841, 186 of 842 — into a
+  fabricated address space: entry 656 was read as handle `0x1343` at
+  offset 197,439 when the bytes say handle `0xB23` at offset 99,522,
+  and the drift produced the phantom offset 1,289,590 that #44 reported
+  as a 96,739-byte shortfall against the section.
+- **The section assembly was never wrong.** `AcDb:AcDbObjects` on that
+  file is 41 pages of exactly `0x7400` decompressed bytes each
+  (1,217,536 total) truncated to the declared 1,192,851; the trailing
+  24,685 bytes are the last page's zero padding, which is why its
+  compressed payload is only 3,317 bytes. After the fix the map's
+  highest offset is 1,192,823 — 28 bytes inside the section — and all
+  six previously out-of-range entries land in real records.
+- **Verified against the file itself.** Every record repeats its own
+  handle, so the object stream is a self-checking oracle for the map.
+  Agreement on `sample_AC1032.dwg` goes from 272 / 842 to **842 / 842**,
+  walker skips from 97 to 0, and the 842 walked records cover 1,191,935
+  of the section's 1,192,851 bytes with 916 unclaimed (longest run: 4
+  bytes) — so no unreferenced records are hiding outside the map.
+  `ObjectWalkSummary::handle_mismatches` now reports the check on every
+  walk, and `DwgFile::all_objects_lossy` exposes it.
+- **`BitCursor::read_handle` rejects a counter above 8** (#51) with the
+  new `Error::HandleCounterTooLarge`. The nibble can hold 0..=15 but a
+  handle value is at most a `u64`, so a wider counter proves the cursor
+  is not on a handle field — it previously shifted the excess out and
+  produced a plausible handle from garbage. On the pre-fix address
+  space this gate alone caught 43 phantom records on
+  `sample_AC1032.dwg`. It surfaces as a walker skip, never as a decoder
+  error, so coverage ratios stay comparable.
+- The three phantom `CUSTOM(727)` records (#44) are gone, along with
+  `CUSTOM(517)` at 212,392 and `CUSTOM(564)` at 229,599.
+- Class-table census on `sample_AC1032.dwg` (#43), declared
+  `num_objects` vs walked, before → after: MATERIAL 3 → 11 of 11,
+  MULTILEADER 10 → 15 of 15, ACAD_EVALUATION_GRAPH 1 → 3 of 3,
+  TABLECONTENT 1 → 2, TABLEGEOMETRY 1 → 2, and PDFDEFINITION,
+  PDFUNDERLAY, SPATIAL_FILTER, ACSH_BOX_CLASS, ACDBASSOCPERSSUBENTMANAGER,
+  ACDBPERSSUBENTMANAGER, ACSH_HISTORY_CLASS all 0 → their full declared
+  count. 41 of 43 classes now reach their declared instance count;
+  TABLECONTENT and TABLEGEOMETRY each declare 5 and reach 2, with no
+  unclaimed stream bytes to hold the difference.
+- **Coverage** (`examples/coverage_report.rs` over the local 19-file
+  corpus): R2018 `sample_AC1032.dwg` 561 / 145 / 39 / 75.3 % →
+  **712 / 91 / 39 / 84.6 %**; aggregate 1923 / 319 / 39 / 84.3 % →
+  **2074 / 265 / 39 / 87.2 %**. R2004 (81.9 %), R2010 (93.9 %) and
+  (Re-measured on `main` after #52 (LAYOUT) with this change merged:
+  R2004 498 / 99 / 0 / 83.4 %, R2010 519 / 24 / 0 / 95.6 %, R2013
+  372 / 24 / 0 / 93.9 %, R2018 716 / 87 / 39 / 85.0 %, aggregate
+  **2105 / 234 / 39 / 88.5 %**.)
+  R2013 (91.7 %) are unchanged — those samples carry a single handle
+  section, so neither bug could fire.
+- Writer side moves with the reader: `write_handle_map` emits unsigned
+  handle deltas, restarts its baselines per section, and opens a new
+  section when a caller's handles move backward (which an unsigned
+  delta cannot encode).
+- New probes: `examples/probe_section_pages.rs` (per-page section
+  assembly audit — page-map row, data-page header, produced bytes,
+  cumulative offsets, handle-map address-space cross-check) and
+  `examples/probe_class_census.rs` (declared-vs-walked per class plus
+  object-stream byte coverage). `coverage_report` gains a `wskip`
+  column and a walker-diagnostic histogram kept separate from the
+  dispatch error counts.
 ### Added — LAYOUT and PLOTSETTINGS decode and dispatch on R2004 and R2010+ (2026-08-30, closes #50, closes #39)
 
 - **The field list is §20.4.84's, read straight.** LAYOUT is the one
