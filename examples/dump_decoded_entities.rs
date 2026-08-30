@@ -223,6 +223,99 @@ fn print_entity(i: usize, e: &DecodedEntity) {
                 l.dashes.len()
             );
         }
+        DecodedEntity::Style(st) => {
+            println!(
+                "[{i}] STYLE  name={:?} font={:?} bigfont={:?} fixed_h={:.6} width={:.6} \
+                 oblique={:.6} gen={} last_h={:.6} shape={} vertical={}",
+                st.header.name,
+                st.font_filename,
+                st.bigfont_filename,
+                st.fixed_height,
+                st.width_factor,
+                st.oblique_angle,
+                st.generation,
+                st.last_height,
+                st.is_shape_file(),
+                st.is_vertical()
+            );
+        }
+        DecodedEntity::AppId(a) => {
+            println!("[{i}] APPID  name={:?}", a.header.name);
+        }
+        DecodedEntity::Ucs(u) => {
+            println!(
+                "[{i}] UCS  name={:?} origin=({:.3},{:.3},{:.3}) ortho={}",
+                u.header.name, u.origin.x, u.origin.y, u.origin.z, u.ortho_view_type
+            );
+        }
+        DecodedEntity::View(v) => {
+            println!(
+                "[{i}] VIEW  name={:?} h={:.6} w={:.6} center=({:.6},{:.6}) \
+                 dir=({:.3},{:.3},{:.3}) lens={:.3} mode={} render={} pspace={} assoc_ucs={}",
+                v.header.name,
+                v.view_height,
+                v.view_width,
+                v.view_center.x,
+                v.view_center.y,
+                v.view_direction.x,
+                v.view_direction.y,
+                v.view_direction.z,
+                v.lens_length,
+                v.view_mode,
+                v.render_mode,
+                v.is_paperspace,
+                v.is_associated_ucs
+            );
+        }
+        DecodedEntity::VPort(v) => {
+            println!(
+                "[{i}] VPORT  name={:?} h={:.6} aspect={:.6} center=({:.6},{:.6}) \
+                 dir=({:.3},{:.3},{:.3}) lens={:.3} ll=({:.3},{:.3}) ur=({:.3},{:.3}) \
+                 grid=({:.3},{:.3}) snap_spacing=({:.3},{:.3}) snap_rot={:.3} mode={} render={}",
+                v.header.name,
+                v.view_height,
+                v.aspect_ratio,
+                v.view_center.x,
+                v.view_center.y,
+                v.view_direction.x,
+                v.view_direction.y,
+                v.view_direction.z,
+                v.lens_length,
+                v.lower_left.x,
+                v.lower_left.y,
+                v.upper_right.x,
+                v.upper_right.y,
+                v.grid_spacing.x,
+                v.grid_spacing.y,
+                v.snap_spacing.x,
+                v.snap_spacing.y,
+                v.snap_rotation,
+                v.view_mode,
+                v.render_mode
+            );
+        }
+        DecodedEntity::DimStyle(d) => {
+            println!(
+                "[{i}] DIMSTYLE  name={:?} dimscale={:.4} dimasz={:.4} dimtxt={:.4} \
+                 dimexo={:.4} dimexe={:.4} dimcen={:.4} dimlfac={:.4} dimtad={} dimtolj={}",
+                d.header.name,
+                d.dimscale,
+                d.dimasz,
+                d.dimtxt,
+                d.dimexo,
+                d.dimexe,
+                d.dimcen,
+                d.dimlfac,
+                d.dimtad,
+                d.dimtolj
+            );
+        }
+        DecodedEntity::Layer(l) => {
+            println!(
+                "[{i}] LAYER  name={:?} flags=0x{:04X} plot={} lineweight={} color={}",
+                l.header.name, l.flags, l.plot_flag, l.lineweight, l.color_index
+            );
+        }
         DecodedEntity::EndBlk(_) => {
             println!("[{i}] ENDBLK");
         }

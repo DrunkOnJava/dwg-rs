@@ -392,6 +392,10 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
         Ok(mut cursor) => {
             if kind.is_table_entry() {
                 dispatch_table_entry(raw, &mut cursor, type_code, kind, version)
+            } else if let Some(decoded) =
+                dispatch_split_stream_entity(raw, cursor.position_bits(), type_code, kind, version)
+            {
+                decoded
             } else {
                 dispatch(&mut cursor, type_code, kind, version)
             }
@@ -402,6 +406,43 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
             message: format!("failed to position cursor: {e}"),
         },
     }
+}
+
+/// Dispatch the R2007+ entities whose `TV` fields live in the object's
+/// string stream (spec §19.1). Returns `None` when the type or version
+/// is not handled by a split-stream decoder, so the caller falls back
+/// to the inline path.
+fn dispatch_split_stream_entity(
+    raw: &RawObject,
+    object_body_start: usize,
+    type_code: u16,
+    kind: ObjectType,
+    version: Version,
+) -> Option<DecodedEntity> {
+    if !version.is_r2007_plus() {
+        return None;
+    }
+    let result = match type_code {
+        OBJECT_TYPE_TEXT => text::decode_modern_split_stream(&raw.raw, object_body_start, version)
+            .map(DecodedEntity::Text),
+        OBJECT_TYPE_ATTRIB => {
+            attrib::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::Attrib)
+        }
+        OBJECT_TYPE_ATTDEF => {
+            attdef::decode_modern_split_stream(&raw.raw, object_body_start, version)
+                .map(DecodedEntity::AttDef)
+        }
+        _ => return None,
+    };
+    Some(match result {
+        Ok(decoded) => decoded,
+        Err(e) => DecodedEntity::Error {
+            type_code,
+            kind,
+            message: e.to_string(),
+        },
+    })
 }
 
 /// Dispatch a symbol-table entry to its per-type decoder.
@@ -418,6 +459,11 @@ fn dispatch_table_entry(
     version: Version,
 ) -> DecodedEntity {
     let result: core::result::Result<DecodedEntity, String> = match kind {
+        ObjectType::Layer if version.is_r2007_plus() => {
+            crate::tables::layer::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::Layer)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Layer => crate::tables::layer::decode(c, version)
             .map(DecodedEntity::Layer)
             .map_err(|e| e.to_string()),
@@ -436,21 +482,55 @@ fn dispatch_table_entry(
         ObjectType::Ltype => crate::tables::ltype::decode(c, version)
             .map(DecodedEntity::Ltype)
             .map_err(|e| e.to_string()),
+        ObjectType::Style if version.is_r2007_plus() => {
+            crate::tables::style::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::Style)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Style => crate::tables::style::decode(c, version)
             .map(DecodedEntity::Style)
             .map_err(|e| e.to_string()),
+        ObjectType::View if version.is_r2007_plus() => {
+            crate::tables::view::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::View)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::View => crate::tables::view::decode(c, version)
             .map(DecodedEntity::View)
             .map_err(|e| e.to_string()),
+        ObjectType::Ucs if version.is_r2007_plus() => {
+            crate::tables::ucs::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::Ucs)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Ucs => crate::tables::ucs::decode(c, version)
             .map(DecodedEntity::Ucs)
             .map_err(|e| e.to_string()),
+        ObjectType::Vport if version.is_r2007_plus() => {
+            crate::tables::vport::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::VPort)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::Vport => crate::tables::vport::decode(c, version)
             .map(DecodedEntity::VPort)
             .map_err(|e| e.to_string()),
+        ObjectType::AppId if version.is_r2007_plus() => {
+            crate::tables::appid::decode_modern_split_stream(&raw.raw, c.position_bits(), version)
+                .map(DecodedEntity::AppId)
+                .map_err(|e| e.to_string())
+        }
         ObjectType::AppId => crate::tables::appid::decode(c, version)
             .map(DecodedEntity::AppId)
             .map_err(|e| e.to_string()),
+        ObjectType::DimStyle if version.is_r2007_plus() => {
+            crate::tables::dimstyle::decode_modern_split_stream(
+                &raw.raw,
+                c.position_bits(),
+                version,
+            )
+            .map(DecodedEntity::DimStyle)
+            .map_err(|e| e.to_string())
+        }
         ObjectType::DimStyle => crate::tables::dimstyle::decode_partial(c, version)
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string()),

@@ -20,6 +20,8 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::text::{self, Text};
 use crate::error::{Error, Result};
+use crate::string_stream;
+use crate::tables::modern;
 use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +46,60 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AttDef> {
     } else {
         false
     };
+    Ok(AttDef {
+        text,
+        prompt,
+        tag,
+        field_length,
+        flags,
+        lock_position,
+    })
+}
+
+/// Decode an R2007+ single-line ATTDEF whose `TV` fields live in the
+/// object's string stream (ODA v5.4.1 §19.1 split layout, §19.4.3).
+///
+/// Same data-stream body as ATTRIB plus one extra `RC`. The string
+/// stream carries the default value, the tag and then the prompt — the
+/// order the records in `sample_AC1032.dwg` observe
+/// (`["1", "ATTINFO", "Enter number:"]`), which is not the pre-R2007
+/// inline order.
+///
+/// # The extra byte's position is not pinned
+///
+/// Every single-line ATTDEF in the sample corpus needs exactly eight
+/// more data-stream bits than the matching ATTRIB. Placing that `RC`
+/// before the field length or after the lock-position bit consumes the
+/// same eight bits and yields identical surfaced fields, so the
+/// samples cannot distinguish the two; it is read last here.
+///
+/// Multi-line attribute definitions embed an MTEXT record and are not
+/// decoded; see [`super::attrib::decode_modern_split_stream`].
+pub(crate) fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<AttDef> {
+    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let mut c = BitCursor::new(payload);
+    string_stream::seek(&mut c, object_body_start)?;
+    crate::common_entity::read_common_entity_data(&mut c, version)?;
+    let mut text = text::read_modern_fields(&mut c)?;
+    let field_length = c.read_bs()?;
+    let flags = c.read_rc()?;
+    let lock_position = if matches!(version, Version::R2018) {
+        c.read_b()?
+    } else {
+        false
+    };
+    let _prompt_version = c.read_rc()?;
+    let at = c.position_bits();
+    if at != string_start {
+        return Err(modern::misaligned("ATTDEF", at, string_start));
+    }
+    text.text = strings.read_tv()?;
+    let tag = strings.read_tv()?;
+    let prompt = strings.read_tv()?;
     Ok(AttDef {
         text,
         prompt,
@@ -87,6 +143,30 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
+
+    #[test]
+    fn r2007_split_stream_attdef_reads_value_tag_and_prompt() {
+        let mut body = BitWriter::new();
+        text::tests::write_r2018_preamble(&mut body);
+        body.write_rc(0xFF);
+        body.write_rd(0.0);
+        body.write_rd(0.0);
+        body.write_b(true); // extrusion default
+        body.write_b(true); // thickness zero
+        body.write_rd(2.5); // height
+        body.write_bs(0); // field length
+        body.write_rc(0x00); // flags
+        body.write_b(false); // lock position
+        body.write_rc(0); // trailing ATTDEF byte
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload =
+            crate::string_stream::tests::build_payload(&bits, &["1", "ATTINFO", "Enter number:"]);
+        let a = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(a.tag, "ATTINFO");
+        assert_eq!(a.prompt, "Enter number:");
+        assert_eq!(a.text.text, "1");
+        assert_eq!(a.text.height, 2.5);
+    }
 
     #[test]
     fn roundtrip_attdef_r2000() {

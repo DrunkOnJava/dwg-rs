@@ -22,7 +22,7 @@
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point3D, read_bd3};
 use crate::error::{Error, Result};
-use crate::tables::{TableEntryHeader, read_table_entry_header};
+use crate::tables::{TableEntryHeader, modern, read_table_entry_header};
 use crate::version::Version;
 
 /// Highest valid `ortho_view_type` value per ODA §19.5.6.
@@ -65,6 +65,72 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<UcsEntry> {
         elevation,
         ortho_view_type,
         base_ucs_handle,
+    })
+}
+
+/// Decode an R2007+ UCS whose name lives in the object's string stream
+/// (ODA v5.4.1 §19.1 split layout, §20.4.6 UCS field table).
+///
+/// Data stream after the common object prefix:
+///
+/// ```text
+/// B    64-flag
+/// B    xref dependent
+/// BS   xref index + 1
+/// BD3  origin
+/// BD3  x-axis direction
+/// BD3  y-axis direction
+/// BD   elevation
+/// BS   orthographic view type
+/// ```
+///
+/// The string stream carries only the entry name; the base-UCS handle
+/// moved to the handle stream in R2007+, so it is reported as null.
+///
+/// # Unverified against a real file
+///
+/// The three sample corpora used to develop this port
+/// (`sample_AC1032.dwg`, `line_2013.dwg`, `arc_2010.dwg`) contain no
+/// UCS records, so this layout has not been confirmed on real bytes.
+/// It is safe regardless: [`modern::SplitStream::finish`] rejects the
+/// decode unless the field body lands exactly on the string stream, so
+/// a wrong layout errors rather than returning invented values.
+pub(crate) fn decode_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<UcsEntry> {
+    let mut split = modern::open_table_entry(payload, object_body_start, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let origin = read_bd3(&mut split.data)?;
+    let x_axis = read_bd3(&mut split.data)?;
+    let y_axis = read_bd3(&mut split.data)?;
+    let elevation = split.data.read_bd()?;
+    let ortho_view_type = split.data.read_bs()?;
+    split.finish("UCS")?;
+    if !(0..=MAX_ORTHO_VIEW_TYPE).contains(&ortho_view_type) {
+        return Err(Error::SectionMap(format!(
+            "UCS ortho_view_type {ortho_view_type} outside 0..={MAX_ORTHO_VIEW_TYPE}"
+        )));
+    }
+    let name = split.strings.read_tv()?;
+    Ok(UcsEntry {
+        header: TableEntryHeader {
+            name,
+            is_xref_dependent,
+            xref_index_plus_1,
+            is_xref_resolved: flag64,
+        },
+        origin,
+        x_axis,
+        y_axis,
+        elevation,
+        ortho_view_type,
+        base_ucs_handle: Handle {
+            code: 0,
+            counter: 0,
+            value: 0,
+        },
     })
 }
 
@@ -124,6 +190,42 @@ mod tests {
         );
         assert_eq!(u.elevation, 0.0);
         assert_eq!(u.ortho_view_type, 3);
+        assert_eq!(u.base_ucs_handle.value, 0);
+    }
+
+    #[test]
+    fn r2007_split_stream_ucs_reads_name_from_string_stream() {
+        let mut body = BitWriter::new();
+        body.write_bs_u(0); // no EED
+        body.write_b(true); // no xdictionary
+        body.write_b(false); // no binary data
+        body.write_b(false); // 64-flag
+        body.write_b(false); // xref dependent
+        body.write_bs(0); // xref index + 1
+        for _ in 0..3 {
+            body.write_bd(0.0); // origin
+        }
+        body.write_bd(1.0); // x axis
+        body.write_bd(0.0);
+        body.write_bd(0.0);
+        body.write_bd(0.0); // y axis
+        body.write_bd(0.0);
+        body.write_bd(1.0);
+        body.write_bd(0.0); // elevation
+        body.write_bs(3); // ortho = front
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::string_stream::tests::build_payload(&bits, &["Front"]);
+        let u = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(u.header.name, "Front");
+        assert_eq!(u.ortho_view_type, 3);
+        assert_eq!(
+            u.x_axis,
+            Point3D {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0
+            }
+        );
         assert_eq!(u.base_ucs_handle.value, 0);
     }
 

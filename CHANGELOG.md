@@ -8,6 +8,88 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — R2007+ object string stream (2026-08-30, #103, closes #14, closes #15)
+
+- **`src/string_stream.rs` (new)** — Locates the per-object string stream that
+  R2007 and later use for every `TV` field (ODA v5.4.1 §19.1). The trailer
+  rule (strings-present bit, 16-bit size, optional high word) is anchored at
+  `payload_bits - handle_stream_bits + mc_field_bits`; that `mc_field_bits`
+  correction was **measured** over 59 objects across 11 object types in
+  `sample_AC1032.dwg` (R2018), `line_2013.dwg` (R2013) and `arc_2010.dwg`
+  (R2010) with zero deviation.
+- **`examples/probe_string_stream.rs` (new)** — Reproducible probe that
+  brute-forces the trailer and prints the deviation from the predicted end, so
+  the rule above is independently checkable from bytes.
+- **`src/tables/modern.rs` (new)** — Shared split-stream plumbing for
+  symbol-table entries. Its central invariant: a record's data fields must end
+  *exactly* on the string-stream start bit, so a mis-read layout errors instead
+  of returning plausible-looking garbage.
+- **Ported to the split stream:** `STYLE` (0x35), `APPID` (0x43), `UCS`
+  (0x3F), `VIEW` (0x3D), `VPORT` (0x41), `LAYER` (0x33), `DIMSTYLE` (0x45),
+  plus the `TEXT` (0x01), `ATTRIB` (0x02) and `ATTDEF` (0x03) entities. Each
+  has a `BitWriter`-built unit test of the R2007+ layout; the pre-R2007 inline
+  decoders are untouched.
+
+### Fixed — R2007+ LAYER decoded silently wrong values (2026-08-30, #103)
+
+- `LAYER` never appeared in the error histogram because it never errored: on
+  R2007+ files it read its name from the data stream and produced
+  `"\u{252}v\0\0..."` for every layer, with flags, lineweight and colour to
+  match. It now reads through the string stream. The result checks out against
+  a corpus whose layers are named for their state — `Layer_Freeze` sets
+  `values` bit `0x01`, `Layer_Off` `0x02`, `Layer_vp_freeze` `0x04`,
+  `Layer_Lock` `0x08`; `Layer_NoPlot` and `Defpoints` clear the plot bit
+  `0x10`; `Layer_lw_035` reads lineweight index 9 and `Layer_lw_050` index 11;
+  `Layer_color_80` reads ACI 80 while `Layer_true_color` reads none.
+
+### Reverse-engineering findings (2026-08-30)
+
+- **Table-entry field order.** With the name moved to the string stream, the
+  three shared fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not
+  `B, BS, B`. Only that order keeps the `BS` on a 2-bit `10` code across every
+  STYLE record in `sample_AC1032.dwg`.
+- **Full `CMC` colour form.** VIEW's ambient colour, VPORT's, LAYER's and
+  DIMSTYLE's four colours all write `BS` index + `BL` true-colour + `RC` byte
+  unconditionally, even when the index carries no flag bits. The `BL` top byte
+  selects the interpretation: `0xC3` is an ACI index in the low byte, `0xC2` a
+  literal RGB (VIEW's ambient reads `0xC2333333`).
+- **The R2013+ "has AcDs binary data" bit is followed by an `RC`.** The four
+  DIMSTYLE records in `sample_AC1032.dwg` with the bit clear parse with a
+  4-bit object prefix; the two with it set (`ISO-25`, `custom_dim_style`) need
+  exactly 8 more bits.
+- **TEXT's height is a raw `RD`, not a `BD`.** Every TEXT in the R2018 sample
+  carries `DataFlags 0xFF`; the height reads a clean `1.0` only as a 64-bit
+  `RD` with no type code in front of it.
+- **Blocked — VPORT #697 of `sample_AC1032.dwg`** (handle `0x1588`, 515 bytes)
+  reports type code `0x41` but carries no string stream at all. Left erroring
+  rather than guessed at.
+- **Blocked — multi-line attributes.** R2010 multi-line ATTRIB/ATTDEF embed a
+  whole MTEXT record between the TEXT body and the tag (`MULTI_LINE_ATT` in
+  the R2018 sample carries three strings where a single-line ATTRIB carries
+  two). Not modelled; those two records report their misalignment.
+- **Unverified — UCS.** No UCS record exists anywhere in the sample corpus, so
+  the ported layout has never been confirmed on real bytes. The string-stream
+  invariant makes a wrong layout error rather than invent values.
+
+### Measured coverage effect
+
+`cargo run --release --example coverage_report -- <samples>` on the 19-file
+corpus:
+
+| Metric | Before | After |
+|---|---|---|
+| Aggregate decoded / skipped / errored | 458 / 1660 / 163 | **527 / 1660 / 94** |
+| Aggregate ratio | 20.1 % | **23.1 %** |
+| `sample_AC1032.dwg` (R2018) | 329 / 337 / 79 — 44.2 % | **374 / 337 / 34 — 50.2 %** |
+| R2013 files (each) | 20 / 109 / 3 — 15.2 % | **23 / 109 / 0 — 17.4 %** |
+| R2010 files (each) | 18 / 158 / 5 — 9.9 % | **23 / 158 / 0 — 12.7 %** |
+| R2004 files (each) | 5 / 174 / 20 — 2.5 % | 5 / 174 / 20 — 2.5 % (unchanged) |
+
+Per-type errors: TEXT 25 → 0, STYLE 21 → 6, DIMSTYLE 20 → 6, VPORT 11 → 4,
+ATTDEF 5 → 1, ATTRIB 4 → 1. The R2010 and R2013 sample files now decode with
+zero errors; 60 of the 94 remaining errors are the three R2004 files, whose
+object-header alignment is a separate bug.
+
 ### Fixed — R2007+ LTYPE string-stream names (2026-04-29, #103)
 
 - **`src/tables/ltype.rs` / `src/entities/dispatch.rs`** — Added a modern
