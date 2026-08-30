@@ -142,6 +142,21 @@ fn write_common_entity_preamble(w: &mut BitWriter, version: Version) {
 /// Mirrors `dwg::object::ObjectWalker::read_one_at_pos` field-for-field.
 /// The 2 trailing bytes are the record CRC-16 slot; the reader skips over
 /// it without verifying, so zeros are a faithful placeholder.
+///
+/// # R2010+ record framing (#77)
+///
+/// Two rules of the on-disk layout that the earlier cut of this writer
+/// did not honour:
+///
+/// * the record's `MS` **excludes its own leading `MC`** handle-stream-
+///   size field, so the emitted `MS` is `payload.len() - mc_width`;
+/// * §19.1 ends the data area with a `B` *strings present* flag, and the
+///   handle stream starts on the next bit. These fixtures carry no
+///   handle references, so the byte padding after that flag stands in
+///   for the handle stream and the `MC` records its width — the same
+///   convention `string_stream::tests::build_payload` uses. Declaring a
+///   zero-bit handle stream instead put the data boundary past the end
+///   of the record, which suppressed every decoder's boundary check.
 fn build_object_record<E: ElementEncoder>(
     type_code: u16,
     handle: u64,
@@ -182,10 +197,24 @@ fn build_object_record<E: ElementEncoder>(
         w
     };
     let obj_size_bits = emit(0).position_bits() as u32;
-    let payload = emit(obj_size_bits).into_bytes();
+    let mut w = emit(obj_size_bits);
+    let mc_width = if version.is_r2010_plus() {
+        // §19.1 "strings present" flag, clear: these fixtures write no
+        // string stream.
+        w.write_b(false);
+        1
+    } else {
+        0
+    };
+    let pad = (8 - w.position_bits() % 8) % 8;
+    let mut payload = w.into_bytes();
+    if version.is_r2010_plus() {
+        // The handle stream is the byte padding that follows the flag.
+        payload[0] = pad as u8;
+    }
 
     let mut header = BitWriter::new();
-    header.write_ms(payload.len() as u64);
+    header.write_ms((payload.len() - mc_width) as u64);
     let mut record = header.into_bytes();
     record.extend_from_slice(&payload);
     record.extend_from_slice(&[0x00, 0x00]);

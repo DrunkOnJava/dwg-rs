@@ -41,23 +41,28 @@
 //! # Where the trailer ends — measured, not assumed
 //!
 //! For R2010+ the object payload leads with an `MC` field holding the
-//! handle-stream size in bits. The naive `payload_bits - handle_bits`
-//! lands 8 or 16 bits *short* of the real trailer end. Measured over
-//! 59 objects across 11 object types in `sample_AC1032.dwg` (R2018),
-//! `line_2013.dwg` (R2013) and `arc_2010.dwg` (R2010) — see
-//! `examples/probe_string_stream.rs` — the correction is exactly the
-//! width of that `MC` field:
+//! handle-stream size in bits, and the trailer ends where that handle
+//! stream begins:
 //!
 //! ```text
-//! trailer_end = payload_bits - handle_stream_bits + mc_field_bits
+//! trailer_end = payload_bits - handle_stream_bits
 //! ```
 //!
-//! Every one of the 59 objects matched with zero deviation (the probe
-//! prints `delta_vs_predicted`). Two readings are consistent with the
-//! evidence: either the record's `MS` byte count excludes the `MC`
-//! field, or the recorded handle-stream size counts the `MC` field
-//! itself. This crate does not need to pick one — the offset above is
-//! what the bytes say, and it is applied as a measured constant.
+//! Measured over 59 objects across 11 object types in
+//! `sample_AC1032.dwg` (R2018), `line_2013.dwg` (R2013) and
+//! `arc_2010.dwg` (R2010) — see `examples/probe_string_stream.rs` —
+//! every one matched with zero deviation.
+//!
+//! Until #77 this module carried a `+ mc_field_bits` correction on the
+//! right-hand side, because the walker's payload slice was itself
+//! `mc_field_bits` short: the record's `MS` byte count excludes the
+//! record's own `MC` field. #75 settled that open question from the
+//! stream layout — every inter-record run in `AcDb:AcDbObjects` equals
+//! the width of the preceding record's `MC` field, 841 of 841 on
+//! `sample_AC1032.dwg` and 100 % on three more files — and #77 moved
+//! the correction to where it belongs, the walker's slice
+//! ([`crate::object`]). The bit offset this function returns is
+//! unchanged; the two edits cancel exactly.
 //!
 //! R2007 (`AC1021`) proper has no such `MC` field and its object stream
 //! is not walkable in this crate yet (see `STATUS.md` #104); [`locate`]
@@ -159,9 +164,9 @@ pub fn data_section_end(payload: &[u8], version: Version) -> Option<usize> {
     if !version.is_r2010_plus() {
         return None;
     }
-    let (handle_bits, mc_bits) = read_handle_stream_size(payload)?;
+    let handle_bits = read_handle_stream_size(payload)?;
     let total = payload.len().checked_mul(8)?;
-    let end = total.checked_sub(handle_bits)?.checked_add(mc_bits)?;
+    let end = total.checked_sub(handle_bits)?;
     if end > total { None } else { Some(end) }
 }
 
@@ -173,15 +178,15 @@ fn read_r2007_object_data_size(payload: &[u8]) -> Option<u32> {
     c.read_rl().ok()
 }
 
-/// Read the leading `MC` handle-stream size, returning `(value, field_bits)`.
-fn read_handle_stream_size(payload: &[u8]) -> Option<(usize, usize)> {
+/// Read the leading `MC` handle-stream size in bits.
+fn read_handle_stream_size(payload: &[u8]) -> Option<usize> {
     let mut value: u64 = 0;
     let mut shift: u32 = 0;
     for i in 0..10usize {
         let b = *payload.get(i)? as u64;
         value |= (b & 0x7F) << shift;
         if b & 0x80 == 0 {
-            return Some((value as usize, (i + 1) * 8));
+            return Some(value as usize);
         }
         shift += 7;
         if shift >= 64 {
@@ -333,15 +338,14 @@ pub(crate) mod tests {
         w.write_rs(string_bits as i16);
         w.write_b(true);
         // Pad to the byte boundary; the pad stands in for the handle
-        // stream. Per the measured rule the recorded MC value must be
-        // `mc_field_bits + pad` so that
-        // `payload_bits - handle_bits + mc_bits` lands on the trailer.
+        // stream. The recorded MC value is therefore `pad`, so that
+        // `payload_bits - handle_bits` lands on the trailer.
         let pad = (8 - w.position_bits() % 8) % 8;
         for _ in 0..pad {
             w.write_b(false);
         }
         let mut bytes = w.into_bytes();
-        bytes[0] = (8 + pad) as u8;
+        bytes[0] = pad as u8;
         bytes
     }
 
@@ -360,7 +364,7 @@ pub(crate) mod tests {
             w.write_b(false);
         }
         let mut bytes = w.into_bytes();
-        bytes[0] = (8 + pad) as u8;
+        bytes[0] = pad as u8;
         bytes
     }
 

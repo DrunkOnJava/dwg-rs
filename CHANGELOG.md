@@ -8,6 +8,83 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — a record's `MS` excludes its own `MC`, and the class table is not always a live census (2026-08-30, closes #77, closes #76)
+
+**The walker's raw slice ended one `MC` width short on every R2010+
+record.** #75 measured that each inter-record run in
+`AcDb:AcDbObjects` equals the width of the *preceding* record's leading
+`MC` handle-stream-size field — 841 of 841 on `sample_AC1032.dwg` and
+100 % on three more files, against 734 of 841 for the "following
+record" reading, with only 8 of the 916 bytes zero. That settles the
+question the module docs left open: **the `MS` does not count the
+record's own `MC`**, so a record occupies `MS field | MC field | MS
+bytes | CRC` and [`RawObject::raw`] is now sized `mc_width +
+size_bytes`. `size_bytes` still reports the `MS` verbatim.
+
+The correction that `string_stream::data_section_end` carried —
+`payload_bits - handle_bits + mc_field_bits` — was compensating for
+exactly that short slice, and is removed: the rule is now
+`payload_bits - handle_bits`, and the two edits cancel to the same bit
+offset. **No decoder changes behaviour**: full-corpus coverage is
+byte-identical at 3695 / 741 / 9 / **83.1 %** before and after, and all
+19 test binaries pass.
+
+Two things the short slice was hiding:
+
+- **The sequential (handle-map-less) walk drifted** by one `MC` width
+  per record on R2010+, because `pos` advanced to the short `crc_end`.
+  `DwgFile::objects()` uses that mode.
+- **Every R2004+ corpus file now tiles its object stream exactly.**
+  `sample_AC1032.dwg` goes from 916 unclaimed bytes to 4 — the
+  `0x0dca` prologue — with zero bytes between records and zero
+  trailing, and so do all eighteen other files.
+
+`examples/build_fixtures` writes the same rule (the emitted `MS` is
+`payload.len() - mc_width`) and now also writes the §19.1 *strings
+present* trailer bit with the `MC` recording the padding that stands in
+for the handle stream. The R2010/R2013/R2018 fixtures are regenerated;
+declaring a zero-bit handle stream had put the data boundary past the
+end of the record, which silently disabled every decoder's
+boundary check on those three files.
+
+**DICTIONARYVAR / CELLSTYLEMAP are not under-walked (#76).** The new
+`examples/probe_reference_closure` runs three measurements that never
+consult the class table, and all three are closed on all nineteen
+corpus files:
+
+- the walked records **tile the whole section** — zero bytes between
+  records on every R2004+ file, so an unreferenced record has nowhere
+  to sit;
+- **every hard handle reference** (§2.13 codes 3 and 5) in every
+  record's handle stream resolves to a map entry. The only unanswered
+  references in the whole corpus are six code-4 *soft* pointers — the
+  class the spec permits to dangle — from BLOCK_HEADER `0xA0B` of
+  `sample_AC1032.dwg` to erased INSERTs (`0xD17`, `0xD18`, `0xD40`,
+  `0xD41`, `0xD95`, `0xD96`), in a drawing whose handle space is sparse
+  by 2,841 of 3,683 values. This refines #56's "no reference the walk
+  cannot answer", which predates the soft/hard split;
+- the **`AcDbVariableDictionary`** — the sole owner of a drawing's
+  DICTIONARYVAR objects — holds exactly as many keys as the walk finds
+  DICTIONARYVAR records on **every** file: 10 / 6 / 5 on the R2004 /
+  R2007 / R2010 bands that declare 16 / 11 / 10, and 5 and 11 on
+  `arc_2013.dwg` and `sample_AC1032.dwg`, whose class tables agree with
+  the walk. The class table is the outlier, not the walk.
+
+`arc_2010.dwg` settles CELLSTYLEMAP the same way: it declares one,
+contains none, and carries no
+`ACAD_ROUNDTRIP_2008_TABLESTYLE_CELLSTYLEMAP` dictionary key for one to
+hang from — a live census cannot declare an instance with no owner
+slot. The `AcDb:Classes` parse is not in doubt either: on
+`arc_2004.dwg` the ten records consume 5161 of the declared 5168 bits
+with 7 bits of byte padding, class numbers run 500..509 with no gap,
+and eight of the ten declared counts match the walk exactly (VISUALSTYLE
+24, SCALE 17, MATERIAL 3, …).
+
+So the `KNOWN_SHORTFALL` pins in `tests/class_census.rs` keep their
+counts — nothing was under-walked to recover — and are re-documented as
+files that over-declare rather than as an open walker gap. They still
+gate: a *drop* in any `walked` figure fails the ratchet.
+
 ### Fixed — the BLOCK_HEADER name is a stem; the BLOCK sentinel is the authority (2026-08-30, closes #70)
 
 `BLOCK_RECORD` decoded `*D` / `*T` / `*Paper_Space` where the adjacent

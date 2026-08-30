@@ -7,30 +7,50 @@
 //! `examples/probe_class_census --strict`; this is the half that gates
 //! the 19-file sample corpus when it is present.
 //!
-//! The corpus is not clean today, so this is a **ratchet**:
-//! [`KNOWN_SHORTFALL`] pins every under-walk that exists now, by file,
-//! class and count. A new under-walk fails; a *fixed* under-walk also
-//! fails, forcing the list to shrink rather than rot.
+//! Not every corpus file's class table is a live census, so this is a
+//! **ratchet**: [`KNOWN_SHORTFALL`] pins every declared-vs-walked gap
+//! that exists now, by file, class and count. A new gap fails; a
+//! *closed* gap also fails, forcing the list to shrink rather than rot.
 
 use dwg::{DwgFile, ObjectType};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// Every under-walk the sample corpus shows today: `(file, class,
-/// declared, walked)`. Measured 2026-08-30 on the merged tree.
+/// Every gap between a class's declared `num_objects` and the number of
+/// instances the walk reaches: `(file, class, declared, walked)`.
+/// Measured 2026-08-30 on the merged tree.
 ///
-/// Two groups, and they are not the same kind of thing:
+/// **None of these is a walker gap.** `examples/probe_reference_closure`
+/// runs three independent measurements on every corpus file and all
+/// three are closed on all of them (#76):
 ///
-/// * **TABLECONTENT / TABLEGEOMETRY on `sample_AC1032.dwg`** —
-///   explained. The drawing declares 5 of each against 2 ACAD_TABLE
-///   entities and contains 2 of each; the object stream is 99.92 %
-///   covered with no unclaimed run over 4 bytes and no handle
-///   reference the walk cannot answer, so the missing six records are
-///   not in the file. See `examples/probe_class_census.rs`
-///   `ALLOWLIST`.
+/// * the walked records tile the whole `AcDb:AcDbObjects` section —
+///   after #77 sized the record slice correctly, the only unclaimed
+///   bytes on every R2004+ file are the 4-byte `0x0dca` prologue, with
+///   **zero** bytes between records, so an unreferenced record has
+///   nowhere to sit;
+/// * every hard handle reference (§2.13 codes 3 and 5) in every
+///   record's handle stream resolves to a map entry, so nothing in the
+///   drawing depends on a record the walk cannot reach;
+/// * the `AcDbVariableDictionary` — the sole owner of a drawing's
+///   DICTIONARYVAR objects — holds exactly as many keys as the walk
+///   finds DICTIONARYVAR records on **every** corpus file, including
+///   the two whose class table agrees with the walk.
+///
+/// So the class table's instance count is not a live census on these
+/// releases. The per-file numbers below stay pinned anyway: they are
+/// what turns a future *drop* in walked records into a test failure.
+///
 /// * **DICTIONARYVAR / CELLSTYLEMAP on the R2004, R2007 and R2010
-///   files** — an open walker gap, not explained, and pre-existing on
-///   `main`. Pinned here so it cannot grow.
+///   files** — the variable dictionary holds 10 / 6 / 5 keys and the
+///   walk finds 10 / 6 / 5 records while the class table declares
+///   16 / 11 / 10. `arc_2010.dwg` is the clinching case: it declares
+///   one CELLSTYLEMAP, contains none, and carries no
+///   `ACAD_ROUNDTRIP_2008_TABLESTYLE_CELLSTYLEMAP` dictionary key for
+///   one to hang from.
+/// * **TABLECONTENT / TABLEGEOMETRY on `sample_AC1032.dwg`** — the
+///   drawing declares 5 of each against 2 ACAD_TABLE entities and
+///   contains 2 of each (#56).
 const KNOWN_SHORTFALL: &[(&str, &str, usize, usize)] = &[
     ("arc_2004.dwg", "DICTIONARYVAR", 16, 10),
     ("arc_2004.dwg", "CELLSTYLEMAP", 5, 1),
@@ -137,8 +157,9 @@ fn every_sample_reaches_its_declared_class_instances() {
     expected.sort();
     assert_eq!(
         observed, expected,
-        "class-census shortfall changed. A new entry is a walker regression; \
-         a missing entry means a gap was fixed — delete it from KNOWN_SHORTFALL."
+        "class-census shortfall changed. A new entry, or a lower `walked` on an \
+         existing one, is a walker regression; a missing entry means a gap \
+         closed — delete it from KNOWN_SHORTFALL."
     );
 }
 

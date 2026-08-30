@@ -210,6 +210,19 @@ jobs:
             cargo +stable run --release --example probe_class_census -- "$f" --strict
           done
 
+      # Walk-closure gate (#76/#77). The class census says *whether* a
+      # class is short; this says whether a missing record could exist
+      # at all. It fails if any two walked records leave bytes between
+      # them (room an unreferenced record could occupy) or if any hard
+      # handle reference resolves to nothing.
+      - name: The object walk must be closed on every canonical fixture
+        run: |
+          set -e
+          for f in tests/fixtures/canonical/*.dwg; do
+            echo "== $f"
+            cargo +stable run --release --example probe_reference_closure -- "$f"
+          done
+
   pii-guard:
     name: PII guard
     runs-on: ubuntu-latest

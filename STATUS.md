@@ -33,21 +33,27 @@ scrolling the changelog.
   "decoded" then, without anything checking that they had.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
   entries on `sample_AC1032.dwg` resolves to a record whose own handle
-  field matches the map, and the walked records cover 1,191,935 of the
-  section's 1,192,851 bytes. The 916 remaining bytes are **fully
-  accounted for and are not padding**: each inter-record run equals the
-  width of the preceding record's leading `MC` handle-stream-size field
-  (841 of 841 agreements; 772 one-byte + 70 two-byte fields + a 4-byte
-  section prologue = 916), so a record's `MS` object size excludes its
-  own `MC`.
+  field matches the map, and the walked records now cover 1,192,847 of
+  the section's 1,192,851 bytes — the 4 remaining are the `0x0dca`
+  prologue. The 916 bytes that used to be unclaimed were the records'
+  own leading `MC` handle-stream-size fields, which a record's `MS`
+  does not count (841 of 841 inter-record runs agreed; 772 one-byte +
+  70 two-byte fields + the 4-byte prologue = 916). #77 sized the
+  walker's slice accordingly, and **every R2004+ corpus file now tiles
+  its object stream with zero bytes between records.**
 - **Walker-completeness gate:** `examples/probe_class_census` runs in
   CI over every canonical fixture with `--strict`;
   `tests/canonical_corpus.rs` asserts the class census exactly and
-  `tests/class_census.rs` ratchets the real corpus. Known shortfalls:
-  TABLECONTENT / TABLEGEOMETRY on `sample_AC1032.dwg` (declared 5,
-  present 2, explained — the records are not in the file) and
-  DICTIONARYVAR / CELLSTYLEMAP on the R2004 / R2007 / R2010 files (an
-  open walker gap, pinned per file so it cannot grow).
+  `tests/class_census.rs` ratchets the real corpus.
+  `examples/probe_reference_closure` decides whether a shortfall is a
+  missing record or an over-declaring file — stream tiling, hard-
+  reference closure, and owner-dictionary census — and all three are
+  closed on all nineteen files. Both known shortfalls are files that
+  declare instances they do not contain: TABLECONTENT / TABLEGEOMETRY
+  on `sample_AC1032.dwg` (declared 5, present 2) and DICTIONARYVAR /
+  CELLSTYLEMAP on the R2004 / R2007 / R2010 files, where the
+  `AcDbVariableDictionary` holds exactly as many keys as the walk finds
+  records on every file in the corpus (#76).
 - **Block names are resolved through the `BLOCK` sentinel.** A
   BLOCK_HEADER stores only the stem of an auto-generated name, so
   `graph::resolve_block_names` joins each record to the `BLOCK` entity

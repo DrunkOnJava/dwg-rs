@@ -14,14 +14,15 @@
 //! doubles as a regression gate — CI runs it over the canonical corpus
 //! (`.github/workflows/ci.yml`, `class-census` job).
 //!
-//! # The allowlist (#56)
+//! # The allowlist (#56, #76)
 //!
-//! Four classes of the sample corpus are under-walked today: two
-//! because the drawing declares instances it does not contain, two
-//! because of an open walker gap. [`ALLOWLIST`] names each with its
-//! reason and the probe reports them as `ALLOWED` instead of failing;
-//! `--strict` disables it so the open questions stay measurable, and
-//! is what CI runs over the canonical fixtures.
+//! Four classes of the sample corpus report a shortfall today, and all
+//! four are files that declare instances they do not contain rather
+//! than records the walk misses — `examples/probe_reference_closure`
+//! measures that directly. [`ALLOWLIST`] names each with its reason and
+//! the probe reports them as `ALLOWED` instead of failing; `--strict`
+//! disables it so the numbers stay visible, and is what CI runs over
+//! the canonical fixtures.
 
 use dwg::error::Result;
 use dwg::{DwgFile, ObjectType};
@@ -52,13 +53,22 @@ use std::process::ExitCode;
 /// one-file, two-table corpus, so the gate tolerates a *shortfall* on
 /// exactly these two classes and never a surplus.
 ///
-/// The R2004, R2007 and R2010 files of the corpus each under-walk
-/// DICTIONARYVAR and CELLSTYLEMAP. That shortfall is *not* explained —
-/// unlike the two table classes it is an open walker gap, present on
-/// `main` before this probe grew an allowlist. It is listed here so a
-/// diagnostic run on those files does not drown the signal, and pinned
-/// per file and per count by `tests/class_census.rs` so it can only
-/// shrink. `--strict` shows it.
+/// The R2004, R2007 and R2010 files of the corpus each declare more
+/// DICTIONARYVAR and CELLSTYLEMAP instances than they contain, and #76
+/// settled that it is the count and not the walk that is wrong. The
+/// `AcDbVariableDictionary` is the sole owner of a drawing's
+/// DICTIONARYVAR objects, and it holds exactly as many keys as the walk
+/// finds DICTIONARYVAR records on **every** corpus file — 10 / 6 / 5 on
+/// the three bands that under-declare, and 5 / 11 on `arc_2013.dwg` and
+/// `sample_AC1032.dwg`, whose class tables do agree with the walk.
+/// Meanwhile the object stream tiles completely with zero inter-record
+/// bytes and every hard handle reference resolves, so there is neither
+/// room for the surplus records nor anything pointing at them.
+/// `arc_2010.dwg` settles CELLSTYLEMAP the same way: it declares one,
+/// contains none, and has no
+/// `ACAD_ROUNDTRIP_2008_TABLESTYLE_CELLSTYLEMAP` dictionary key for one
+/// to hang from. Run `examples/probe_reference_closure` to reproduce.
+/// The counts stay pinned per file by `tests/class_census.rs`.
 pub const ALLOWLIST: &[(&str, &str)] = &[
     (
         "TABLECONTENT",
@@ -72,13 +82,15 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ),
     (
         "DICTIONARYVAR",
-        "open walker gap on the R2004/R2007/R2010 corpus files, not \
-         explained; pinned per file by tests/class_census.rs",
+        "the R2004/R2007/R2010 files declare 16/11/10 against an \
+         AcDbVariableDictionary holding 10/6/5 keys, which is the whole \
+         population; the stream tiles with zero inter-record bytes (#76)",
     ),
     (
         "CELLSTYLEMAP",
-        "open walker gap on the R2004/R2007/R2010 corpus files, not \
-         explained; pinned per file by tests/class_census.rs",
+        "the R2004/R2007/R2010 files declare 5/3/1 against 1/1/0 \
+         ACAD_ROUNDTRIP_2008_TABLESTYLE_CELLSTYLEMAP dictionary keys, \
+         the only slot such an object can hang from (#76)",
     ),
 ];
 
@@ -155,12 +167,11 @@ fn run(path: &str, strict: bool) -> Result<bool> {
         let mut spans: Vec<(usize, usize)> = objects
             .iter()
             .map(|o| {
-                // MS is 2 bytes per 15-bit module.
+                // MS is 2 bytes per 15-bit module, and `raw` spans the
+                // whole record payload — including the R2010+ leading
+                // `MC` the `MS` does not count (#77).
                 let ms_len = if o.size_bytes < 0x8000 { 2 } else { 4 };
-                (
-                    o.stream_offset,
-                    o.stream_offset + ms_len + o.size_bytes as usize + 2,
-                )
+                (o.stream_offset, o.stream_offset + ms_len + o.raw.len() + 2)
             })
             .collect();
         spans.sort_unstable();
@@ -183,44 +194,35 @@ fn run(path: &str, strict: bool) -> Result<bool> {
             stream.len()
         );
 
-        // What are the unclaimed bytes? On R2010+ they are not
-        // alignment padding — they are not zero. Each run equals the
-        // *width of the leading `MC` handle-stream-size field* of the
-        // record it follows, which is what a record's `MS` object size
-        // does not count. Reported as an agreement count so a
-        // regression shows up as a disagreement rather than as a
-        // changed byte total. Earlier bands carry no such field, so
-        // the attribution does not apply to them.
-        if file.version().is_r2010_plus() {
-            let mut by_offset: Vec<(usize, usize)> = objects
-                .iter()
-                .map(|o| (o.stream_offset, mc_field_width(&o.raw)))
-                .collect();
-            by_offset.sort_unstable();
-            let mc_widths: Vec<usize> = by_offset.iter().map(|(_, w)| *w).collect();
-
-            let mut agree = 0usize;
-            let mut disagree = 0usize;
-            let mut end = 0usize;
-            let mut leading = 0usize;
-            for (i, (s, e)) in spans.iter().enumerate() {
-                if i == 0 {
-                    leading = *s;
-                } else if s.saturating_sub(end) == mc_widths[i - 1] {
-                    agree += 1;
-                } else {
-                    disagree += 1;
-                }
-                end = end.max(*e);
+        // Where are the unclaimed bytes? A record run that is neither
+        // the section prologue nor the tail after the last record is
+        // room a record the walk never reached could be hiding in, so
+        // it is the number that decides whether an under-walked class
+        // is a walker gap or a file that over-declares.
+        //
+        // Before #77 every R2010+ inter-record run held the width of
+        // the preceding record's leading `MC` handle-stream-size field
+        // — the bytes a record's `MS` does not count — and the walker
+        // sliced them off. The slice now spans the whole record, so
+        // every band reports zero inter-record bytes.
+        let mut inter = 0usize;
+        let mut runs = 0usize;
+        let mut end = 0usize;
+        let mut leading = 0usize;
+        for (i, (s, e)) in spans.iter().enumerate() {
+            if i == 0 {
+                leading = *s;
+            } else if *s > end {
+                inter += s - end;
+                runs += 1;
             }
-            let trailing = stream.len().saturating_sub(end);
-            let attributed: usize = mc_widths.iter().sum::<usize>() + leading;
-            println!(
-                "unclaimed bytes explained : {attributed} of {unclaimed} \
-                 ({agree} inter-record runs equal the preceding record\'s MC width, \
-                 {disagree} do not; {leading} leading, {trailing} trailing)"
-            );
+            end = end.max(*e);
         }
+        let trailing = stream.len().saturating_sub(end);
+        println!(
+            "unclaimed bytes located    : {leading} leading (section prologue), \
+             {inter} between records in {runs} run(s), {trailing} trailing"
+        );
     }
     println!();
     println!(
@@ -280,16 +282,6 @@ fn run(path: &str, strict: bool) -> Result<bool> {
         println!("RESULT: at least one class is under-walked (negative delta above).");
     }
     Ok(complete)
-}
-
-/// Width in bytes of a record\'s leading `MC` handle-stream-size field.
-fn mc_field_width(raw: &[u8]) -> usize {
-    for (i, b) in raw.iter().enumerate().take(10) {
-        if b & 0x80 == 0 {
-            return i + 1;
-        }
-    }
-    0
 }
 
 /// Fold a class name and a built-in type name into a comparable key:
