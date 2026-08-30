@@ -38,6 +38,7 @@ pub struct AcadGroup {
     pub member_handles: Vec<Handle>,
 }
 
+/// Decodes the `AcadGroup` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadGroup> {
     let name = read_tv(c, version)?;
     let unnamed = c.read_b()?;

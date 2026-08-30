@@ -10,7 +10,7 @@ I have been building dwg-rs, an open-source, Apache-2 reader for AutoCAD DWG fil
 
 Where things stand, without marketing gloss: pre-alpha. The container layer — recognizing DWG version, decompressing sections, reading metadata, listing every object — has landed and is exercised by the repository's unit + corpus tests against sample files from R14 through R2018.
 
-Where it falls short: the per-entity decoders (the code that turns "object #42" into "a LINE from A to B") are alpha. The README publishes measured per-version numbers — about 86 % of entities decode on R2013, about 22 % on R2018, 25 % aggregate — so you can see the actual state instead of trusting a pitch. Raising that number is the next milestone.
+Where it falls short: the per-entity decoders (the code that turns "object #42" into "a LINE from A to B") are alpha. The README publishes measured per-version numbers — 15.2 % of entities decode on R2013, 44.2 % on R2018, 20.1 % aggregate — so you can see the actual state instead of trusting a pitch. Raising that number is the next milestone.
 
 You can already pull a DWG's embedded thumbnail, list the AutoCAD version that wrote the file, extract the metadata block, and walk the raw object table. The in-browser viewer needs the entity decoders to land first.
 

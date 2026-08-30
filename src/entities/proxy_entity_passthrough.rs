@@ -52,6 +52,7 @@ pub struct ProxyEntityPassthrough {
     pub original_object_handle: Option<Handle>,
 }
 
+/// Decodes the `ProxyEntityPassthrough` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ProxyEntityPassthrough> {
     let proxy_class_id = c.read_bl()? as u32;
     let application_version = c.read_bl()? as u32;

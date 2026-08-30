@@ -39,17 +39,21 @@ pub struct Polyline {
 }
 
 impl Polyline {
+    /// Bit 0x01 of `flag`: the polyline is closed.
     pub fn is_closed(&self) -> bool {
         self.flag & 0x01 != 0
     }
+    /// Bit 0x08 of `flag`: the polyline is a 3D polyline.
     pub fn is_3d(&self) -> bool {
         self.flag & 0x08 != 0
     }
+    /// Bit 0x40 of `flag`: the polyline is a polyface mesh.
     pub fn is_polyface(&self) -> bool {
         self.flag & 0x40 != 0
     }
 }
 
+/// Decodes the `Polyline` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Polyline> {
     let flag = c.read_bs_u()?;
     let curve_type = c.read_bs()?;

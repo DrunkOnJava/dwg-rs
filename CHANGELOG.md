@@ -8,30 +8,99 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
-### Fixed — R2013/R2018 common-entity preamble alignment (2026-04-20, #103)
+### Fixed — R2007+ LTYPE string-stream names (2026-04-29, #103)
 
-- **`src/common_entity.rs`** — Added the three missing preamble fields
-  between `non_fixed_ltype` and `plotstyle_flag` per ODA 5.4.1 §19.4.1
-  + libredwg reference: `CMC color` (BS color_index, minimal BYLAYER
-  path), `BD linetype_scale`, `BB ltype_flags`. Also changed
-  `shadow_flags` from RC (8 bits) to BB (2 bits) — the on-disk
-  encoding uses only 2 bits (cast_shadow + receive_shadow) even
-  though some spec revisions label the field "RC".
-  
-  Measured effect on `sample_AC1032.dwg` (R2018):
-  - `BS invisibility` now decodes as **0** (valid) instead of **-10207**
-  - LINE end-point `BD` deltas now decode to clean **1.0 / 0.0**
-    shortcut values instead of tiny subnormals
-  - 1 of 3 modelspace LINEs now passes the plausibility check (was 0/3)
+- **`src/tables/ltype.rs` / `src/entities/dispatch.rs`** — Added a modern
+  `LTYPE` path for R2007+ table records. It reads entry names/descriptions
+  from the split string stream, parses the non-string fields in ODA v5.4.1
+  §19.5.3 order, and falls back to the legacy inline decoder if the modern
+  parse is not plausible.
+- **`examples/dump_decoded_entities.rs`** — Print decoded `LTYPE` records so
+  recovered linetype names are visible during corpus inspection.
+- **`tests/r2013_entity_values.rs`** — Added a real-DWG regression asserting
+  that `sample_AC1032.dwg` recovers `ByBlock`, `ByLayer`, and `Continuous`,
+  including the `Continuous` description `Solid line`.
+- **Measured effect after the BLOCK_HEADER fix:** aggregate coverage improved
+  from 437 decoded / 1,660 skipped / 184 errored / 19.2% to 458 decoded /
+  1,660 skipped / 163 errored / 20.1%. `sample_AC1032.dwg` improved from
+  326 / 337 / 82 / 43.8% to 329 / 337 / 79 / 44.2%, and `LTYPE` errors
+  dropped from 30 to 9.
 
-  Known residual gaps tracked as follow-ups to #103:
-  - `RD` start-point reads still produce ~6e+14 garbage on some LINEs
-    (the BD delta path aligns but the absolute-value RD before it is
-    still off by a few bits in some encodings)
-  - Complex-color CMC suffix (BL rgb + TV name) disabled — reintroducing
-    it over-consumed ENDBLK preamble bits on line_2013.dwg
-- **`src/handle_allocator.rs`** — Fix pre-existing doctest that had
-  stale assertions (Boy Scout while in the file).
+### Fixed — R2007+ BLOCK_HEADER string-stream names (2026-04-29, #103)
+
+- **`src/tables/block_record.rs` / `src/entities/dispatch.rs`** — Added a
+  modern `BLOCK_HEADER` path that reads R2007+ table-record names from the
+  object's split string stream instead of treating `TV` fields as inline data.
+  This follows the ODA v5.4.1 §19.1 rule that Unicode strings in modern objects
+  live in the string stream even when the object table lists `TV` fields among
+  normal data.
+- **`examples/dump_decoded_entities.rs`** — Print `BLOCK_RECORD` names so the
+  recovered symbol-table records are visible during corpus inspection.
+- **`tests/r2013_entity_values.rs`** — Added a real-DWG regression asserting
+  that `sample_AC1032.dwg` recovers core block-record names including
+  `*Model_Space`, `*Paper_Space`, `_ArchTick`, `MyBlock`, `my_block`,
+  `my_block_v2`, and `my-dynamic-block`.
+- **Measured effect after the LWPOLYLINE fix:** aggregate coverage improved
+  from 408 decoded / 1,660 skipped / 213 errored / 17.9% to 437 decoded /
+  1,660 skipped / 184 errored / 19.2%. `sample_AC1032.dwg` improved from
+  312 / 337 / 96 / 41.9% to 326 / 337 / 82 / 43.8%, and `BLOCK_HEADER`
+  errors dropped from 39 to 10.
+
+### Fixed — LWPOLYLINE DD vertex decoding (2026-04-29, #103)
+
+- **`src/entities/lwpolyline.rs`** — Decode LWPOLYLINE vertices as
+  first point `RD/RD`, then subsequent points as `DD/DD` using the
+  previous point as the default. The old decoder read every vertex as
+  raw doubles, which produced enormous coordinates and exhausted the
+  stream on common AC1032 rectangles.
+- **`tests/r2013_entity_values.rs`** — Added a real-DWG regression
+  asserting that `sample_AC1032.dwg` decodes at least 10 finite,
+  nondegenerate LWPOLYLINE bodies.
+- **Measured effect after the common-entity fix:** aggregate coverage
+  improved from 400 decoded / 1,660 skipped / 221 errored / 17.5% to
+  408 decoded / 1,660 skipped / 213 errored / 17.9%.
+
+### Fixed — R2013/R2018 common-entity/body boundary (2026-04-29, #103)
+
+- **`src/common_entity.rs`** — Corrected the modern common-entity
+  preamble layout against traced R2013/R2018 data: removed the stale modern
+  `is_on_layer` / `non_fixed_ltype` data-stream reads, limited the
+  DS-data bit to R2013+, restored `shadow_flags` to an `RC`, and
+  skipped R2004+ CMC color suffixes (`alpha`, `rgb`, color name, and
+  book name) without consuming color handles from the data stream.
+- **`examples/trace_entity_boundary.rs`** — Added a reusable boundary
+  tracer for LINE/CIRCLE/ARC records. It compares the production
+  common-entity end against plausible body starts and reports duplicate
+  handles / no-candidate records for real DWGs.
+- **`examples/trace_common_entity.rs` /
+  `examples/test_line_bd_vs_rd.rs`** — Brought the forensic examples
+  back in sync with the corrected R2013 preamble so they no longer
+  encode the obsolete 68-bit overread.
+- **`tests/r2013_entity_values.rs`** — Promoted the real-DWG value
+  tests out of `#[ignore]`. `line_2013.dwg` now asserts the authored
+  `(50, 50, 0) -> (100, 100, 0)` LINE, the R2013 CIRCLE/ARC samples
+  must decode typed geometry, and `sample_AC1032.dwg` must retain at
+  least 80 nondegenerate LINE bodies.
+- **Measured effect:** `examples/coverage_report.rs ../../samples`
+  improved from 169 decoded / 1,655 skipped / 457 errored / 7.4%
+  aggregate coverage to 400 decoded / 1,660 skipped / 221 errored /
+  17.5%. `sample_AC1032.dwg` improved from 106 decoded / 332 skipped /
+  307 errored / 14.2% to 304 decoded / 337 skipped / 104 errored /
+  40.8%.
+
+### Fixed — LINE DD coordinate decoding (2026-04-28, #103)
+
+- **`src/bitcursor.rs` / `src/bitwriter.rs`** — Added `DD`
+  (bitdouble-with-default) support. The reader handles the spec's
+  default, 4-byte patch, 6-byte patch, and full-double forms; the writer
+  emits exact-default or full-double forms.
+- **`src/entities/line.rs` / `src/element_encoder.rs`** — Decode and encode
+  `LINE` end coordinates as `DD` fields using each start coordinate as
+  the default, instead of treating them as `BD` deltas.
+- **Measured effect before the common-entity boundary fix:** decoded
+  count moved from 166 to 169 on the local sample corpus and reduced
+  R2018 LINE errors from 83 to 80. The 2026-04-29 common-entity fix
+  above is the change that made the real-DWG value tests pass.
 
 ### Added — Phase 12 write-path + Phase 13 WASM scaffolding (2026-04-20 late)
 
@@ -261,19 +330,19 @@ proceed in parallel.
   a compression-bomb test proves a 6-byte input claiming 1 TiB
   stays bounded (`small_input_with_huge_expected_size_stays_bounded`).
 
-### Known — decoder-correctness regression discovered (task #97)
+### Known at 0.1.0-alpha.1 — decoder-correctness regression discovered (task #97)
 
 Task #97 (validate decoders against real R2013 corpus) surfaced a
 deeper architectural gap than the dispatcher type-code bugs that
 #71-#96 closed:
 
-1. **Handle walk misses modelspace geometry.** The single-entity
+1. **Handle walk missed modelspace geometry.** The single-entity
    R2013 samples (`line_2013.dwg`, `circle_2013.dwg`, `arc_2013.dwg`)
    each decode 6 objects, all of which are empty `BLOCK`/`ENDBLK`
    shells. The user-drawn LINE/CIRCLE/ARC is stored at a handle
    reachable only through `BLOCK_HEADER → owned entities` — a
-   traversal the current reader does not perform.
-2. **Bit-cursor offset inside typed payloads is wrong on R2018.**
+   traversal the 0.1.0-alpha.1 reader did not perform.
+2. **Bit-cursor offset inside typed payloads was wrong on R2018.**
    `sample_AC1032.dwg` is the one corpus file where typed entity
    decoders fire on real data, and the results are garbage: LINE
    endpoints with `z = 1.2e+225`, POINT positions with
@@ -283,11 +352,9 @@ deeper architectural gap than the dispatcher type-code bugs that
    error earlier in the pipeline or a missed preamble field in the
    R2018 layout.
 
-Four integration tests in `tests/r2013_entity_values.rs` pin the
-expected invariants. They are `#[ignore]`'d so `cargo test` stays
-green; `cargo test --release -- --ignored` reproduces the regression
-on demand. The "honest coverage" numbers below measure *dispatch
-success*, not *value correctness*.
+Those invariants are now active default tests in the Unreleased
+changes above. The historical "honest coverage" numbers below measure
+*dispatch success*, not *value correctness*.
 
 ## [0.1.0-alpha.1] — 2026-04-19
 

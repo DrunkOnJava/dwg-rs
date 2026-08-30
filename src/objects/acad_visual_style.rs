@@ -67,6 +67,7 @@ pub struct AcadVisualStyle {
     pub edge_silhouette_color: i16,
 }
 
+/// Decodes the `AcadVisualStyle` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadVisualStyle> {
     if !version.is_r2007_plus() {
         return Err(Error::Unsupported {

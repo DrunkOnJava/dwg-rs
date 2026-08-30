@@ -121,8 +121,8 @@ files, and land the write path.
 
 For `dwg-rs`:
 
-- Per-version entity preamble fixes (R2004 and R2018 are the
-  current big gaps; R2013 is ~86 %). See the
+- Per-version entity preamble fixes (R2004, R2010, R2013, and
+  R2018 all still have measured real-file decoder gaps). See the
   [capability matrix](../../README.md#capability-matrix-at-a-glance)
   and
   [the bit-stream walk-through](./01-reading-dwg-without-autocad.md#the-split-stream-architecture).

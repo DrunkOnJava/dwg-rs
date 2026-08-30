@@ -338,6 +338,7 @@ pub struct FileDepList {
 }
 
 impl FileDepList {
+    /// Parses the file dependency list (features and per-file dependencies).
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         let mut c = ByteCursor::new(bytes);
         let feature_count = c.read_u32()? as usize;

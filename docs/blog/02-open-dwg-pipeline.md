@@ -123,11 +123,11 @@ if let Some(Ok((entities, summary))) = file.decoded_entities() {
 That last call is where the 0.1.0-alpha.1 limits bite. The
 container gives you every object with its correct handle, type
 code, and raw payload bytes — but the *typed* decoders underneath
-`decoded_entities()` currently succeed on 20–80 % of entities
+`decoded_entities()` currently succeed on 2.5–44.2 % of entities
 depending on version (see the
 [capability matrix](../../README.md#capability-matrix-at-a-glance)
-for the measured numbers). On R2013 it's ~86 %. On R2018 it's
-~22 %. On R2004 it's 0 %. The gap is the per-version handle/data
+for the measured numbers). On R2013 it's 15.2 %. On R2018 it's
+44.2 %. On R2004 it's 2.5 %. The gap is the per-version handle/data
 stream split covered in the
 [previous post](./01-reading-dwg-without-autocad.md#the-split-stream-architecture),
 not a missing renderer.
@@ -291,7 +291,7 @@ Against the README capability matrix:
   parsing, raw object enumeration on R2004+, the `Curve`/`Path`
   types, the SVG writer, the DXF writer + section emitters,
   `examples/dwg_to_svg.rs`.
-- **Alpha**: per-entity decoders (20–80 % real-file decode rate
+- **Alpha**: per-entity decoders (2.5–44.2 % real-file decode rate
   depending on version; see [README's measured numbers](../../README.md#pre-alpha-status--read-this-first)).
 - **Pending**: R14/R2000/R2007 object walk, entity graph (owners,
   reactors, blocks), full symbol-table content decoders, glTF

@@ -1,12 +1,16 @@
 //! Test whether the LINE decoder should use BD (bit-double, tag-encoded,
 //! 2-66 bits) vs RD (raw double, byte-aligned, 64 bits) for start coords.
+//! The current spec path is RD start coordinates plus DD end coordinates;
+//! the BD variants below are retained as forensic alternatives.
 //!
 //! If the file's start coordinates are at-origin (0,0,0), BD encoding
 //! takes 2 bits per coord (tag 10 = 0.0); RD encoding takes 64 bits.
 //! That accounts for ~190 bits of decoder slop on a single LINE.
 
 use dwg::DwgFile;
+use dwg::Version;
 use dwg::bitcursor::BitCursor;
+use dwg::common_entity::read_common_entity_data;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = DwgFile::open("../../samples/line_2013.dwg")?;
@@ -15,16 +19,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let payload = &line_obj.raw;
     println!("payload: {} bits", payload.len() * 8);
 
-    // Match preamble end at bit 86 (from the prior tracer).
-    // Skip header (34 bits) + preamble (52 bits) = 86 bits inline,
-    // then decode the LINE body two ways and compare.
+    // Use the production common-entity reader so this forensic comparison
+    // stays aligned with the real R2013 boundary (bit 74 for this sample).
     let mut c = BitCursor::new(payload);
     skip_to_preamble_end(&mut c)?;
     let body_start = c.position_bits();
     println!("entity body starts at bit {}\n", body_start);
 
-    // Variant 1: original line.rs encoding (RD for start coords).
-    println!("--- Variant 1: RD start coords (current line.rs) ---");
+    // Variant 1: current line.rs encoding (RD starts, DD ends).
+    println!("--- Variant 1: RD start coords + DD end coords (current line.rs) ---");
     {
         let mut cc = BitCursor::new(payload);
         skip_to_preamble_end(&mut cc)?;
@@ -47,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Variant 2: BD for start coords (alternative spec interpretation).
-    println!("\n--- Variant 2: BD start coords (alternative spec) ---");
+    println!("\n--- Variant 2: BD start coords + DD end coords (alternative spec) ---");
     {
         let mut cc = BitCursor::new(payload);
         skip_to_preamble_end(&mut cc)?;
@@ -92,10 +95,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Variant 4: BD start + delta end + INVERTED zflag interpretation.
+    // Variant 4: BD start + DD end + INVERTED zflag interpretation.
     // If zflag=1 means 2D in spec but my decoder treats zflag=0 as 2D,
     // inverting saves 130+ bits on a flat 2D line.
-    println!("\n--- Variant 4: BD + INVERTED zflag (zflag=0 → 2D) ---");
+    println!("\n--- Variant 4: BD start + DD end + INVERTED zflag (zflag=0 → 2D) ---");
     {
         let mut cc = BitCursor::new(payload);
         skip_to_preamble_end(&mut cc)?;
@@ -140,9 +143,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Variant 6: BD + inverted zflag, NO BE (extrusion always default).
+    // Variant 6: BD start + DD end + inverted zflag, NO BE (extrusion always default).
     // Spec might say BE is omitted on R2007+ entities (ext is in handle stream).
-    println!("\n--- Variant 6: BD + inverted zflag + skip BE (default extrusion) ---");
+    println!("\n--- Variant 6: BD start + DD end + inverted zflag + skip BE ---");
     {
         let mut cc = BitCursor::new(payload);
         skip_to_preamble_end(&mut cc)?;
@@ -165,7 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Variant 7: same as 6 but also drop BT thickness (always 0).
-    println!("\n--- Variant 7: BD + inverted zflag + skip BT + skip BE ---");
+    println!("\n--- Variant 7: BD start + DD end + inverted zflag + skip BT + skip BE ---");
     {
         let mut cc = BitCursor::new(payload);
         skip_to_preamble_end(&mut cc)?;
@@ -198,25 +201,25 @@ fn decode_line_bd_inv_zflag_no_be(
     let sx = c
         .read_bd()
         .map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let ex = c
+        .read_dd(sx)
+        .map_err(|e| ("DD end.x", c.position_bits(), e))?;
     let sy = c
         .read_bd()
         .map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let ey = c
+        .read_dd(sy)
+        .map_err(|e| ("DD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
         let sz = c
             .read_bd()
             .map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c
-            .read_bd()
-            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
-        (sz, sz + ez_delta)
+        let ez = c
+            .read_dd(sz)
+            .map_err(|e| ("DD end.z", c.position_bits(), e))?;
+        (sz, ez)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     Ok((
@@ -224,8 +227,8 @@ fn decode_line_bd_inv_zflag_no_be(
             sx,
             sy,
             sz,
-            ex: sx + ex_delta,
-            ey: sy + ey_delta,
+            ex,
+            ey,
             ez,
             thick,
             is_2d,
@@ -242,33 +245,33 @@ fn decode_line_bd_inv_zflag_no_bt_be(
     let sx = c
         .read_bd()
         .map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let ex = c
+        .read_dd(sx)
+        .map_err(|e| ("DD end.x", c.position_bits(), e))?;
     let sy = c
         .read_bd()
         .map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let ey = c
+        .read_dd(sy)
+        .map_err(|e| ("DD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
         let sz = c
             .read_bd()
             .map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c
-            .read_bd()
-            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
-        (sz, sz + ez_delta)
+        let ez = c
+            .read_dd(sz)
+            .map_err(|e| ("DD end.z", c.position_bits(), e))?;
+        (sz, ez)
     };
     Ok((
         LineFields {
             sx,
             sy,
             sz,
-            ex: sx + ex_delta,
-            ey: sy + ey_delta,
+            ex,
+            ey,
             ez,
             thick: 0.0,
             is_2d,
@@ -285,25 +288,25 @@ fn decode_line_bd_inverted_zflag(
     let sx = c
         .read_bd()
         .map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let ex = c
+        .read_dd(sx)
+        .map_err(|e| ("DD end.x", c.position_bits(), e))?;
     let sy = c
         .read_bd()
         .map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let ey = c
+        .read_dd(sy)
+        .map_err(|e| ("DD end.y", c.position_bits(), e))?;
     let (sz, ez) = if is_2d {
         (0.0, 0.0)
     } else {
         let sz = c
             .read_bd()
             .map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c
-            .read_bd()
-            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
-        (sz, sz + ez_delta)
+        let ez = c
+            .read_dd(sz)
+            .map_err(|e| ("DD end.z", c.position_bits(), e))?;
+        (sz, ez)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
@@ -312,8 +315,8 @@ fn decode_line_bd_inverted_zflag(
             sx,
             sy,
             sz,
-            ex: sx + ex_delta,
-            ey: sy + ey_delta,
+            ex,
+            ey,
             ez,
             thick,
             is_2d,
@@ -386,25 +389,25 @@ fn decode_line_rd(
     let sx = c
         .read_rd()
         .map_err(|e| ("RD start.x", c.position_bits(), e))?;
-    let ex_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let ex = c
+        .read_dd(sx)
+        .map_err(|e| ("DD end.x", c.position_bits(), e))?;
     let sy = c
         .read_rd()
         .map_err(|e| ("RD start.y", c.position_bits(), e))?;
-    let ey_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let ey = c
+        .read_dd(sy)
+        .map_err(|e| ("DD end.y", c.position_bits(), e))?;
     let (sz, ez) = if zflag {
         (0.0, 0.0)
     } else {
         let sz = c
             .read_rd()
             .map_err(|e| ("RD start.z", c.position_bits(), e))?;
-        let ez_delta = c
-            .read_bd()
-            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
-        (sz, sz + ez_delta)
+        let ez = c
+            .read_dd(sz)
+            .map_err(|e| ("DD end.z", c.position_bits(), e))?;
+        (sz, ez)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
@@ -413,8 +416,8 @@ fn decode_line_rd(
             sx,
             sy,
             sz,
-            ex: sx + ex_delta,
-            ey: sy + ey_delta,
+            ex,
+            ey,
             ez,
             thick,
             is_2d: zflag,
@@ -430,25 +433,25 @@ fn decode_line_bd(
     let sx = c
         .read_bd()
         .map_err(|e| ("BD start.x", c.position_bits(), e))?;
-    let ex_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.x", c.position_bits(), e))?;
+    let ex = c
+        .read_dd(sx)
+        .map_err(|e| ("DD end.x", c.position_bits(), e))?;
     let sy = c
         .read_bd()
         .map_err(|e| ("BD start.y", c.position_bits(), e))?;
-    let ey_delta = c
-        .read_bd()
-        .map_err(|e| ("BD end.y", c.position_bits(), e))?;
+    let ey = c
+        .read_dd(sy)
+        .map_err(|e| ("DD end.y", c.position_bits(), e))?;
     let (sz, ez) = if zflag {
         (0.0, 0.0)
     } else {
         let sz = c
             .read_bd()
             .map_err(|e| ("BD start.z", c.position_bits(), e))?;
-        let ez_delta = c
-            .read_bd()
-            .map_err(|e| ("BD end.z", c.position_bits(), e))?;
-        (sz, sz + ez_delta)
+        let ez = c
+            .read_dd(sz)
+            .map_err(|e| ("DD end.z", c.position_bits(), e))?;
+        (sz, ez)
     };
     let thick = read_bt(c).map_err(|e| ("BT thickness", c.position_bits(), e))?;
     let _ext = read_be(c).map_err(|e| ("BE extrusion", c.position_bits(), e))?;
@@ -457,8 +460,8 @@ fn decode_line_bd(
             sx,
             sy,
             sz,
-            ex: sx + ex_delta,
-            ey: sy + ey_delta,
+            ex,
+            ey,
             ez,
             thick,
             is_2d: zflag,
@@ -537,23 +540,7 @@ fn skip_to_preamble_end(c: &mut BitCursor<'_>) -> Result<(), Box<dyn std::error:
         let _ = c.read_rc()?;
     }
     let _ = c.read_handle()?;
-    // preamble (52 bits matching prior tracer):
-    let _ = c.read_bs_u()?; // XDATA terminator
-    let _ = c.read_b()?; // graphics
-    let _ = c.read_bb()?; // entmode
-    let _ = c.read_bl()?; // num_reactors
-    let _ = c.read_b()?; // no_xdict
-    let _ = c.read_b()?; // binary_chain
-    let _ = c.read_b()?; // is_on_layer
-    let _ = c.read_b()?; // non_fixed_ltype
-    let _ = c.read_bb()?; // plotstyle
-    let _ = c.read_bb()?; // material (R2007+)
-    let _ = c.read_rc()?; // shadow (R2007+)
-    let _ = c.read_b()?; // visualstyle full (R2010+)
-    let _ = c.read_b()?; // visualstyle face
-    let _ = c.read_b()?; // visualstyle edge
-    let _ = c.read_bs()?; // invisibility
-    let _ = c.read_rc()?; // lineweight
+    let _ = read_common_entity_data(c, Version::R2013)?;
     Ok(())
 }
 

@@ -51,6 +51,7 @@ pub enum PropertyDataType {
 }
 
 impl PropertyDataType {
+    /// Maps the property data-type code (spec §19.6.11: 1 integer, 2 real, 3 text, 4 enum, 5 date); anything else is an error.
     pub fn from_raw(raw: u32) -> Result<Self> {
         match raw {
             1 => Ok(Self::Integer),
@@ -90,6 +91,7 @@ pub struct AcadPropertySetData {
     pub properties: Vec<PropertySetProperty>,
 }
 
+/// Decodes the `AcadPropertySetData` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadPropertySetData> {
     let propset_definition_name = read_tv(c, version)?;
     let num_properties = c.read_bl()? as usize;

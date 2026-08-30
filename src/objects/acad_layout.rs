@@ -133,6 +133,7 @@ impl AcadLayout {
     }
 }
 
+/// Decodes the `AcadLayout` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadLayout> {
     let flags = c.read_bs()?;
     let layout_name = read_tv(c, version)?;

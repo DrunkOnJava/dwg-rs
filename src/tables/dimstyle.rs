@@ -68,6 +68,7 @@ pub struct DimStyleEntry {
 // [`DimStyleEntry`].
 pub type DimStyle = DimStyleEntry;
 
+/// Decodes a `DimStyleEntry` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
     let header = read_table_entry_header(c, version)?;
     let dimscale = c.read_bd()?;

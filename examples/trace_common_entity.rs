@@ -6,23 +6,14 @@
 //! meant to be compared against a clean-room reading of ODA OpenDS
 //! §19.4.1 to localize field-order drift.
 //!
-//! This exists because:
-//!   - The full decode fails with "wanted 8 bits, 5 remain" 3 bits
-//!     past the data-stream boundary.
-//!   - `invisibility` reads as -10207 (0xD821 LE u16), which is
-//!     impossible for a real LINE.
-//!   - The preamble consumes 52 bits (bit 34 → bit 86). Expected
-//!     minimum is 36 for R2013+ per the current module's field list,
-//!     so invisibility is taking the BS tag=00 literal path (18 bits).
-//!
-//! If an expected-but-missing field is inserted between plotstyle
-//! and invisibility (CMC color, BD linetype_scale, etc.), that same
-//! bit window gets eaten by the new field, invisibility lands on the
-//! real 16-bit invisibility value (0 or 1), and the LINE decoder
-//! starts at a cursor position ~20-25 bits further, eliminating the
-//! overshoot.
+//! This exists because the R2013/R2018 boundary is easy to regress:
+//! two stale compatibility bits before CMC color and a 2-bit shadow
+//! read pushed the LINE body off by 68 bits. The corrected R2013 path
+//! stops at bit 74 for `line_2013.dwg`, exactly where the typed LINE
+//! body decodes as `(50,50,0) -> (100,100,0)`.
 
 use dwg::DwgFile;
+use dwg::Version;
 use dwg::bitcursor::BitCursor;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -101,30 +92,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let no_xdict = c.read_b()?;
     report(&mut c, "B no_xdictionary", format!("{no_xdict}"));
 
-    let binary_chain = c.read_b()?; // R2004+
-    report(&mut c, "B binary_chain (R2004+)", format!("{binary_chain}"));
-
-    let is_on_layer = c.read_b()?;
-    report(&mut c, "B is_on_layer", format!("{is_on_layer}"));
-
-    let non_fixed_ltype = c.read_b()?;
-    report(&mut c, "B non_fixed_ltype", format!("{non_fixed_ltype}"));
-
-    // CMC color (R2004+: BS index + optional complex suffix).
-    let color_index = c.read_bs_u()?;
+    let has_ds_data = c.read_b()?; // R2013+
     report(
         &mut c,
-        "BS CMC color_index",
-        format!("{color_index} (0x{color_index:04X})"),
+        "B has_ds_binary_data (R2013+)",
+        format!("{has_ds_data}"),
     );
-    if (color_index & 0xC000) != 0 {
+
+    // CMC color (R2004+: BS index + optional complex suffix).
+    let color_raw = c.read_bs_u()?;
+    report(
+        &mut c,
+        "BS CMC raw color",
+        format!("{color_raw} (0x{color_raw:04X})"),
+    );
+    let color_flags = color_raw >> 8;
+    if color_flags & 0x20 != 0 {
+        let alpha = c.read_bl()?;
+        report(&mut c, "BL CMC alpha suffix", format!("0x{alpha:08X}"));
+    }
+    if color_flags & 0x40 == 0 && color_flags & 0x80 != 0 {
         let rgb = c.read_bl()?;
-        let has_name = c.read_b()?;
-        report(
-            &mut c,
-            "BL rgb + B name_flag (complex color)",
-            format!("rgb=0x{rgb:08X} has_name={has_name}"),
-        );
+        report(&mut c, "BL CMC rgb suffix", format!("0x{rgb:08X}"));
+    }
+    if color_flags & 0x41 == 0x41 {
+        let name = read_tv(&mut c, file.version())?;
+        report(&mut c, "TV CMC color name suffix", format!("{name:?}"));
+    }
+    if color_flags & 0x42 == 0x42 {
+        let book_name = read_tv(&mut c, file.version())?;
+        report(&mut c, "TV CMC book name suffix", format!("{book_name:?}"));
     }
 
     // BD linetype_scale.
@@ -141,12 +138,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let material = c.read_bb()?; // R2007+
     report(&mut c, "BB material (R2007+)", format!("{material}"));
 
-    let shadow = c.read_bb()?; // R2007+ — try BB (2 bits) per some ODA revisions
-    report(
-        &mut c,
-        "BB shadow_flags (R2007+) — trying 2-bit variant",
-        format!("{shadow}"),
-    );
+    let shadow = c.read_rc()?; // R2007+
+    report(&mut c, "RC shadow_flags (R2007+)", format!("{shadow}"));
 
     let vs_full = c.read_b()?; // R2010+
     let vs_face = c.read_b()?;
@@ -157,18 +150,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         format!("full={vs_full} face={vs_face} edge={vs_edge}"),
     );
 
-    // ---- THIS IS WHERE H3 SAYS MORE FIELDS BELONG ---- //
-    // Expected per spec §19.4.1 R2004+ before invisibility:
-    //   - CMC entity_color (BS + flags, ~2-18 bits)
-    //   - BD linetype_scale (2-66 bits)
-    //   - H handles (deferred to handle stream, no data-stream bits)
-    // Current decoder reads BS invisibility here — likely consuming
-    // bits that should belong to CMC / BD above.
-
     let inv = c.read_bs()?;
     report(
         &mut c,
-        "BS invisibility (SUSPECT — likely misaligned)",
+        "BS invisibility",
         format!("{inv} (0x{:04X} as i16; valid values: 0 or 1)", inv as u16),
     );
 
@@ -193,15 +178,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
     println!("Expected next: LINE body (§19.4.20)");
-    println!("  B zflag → RD start.x → BD end.x delta → RD start.y → BD end.y delta");
-    println!("  → (if !zflag: RD start.z → BD end.z delta) → BT thickness → BE extrusion");
+    println!("  B zflag → RD start.x → DD end.x → RD start.y → DD end.y");
+    println!("  → (if !zflag: RD start.z → DD end.z) → BT thickness → BE extrusion");
     println!();
     println!("Minimum 2D LINE body = 1 + 64 + 2 + 64 + 2 + 1 + 1 = 135 bits");
     println!("Minimum 3D LINE body = 135 + 64 + 2 = 201 bits");
     println!();
-    println!("If H3 holds, the preamble is missing fields that consume ~20-25 bits");
-    println!("before invisibility, so the real cursor position after preamble should");
-    println!("be ~bit 106-111, not bit 86 as currently decoded.");
+    println!("Boundary check:");
+    println!(
+        "  Run `cargo run --example trace_entity_boundary -- ../../samples/line_2013.dwg 0x13 1`."
+    );
+    println!("  For this sample, the corrected common-entity reader stops at bit 74.");
 
     Ok(())
 }
@@ -223,5 +210,33 @@ fn read_mc_unsigned(c: &mut BitCursor<'_>) -> Result<u64, dwg::Error> {
         if !cont || shift >= 64 {
             return Ok(value);
         }
+    }
+}
+
+fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String, Box<dyn std::error::Error>> {
+    let len = c.read_bs_u()? as usize;
+    if len == 0 {
+        return Ok(String::new());
+    }
+    if version.is_r2007_plus() {
+        let mut units = Vec::with_capacity(len);
+        for _ in 0..len {
+            let lo = c.read_rc()? as u16;
+            let hi = c.read_rc()? as u16;
+            units.push((hi << 8) | lo);
+        }
+        if units.last() == Some(&0) {
+            units.pop();
+        }
+        Ok(String::from_utf16(&units)?)
+    } else {
+        let mut bytes = Vec::with_capacity(len);
+        for _ in 0..len {
+            bytes.push(c.read_rc()?);
+        }
+        if bytes.last() == Some(&0) {
+            bytes.pop();
+        }
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 }

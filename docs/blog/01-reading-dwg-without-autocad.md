@@ -178,7 +178,7 @@ treating the payload as a single bit-stream will read garbage
 handle-references. We know — that's roughly what our current
 per-entity decoders do, and it's exactly why the
 [README's measured decode rate](../../README.md#pre-alpha-status--read-this-first)
-is in the 20–80 % range depending on version: the container layer
+is in the 2.5–44.2 % range depending on version: the container layer
 is solid, but the entity payload layer still reads the tail of the
 payload as if it were one stream.
 

@@ -34,6 +34,7 @@ pub struct RevolvedSurface {
     pub sweep_angle: f64,
 }
 
+/// Decodes the `RevolvedSurface` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<RevolvedSurface> {
     let sat = decode_sat_blob(c)?;
     let axis_origin = read_bd3(c)?;

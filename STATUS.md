@@ -1,4 +1,4 @@
-# Status — 2026-04-25
+# Status — 2026-04-29
 
 A plain-text snapshot of what has shipped in this crate, organized
 by the task-tracker labels, so contributors can orient without
@@ -6,12 +6,15 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 645+ passing in default/debug and release-all-features
+- **Lib tests:** 649 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
-- **WASM tests:** 39 passing in `wasm/` sub-crate.
+- **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
-  entity-value regression (18).
+  entity-regression (18), real-DWG value regression (8).
+- **Current real-file decode coverage:** 458 decoded / 1,660 skipped /
+  163 errored / 20.1% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 329 / 337 / 79 / 44.2%.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
   Seed corpus: 30 hand-crafted inputs across all targets.
@@ -38,6 +41,8 @@ scrolling the changelog.
 - `ObjectWalker` with typed dispatch + `DispatchSummary`.
 - Handle map + class map parsers (with writer-side inverses).
 - Strict / lossy / count-cap variants.
+- R2013/R2018 common-entity/body boundary pinned for LINE/CIRCLE/ARC
+  with active real-DWG regression tests.
 
 ### Entity decoders (Phase 4, 27 modules)
 - LINE, CIRCLE, ARC, ELLIPSE, POINT, LWPOLYLINE, POLYLINE 2D/3D.
@@ -53,6 +58,12 @@ scrolling the changelog.
 - OLE2FRAME, WIPEOUT, MLINE.
 - PROXY entity / PROXY object (opaque pass-through).
 - RAY, XLINE, VIEWPORT, TRACE, SOLID-2D.
+- `LINE` end coordinates use DD fields with each start coordinate as
+  the default; `line_2013.dwg` now asserts the authored
+  `(50, 50, 0) -> (100, 100, 0)` geometry.
+- `LWPOLYLINE` vertices use first-point `RD/RD`, then subsequent
+  `DD/DD` values with the previous point as default. The AC1032 sample
+  now asserts at least 10 finite, nondegenerate LWPOLYLINE bodies.
 
 ### Symbol tables (Phase 6)
 - LAYER, LTYPE, STYLE, VIEW, UCS, VPORT, APPID, DIMSTYLE.
@@ -172,17 +183,19 @@ scrolling the changelog.
 
 These have genuine open scope requiring focused work, not stubs.
 
-- **Current real-file decode baseline:** the 2026-04-25
-  `examples/coverage_report.rs ../../samples` run reports 166 decoded,
-  1655 skipped, 460 errored, 7.3% aggregate coverage. This is the
+- **Current real-file decode baseline:** the 2026-04-29
+  `examples/coverage_report.rs ../../samples` run reports 458 decoded,
+  1660 skipped, 163 errored, 20.1% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
-- **#103 R2018 bit-cursor misalignment** (P0, partially traced to
-  line.rs). Requires a 2nd R2013 corpus sample with known
-  coordinates for hypothesis falsification. This is the biggest
-  single blocker for `decoded_entities()` decode-rate improvements
-  across all recent versions.
+- **#103 remaining real-file decoder alignment** (P0). The
+  R2013/R2018 common-entity/body boundary is fixed for LINE/CIRCLE/ARC,
+  common LWPOLYLINE vertices now use DD correctly, R2007+ BLOCK_HEADER
+  names and simple LTYPE names are recovered from the split string stream,
+  and active value tests pass, but the next blockers are TEXT/MTEXT strings, INSERT
+  rotation, DIMENSION, HATCH, table-object field layouts, and remaining
+  LWPOLYLINE flag variants.
 - **#104 R14 / R2000 / R2007 handle-map walker.** Container layer
   ships for these versions, but the object-stream walker is
   R2004+ only. Unlocks `decoded_entities()` for those release

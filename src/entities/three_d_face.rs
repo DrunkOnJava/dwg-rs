@@ -27,6 +27,7 @@ pub struct ThreeDFace {
     pub is_triangle: bool,
 }
 
+/// Decodes the `ThreeDFace` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<ThreeDFace> {
     let has_no_flag = c.read_b()?;
     let z_is_zero = c.read_b()?;

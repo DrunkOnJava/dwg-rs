@@ -56,6 +56,7 @@ impl StyleEntry {
     }
 }
 
+/// Decodes a `StyleEntry` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<StyleEntry> {
     let header = read_table_entry_header(c, version)?;
     let flags = c.read_rc()?;

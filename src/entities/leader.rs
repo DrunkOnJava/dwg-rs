@@ -46,6 +46,7 @@ pub struct Leader {
     pub offset_to_block_insertion: Vec3D,
 }
 
+/// Decodes the `Leader` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Leader> {
     let _unknown = c.read_b()?;
     let annot_type = c.read_bs()?;

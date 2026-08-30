@@ -43,6 +43,7 @@ pub struct XRecord {
     pub cloning_flags: i16,
 }
 
+/// Decodes the `XRecord` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<XRecord> {
     let data_bytes = c.read_bl()? as usize;
     if data_bytes > MAX_XRECORD_BYTES {

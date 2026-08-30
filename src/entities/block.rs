@@ -20,6 +20,7 @@ pub struct Block {
     pub name: String,
 }
 
+/// Decodes the `Block` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Block> {
     let len = c.read_bs_u()? as usize;
     if len == 0 {

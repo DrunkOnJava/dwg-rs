@@ -84,6 +84,7 @@ pub struct DataPageHeader {
 impl DataPageHeader {
     pub const PAGE_TYPE: u32 = 0x4163_043B;
 
+    /// Parses the 0x20-byte data page header at `file_offset`.
     pub fn parse(file_bytes: &[u8], file_offset: u64) -> Result<Self> {
         if (file_offset as usize) + 0x20 > file_bytes.len() {
             return Err(Error::Truncated {

@@ -15,6 +15,7 @@ pub use crate::entities::solid::decode as decode_as_solid;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trace(pub Solid);
 
+/// Decodes the `Trace` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Trace> {
     Ok(Trace(decode_as_solid(c)?))
 }

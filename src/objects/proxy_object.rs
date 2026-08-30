@@ -37,6 +37,7 @@ pub struct ProxyObject {
     pub handles: Vec<Handle>,
 }
 
+/// Decodes the `ProxyObject` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, _version: crate::version::Version) -> Result<ProxyObject> {
     let proxy_class_id = c.read_bl()? as u32;
     let data_length = c.read_bl()? as usize;

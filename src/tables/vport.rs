@@ -69,6 +69,7 @@ pub struct VportEntry {
 // [`VportEntry`].
 pub type VPort = VportEntry;
 
+/// Decodes a `VportEntry` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let header = read_table_entry_header(c, version)?;
     let view_height = c.read_bd()?;

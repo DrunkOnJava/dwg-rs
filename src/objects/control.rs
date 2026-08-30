@@ -36,6 +36,7 @@ pub struct Control {
     pub num_entries: u32,
 }
 
+/// Decodes the `Control` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Control> {
     let num_entries = c.read_bl()? as u32;
     Ok(Control { num_entries })

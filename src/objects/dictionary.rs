@@ -40,6 +40,7 @@ pub struct DictionaryEntry {
     pub value_handle: Handle,
 }
 
+/// Decodes the `Dictionary` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Dictionary> {
     let num_items = c.read_bl()? as usize;
     if num_items > 1_000_000 {

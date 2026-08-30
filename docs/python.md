@@ -89,7 +89,7 @@ f = dwg.DwgFile.open(path, limits="paranoid")
 ## Why is this a placeholder?
 
 The container layer is pre-alpha and the per-entity decoders hover in
-the 22–86 % real-file coverage band (see the
+the 2.5–44.2 % real-file coverage band (see the
 [capability matrix](../README.md#capability-matrix-at-a-glance) for
 the measured numbers). Shipping Python bindings before the Rust
 surface stabilizes would mean the bindings churn every time a decoder

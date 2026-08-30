@@ -49,6 +49,7 @@ pub struct ImageDef {
 /// pipeline. 64 KiB is already adversarial territory.
 const IMAGEDEF_MAX_PATH_UNITS: usize = 65_536;
 
+/// Decodes the `ImageDef` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ImageDef> {
     let class_version = c.read_bl()? as u32;
     let image_width = c.read_bd()?;

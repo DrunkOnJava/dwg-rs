@@ -58,6 +58,7 @@ pub struct Text {
     pub v_align: i16,
 }
 
+/// Decodes the `Text` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Text> {
     let flag = c.read_rc()?;
 

@@ -19,9 +19,7 @@
 //! BB  entmode              -- entity mode (see [`EntityMode`])
 //! BL  num_reactors
 //! B   no_xdictionary_handle (R2004+)
-//! B   has_ds_binary_data   (R2013+ — was misnamed "binary_chain_present")
-//! B   is_on_layer
-//! B   non_fixed_ltype
+//! B   has_ds_binary_data   (R2013+)
 //! CMC color                -- BS index + optional BL rgb + B name_flag + TV name
 //! BD  linetype_scale
 //! BB  ltype_flags
@@ -101,12 +99,16 @@ pub struct CommonEntityData {
     pub num_reactors: u32,
     /// Whether an xdictionary handle is absent.
     pub no_xdictionary: bool,
-    /// R2004+: whether a binary chain follows.
+    /// R2013+: whether DS binary data follows.
+    ///
+    /// Kept as `binary_chain` for API compatibility with the earlier
+    /// experimental reader.
     pub binary_chain: bool,
-    /// Whether the "is on a layer?" flag is set. In practice always
-    /// true for valid drawings; kept for diagnostic dumps.
+    /// Legacy pre-R2004 linetype marker compatibility field. Modern R2004+
+    /// entity streams do not carry a separate "is on layer" data bit here.
     pub is_on_layer: bool,
-    /// Whether the entity has a non-"BYLAYER" linetype.
+    /// Legacy pre-R2004 linetype marker compatibility field. Modern R2004+
+    /// streams use `ltype_flags` after linetype scale instead.
     pub non_fixed_ltype: bool,
     /// Raw 2-bit plot-style flag.
     pub plotstyle_flag: u8,
@@ -192,26 +194,54 @@ pub fn read_common_entity_data(
 
     // -- Reactors + object-dict markers -------------------------------------
     let num_reactors = c.read_bl()? as u32;
-    let no_xdictionary = c.read_b()?;
-    let binary_chain = if version.is_r2004_plus() {
+    let no_xdictionary = if version.is_r2004_plus() {
+        c.read_b()?
+    } else {
+        true
+    };
+    let binary_chain = if matches!(version, Version::R2013 | Version::R2018) {
         c.read_b()?
     } else {
         false
     };
 
-    // -- Layer + linetype markers -------------------------------------------
-    let is_on_layer = c.read_b()?;
-    let non_fixed_ltype = c.read_b()?;
+    // R13/R14 carry a separate by-layer linetype marker before the modern
+    // ltype_flags field existed. R2004+ does not; those releases encode this
+    // in ltype_flags below, after linetype_scale.
+    let (is_on_layer, non_fixed_ltype) = if matches!(version, Version::R14) {
+        let is_by_layer_linetype = c.read_b()?;
+        (true, !is_by_layer_linetype)
+    } else {
+        (true, false)
+    };
 
-    // -- CMC entity color (§2.14) -------------------------------------------
-    // Minimal BYLAYER-only CMC: just the BS color_index. The complex
-    // suffix (BL rgb + name) in R2004+ is only present when (index &
-    // 0xC000) != 0, and the exact semantics vary by AutoCAD minor
-    // version — over-consuming it broke ENDBLK preamble reads on
-    // line_2013.dwg. If complex colors appear in real corpora we will
-    // extend this, but the vast majority of real entities use BYLAYER
-    // which fits in 2 bits (BS tag 10).
-    let _color_index = c.read_bs_u()?;
+    // R13-R2000 carry a "nolinks" bit before color. The current public struct
+    // has no stable place for it, but it must still be consumed on legacy
+    // streams so color starts at the right bit.
+    if matches!(version, Version::R14 | Version::R2000) {
+        let _nolinks = c.read_b()?;
+    }
+
+    // -- CMC entity color (§2.11) -------------------------------------------
+    // R2004+ stores a raw BS whose high bits flag optional alpha/RGB/name
+    // suffixes. Color handles live in the handle stream, so they are noted by
+    // the flags but do not consume data-stream bits here.
+    let color_raw = c.read_bs_u()?;
+    if version.is_r2004_plus() {
+        let color_flags = color_raw >> 8;
+        if color_flags & 0x20 != 0 {
+            let _alpha_raw = c.read_bl()?;
+        }
+        if color_flags & 0x40 == 0 && color_flags & 0x80 != 0 {
+            let _rgb = c.read_bl()?;
+        }
+        if color_flags & 0x41 == 0x41 {
+            let _name = crate::tables::read_tv(c, version)?;
+        }
+        if color_flags & 0x42 == 0x42 {
+            let _book_name = crate::tables::read_tv(c, version)?;
+        }
+    }
 
     // -- BD linetype_scale (default 1.0 → BB tag 01, 2 bits) ----------------
     let _linetype_scale = c.read_bd()?;
@@ -222,15 +252,11 @@ pub fn read_common_entity_data(
     let plotstyle_flag = c.read_bb()?;
 
     // -- Material + shadow (R2007+) -----------------------------------------
-    // `shadow_flags` is 2 bits (BB) — the spec labels the field "RC" in
-    // §19.4.1 Table 54 but the actual on-disk encoding only uses 2 bits
-    // (cast_shadow, receive_shadow). Reading RC (8 bits) misaligns the
-    // entire post-preamble stream — we measured a 6-bit overshoot that
-    // caused every subsequent field to read garbage (see task #103).
-    // The `u8` width of `shadow_flags` on the struct is kept for ABI
-    // stability.
+    // shadow_flags is an RC in modern DWG streams. Earlier local experiments
+    // tried BB, but that masked a separate two-bit overread before CMC color
+    // and left R2013/R2018 entity bodies misaligned.
     let (material_flag, shadow_flags) = if version.is_r2007_plus() {
-        (c.read_bb()?, c.read_bb()?)
+        (c.read_bb()?, c.read_rc()?)
     } else {
         (0u8, 0u8)
     };
@@ -295,10 +321,7 @@ mod tests {
         w.write_bb(0b00);
         // num_reactors = 0.
         w.write_bl(0);
-        // no_xdictionary = true, binary_chain = false (R2004+).
-        w.write_b(true);
-        w.write_b(false);
-        // is_on_layer, non_fixed_ltype
+        // no_xdictionary = true; has_ds_data is R2013+.
         w.write_b(true);
         w.write_b(false);
         // CMC color — BS index, BYLAYER (tag 10 → 2 bits, value 0)
@@ -311,7 +334,7 @@ mod tests {
         w.write_bb(0b00);
         // material_flag, shadow_flags (R2007+)
         w.write_bb(0b00);
-        w.write_bb(0b00);
+        w.write_rc(0b00);
         // visualstyle full/face/edge (R2010+)
         w.write_b(false);
         w.write_b(false);
@@ -352,9 +375,7 @@ mod tests {
         w.write_bb(0b10);
         w.write_bl(2); // 2 reactors
         w.write_b(false); // has xdict
-        w.write_b(true); // binary_chain
-        w.write_b(true);
-        w.write_b(true);
+        w.write_b(true); // has_ds_data
         // CMC color — BYLAYER
         w.write_bs(0);
         // BD linetype_scale — 1.0
@@ -363,7 +384,7 @@ mod tests {
         w.write_bb(0b00);
         w.write_bb(0b01);
         w.write_bb(0b10);
-        w.write_bb(0b11);
+        w.write_rc(0b11);
         w.write_b(false);
         w.write_b(false);
         w.write_b(false);
@@ -380,7 +401,7 @@ mod tests {
         assert!(!ce.no_xdictionary);
         assert!(ce.binary_chain);
         assert!(ce.is_on_layer);
-        assert!(ce.non_fixed_ltype);
+        assert!(!ce.non_fixed_ltype);
         assert_eq!(ce.plotstyle_flag, 0b01);
         assert_eq!(ce.material_flag, 0b10);
         assert_eq!(ce.shadow_flags, 0b11);
