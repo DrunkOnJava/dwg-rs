@@ -358,7 +358,7 @@ On `sample_AC1032.dwg` (R2018), by object type:
 | MTEXT 0x2C | 34 | 33 | 33 | `this is a Mtext\nwith multiple lines in it` |
 | TOLERANCE 0x2E | 3 | 3 | 3 | `{\Fgdt;j}%%v{\Fgdt;n}%%v…` |
 | HATCH 0x4E | 5 | 4 | 8 | `ANSI31`, `LINEAR` |
-| DICTIONARY 0x2A | 65 | 52 | 174 | `ACAD_COLOR` |
+| DICTIONARY 0x2A | 65 | 52 | 174 | `ACAD_COLOR` (now decoded — see §7d) |
 | LAYOUT 0x52 | 4 | 4 | 20 | `ANSI_A_(8.50_x_11.00_Inches)` |
 | MLEADER (class) | 10 | 10 | 10 | `MLeader text, hello!` |
 | IMAGEDEF (class) | 1 | 1 | 1 | `.\image.JPG` |
@@ -375,7 +375,81 @@ Two structural facts fall out:
   the string-stream start bit and the inline `TV` read lands on the
   string stream. It is not a counter-example to the split layout.
 
-||||||| 9d6adbe
+## 7d. The non-entity object path (2026-08-30)
+
+A non-entity object — DICTIONARY, XRECORD, the ten `*_CONTROL` table
+owners, ACDB_PLACEHOLDER, ACAD_GROUP, and the custom classes SCALE,
+DICTIONARYVAR, IMAGEDEF — is *not* an entity and does not carry the
+common entity preamble. Its record is
+
+```text
+object header | common object data (§19.4.2) | type-specific fields
+```
+
+and `src/objects/modern.rs` is the shared plumbing for it, mirroring
+`src/tables/modern.rs` for symbol-table entries. `ObjectStream::read_tv`
+takes a `TV` from the object's string stream on R2007+ and inline before
+that, so each decoder writes its field list exactly once.
+
+**The common object data keeps its `BL num_reactors` on R2007+.**
+
+```text
+EED chain
+BL   num_reactors
+B    no_xdictionary_handle   -- R2004+
+B    has_ds_binary_data      -- R2013+ (an RC follows when set)
+```
+
+Measured three independent ways: DICTIONARY's `BL numitems` decodes to
+the number of strings its string stream actually holds only with the
+`BL` consumed; ACDB_PLACEHOLDER, whose body is provably empty, closes
+exactly; and the nine one-field `*_CONTROL` records close on their
+`BL numentries`. Note that `tables/modern.rs` deliberately does *not*
+read this `BL` and compensates with a different flag order — the two
+readings sum to the same total for an APPID record, so both satisfy the
+boundary check, and which one assigns the right values to the right
+fields is not determinable from the 16 bits an APPID record spends
+there.
+
+**Every object decoder is self-validating.** `ObjectStream::finish`
+requires the data fields to end exactly on the record's data-stream
+boundary:
+
+| Release band | Boundary |
+|---|---|
+| R2010+, record with strings | first bit of the string stream |
+| R2010+, record without strings | handle-stream start minus the one `B` "strings present" trailer bit |
+| R2000-R2007 | the `RL` object-data-size-in-bits from the object prologue |
+| R13/R14 | unknown — no check |
+
+A decoder that lands anywhere else returns `DecodedEntity::Error`, so a
+wrong field list can never inflate the coverage ratio. That is also why
+MATERIAL, VISUALSTYLE and PROPERTYSET_DATA — which decode a documented
+*prefix* of their fields and stop — are deliberately **not** dispatched,
+along with LAYOUT and MLINESTYLE, whose field lists this crate has not
+yet matched against real bytes.
+
+## 7e. `AcDb:Classes` — where the class list actually starts
+
+`Custom(N)` object type codes (≥ 500) resolve through the class table,
+so a broken class parser makes every custom object undispatchable. The
+list does not start at a fixed offset:
+
+```text
+[0..16]   sentinel
+[16..20]  RL  size of the class data area, in bytes
+[20..24]  RL  (R2010+) unknown, observed 0
+[24..28]  RL  (R2010+) size of the class data area, in bits
+-- bit stream: byte 20 on R2004, byte 28 on R2010+ --
+BS max_class_number, RC, RC, B, then one record per class
+```
+
+From R2007 the records themselves split the same way object records do:
+every record's non-string fields first, then `3 × N` strings as a block
+in record order. `ClassMap::parse` accepts a table only when its class
+numbers run consecutively from 500, so a mislocated stream reports no
+classes rather than a desynchronised list a dispatcher would trust.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

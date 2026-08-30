@@ -17,18 +17,18 @@
 
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
-Empirical entity-decode coverage as measured on 2026-08-30 by
+Empirical entity + object decode coverage as measured on 2026-08-30 by
 [`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
 local `samples/` set:
 
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
-| R2004 (AC1018)      | 3 | 75 | 522 | 0 | **12.6 %** |
-| R2010 (AC1024)      | 3 | 69 | 474 | 0 | **12.7 %** |
-| R2013 (AC1027)      | 3 | 69 | 327 | 0 | **17.4 %** |
-| R2018 (AC1032)      | 1 | 384 | 337 | 24 | **51.5 %** |
-| **Aggregate** | **19** | **597** | **1660** | **24** | **26.2 %** |
+| R2004 (AC1018)      | 3 | 489 | 108 | 0 | **81.9 %** |
+| R2010 (AC1024)      | 3 | 438 | 105 | 0 | **80.7 %** |
+| R2013 (AC1027)      | 3 | 291 | 105 | 0 | **73.5 %** |
+| R2018 (AC1032)      | 1 | 488 | 231 | 26 | **65.5 %** |
+| **Aggregate** | **19** | **1706** | **549** | **26** | **74.8 %** |
 
 Per-entity-type error concentration in the measured corpus:
 
@@ -81,7 +81,7 @@ real-file decode gap is the 0.2.0 milestone.
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~26.2% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~74.8% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -265,8 +265,8 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 26.2 %
-aggregate / 51.5 % AC1032 coverage numbers above measure. Both classes of
+entity decoder succeeds on every real-world drawing — that's what the 74.8 %
+aggregate / 65.5 % AC1032 coverage numbers above measure. Both classes of
 testing are needed.
 
 ## Safety

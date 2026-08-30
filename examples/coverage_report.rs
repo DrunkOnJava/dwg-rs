@@ -14,6 +14,7 @@
 //! inspection, see the sibling example
 //! [`dump_decoded_entities`](../examples/dump_decoded_entities.rs).
 
+use dwg::entities::DecodedEntity;
 use dwg::{DwgFile, entities::DispatchSummary};
 use std::collections::BTreeMap;
 use std::env;
@@ -45,6 +46,7 @@ fn main() -> ExitCode {
 
     let mut totals = DispatchSummary::default();
     let mut type_histo: BTreeMap<u16, (usize, usize, usize)> = BTreeMap::new();
+    let mut unhandled_histo: BTreeMap<String, usize> = BTreeMap::new();
 
     println!(
         "{:<32} {:<12} {:>6} {:>6} {:>6} {:>7}",
@@ -65,7 +67,7 @@ fn main() -> ExitCode {
             }
         };
         let version = file.version();
-        let (_entities, summary) = match file.decoded_entities() {
+        let (entities, summary) = match file.decoded_entities() {
             Some(Ok((e, s))) => (e, s),
             Some(Err(e)) => {
                 println!("{:<32} decoded_entities-failed: {e}", filename);
@@ -95,6 +97,13 @@ fn main() -> ExitCode {
         for (tc, _msg) in &summary.errors {
             type_histo.entry(*tc).or_default().2 += 1;
         }
+        for entity in &entities {
+            if let DecodedEntity::Unhandled { type_code, kind } = entity {
+                *unhandled_histo
+                    .entry(format!("{kind} (0x{type_code:04X})"))
+                    .or_default() += 1;
+            }
+        }
         totals.decoded += summary.decoded;
         totals.unhandled += summary.unhandled;
         totals.errored += summary.errored;
@@ -120,6 +129,15 @@ fn main() -> ExitCode {
         err_counts.sort_by_key(|(_, cnt)| std::cmp::Reverse(*cnt));
         for (tc, cnt) in err_counts.iter().take(10) {
             println!("  type_code {tc:<5} → {cnt} errors");
+        }
+    }
+    if !unhandled_histo.is_empty() {
+        println!();
+        println!("Unhandled histogram by kind (top 15):");
+        let mut rows: Vec<(&String, &usize)> = unhandled_histo.iter().collect();
+        rows.sort_by_key(|(label, cnt)| (std::cmp::Reverse(**cnt), (*label).clone()));
+        for (label, cnt) in rows.iter().take(15) {
+            println!("  {label:<32} → {cnt}");
         }
     }
 

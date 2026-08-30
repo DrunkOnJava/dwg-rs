@@ -175,54 +175,82 @@ fn every_fixed_entity_code_is_routed_not_unhandled() {
     }
 }
 
-/// Non-entity codes must NOT be routed to a typed decoder. If this test
-/// fires, the dispatcher is happily feeding DICTIONARY / XRECORD bytes
-/// into an entity decoder somewhere.
-#[test]
-fn non_entity_codes_route_to_unhandled() {
-    use dwg::Version;
+/// Build a synthetic zeroed `RawObject` for one type code.
+fn zeroed_raw(code: u16) -> dwg::object::RawObject {
     use dwg::bitcursor::Handle;
-    use dwg::entities::decode_from_raw;
-    use dwg::object::RawObject;
+    dwg::object::RawObject {
+        stream_offset: 0,
+        size_bytes: 256,
+        type_code: code,
+        kind: ObjectType::from_code(code),
+        handle: Handle {
+            code: 0,
+            counter: 0,
+            value: 0,
+        },
+        raw: vec![0u8; 256],
+        obj_size_bits: None,
+    }
+}
 
-    // Codes that are neither drawing entities NOR symbol-table
-    // entries — dictionaries, control objects, layouts, xrecords.
-    // LAYER (0x33) was removed from this list because symbol-table
-    // entries now dispatch to their typed DecodedEntity variants
-    // (see `dispatch_table_entry` in src/entities/dispatch.rs).
-    let non_entity_codes = [
+/// Non-entity object codes with a self-validating decoder must route to
+/// that decoder — to a typed variant or to `Error`, never to
+/// `Unhandled`. Before the object dispatcher landed, all five of these
+/// were short-circuited to `Unhandled`, which is why 65 DICTIONARY
+/// records of the R2018 sample were reported as "skipped" (issue #33).
+///
+/// Zeroed bytes are not a valid record, so `Error` is the expected
+/// outcome here; the point is that the code reaches a decoder at all.
+#[test]
+fn non_entity_codes_with_decoders_are_routed_not_unhandled() {
+    use dwg::Version;
+    use dwg::entities::decode_from_raw;
+
+    let routed = [
         (0x2A, "DICTIONARY"),
+        (0x30, "BLOCK_CONTROL"),
         (0x32, "LAYER_CONTROL"),
         (0x38, "LTYPE_CONTROL"),
+        (0x44, "DIMSTYLE_CONTROL"),
+        (0x48, "GROUP"),
         (0x4F, "XRECORD"),
-        (0x52, "LAYOUT"),
+        (0x50, "ACDB_PLACEHOLDER"),
     ];
-    for (code, label) in non_entity_codes {
-        let raw = RawObject {
-            stream_offset: 0,
-            size_bytes: 256,
-            type_code: code,
-            kind: ObjectType::from_code(code),
-            handle: Handle {
-                code: 0,
-                counter: 0,
-                value: 0,
-            },
-            raw: vec![0u8; 256],
-            obj_size_bits: None,
-        };
-        let decoded = decode_from_raw(&raw, Version::R2018);
-        match decoded {
+    for (code, label) in routed {
+        match decode_from_raw(&zeroed_raw(code), Version::R2018) {
+            DecodedEntity::Unhandled { .. } => panic!(
+                "type 0x{code:02X} ({label}) was routed to Unhandled — \
+                 the object dispatcher does not recognize it"
+            ),
+            _ => { /* a typed variant or Error: both mean it was routed */ }
+        }
+    }
+}
+
+/// Non-entity codes this crate has no self-validating decoder for must
+/// stay `Unhandled` — never fed to an entity decoder, and never counted
+/// as decoded. LAYOUT and MLINESTYLE are here because their field lists
+/// have not been matched against real bytes yet (see `src/objects/mod.rs`).
+#[test]
+fn non_entity_codes_without_decoders_stay_unhandled() {
+    use dwg::Version;
+    use dwg::entities::decode_from_raw;
+
+    let unhandled = [
+        (0x49, "MLINESTYLE"),
+        (0x52, "LAYOUT"),
+        (0x4C, "LONG_TRANSACTION"),
+    ];
+    for (code, label) in unhandled {
+        match decode_from_raw(&zeroed_raw(code), Version::R2018) {
             DecodedEntity::Unhandled { .. } => { /* correct */ }
-            DecodedEntity::Error { .. } => {
-                panic!(
-                    "type 0x{code:02X} ({label}) was routed to an entity decoder \
-                     (returned Error) — non-entity types should be Unhandled"
-                )
-            }
+            DecodedEntity::Error { .. } => panic!(
+                "type 0x{code:02X} ({label}) was routed to a decoder (returned \
+                 Error) — types with no self-validating decoder must be Unhandled"
+            ),
             _ => panic!(
                 "type 0x{code:02X} ({label}) was routed to a typed decoder — \
-                 non-entity types must be Unhandled"
+                 types with no self-validating decoder must be Unhandled"
             ),
         }
     }

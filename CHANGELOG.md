@@ -8,6 +8,98 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — non-entity objects were unreachable and read `TV` inline (2026-08-30, #103, closes #33, closes #32)
+
+- **No non-entity object was dispatched at all.** `decode_from_raw`
+  short-circuited every object that is neither a drawing entity nor a
+  symbol-table entry straight to `Unhandled`, so the 65 DICTIONARY records
+  of `sample_AC1032.dwg` — and every XRECORD, `*_CONTROL` and
+  ACDB_PLACEHOLDER in the corpus — counted as "skipped" no matter how good
+  the decoder behind them was. `entities::dispatch::dispatch_object` now
+  routes them, and `decode_from_raw_with_class_map` routes the custom
+  classes among them by DXF class name.
+- **New `src/objects/modern.rs`** — the object analogue of
+  `tables/modern.rs`. One field list per decoder serves both layouts:
+  `TV` comes from the object's string stream on R2007+ and inline before
+  that, and `ObjectStream::finish` asserts the data fields end *exactly*
+  on the record's data-stream boundary (the string-stream start on
+  R2010+, the handle-stream start minus the one-bit §19.1 trailer when a
+  record holds no strings, the `RL` object-data-size on R2000-R2007). A
+  wrong field list is an error, never a plausible-looking struct.
+- **The common object data of §19.4.2 keeps its `BL num_reactors` on
+  R2007+.** Measured three ways: DICTIONARY's `BL numitems` then equals
+  the number of strings its string stream actually holds (23 / 4 / 2 / 0
+  across `sample_AC1032.dwg`); ACDB_PLACEHOLDER, whose body is provably
+  empty, closes exactly; and the nine one-field `*_CONTROL` records close
+  on their `BL numentries`.
+- **DICTIONARY's entry names are a block, not name/handle pairs.** The
+  value handles are handle references past the end of the data stream, so
+  `Dictionary::entries: Vec<DictionaryEntry>` became
+  `Dictionary::keys: Vec<String>`, whose index is the index of the
+  matching handle. Verified on `arc_2004.dwg` handle 16 (`ByBlock`,
+  `ByLayer`, `Global`) and on all 65 R2018 records.
+- **ACAD_SCALE read the wrong field list.** The wire is
+  `BS version, TV name, BD paper_units, BD drawing_units, B is_unit_scale`,
+  not `TV, BD, BD, BS`. `arc_2004.dwg`'s `1:1` record closes exactly on
+  its `RL` boundary with the new list; `arc_2013.dwg`'s `1:2` record
+  decodes `paper = 1.0, drawing = 2.0` and `is_unit_scale = false`, and
+  its `1:1` sibling `true`.
+- **ACAD_GROUP read two `B` flags where the wire has two `BS`.** Both
+  GROUP records of `sample_AC1032.dwg` leave exactly 30 bits for three
+  10-bit fields; the boolean reading ran the trailing `BL` off the end of
+  the record, which is why both failed to decode.
+- **DIMSTYLE_CONTROL carries one `RC` the other nine controls do not** —
+  measured at 8 bits past `num_entries` on `arc_2004.dwg`, `arc_2013.dwg`
+  and `sample_AC1032.dwg`. Surfaced verbatim as
+  `Control::dimstyle_trailing_rc` rather than named after a guess.
+- **New decoders**: `objects::placeholder` (ACDB_PLACEHOLDER) and
+  `objects::dictionary_var` (DICTIONARYVAR).
+- **`ClassMap::parse` returned an empty table on every real file.** It
+  started the bit stream at byte 24 for every release and read
+  `max_class_number` as a byte-aligned `RL`. The class list actually
+  begins at byte 20 on R2004 and byte 28 on R2010+ (two extra `RL`s), and
+  opens with a `BS max_class_number`. R2007+ additionally splits each
+  record: all the non-string fields first, then `3 × N` strings as a
+  block. With that fixed, `arc_2004.dwg` / `arc_2010.dwg` /
+  `arc_2013.dwg` resolve 10 / 10 / 9 classes whose names and object
+  counts match their object streams; before, no `Custom(N)` object in any
+  file could be dispatched. The writer `write_class_map` was rewritten as
+  the true inverse and round-trips in both layouts.
+- **A non-entity custom class no longer errors on the entity preamble.**
+  A class whose `item_class_id` is `0x1F3` and that has no object decoder
+  returns `Unhandled` instead of being fed to `read_common_entity_data`.
+- **LIGHT's private `read_tv` ignored its `version` argument** and always
+  read 8-bit characters inline (#32). LIGHT exists only from R2007 — the
+  release that moved `TV` into the string stream — so it was doubly
+  wrong. LIGHT, GEODATA (five `TV`s, including a full WKT/PROJ string)
+  and IMAGEDEF now read through the split stream, each self-validating.
+
+Measured coverage on the 19-file `samples/` corpus
+(`cargo run --release --example coverage_report -- <corpus>`):
+
+| Version | Before (dec / skip / err / rate) | After (dec / skip / err / rate) |
+|---------|----------------------------------|---------------------------------|
+| R2004 (AC1018) × 3 | 75 / 522 / 0 / 12.6 % | **489 / 108 / 0 / 81.9 %** |
+| R2010 (AC1024) × 3 | 69 / 474 / 0 / 12.7 % | **438 / 105 / 0 / 80.7 %** |
+| R2013 (AC1027) × 3 | 69 / 327 / 0 / 17.4 % | **291 / 105 / 0 / 73.5 %** |
+| R2018 (AC1032) × 1 | 384 / 337 / 24 / 51.5 % | **488 / 231 / 26 / 65.5 %** |
+| **Aggregate** | **597 / 1660 / 24 / 26.2 %** | **1706 / 549 / 26 / 74.8 %** |
+
+The two extra errors on the R2018 sample are the second STYLE_CONTROL and
+the second DIMSTYLE_CONTROL record, whose bytes are not a control object
+at all; they were previously counted as "skipped" without anything having
+tried to read them.
+
+- **`examples/probe_object_layout.rs`** (new) — prints, for every
+  non-entity object, the bit budget between the end of its common object
+  data and its data-stream boundary under both candidate prefixes, plus
+  the raw bits and the strings its string stream holds. This is the
+  instrument behind every "measured" claim above.
+- **`examples/coverage_report.rs`** now also prints an unhandled
+  histogram by object kind, so the next-largest lever is visible from the
+  report itself.
+
+
 ### Fixed — MTEXT and friends decoded silently wrong on R2007+ (2026-08-30, #103, closes #25, closes #26)
 
 - **`MTEXT` (0x2C) returned a garbage one-character string for every record.**
@@ -68,7 +160,6 @@ Measured coverage on the 19-file `samples/` corpus:
 | **Aggregate** | **587 / 34 / 25.7 %** | **597 / 24 / 26.2 %** |
 
 
-||||||| 9d6adbe
 ### Fixed — R2004 (AC1018) common object header (2026-08-30, #103, closes #24)
 
 - **`RL` object data size in bits was read for R2000 only.** ODA v5.4.1 §19.1

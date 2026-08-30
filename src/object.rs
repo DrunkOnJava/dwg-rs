@@ -540,6 +540,49 @@ pub(crate) fn read_object_type(c: &mut BitCursor<'_>, version: Version) -> Resul
     }
 }
 
+/// Open a [`BitCursor`] on `raw` positioned at the object *body* — the
+/// first bit past the object header the walker already consumed (the
+/// R2010+ leading `MC` handle-stream size, the object type code, the
+/// R2000-R2007 `RL` object-data-size field, and the object handle).
+///
+/// Every per-type decoder starts from this position: entities go on to
+/// read the common entity preamble (§19.4.1), non-entity objects the
+/// shorter common object data (§19.4.2).
+pub fn body_cursor<'a>(raw: &'a RawObject, version: Version) -> Result<BitCursor<'a>> {
+    let mut cursor = BitCursor::new(&raw.raw);
+    if version.is_r2010_plus() {
+        // MC — handle-stream-size-in-bits; byte-aligned, throwaway here.
+        read_mc_unsigned(&mut cursor)?;
+    }
+    read_object_type(&mut cursor, version)?;
+    if version.has_object_size_field() {
+        // R2000-R2007 — 32-bit object-data-size-in-bits field (§19.1).
+        cursor.read_rl()?;
+    }
+    let _ = cursor.read_handle()?;
+    Ok(cursor)
+}
+
+/// Bit offset at which an object's data fields must end.
+///
+/// This is the self-validation anchor every split-stream decoder checks
+/// itself against:
+///
+/// - R2010+ — the start of the object's string stream when it carries
+///   one, otherwise the start of its handle stream (§19.1).
+/// - R2000-R2007 — the `RL` object-data-size-in-bits from the object
+///   prologue, which marks the same boundary inline.
+/// - R13/R14 — unknown; returns `None`.
+pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
+    if version.is_r2010_plus() {
+        return match crate::string_stream::locate(&raw.raw, version) {
+            Some(stream) => Some(stream.start_bit),
+            None => crate::string_stream::data_section_end(&raw.raw, version),
+        };
+    }
+    raw.obj_size_bits.map(|b| b as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

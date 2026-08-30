@@ -23,11 +23,31 @@
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
 //! | *_CONTROL                | [`control`]               | §19.5.1..§19.5.10|
 //! | custom-dict entries      | [`custom_dict_entry`]     | §19.5.19 (L7-06) |
+//! | ACDB_PLACEHOLDER         | [`placeholder`]           | §19.5.x          |
 //! | DICTIONARY               | [`dictionary`]            | §19.5.19         |
+//! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
+//!
+//! # Reachability and the R2007+ split stream
+//!
+//! The decoders the dispatcher routes to — DICTIONARY, DICTIONARYVAR,
+//! XRECORD, ACDB_PLACEHOLDER, the `*_CONTROL` family, ACAD_GROUP and
+//! ACAD_SCALE — all go through the crate-private `objects::modern`, so
+//! their `TV` fields come
+//! from the object's string stream on R2007+ and each one checks that
+//! its data fields end exactly on the data-stream boundary.
+//!
+//! The remaining modules ([`acad_material`], [`acad_visual_style`],
+//! [`acad_property_set_data`], [`acad_layout`], [`acad_plot_settings`],
+//! [`acad_mlinestyle`]) decode a documented *prefix* of their record's
+//! fields, or a field list this crate has not yet matched against real
+//! bytes, so they cannot satisfy that boundary check and are
+//! deliberately not dispatched — a partial decoder that cannot
+//! self-validate would inflate the coverage ratio without proving
+//! anything. They remain callable directly.
 
 pub mod acad_group;
 pub mod acad_layout;
@@ -41,6 +61,9 @@ pub mod class_map_extension;
 pub mod control;
 pub mod custom_dict_entry;
 pub mod dictionary;
+pub mod dictionary_var;
+pub(crate) mod modern;
+pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
 pub mod xdata;

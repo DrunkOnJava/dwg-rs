@@ -319,6 +319,61 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         DecodedEntity::EndBlk(_) => {
             println!("[{i}] ENDBLK");
         }
+        DecodedEntity::Dictionary(d) => {
+            let shown: Vec<&str> = d.keys.iter().take(6).map(String::as_str).collect();
+            println!(
+                "[{i}] DICTIONARY  entries={} cloning={} hard_owner={} keys={:?}{}",
+                d.len(),
+                d.cloning_flag,
+                d.hard_owner,
+                shown,
+                if d.len() > shown.len() { " …" } else { "" }
+            );
+        }
+        DecodedEntity::DictionaryVar(v) => {
+            println!(
+                "[{i}] DICTIONARYVAR  schema={} value={:?}",
+                v.schema, v.value
+            );
+        }
+        DecodedEntity::XRecord(x) => {
+            println!(
+                "[{i}] XRECORD  data_bytes={} cloning_flags={}",
+                x.data.len(),
+                x.cloning_flags
+            );
+        }
+        DecodedEntity::Placeholder(p) => {
+            println!("[{i}] ACDB_PLACEHOLDER  reactors={}", p.num_reactors);
+        }
+        DecodedEntity::Group(g) => {
+            println!(
+                "[{i}] GROUP  name={:?} unnamed={} selectable={} members={}",
+                g.name, g.unnamed, g.selectable, g.num_members
+            );
+        }
+        DecodedEntity::Scale(s) => {
+            println!(
+                "[{i}] SCALE  name={:?} paper={} drawing={} unit_scale={}",
+                s.scale_name, s.paper_units, s.drawing_units, s.is_unit_scale
+            );
+        }
+        DecodedEntity::ImageDef(d) => {
+            println!(
+                "[{i}] IMAGEDEF  path={:?} size={:?} loaded={}",
+                d.file_path, d.image_size_pixels, d.is_loaded
+            );
+        }
+        DecodedEntity::Control { kind, control } => {
+            println!(
+                "[{i}] {kind}  entries={}{}",
+                control.num_entries,
+                match control.dimstyle_trailing_rc {
+                    Some(rc) => format!(" trailing_rc={rc}"),
+                    None => String::new(),
+                }
+            );
+        }
         DecodedEntity::Insert(ins) => {
             println!(
                 "[{i}] INSERT  insertion=({:.6}, {:.6}, {:.6}) scale=({:.6}, {:.6}, {:.6}) \

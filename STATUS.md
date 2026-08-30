@@ -6,15 +6,15 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 669 passing in default/debug and release-all-features
+- **Lib tests:** 691 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 597 decoded / 1,660 skipped /
-  24 errored / 26.2% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 384 / 337 / 24 / 51.5%, and it
+- **Current real-file decode coverage:** 1,706 decoded / 549 skipped /
+  26 errored / 74.8% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 488 / 231 / 26 / 65.5%, and it
   is the only file with any errors — the R2004, R2010 and R2013
   samples all decode with zero.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
@@ -198,10 +198,40 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 597 decoded,
-  1660 skipped, 24 errored, 26.2% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 1706 decoded,
+  549 skipped, 26 errored, 74.8% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
+
+- **#33 remaining non-entity objects.** DICTIONARY, DICTIONARYVAR,
+  XRECORD, ACDB_PLACEHOLDER, the ten `*_CONTROL` owners, ACAD_GROUP and
+  ACAD_SCALE now dispatch through `src/objects/modern.rs`, taking their
+  `TV` fields from the R2007+ string stream and checking their data
+  fields end exactly on the record's data-stream boundary. Still
+  unreached, in descending record count on the corpus: VISUALSTYLE
+  (216 records), MATERIAL (27), LAYOUT (31), MLEADERSTYLE (12),
+  TABLESTYLE (10), MLINESTYLE (10). MATERIAL / VISUALSTYLE /
+  PROPERTYSET_DATA decode only a documented prefix of their fields, so
+  they cannot satisfy the boundary check; LAYOUT (which embeds the
+  PLOTSETTINGS field list) and MLINESTYLE have field lists this crate
+  has not yet matched against real bytes.
+
+- **#33 R2018 `AcDb:Classes` record layout.** `ClassMap::parse` now
+  reads the class table correctly on R2004, R2010 and R2013 (10 / 10 /
+  9 classes, names and object counts matching the object stream). On
+  `sample_AC1032.dwg` the ninth record does not decode with the same
+  field list, so the parser's consecutiveness check rejects the table
+  and every `Custom(N)` object in that file — 194 records, including
+  its 33 SCALE records — stays `Unhandled`. This is the single largest
+  remaining lever on the R2018 sample.
+
+- **R2007+ symbol-table common object prefix.** `tables/modern.rs`
+  omits the `BL num_reactors` that `objects/modern.rs` measured as
+  present on every non-entity object, and compensates with a different
+  flag order, so both readings land on the string stream. Which one
+  assigns the right values to the right fields is not determinable
+  from the 16 bits an APPID record spends there; the names are
+  unaffected because they come from the string stream either way.
 
 - **#103 remaining real-file decoder alignment** (P0). The
   R2013/R2018 common-entity/body boundary is fixed for LINE/CIRCLE/ARC,

@@ -29,6 +29,7 @@
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
+use crate::objects::modern;
 use crate::version::Version;
 
 /// Sanity cap on XRECORD body size (16 MiB). Real dictionary payloads
@@ -64,6 +65,31 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<XRecord> {
         data,
         cloning_flags,
     })
+}
+
+/// Decode an XRECORD straight from its raw object payload, checking the
+/// body ends exactly on the data-stream boundary.
+///
+/// # Measured: the field list is already version-independent
+///
+/// XRECORD holds no `TV` at all — its (code, value) pairs are opaque
+/// bytes — so unlike its dictionary siblings it needs no string-stream
+/// port, only the boundary check. `arc_2013.dwg` handle 19 confirms the
+/// shape: 87 bits from the end of the common object data to the handle
+/// stream, spent as `BL num_databytes` (10 bits, value 8), eight bytes
+/// of body (64 bits), `BS cloning_flags` (10 bits) and the one-bit
+/// §19.1 trailer. `arc_2004.dwg` handle 19 spends the same fields
+/// against its inline `RL` object-data-size, with no trailer bit.
+pub(crate) fn decode_object(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<XRecord> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let out = decode(&mut split.data, version)?;
+    split.finish("XRECORD")?;
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -112,6 +138,21 @@ mod tests {
         let x = decode(&mut c, Version::R14).unwrap();
         assert_eq!(x.data, &[0xAA, 0xBB, 0xCC]);
         assert_eq!(x.cloning_flags, 0);
+    }
+
+    #[test]
+    fn r2018_xrecord_closes_one_bit_before_the_handle_stream() {
+        let mut body = crate::objects::modern::tests::r2018_object_prefix(1);
+        body.write_bl(3);
+        body.write_rc(0xAA);
+        body.write_rc(0xBB);
+        body.write_rc(0xCC);
+        body.write_bs(1);
+        let bits = crate::string_stream::tests::bits_of(&body);
+        let payload = crate::objects::modern::tests::build_payload_without_strings(&bits);
+        let x = decode_object(&payload, 8, None, Version::R2018).unwrap();
+        assert_eq!(x.data, &[0xAA, 0xBB, 0xCC]);
+        assert_eq!(x.cloning_flags, 1);
     }
 
     #[test]
