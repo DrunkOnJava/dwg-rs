@@ -8,6 +8,86 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — the BLOCK_HEADER name is a stem; the BLOCK sentinel is the authority (2026-08-30, closes #70)
+
+`BLOCK_RECORD` decoded `*D` / `*T` / `*Paper_Space` where the adjacent
+`BLOCK` entity of the same definition decoded `*D3` / `*T9` /
+`*Paper_Space0`. Both records closed their own boundary, so nothing
+errored — eight BLOCK_HEADERs of `sample_AC1032.dwg` simply came back
+named `*D`, which no symbol table can hold.
+
+**Neither reader was on the wrong slot.** Read positionally from the
+bit `string_stream::locate` reports, BLOCK_HEADER `0x74` of
+`arc_2013.dwg` holds one 12-unit string and two empty `TV` slots in a
+string stream whose §19.1 trailer declares exactly 206 bits — there is
+no room for a 13-unit `*Paper_Space0` (222) and no second copy
+anywhere in the record. Handles `0x6C` and `0x74` are byte-identical
+apart from their own handle and their handle streams, yet AutoCAD's
+own DXF twin of that drawing (`arc_2013.dxf`, public
+`nextgis/dwg_samples`) names them `*Paper_Space` and `*Paper_Space0`.
+For a block AutoCAD names itself, the BLOCK_HEADER carries only the
+stem and the generated numeric suffix lives solely on the `BLOCK`
+sentinel. The split is not an artefact of the R2007+ string stream:
+the R14, R2000 and R2004 files store their names inline and disagree
+in exactly the same way.
+
+- `tables::block_record::block_sentinel_handle_of` reads the `BLOCK`
+  handle out of a BLOCK_HEADER's own handle stream. §20.4.52 puts a
+  NULL reference (hard pointer, zero-byte counter) immediately before
+  it, which makes the NULL a self-identifying anchor — no reactor
+  count and no xdictionary flag needed. 27 of 27 on
+  `sample_AC1032.dwg`, 3 of 3 on every R2000-R2018 corpus file.
+- `graph::resolve_block_names` performs the join and is what callers
+  should use for a block table. It resolves 27 of 27 definitions on
+  `sample_AC1032.dwg` to 27 distinct names where the stored stems
+  collapse to 20. R13/R14 records carry neither the §19.1 trailer nor
+  the `RL` object-data size, so they stay unresolved rather than
+  guessed.
+- The R2007+ BLOCK_HEADER decoder moves onto the shared
+  `tables::modern::SplitStream` path every other table entry already
+  uses, and is now held to its string-stream boundary by
+  `SplitStream::finish`. It replaces a bespoke scanner that searched
+  the record for the best-scoring plausible-looking block name — a
+  heuristic that could land on any `TV`-shaped bits in the payload.
+  All 27 records close on delta 0. The record's `description` field is
+  surfaced (it was read and discarded), and the entry flags now use
+  the measured `B, B, BS` order rather than the inline `B, BS, B`,
+  which had `is_xref_dependent` and `is_xref_resolved` swapped.
+
+### Added — the class census is a CI gate, and the object stream is 100 % accounted for (2026-08-30, closes #56)
+
+`examples/probe_class_census` exits non-zero on any under-walked
+class; CI now runs it with `--strict` over every canonical fixture
+(`coverage-smoke` job), `tests/canonical_corpus.rs` asserts the same
+census **exactly** rather than `>=`, and `tests/class_census.rs`
+ratchets the real corpus: every under-walk that exists today is pinned
+by file, class and count, so a new one fails and a fixed one also
+fails.
+
+**The 916 unclaimed object-stream bytes of `sample_AC1032.dwg` are not
+alignment padding.** They are not zero, and each inter-record run
+equals the width of the *preceding* record's leading `MC`
+handle-stream-size field — 841 of 841 agreements against 734 of 841
+for the "following record" reading, on four files with no exceptions.
+772 one-byte and 70 two-byte `MC` fields plus a 4-byte section
+prologue account for all 916. So a record's `MS` object size excludes
+its own `MC` field, which settles the open question in
+`src/string_stream.rs` about why `data_section_end` needs its
+`+ mc_field_bits` correction, and the stream is 100 % accounted for
+with zero padding.
+
+**TABLECONTENT / TABLEGEOMETRY (#56) is not decidable from this
+corpus.** `sample_AC1032.dwg` declares 5 of each against 2
+`ACAD_TABLE` entities and contains 2 of each. Three measurements place
+the missing six records outside the drawing: the object stream is
+99.92 % covered with no unclaimed run over 4 bytes; decoding every one
+of the 842 records' handle streams yields no reference the walk cannot
+answer; and ACAD_TABLE itself declares 2 and walks 2, so a 1:1 content
+object cannot have 2.5 instances per table. Whether the surplus three
+are a stale registration count or copies embedded in the two
+ACAD_TABLE records needs a corpus with more than one table-bearing
+file, so the gate carries an explicit allowlist with that reason.
+
 ### Added — R14, R2000 and R2007 files now walk their object streams (2026-08-30, closes #104, #110, #65)
 
 Nine of the nineteen corpus files reported `n/a (no-handle-map)` in

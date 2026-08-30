@@ -211,19 +211,34 @@ fn fixture_handle_maps_resolve_to_records_that_agree_with_them() {
     }
 }
 
-/// Completeness oracle from the class table (#43): `AcDb:Classes`
-/// records how many instances of each custom class the drawing holds,
-/// so the walk must reach at least that many objects of each class.
-/// The synthetic fixtures carry no custom classes today; the assertion
-/// is written so it starts gating the moment `build_fixtures` declares
-/// one.
+/// Completeness oracle from the class table (#43 / #56):
+/// `AcDb:Classes` records how many instances of each custom class the
+/// drawing holds (DXF group 91), so the walk must reach **exactly**
+/// that many objects of each class — an under-walk means the walker
+/// misses records, an over-walk means it invents them.
+///
+/// This is the in-test half of the walker-completeness gate CI runs as
+/// `probe_class_census --strict` over the same fixtures. The synthetic
+/// corpus carries no `AcDb:Classes` section today, so the loop below
+/// is vacuous; it is written to start gating the moment
+/// `build_fixtures` declares a custom class, which is why it asserts
+/// equality rather than the old `>=`.
+///
+/// The real corpus is not exact: `sample_AC1032.dwg` declares 5
+/// TABLECONTENT and 5 TABLEGEOMETRY against 2 ACAD_TABLE entities and
+/// contains 2 of each. See `examples/probe_class_census.rs`
+/// `ALLOWLIST` for the evidence that the missing six records are not
+/// in the file.
 #[test]
-fn fixture_walks_reach_every_declared_class_instance() {
+fn fixture_class_census_is_exact() {
     for (name, _version) in FIXTURES {
         let path = corpus_dir().join(name);
         let file = DwgFile::open(&path).unwrap_or_else(|e| panic!("{name}: open failed: {e}"));
-        let Some(Ok(classes)) = file.class_map() else {
+        if file.section_by_name("AcDb:Classes").is_none() {
             continue;
+        }
+        let Some(Ok(classes)) = file.class_map() else {
+            panic!("{name}: AcDb:Classes present but unparseable");
         };
         let objects = file
             .all_objects()
@@ -234,12 +249,10 @@ fn fixture_walks_reach_every_declared_class_instance() {
                 .iter()
                 .filter(|o| o.type_code == def.class_number)
                 .count();
-            assert!(
-                walked >= def.num_objects as usize,
+            assert_eq!(
+                walked, def.num_objects as usize,
                 "{name}: class {} ({}) declares {} instances, walk reached {walked}",
-                def.class_number,
-                def.dxf_class_name,
-                def.num_objects
+                def.class_number, def.dxf_class_name, def.num_objects
             );
         }
     }

@@ -188,6 +188,28 @@ jobs:
           fi
           echo "coverage-smoke PASS: decoded_ratio=$RATIO% (threshold ${THRESHOLD}%)"
 
+      # Walker-completeness gate (#56). AcDb:Classes records how many
+      # instances of each custom class a drawing holds (DXF group 91),
+      # which makes the class table a free oracle: a walk that reaches
+      # fewer objects of a class than the file declares is missing
+      # records. examples/probe_class_census exits non-zero on any
+      # under-walk.
+      #
+      # --strict disables the sample-corpus allowlist (TABLECONTENT /
+      # TABLEGEOMETRY on sample_AC1032.dwg, see the probe's ALLOWLIST
+      # docs). It must never be needed here: the canonical fixtures are
+      # self-generated, so their census has to be exact. The real
+      # corpus is not available in CI — tests/samples.rs and
+      # tests/block_names.rs skip when it is absent, and the tight
+      # per-fixture assertion lives in tests/canonical_corpus.rs.
+      - name: Class census must be exact on every canonical fixture
+        run: |
+          set -e
+          for f in tests/fixtures/canonical/*.dwg; do
+            echo "== $f"
+            cargo +stable run --release --example probe_class_census -- "$f" --strict
+          done
+
   pii-guard:
     name: PII guard
     runs-on: ubuntu-latest

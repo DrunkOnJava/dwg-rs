@@ -1,5 +1,5 @@
-//! BLOCK_HEADER (aka BLOCK_RECORD) table entry (§19.5.51) — the
-//! authoritative record for a block definition. Holds the block's
+//! BLOCK_HEADER (aka BLOCK_RECORD) table entry (ODA spec v5.4.1
+//! §20.4.52) — the record for a block definition. Holds the block's
 //! name, base point, and the handles of its first/last entities.
 //!
 //! # Stream shape
@@ -18,16 +18,78 @@
 //! (R2004+)
 //!   RC*  insert_count_bytes  -- until 0x00 terminator; lets older
 //!                               readers skip the count
+//!   TV   description
+//!   BL   preview_bytes + that many RC
+//! (R2007+)
+//!   BS   insert_units
+//!   B    explodable
+//!   RC   block_scaling
 //! ```
+//!
+//! # The stored name is a stem for auto-generated blocks (#70)
+//!
+//! On R2007+ the entry name lives in the record's string stream
+//! (§19.1) as the first of three `TV` slots — name, xref path,
+//! description. That slot is **not** always the block's full name.
+//! For blocks AutoCAD names itself — the anonymous `*D<n>` / `*T<n>` /
+//! `*U<n>` families and the second and later `*Paper_Space<n>` layout
+//! blocks — the BLOCK_HEADER stores only the stem and the generated
+//! numeric suffix appears solely on the `BLOCK` sentinel entity that
+//! opens the definition.
+//!
+//! ## Measured, then ground-truthed
+//!
+//! `examples/probe_block_names.rs` reads both records' string streams
+//! positionally. On `arc_2013.dwg` the two BLOCK_HEADERs at handles
+//! 0x6C and 0x74 are byte-identical apart from their own handle and
+//! their handle streams; both store the 12-unit string `*Paper_Space`
+//! in a string stream whose §19.1 trailer declares exactly 206 bits
+//! (10-bit `BS` length + 192 bits of UTF-16 + two empty `TV` slots at
+//! 2 bits each). There is no room for, and no other copy of, a
+//! suffix: a 13-unit `*Paper_Space0` would need 222. Their `BLOCK`
+//! sentinels at 0x6D and 0x75 read `*Paper_Space` and
+//! `*Paper_Space0`.
+//!
+//! AutoCAD's own DXF twin of that file — `arc_2013.dxf` in the public
+//! `nextgis/dwg_samples` repository, the same drawing exported by the
+//! producer — names the two BLOCK_RECORDs `*Paper_Space` (handle
+//! `6C`) and `*Paper_Space0` (handle `74`). The `BLOCK` sentinel is
+//! therefore the authority and the BLOCK_HEADER slot is the stem.
+//! The same split holds on all 27 block definitions of
+//! `sample_AC1032.dwg`, where the header stem is a prefix of the
+//! sentinel name in 27/27 cases and the remainder is decimal digits
+//! every time.
+//!
+//! ## Not an artefact of the string stream
+//!
+//! The split predates the R2007 split-stream layout. `arc_R14.dwg`,
+//! `arc_2000.dwg` and `arc_2004.dwg` store their names *inline* and
+//! show exactly the same disagreement: BLOCK_HEADER `0x74` reads
+//! `*Paper_Space` where its `BLOCK` sentinel `0x75` reads
+//! `*Paper_Space0`. Whatever the R2007+ string stream does or does not
+//! do, the BLOCK_HEADER field simply does not carry the generated
+//! suffix.
+//!
+//! A decoder cannot recover the suffix from the BLOCK_HEADER alone, so
+//! [`block_sentinel_handle_of`] surfaces the handle the record's own
+//! handle stream gives the `BLOCK` entity and
+//! [`crate::graph::resolve_block_names`] performs the join. R13/R14
+//! records carry neither the §19.1 trailer nor the `RL` object-data
+//! size, so the join declines to resolve them and their stored name
+//! stands.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, read_bd3};
 use crate::error::{Error, Result};
-use crate::tables::{TableEntryHeader, read_table_entry_header, read_tv};
+use crate::string_stream;
+use crate::tables::{TableEntryHeader, modern, read_table_entry_header, read_tv};
 use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockRecord {
+    /// The record's own stored name. For auto-generated blocks this is
+    /// only the stem — see the module docs and
+    /// [`Self::block_sentinel_handle`].
     pub header: TableEntryHeader,
     pub is_anonymous: bool,
     pub has_attribs: bool,
@@ -37,6 +99,20 @@ pub struct BlockRecord {
     pub num_owned_objects: Option<u32>,
     pub base_point: Point3D,
     pub xref_path: String,
+    /// Block description (`TV`, R2004+); empty when the block has none.
+    pub description: String,
+    /// Handle of the `BLOCK` sentinel entity that opens this
+    /// definition, read from the record's own handle stream
+    /// (§20.4.52).
+    ///
+    /// The sentinel carries the block's full name; this record's
+    /// [`header`](Self::header) name may be only its stem.
+    ///
+    /// `None` on the inline (pre-R2007) path, which decodes from a
+    /// payload alone and so cannot locate the handle stream. Callers
+    /// holding the walked record should use
+    /// [`block_sentinel_handle_of`], which resolves R2000-R2018.
+    pub block_sentinel_handle: Option<u64>,
 }
 
 /// Cap on the insert-count run of §20.4.52: a non-zero `RC` per insert
@@ -45,19 +121,6 @@ const MAX_INSERT_COUNT: usize = 256;
 
 /// Cap on the §20.4.52 binary preview blob of one BLOCK_HEADER.
 const MAX_PREVIEW_BYTES: usize = 1_000_000;
-
-#[derive(Debug, Clone)]
-struct ModernBlockFields {
-    header: TableEntryHeader,
-    is_anonymous: bool,
-    has_attribs: bool,
-    is_xref: bool,
-    xref_overlay: bool,
-    is_loaded_xref: bool,
-    num_owned_objects: Option<u32>,
-    base_point: Point3D,
-    string_start: usize,
-}
 
 /// Decodes a `BlockRecord` table entry that follows the common object header.
 ///
@@ -87,6 +150,10 @@ struct ModernBlockFields {
 /// zero preview size is a `BL` on the same code, another 2. All six now
 /// close on delta 0. The `B loaded bit` is likewise R2000+; reading it
 /// on R14 ran those records off the end of their payload.
+///
+/// This is the inline layout, so
+/// [`BlockRecord::block_sentinel_handle`] is `None` on this path — the
+/// handle stream is only located from R2010 on.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let header = read_table_entry_header(c, version)?;
     let is_anonymous = c.read_b()?;
@@ -105,6 +172,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     };
     let base_point = read_bd3(c)?;
     let xref_path = read_tv(c, version)?;
+    let mut description = String::new();
     if !matches!(version, Version::R14) {
         // Insert-count run: zero or more non-zero `RC`s, then a zero.
         for _ in 0..=MAX_INSERT_COUNT {
@@ -112,7 +180,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
                 break;
             }
         }
-        let _description = read_tv(c, version)?;
+        description = read_tv(c, version)?;
         let preview_bytes = c.read_bl_u()? as usize;
         if preview_bytes > MAX_PREVIEW_BYTES {
             return Err(Error::SectionMap(format!(
@@ -139,17 +207,20 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
         num_owned_objects,
         base_point,
         xref_path,
+        description,
+        block_sentinel_handle: None,
     })
 }
 
-/// Decode an R2007+ BLOCK_HEADER whose TV fields live in the object's
-/// trailing string stream.
+/// Decode an R2007+ BLOCK_HEADER whose `TV` fields live in the
+/// object's trailing string stream (§19.1 + §20.4.52).
 ///
-/// Public ODA spec v5.4.1 §19.1/§19.4.50 says Unicode strings in R2007+
-/// objects are stored in a separate string stream even though the object
-/// field table still lists the `TV` fields inline. This keeps the legacy
-/// [`decode`] path intact for inline/synthetic streams and gives the object
-/// dispatcher a clean-room split-stream path for real modern DWGs.
+/// The data-stream fields are held to the string-stream boundary by
+/// [`modern::SplitStream::finish`], so a mis-read field surfaces as an
+/// error instead of a plausible-looking name. All 27 BLOCK_HEADER
+/// records of `sample_AC1032.dwg` (R2018) and all 3 of each of
+/// `arc_2010.dwg`, `arc_2013.dwg` and `line_2013.dwg` close with
+/// delta 0 under this field list.
 pub(crate) fn decode_modern_split_stream(
     payload: &[u8],
     object_body_start: usize,
@@ -161,108 +232,33 @@ pub(crate) fn decode_modern_split_stream(
         return decode(&mut c, version);
     }
 
-    let data_end = pre_handle_data_end(payload, version).unwrap_or(payload.len() * 8);
-    let mut data = BitCursor::new(payload);
-    skip_to(&mut data, object_body_start)?;
-    skip_table_object_prefix(&mut data, version)?;
-    let data_start = data.position_bits();
-
-    let parsed_fields = parse_modern_block_fields(&mut data, version).ok();
-    let string_start = parsed_fields
-        .as_ref()
-        .and_then(|fields| {
-            if plausible_tv_at(payload, fields.string_start, data_end, version) {
-                Some(fields.string_start)
-            } else {
-                None
-            }
-        })
-        .or_else(|| find_block_name_string_start(payload, data_start, data_end, version))
-        .ok_or_else(|| Error::SectionMap("BLOCK_HEADER string stream not found".into()))?;
-
-    let mut strings = BitCursor::new(payload);
-    skip_to(&mut strings, string_start)?;
-    let name = read_tv(&mut strings, version)?;
-    let xref_path = read_tv(&mut strings, version).unwrap_or_default();
-    let _description = read_tv(&mut strings, version).unwrap_or_default();
-
-    let mut fields = parsed_fields.unwrap_or_else(|| ModernBlockFields {
-        header: TableEntryHeader::default(),
-        is_anonymous: false,
-        has_attribs: false,
-        is_xref: false,
-        xref_overlay: false,
-        is_loaded_xref: false,
-        num_owned_objects: None,
-        base_point: Point3D {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        string_start,
-    });
-    fields.header.name = name;
-
-    Ok(BlockRecord {
-        header: fields.header,
-        is_anonymous: fields.is_anonymous,
-        has_attribs: fields.has_attribs,
-        is_xref: fields.is_xref,
-        xref_overlay: fields.xref_overlay,
-        is_loaded_xref: fields.is_loaded_xref,
-        num_owned_objects: fields.num_owned_objects,
-        base_point: fields.base_point,
-        xref_path,
-    })
-}
-
-fn parse_modern_block_fields(c: &mut BitCursor<'_>, version: Version) -> Result<ModernBlockFields> {
-    let flag64 = c.read_b()?;
-    let xref_index_plus_1 = c.read_bs()?;
-    let is_xref_dependent = c.read_b()?;
-    let is_anonymous = c.read_b()?;
-    let has_attribs = c.read_b()?;
-    let is_xref = c.read_b()?;
-    let xref_overlay = c.read_b()?;
-    let is_loaded_xref = if !matches!(version, Version::R14) {
-        c.read_b()?
-    } else {
-        false
-    };
+    let mut split = modern::open_table_entry(payload, object_body_start, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let is_anonymous = split.data.read_b()?;
+    let has_attribs = split.data.read_b()?;
+    let is_xref = split.data.read_b()?;
+    let xref_overlay = split.data.read_b()?;
+    let is_loaded_xref = split.data.read_b()?;
     let num_owned_objects = if version.is_r2004_plus() {
-        Some(c.read_bl()? as u32)
+        Some(split.data.read_bl()? as u32)
     } else {
         None
     };
-    let base_point = read_bd3(c)?;
-    if !matches!(version, Version::R14) {
-        // Insert-count bytes: zero or more non-zero RC values, then 0.
-        for _ in 0..=256 {
-            if c.read_rc()? == 0 {
-                break;
-            }
-        }
-    }
-    if !matches!(version, Version::R14) {
-        let preview_bytes = c.read_bl_u()? as usize;
-        if preview_bytes > 1_000_000 {
-            return Err(Error::SectionMap(format!(
-                "BLOCK_HEADER preview data claims {preview_bytes} bytes"
-            )));
-        }
-        for _ in 0..preview_bytes {
-            let _ = c.read_rc()?;
-        }
-    }
-    if version.is_r2007_plus() {
-        let _insert_units = c.read_bs()?;
-        let _explodable = c.read_b()?;
-        let _block_scaling = c.read_rc()?;
-    }
+    let base_point = read_bd3(&mut split.data)?;
+    read_insert_count(&mut split.data)?;
+    read_preview(&mut split.data)?;
+    let _insert_units = split.data.read_bs()?;
+    let _explodable = split.data.read_b()?;
+    let _block_scaling = split.data.read_rc()?;
+    split.finish("BLOCK_HEADER")?;
 
-    Ok(ModernBlockFields {
+    let name = split.strings.read_tv()?;
+    let xref_path = split.strings.read_tv()?;
+    let description = split.strings.read_tv()?;
+
+    Ok(BlockRecord {
         header: TableEntryHeader {
-            name: String::new(),
+            name,
             is_xref_dependent,
             xref_index_plus_1,
             is_xref_resolved: flag64,
@@ -274,111 +270,102 @@ fn parse_modern_block_fields(c: &mut BitCursor<'_>, version: Version) -> Result<
         is_loaded_xref,
         num_owned_objects,
         base_point,
-        string_start: c.position_bits(),
+        xref_path,
+        description,
+        block_sentinel_handle: block_sentinel_handle(payload, version),
     })
 }
 
-fn skip_table_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<()> {
-    const MAX_XDATA_ITERATIONS: usize = 256;
-    for _ in 0..MAX_XDATA_ITERATIONS {
-        let size = c.read_bs_u()? as usize;
-        if size == 0 {
-            break;
+/// Skip the insert-count run: zero or more non-zero `RC` values
+/// terminated by `0x00` (§20.4.52).
+fn read_insert_count(c: &mut BitCursor<'_>) -> Result<()> {
+    for _ in 0..=256 {
+        if c.read_rc()? == 0 {
+            return Ok(());
         }
-        let _appid = c.read_handle()?;
-        for _ in 0..size {
-            let _ = c.read_rc()?;
-        }
-    }
-
-    if version.is_r2004_plus() {
-        let _no_xdictionary = c.read_b()?;
-    }
-    if matches!(version, Version::R2013 | Version::R2018) {
-        let _has_binary_data = c.read_b()?;
     }
     Ok(())
 }
 
-fn pre_handle_data_end(payload: &[u8], version: Version) -> Option<usize> {
-    if !version.is_r2010_plus() {
-        return None;
+/// Skip the binary preview block: a `BL` byte count and that many `RC`.
+fn read_preview(c: &mut BitCursor<'_>) -> Result<()> {
+    let preview_bytes = c.read_bl_u()? as usize;
+    for _ in 0..preview_bytes {
+        let _ = c.read_rc()?;
     }
+    Ok(())
+}
+
+/// Handle of the `BLOCK` sentinel entity a BLOCK_HEADER's handle
+/// stream names, or `None` when the stream does not have the shape
+/// §20.4.52 prescribes.
+///
+/// # Why this exists
+///
+/// The sentinel carries the block's full name where the BLOCK_HEADER
+/// stores only a stem for auto-generated blocks (module docs, #70), so
+/// resolving the real name needs this link.
+///
+/// # Measured
+///
+/// §20.4.52 lists the record's handle references in the order block
+/// control (owner), reactors, xdictionary, a NULL handle, then the
+/// BLOCK entity. The NULL is a hard pointer with a zero-byte counter
+/// (`code 5`, `counter 0`), which makes it a self-identifying anchor:
+/// scanning forward to it and taking the next reference needs no
+/// reactor count and no xdictionary flag. On `sample_AC1032.dwg` that
+/// rule names a record the walker classifies as `BLOCK` for 27 of 27
+/// BLOCK_HEADERs, and 3 of 3 on each R2000-R2018 file of the sample
+/// corpus.
+pub fn block_sentinel_handle(payload: &[u8], version: Version) -> Option<u64> {
+    block_sentinel_handle_at(payload, string_stream::data_section_end(payload, version)?)
+}
+
+/// [`block_sentinel_handle`] with the handle stream's start bit supplied.
+///
+/// R2000-R2007 records locate that bit through the `RL` object-data
+/// size in their prologue ([`crate::object::RawObject::obj_size_bits`])
+/// rather than through the R2010+ string-stream trailer, so callers
+/// holding the walked record can resolve those bands too.
+pub fn block_sentinel_handle_at(payload: &[u8], handle_stream_start: usize) -> Option<u64> {
+    // References past the NULL anchor are a mis-read, not a longer
+    // prologue; bound the scan so garbage terminates.
+    const MAX_SCAN: usize = 16;
+
     let mut c = BitCursor::new(payload);
-    let handle_bits = read_mc_unsigned(&mut c).ok()? as usize;
-    payload.len().checked_mul(8)?.checked_sub(handle_bits)
-}
-
-fn find_block_name_string_start(
-    payload: &[u8],
-    start_bit: usize,
-    end_bit: usize,
-    version: Version,
-) -> Option<usize> {
-    let mut best: Option<(i32, usize)> = None;
-    for bit in start_bit..end_bit {
-        let Some((name, next)) = read_tv_at(payload, bit, version) else {
-            continue;
-        };
-        if next > end_bit || !is_plausible_block_name(&name) {
-            continue;
+    string_stream::seek(&mut c, handle_stream_start).ok()?;
+    let mut saw_null = false;
+    for _ in 0..MAX_SCAN {
+        if c.remaining_bits() < 8 {
+            return None;
         }
-        let score = block_name_score(&name);
-        match best {
-            Some((best_score, _)) if best_score >= score => {}
-            _ => best = Some((score, bit)),
+        let h = c.read_handle().ok()?;
+        if saw_null {
+            // Only an absolute reference names a record directly; a
+            // relative one would need the owner's handle, which this
+            // function does not have.
+            return h.is_absolute().then_some(h.value);
         }
+        saw_null = h.code == 5 && h.counter == 0;
     }
-    best.map(|(_, bit)| bit)
+    None
 }
 
-fn plausible_tv_at(payload: &[u8], bit: usize, end_bit: usize, version: Version) -> bool {
-    read_tv_at(payload, bit, version)
-        .map(|(name, next)| next <= end_bit && is_plausible_block_name(&name))
-        .unwrap_or(false)
+/// Bit at which a walked BLOCK_HEADER's handle stream begins, across
+/// every band this crate walks.
+///
+/// R2010+ records carry the §19.1 string-stream trailer, R2000-R2007
+/// carry the `RL` object-data size, and R13/R14 carry neither — so
+/// [`block_sentinel_handle_of`] declines to guess there.
+pub fn handle_stream_start(raw: &crate::object::RawObject, version: Version) -> Option<usize> {
+    string_stream::data_section_end(&raw.raw, version)
+        .or_else(|| raw.obj_size_bits.map(|bits| bits as usize))
 }
 
-fn read_tv_at(payload: &[u8], bit: usize, version: Version) -> Option<(String, usize)> {
-    let mut c = BitCursor::new(payload);
-    skip_to(&mut c, bit).ok()?;
-    let s = read_tv(&mut c, version).ok()?;
-    Some((s, c.position_bits()))
-}
-
-fn is_plausible_block_name(name: &str) -> bool {
-    if name.is_empty() || name.chars().count() > 255 {
-        return false;
-    }
-    name.chars().all(|ch| {
-        ch == '-'
-            || ch == '_'
-            || ch == '.'
-            || ch == '$'
-            || ch == '*'
-            || ch == '{'
-            || ch == '}'
-            || ch.is_ascii_alphanumeric()
-    })
-}
-
-fn block_name_score(name: &str) -> i32 {
-    let mut score = 0;
-    if name.starts_with("*Model_Space") || name.starts_with("*Paper_Space") {
-        score += 1000;
-    } else if name.starts_with('*') {
-        score += 600;
-    } else if name.starts_with('_') {
-        score += 450;
-    } else if name.starts_with('{') && name.ends_with('}') {
-        score += 400;
-    } else if name
-        .chars()
-        .next()
-        .is_some_and(|ch| ch.is_ascii_alphanumeric())
-    {
-        score += 300;
-    }
-    score + name.chars().count().min(255) as i32
+/// [`block_sentinel_handle`] for a walked record, using whichever
+/// handle-stream anchor the record's version provides.
+pub fn block_sentinel_handle_of(raw: &crate::object::RawObject, version: Version) -> Option<u64> {
+    block_sentinel_handle_at(&raw.raw, handle_stream_start(raw, version)?)
 }
 
 fn skip_to(c: &mut BitCursor<'_>, bit: usize) -> Result<()> {
@@ -386,23 +373,6 @@ fn skip_to(c: &mut BitCursor<'_>, bit: usize) -> Result<()> {
         let _ = c.read_b()?;
     }
     Ok(())
-}
-
-fn read_mc_unsigned(cursor: &mut BitCursor<'_>) -> Result<u64> {
-    let mut value: u64 = 0;
-    let mut shift: u32 = 0;
-    for _ in 0..10 {
-        let b = cursor.read_rc()? as u64;
-        value |= (b & 0x7F) << shift;
-        if b & 0x80 == 0 {
-            return Ok(value);
-        }
-        shift += 7;
-        if shift >= 64 {
-            break;
-        }
-    }
-    Err(Error::SectionMap("MC length exceeded 10 bytes".into()))
 }
 
 #[cfg(test)]
@@ -479,17 +449,17 @@ mod tests {
         assert_eq!(c.position_bits(), end);
     }
 
-    #[test]
-    fn r2007_split_stream_block_record_reads_name_from_string_stream() {
+    /// Body bits of a minimal R2018 BLOCK_HEADER, from the object's
+    /// common prefix through the last data-stream field.
+    fn block_header_body(name_is_anonymous: bool) -> Vec<bool> {
         let mut w = BitWriter::new();
-        // Object common prefix for table objects: no EED, no xdic.
-        w.write_bs_u(0);
-        w.write_b(true);
-
-        w.write_b(true); // 64 flag
+        w.write_bs_u(0); // no EED
+        w.write_b(true); // no xdictionary
+        w.write_b(false); // no AcDs binary data
+        w.write_b(true); // 64-flag
+        w.write_b(false); // xref dependent
         w.write_bs(1); // xref index + 1
-        w.write_b(false); // xdep
-        w.write_b(false); // anonymous
+        w.write_b(name_is_anonymous); // anonymous
         w.write_b(false); // has attribs
         w.write_b(false); // is xref
         w.write_b(false); // overlay
@@ -498,32 +468,142 @@ mod tests {
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
-        w.write_rc(0); // insert count terminator
+        w.write_rc(0); // insert-count terminator
         w.write_bl(0); // preview bytes
         w.write_bs(0); // insert units
         w.write_b(true); // explodable
-        w.write_rc(0); // scaling
+        w.write_rc(0); // block scaling
+        crate::string_stream::tests::bits_of(&w)
+    }
 
-        write_tu(&mut w, "*Paper_Space");
-        w.write_bs_u(0); // xref path
-        w.write_bs_u(0); // description
-
-        let bytes = w.into_bytes();
-        let block = decode_modern_split_stream(&bytes, 0, Version::R2007).unwrap();
+    #[test]
+    fn r2007_split_stream_block_record_reads_name_from_string_stream() {
+        let payload = crate::string_stream::tests::build_payload(
+            &block_header_body(false),
+            &["*Paper_Space", "", "a description"],
+        );
+        let block = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
         assert_eq!(block.header.name, "*Paper_Space");
         assert_eq!(block.xref_path, "");
+        assert_eq!(block.description, "a description");
         assert_eq!(block.num_owned_objects, Some(0));
         assert!(block.header.is_xref_resolved);
+        assert!(!block.header.is_xref_dependent);
+        assert_eq!(block.header.xref_index_plus_1, 1);
         assert!(
             block.base_point.x == 0.0 && block.base_point.y == 0.0 && block.base_point.z == 0.0
         );
     }
 
-    fn write_tu(w: &mut BitWriter, s: &str) {
-        w.write_bs_u(s.encode_utf16().count() as u16);
-        for unit in s.encode_utf16() {
-            w.write_rc((unit & 0xFF) as u8);
-            w.write_rc((unit >> 8) as u8);
+    /// A data field read one bit wide leaves the cursor off the string
+    /// stream, and [`modern::SplitStream::finish`] must reject that
+    /// instead of returning a plausible-looking name. Feeding the
+    /// R2018 decoder a body that is one bit short is the cheapest way
+    /// to prove the boundary is enforced.
+    #[test]
+    fn a_misaligned_block_header_body_is_rejected() {
+        let mut body = block_header_body(false);
+        body.pop();
+        let payload = crate::string_stream::tests::build_payload(&body, &["*Model_Space", "", ""]);
+        let err = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap_err();
+        assert!(
+            format!("{err}").contains("BLOCK_HEADER data fields ended at bit"),
+            "unexpected error: {err}"
+        );
+    }
+
+    /// Build an R2018 object payload with a real handle stream: the
+    /// leading `MC`, the data body, the string stream and its §19.1
+    /// trailer, then `handles` starting on the trailer's very next bit.
+    ///
+    /// `crate::string_stream::tests::build_payload` pads the trailer out
+    /// to a byte boundary and calls that filler the handle stream,
+    /// which is enough to exercise the string reader but leaves no
+    /// decodable handle references. This helper packs real ones.
+    fn build_payload_with_handles(body: &[bool], strings: &[&str], handles: &[u8]) -> Vec<u8> {
+        let mut sw = BitWriter::new();
+        for s in strings {
+            sw.write_bs_u(s.encode_utf16().count() as u16);
+            for unit in s.encode_utf16() {
+                sw.write_rc((unit & 0xFF) as u8);
+                sw.write_rc((unit >> 8) as u8);
+            }
         }
+        let string_bits = sw.position_bits();
+        let string_bytes = sw.into_bytes();
+
+        let mut w = BitWriter::new();
+        w.write_rc(0x00); // MC placeholder, patched below
+        for bit in body {
+            w.write_b(*bit);
+        }
+        for i in 0..string_bits {
+            w.write_b((string_bytes[i / 8] >> (7 - (i % 8))) & 1 != 0);
+        }
+        w.write_rs(string_bits as i16);
+        w.write_b(true);
+        let trailer_end = w.position_bits();
+        for b in handles {
+            w.write_rc(*b);
+        }
+        let pad = (8 - w.position_bits() % 8) % 8;
+        for _ in 0..pad {
+            w.write_b(false);
+        }
+        let total_bits = w.position_bits();
+        let mut bytes = w.into_bytes();
+        // `data_section_end` reads total - MC + mc_field_bits, so the
+        // recorded MC must be `total - trailer_end + 8`.
+        let mc = total_bits - trailer_end + 8;
+        assert!(mc < 0x80, "test helper only builds single-byte MC values");
+        bytes[0] = mc as u8;
+        bytes
+    }
+
+    /// §20.4.52 puts a NULL handle (hard pointer, zero-byte counter)
+    /// immediately before the BLOCK entity handle, so the NULL is a
+    /// self-identifying anchor.
+    #[test]
+    fn block_sentinel_handle_follows_the_null_anchor() {
+        // owner (code 4, one value byte), NULL (code 5, no bytes),
+        // BLOCK entity (code 3, two value bytes = 0x0509).
+        let payload = build_payload_with_handles(
+            &block_header_body(true),
+            &["*D", "", ""],
+            &[0x41, 0x01, 0x50, 0x32, 0x05, 0x09],
+        );
+        let block = decode_modern_split_stream(&payload, 8, Version::R2018).unwrap();
+        assert_eq!(block.header.name, "*D");
+        assert_eq!(block.block_sentinel_handle, Some(0x0509));
+        assert_eq!(
+            block_sentinel_handle(&payload, Version::R2018),
+            Some(0x0509)
+        );
+    }
+
+    /// An xdictionary reference sits between the owner and the NULL on
+    /// records that carry one; the anchor rule must skip it.
+    #[test]
+    fn block_sentinel_handle_skips_an_xdictionary_reference() {
+        let payload = build_payload_with_handles(
+            &block_header_body(false),
+            &["MyBlock", "", ""],
+            &[0x41, 0x01, 0x32, 0x06, 0xF3, 0x50, 0x32, 0x06, 0xF4],
+        );
+        assert_eq!(
+            block_sentinel_handle(&payload, Version::R2018),
+            Some(0x06F4)
+        );
+    }
+
+    /// No NULL anchor in the stream means no claim is made.
+    #[test]
+    fn block_sentinel_handle_is_none_without_the_anchor() {
+        let payload = build_payload_with_handles(
+            &block_header_body(false),
+            &["x", "", ""],
+            &[0x41, 0x01, 0x41, 0x02],
+        );
+        assert_eq!(block_sentinel_handle(&payload, Version::R2018), None);
     }
 }

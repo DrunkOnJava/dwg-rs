@@ -34,7 +34,27 @@ scrolling the changelog.
 - **Handle-map completeness:** every one of the 842 `AcDb:Handles`
   entries on `sample_AC1032.dwg` resolves to a record whose own handle
   field matches the map, and the walked records cover 1,191,935 of the
-  section's 1,192,851 bytes (916 unclaimed, longest run 4 bytes).
+  section's 1,192,851 bytes. The 916 remaining bytes are **fully
+  accounted for and are not padding**: each inter-record run equals the
+  width of the preceding record's leading `MC` handle-stream-size field
+  (841 of 841 agreements; 772 one-byte + 70 two-byte fields + a 4-byte
+  section prologue = 916), so a record's `MS` object size excludes its
+  own `MC`.
+- **Walker-completeness gate:** `examples/probe_class_census` runs in
+  CI over every canonical fixture with `--strict`;
+  `tests/canonical_corpus.rs` asserts the class census exactly and
+  `tests/class_census.rs` ratchets the real corpus. Known shortfalls:
+  TABLECONTENT / TABLEGEOMETRY on `sample_AC1032.dwg` (declared 5,
+  present 2, explained — the records are not in the file) and
+  DICTIONARYVAR / CELLSTYLEMAP on the R2004 / R2007 / R2010 files (an
+  open walker gap, pinned per file so it cannot grow).
+- **Block names are resolved through the `BLOCK` sentinel.** A
+  BLOCK_HEADER stores only the stem of an auto-generated name, so
+  `graph::resolve_block_names` joins each record to the `BLOCK` entity
+  its handle stream names: 27 of 27 definitions on
+  `sample_AC1032.dwg` resolve to 27 distinct names where the stored
+  stems collapse to 20. R13/R14 records carry no locatable handle
+  stream and stay unresolved.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
   Seed corpus: 30 hand-crafted inputs across all targets.
