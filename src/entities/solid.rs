@@ -33,6 +33,7 @@ pub struct Solid {
     pub extrusion: Vec3D,
 }
 
+/// Decodes the `Solid` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Solid> {
     let thickness = read_bt(c)?;
     let elevation = c.read_bd()?;

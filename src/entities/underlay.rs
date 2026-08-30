@@ -69,15 +69,19 @@ pub struct Underlay {
 }
 
 impl Underlay {
+    /// Bit 0x01 of `flags`: clipping is enabled.
     pub fn is_clip_on(&self) -> bool {
         self.flags & 0x01 != 0
     }
+    /// Bit 0x02 of `flags`: the underlay is displayed.
     pub fn is_underlay_on(&self) -> bool {
         self.flags & 0x02 != 0
     }
+    /// Bit 0x04 of `flags`: the underlay is drawn monochrome.
     pub fn is_monochrome(&self) -> bool {
         self.flags & 0x04 != 0
     }
+    /// Bit 0x08 of `flags`: colors are adjusted for the background.
     pub fn is_adjust_for_background(&self) -> bool {
         self.flags & 0x08 != 0
     }

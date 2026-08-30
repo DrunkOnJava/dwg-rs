@@ -51,6 +51,7 @@ impl AcadScale {
     }
 }
 
+/// Decodes the `AcadScale` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadScale> {
     let scale_name = read_tv(c, version)?;
     let paper_units = c.read_bd()?;

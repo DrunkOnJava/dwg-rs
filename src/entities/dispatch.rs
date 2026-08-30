@@ -391,7 +391,7 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
     match position_cursor_at_entity_body(raw, version) {
         Ok(mut cursor) => {
             if kind.is_table_entry() {
-                dispatch_table_entry(&mut cursor, type_code, kind, version)
+                dispatch_table_entry(raw, &mut cursor, type_code, kind, version)
             } else {
                 dispatch(&mut cursor, type_code, kind, version)
             }
@@ -411,6 +411,7 @@ pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
 /// table-entry preamble, so the cursor positioning here is the same
 /// as for drawing entities.
 fn dispatch_table_entry(
+    raw: &RawObject,
     c: &mut BitCursor<'_>,
     type_code: u16,
     kind: ObjectType,
@@ -420,6 +421,18 @@ fn dispatch_table_entry(
         ObjectType::Layer => crate::tables::layer::decode(c, version)
             .map(DecodedEntity::Layer)
             .map_err(|e| e.to_string()),
+        ObjectType::Ltype if version.is_r2007_plus() => {
+            match crate::tables::ltype::decode_modern_split_stream(
+                &raw.raw,
+                c.position_bits(),
+                version,
+            ) {
+                Ok(ltype) => Ok(DecodedEntity::Ltype(ltype)),
+                Err(_) => crate::tables::ltype::decode(c, version)
+                    .map(DecodedEntity::Ltype)
+                    .map_err(|e| e.to_string()),
+            }
+        }
         ObjectType::Ltype => crate::tables::ltype::decode(c, version)
             .map(DecodedEntity::Ltype)
             .map_err(|e| e.to_string()),
@@ -441,6 +454,15 @@ fn dispatch_table_entry(
         ObjectType::DimStyle => crate::tables::dimstyle::decode_partial(c, version)
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string()),
+        ObjectType::BlockHeader if version.is_r2007_plus() => {
+            crate::tables::block_record::decode_modern_split_stream(
+                &raw.raw,
+                c.position_bits(),
+                version,
+            )
+            .map(DecodedEntity::BlockRecord)
+            .map_err(|e| e.to_string())
+        }
         ObjectType::BlockHeader => crate::tables::block_record::decode(c, version)
             .map(DecodedEntity::BlockRecord)
             .map_err(|e| e.to_string()),
@@ -671,6 +693,7 @@ pub struct DispatchSummary {
 }
 
 impl DispatchSummary {
+    /// Tallies one dispatch outcome, retaining up to `MAX_RETAINED_ERRORS` error messages.
     pub fn record(&mut self, decoded: &DecodedEntity) {
         match decoded {
             DecodedEntity::Unhandled { .. } => self.unhandled += 1,
@@ -688,10 +711,12 @@ impl DispatchSummary {
         }
     }
 
+    /// Total entities seen: decoded + unhandled + errored.
     pub fn total(&self) -> usize {
         self.decoded + self.unhandled + self.errored
     }
 
+    /// Fraction of seen entities that decoded, or 0.0 when nothing was seen.
     pub fn decoded_ratio(&self) -> f64 {
         let total = self.total();
         if total == 0 {

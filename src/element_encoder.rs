@@ -81,19 +81,19 @@ fn write_bt(w: &mut BitWriter, v: f64) {
 ///
 /// Writes the z-flag 2D shortcut: when [`Line::is_2d`] is true, both Z
 /// coordinates are omitted (decoder defaults them to 0.0). End coordinates
-/// are delta-encoded relative to start coordinates (BD over the delta).
+/// use DD with the corresponding start coordinate as the default.
 ///
 /// Inverse of [`crate::entities::line::decode`].
 impl ElementEncoder for Line {
     fn encode(&self, w: &mut BitWriter, _version: Version) -> Result<()> {
         w.write_b(self.is_2d);
         w.write_rd(self.start.x);
-        w.write_bd(self.end.x - self.start.x);
+        w.write_dd(self.start.x, self.end.x);
         w.write_rd(self.start.y);
-        w.write_bd(self.end.y - self.start.y);
+        w.write_dd(self.start.y, self.end.y);
         if !self.is_2d {
             w.write_rd(self.start.z);
-            w.write_bd(self.end.z - self.start.z);
+            w.write_dd(self.start.z, self.end.z);
         }
         write_bt(w, self.thickness);
         write_be(w, self.extrusion);

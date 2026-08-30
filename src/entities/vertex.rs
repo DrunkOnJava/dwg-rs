@@ -42,6 +42,7 @@ pub struct Vertex {
     pub tangent_direction: Option<f64>,
 }
 
+/// Decodes the `Vertex` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Vertex> {
     let flag = c.read_rc()?;
     let location = read_bd3(c)?;

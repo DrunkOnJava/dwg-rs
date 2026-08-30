@@ -27,27 +27,10 @@
 //!    AutoCAD's worldspace is `±1e20` but real drawings stay within
 //!    millions of millimeters).
 //!
-//! # Why every test here is `#[ignore]`
-//!
-//! **These invariants FAIL on the current codebase.** Two known gaps
-//! remain after the 0.1.0-alpha.1 dispatcher fixes:
-//!
-//! 1. The handle-driven object walk reaches fixed entity records in
-//!    the R2013 samples, but common-entity/body alignment is still
-//!    wrong. The LINE/CIRCLE/ARC records return dispatcher errors
-//!    instead of typed geometry.
-//! 2. On the AC1032 sample, some typed entity decoders do return
-//!    geometry, but field values are implausible — LINE endpoints
-//!    with magnitudes like 1e+290 — indicating the bit cursor is
-//!    positioned wrong inside the object's payload. Likely causes:
-//!    (a) the object-stream data/string/handle-stream split is not
-//!    modeled correctly for R2010+, or (b) a bit-counting error in
-//!    the common entity preamble shifts every subsequent read.
-//!
-//! Each test is `#[ignore]`'d so `cargo test --release -- --ignored`
-//! reveals the regression without failing the default `cargo test`
-//! run. Remove the `#[ignore]` when the underlying architecture
-//! lands and these invariants hold.
+//! These tests are active because the common-entity/body boundary is
+//! now understood for the R2013/R2018 samples. They guard against
+//! regressing the CMC-color, linetype-scale, and shadow-flag reads that
+//! previously shifted the typed entity body by tens of bits.
 
 use dwg::entities::DecodedEntity;
 use dwg::{DwgFile, Version};
@@ -72,13 +55,35 @@ fn is_plausible_coord(v: f64) -> bool {
     v.is_finite() && v.abs() < 1e12
 }
 
+fn approx_eq(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
+fn plausible_lwpolyline(poly: &dwg::entities::lwpolyline::LwPolyline) -> bool {
+    if poly.vertices.len() < 2 {
+        return false;
+    }
+    let mut min_x = f64::INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for vertex in &poly.vertices {
+        if !is_plausible_coord(vertex.x) || !is_plausible_coord(vertex.y) {
+            return false;
+        }
+        min_x = min_x.min(vertex.x);
+        min_y = min_y.min(vertex.y);
+        max_x = max_x.max(vertex.x);
+        max_y = max_y.max(vertex.y);
+    }
+    (max_x - min_x).abs() > 1e-9 || (max_y - min_y).abs() > 1e-9
+}
+
 // ================================================================
 // R2013 samples should yield the geometry they contain
 // ================================================================
 
 #[test]
-#[ignore = "#97: R2013 LINE record is reached, but common/body alignment still \
-            errors before a typed LINE is returned"]
 fn r2013_line_sample_decodes_a_line() {
     let Some(file) = open_if_present("line_2013.dwg") else {
         return;
@@ -90,21 +95,32 @@ fn r2013_line_sample_decodes_a_line() {
         .expect("R2013 supports handle walk")
         .expect("decode succeeded");
 
-    let line_count = entities
+    let lines = entities
         .iter()
-        .filter(|e| matches!(e, DecodedEntity::Line(_)))
-        .count();
-    assert!(
-        line_count >= 1,
+        .filter_map(|e| match e {
+            DecodedEntity::Line(line) => Some(line),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        lines.len(),
+        1,
         "line_2013.dwg contains exactly one LINE entity authored \
          in AutoCAD (from nextgis/dwg_samples); the handle-driven \
          walk must reach it and the dispatcher must route type 0x13 \
-         to Line. Currently decoded 0 LINE entities."
+         to Line."
     );
+    let line = lines[0];
+    assert!(line.is_2d);
+    assert!(approx_eq(line.start.x, 50.0));
+    assert!(approx_eq(line.start.y, 50.0));
+    assert!(approx_eq(line.start.z, 0.0));
+    assert!(approx_eq(line.end.x, 100.0));
+    assert!(approx_eq(line.end.y, 100.0));
+    assert!(approx_eq(line.end.z, 0.0));
 }
 
 #[test]
-#[ignore = "#97: R2013 CIRCLE record alignment still errors before typed geometry"]
 fn r2013_circle_sample_decodes_a_circle() {
     let Some(file) = open_if_present("circle_2013.dwg") else {
         return;
@@ -121,7 +137,6 @@ fn r2013_circle_sample_decodes_a_circle() {
 }
 
 #[test]
-#[ignore = "#97: R2013 ARC record alignment still errors before typed geometry"]
 fn r2013_arc_sample_decodes_an_arc() {
     let Some(file) = open_if_present("arc_2013.dwg") else {
         return;
@@ -139,9 +154,6 @@ fn r2013_arc_sample_decodes_an_arc() {
 // ================================================================
 
 #[test]
-#[ignore = "#97: sample_AC1032 decodes some LINE/CIRCLE/POINT records, but \
-            some coordinates have implausible magnitudes, indicating \
-            bit-cursor offset error inside object payloads"]
 fn all_decoded_geometry_has_plausible_coordinates() {
     // Pick every version that supports handle walking.
     let samples = [
@@ -233,4 +245,142 @@ fn all_decoded_geometry_has_plausible_coordinates() {
         offending.len(),
         offending.join("\n")
     );
+}
+
+#[test]
+fn sample_ac1032_decodes_most_line_bodies_plausibly() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    assert_eq!(file.version(), Version::R2018);
+
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let lines = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::Line(line) => Some(line),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let nondegenerate = lines
+        .iter()
+        .filter(|line| {
+            let dx = line.end.x - line.start.x;
+            let dy = line.end.y - line.start.y;
+            let dz = line.end.z - line.start.z;
+            let len = (dx * dx + dy * dy + dz * dz).sqrt();
+            len.is_finite() && len > 1e-9 && len < 1e9
+        })
+        .count();
+
+    assert!(
+        lines.len() >= 80,
+        "sample_AC1032.dwg should decode the modelspace LINE population; got {}",
+        lines.len()
+    );
+    assert!(
+        nondegenerate >= 80,
+        "sample_AC1032.dwg should decode at least 80 nondegenerate LINE bodies; got {nondegenerate}"
+    );
+}
+
+#[test]
+fn sample_ac1032_decodes_common_lwpolyline_bodies_plausibly() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    assert_eq!(file.version(), Version::R2018);
+
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let polylines = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::LwPolyline(polyline) => Some(polyline),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let plausible = polylines
+        .iter()
+        .filter(|polyline| plausible_lwpolyline(polyline))
+        .count();
+
+    assert!(
+        plausible >= 10,
+        "sample_AC1032.dwg should decode at least 10 finite, nondegenerate \
+         LWPOLYLINE bodies after the first-RD/subsequent-DD fix; decoded {} \
+         LWPOLYLINEs, plausible {plausible}",
+        polylines.len()
+    );
+}
+
+#[test]
+fn sample_ac1032_recovers_modern_block_record_names() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    assert_eq!(file.version(), Version::R2018);
+
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let names = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::BlockRecord(block) => Some(block.header.name.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    for expected in [
+        "*Model_Space",
+        "*Paper_Space",
+        "_ArchTick",
+        "MyBlock",
+        "my_block",
+        "my_block_v2",
+        "my-dynamic-block",
+    ] {
+        assert!(
+            names.contains(&expected),
+            "missing BLOCK_HEADER name {expected:?}; decoded names: {names:?}"
+        );
+    }
+    assert!(
+        names.len() >= 20,
+        "sample_AC1032.dwg should recover the modern BLOCK_HEADER string stream; got {} names: {names:?}",
+        names.len()
+    );
+}
+
+#[test]
+fn sample_ac1032_recovers_simple_modern_ltype_names() {
+    let Some(file) = open_if_present("sample_AC1032.dwg") else {
+        return;
+    };
+    assert_eq!(file.version(), Version::R2018);
+
+    let (entities, _summary) = file.decoded_entities().unwrap().unwrap();
+    let ltypes = entities
+        .iter()
+        .filter_map(|e| match e {
+            DecodedEntity::Ltype(ltype) => Some(ltype),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let names = ltypes
+        .iter()
+        .map(|ltype| ltype.header.name.as_str())
+        .collect::<Vec<_>>();
+
+    for expected in ["ByBlock", "ByLayer", "Continuous"] {
+        assert!(
+            names.contains(&expected),
+            "missing LTYPE name {expected:?}; decoded names: {names:?}"
+        );
+    }
+    let continuous = ltypes
+        .iter()
+        .find(|ltype| ltype.header.name == "Continuous")
+        .expect("Continuous LTYPE should be decoded");
+    assert_eq!(continuous.description, "Solid line");
+    assert_eq!(continuous.alignment, b'A');
+    assert!(continuous.dashes.is_empty());
 }

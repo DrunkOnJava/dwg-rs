@@ -23,6 +23,7 @@ pub struct AppId {
     pub unknown: u8,
 }
 
+/// Decodes a `AppId` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AppId> {
     let header = read_table_entry_header(c, version)?;
     let unknown = c.read_rc()?;

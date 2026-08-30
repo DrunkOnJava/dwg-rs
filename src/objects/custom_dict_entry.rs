@@ -46,6 +46,7 @@ pub struct CustomDictEntries {
     pub entries: Vec<CustomDictEntry>,
 }
 
+/// Decodes the entries of a custom dictionary that follow the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<CustomDictEntries> {
     let num_entries = c.read_bs_u()? as usize;
     if num_entries > MAX_CUSTOM_DICT_ENTRIES {
@@ -63,14 +64,17 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<CustomDictEntri
 }
 
 impl CustomDictEntries {
+    /// Number of entries.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// `true` when there are no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Looks up the handle stored under `key`.
     pub fn get(&self, key: &str) -> Option<&Handle> {
         self.entries
             .iter()

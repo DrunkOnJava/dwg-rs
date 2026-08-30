@@ -71,6 +71,7 @@ pub struct AcadPlotSettings {
     pub shade_plot_object_handle: Handle,
 }
 
+/// Decodes the `AcadPlotSettings` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadPlotSettings> {
     let page_setup_name = read_tv(c, version)?;
     let printer_config_name = read_tv(c, version)?;

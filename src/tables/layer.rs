@@ -34,17 +34,21 @@ pub struct Layer {
 }
 
 impl Layer {
+    /// Bit 0x01 of `flags`: the layer is frozen.
     pub fn is_frozen(&self) -> bool {
         self.flags & 0x01 != 0
     }
+    /// Bit 0x04 of `flags`: the layer is locked.
     pub fn is_locked(&self) -> bool {
         self.flags & 0x04 != 0
     }
+    /// The layer's plot flag (plotted when set).
     pub fn is_plottable(&self) -> bool {
         self.plot_flag
     }
 }
 
+/// Decodes a `Layer` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Layer> {
     let header = read_table_entry_header(c, version)?;
     let flags = c.read_bs()?;

@@ -59,6 +59,7 @@ pub enum ClipBoundary {
     Polygon(Vec<Point2D>),
 }
 
+/// Decodes the `Image` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Image> {
     let _class_version = c.read_bl()?;
     let insertion_point = read_bd3(c)?;

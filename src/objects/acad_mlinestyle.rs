@@ -54,6 +54,7 @@ pub struct AcadMlinestyle {
     pub lines: Vec<MlineStyleLine>,
 }
 
+/// Decodes the `AcadMlinestyle` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AcadMlinestyle> {
     let name = read_tv(c, version)?;
     let description = read_tv(c, version)?;

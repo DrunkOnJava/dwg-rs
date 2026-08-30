@@ -55,6 +55,7 @@ pub struct TableEntryHeader {
     pub is_xref_resolved: bool,
 }
 
+/// Reads the name / xref-dependent / xref-index / xref-resolved header shared by every table entry.
 pub fn read_table_entry_header(
     c: &mut BitCursor<'_>,
     version: Version,

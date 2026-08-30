@@ -62,24 +62,28 @@ pub struct HeaderEntry {
 }
 
 impl HeaderEntry {
+    /// Builds a header variable holding a string value (group code 1/2/3 family).
     pub fn string(name: impl Into<String>, value: impl Into<String>) -> Self {
         HeaderEntry {
             name: name.into(),
             value: HeaderValue::String(value.into()),
         }
     }
+    /// Builds a header variable holding an integer value.
     pub fn int(name: impl Into<String>, value: i64) -> Self {
         HeaderEntry {
             name: name.into(),
             value: HeaderValue::Int(value),
         }
     }
+    /// Builds a header variable holding a double value.
     pub fn double(name: impl Into<String>, value: f64) -> Self {
         HeaderEntry {
             name: name.into(),
             value: HeaderValue::Double(value),
         }
     }
+    /// Builds a header variable holding a 3D point (emitted as the 10/20/30 triple).
     pub fn point(name: impl Into<String>, value: Point3D) -> Self {
         HeaderEntry {
             name: name.into(),

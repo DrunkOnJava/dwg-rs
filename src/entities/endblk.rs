@@ -11,6 +11,7 @@ use crate::error::Result;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct EndBlk;
 
+/// Decodes an `EndBlk`; the entity carries no payload beyond the common header.
 pub fn decode(_c: &mut BitCursor<'_>) -> Result<EndBlk> {
     Ok(EndBlk)
 }

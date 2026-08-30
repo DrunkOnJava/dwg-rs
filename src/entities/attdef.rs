@@ -32,6 +32,7 @@ pub struct AttDef {
     pub lock_position: bool,
 }
 
+/// Decodes the `AttDef` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AttDef> {
     let text = text::decode(c, version)?;
     let prompt = read_tv(c, version)?;

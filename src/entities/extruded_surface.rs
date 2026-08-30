@@ -44,6 +44,7 @@ pub struct ExtrudedSurface {
     pub draft_angle: f64,
 }
 
+/// Decodes the `ExtrudedSurface` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<ExtrudedSurface> {
     let sat = decode_sat_blob(c)?;
     let sweep_vector = read_bd3(c)?;

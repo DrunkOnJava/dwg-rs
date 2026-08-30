@@ -14,6 +14,7 @@ pub struct XLine {
     pub direction: Vec3D,
 }
 
+/// Decodes the `XLine` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<XLine> {
     let point = read_bd3(c)?;
     let direction = read_bd3(c)?;

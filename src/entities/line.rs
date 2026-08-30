@@ -5,19 +5,18 @@
 //! ```text
 //! B   zflag             -- true ⇒ entity is 2D (z coords defaulted to 0.0)
 //! RD  start.x
-//! BD  end.x             -- delta-encoded relative to start.x
+//! DD  end.x             -- defaults to start.x
 //! RD  start.y
-//! BD  end.y             -- delta-encoded relative to start.y
+//! DD  end.y             -- defaults to start.y
 //! (if !zflag)
 //!   RD  start.z
-//!   BD  end.z           -- delta-encoded relative to start.z
+//!   DD  end.z           -- defaults to start.z
 //! BT  thickness         -- default 0.0
 //! BE  extrusion         -- default (0,0,1)
 //! ```
 //!
-//! The delta encoding of end coordinates is the spec's "z-flag 2D
-//! shortcut" (§19.4.20). A short line has end-x ≈ start-x, so the
-//! delta typically packs into one BD-bit-2 (1.0) or zero byte.
+//! The end coordinates use the spec's DD (bitdouble with default)
+//! primitive, where each start coordinate is the corresponding default.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, Vec3D, read_be, read_bt};
@@ -41,14 +40,14 @@ pub struct Line {
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Line> {
     let zflag = c.read_b()?;
     let sx = c.read_rd()?;
-    let ex = sx + c.read_bd()?;
+    let ex = c.read_dd(sx)?;
     let sy = c.read_rd()?;
-    let ey = sy + c.read_bd()?;
+    let ey = c.read_dd(sy)?;
     let (sz, ez) = if zflag {
         (0.0, 0.0)
     } else {
         let sz = c.read_rd()?;
-        let ez = sz + c.read_bd()?;
+        let ez = c.read_dd(sz)?;
         (sz, ez)
     };
     let thickness = read_bt(c)?;
@@ -80,9 +79,9 @@ mod tests {
         let mut w = BitWriter::new();
         w.write_b(true); // 2D
         w.write_rd(1.0); // start.x
-        w.write_bd(5.0); // end.x delta: 5.0, so end.x = 6.0
+        w.write_dd(1.0, 6.0); // end.x
         w.write_rd(2.0); // start.y
-        w.write_bd(3.0); // end.y delta: 3.0, end.y = 5.0
+        w.write_dd(2.0, 5.0); // end.y
         w.write_b(true); // thickness default 0.0
         w.write_b(true); // extrusion default
         let bytes = w.into_bytes();
@@ -121,11 +120,11 @@ mod tests {
         let mut w = BitWriter::new();
         w.write_b(false); // 3D
         w.write_rd(1.0);
-        w.write_bd(2.0);
+        w.write_dd(1.0, 3.0);
         w.write_rd(3.0);
-        w.write_bd(4.0);
+        w.write_dd(3.0, 7.0);
         w.write_rd(5.0);
-        w.write_bd(6.0);
+        w.write_dd(5.0, 11.0);
         w.write_b(false); // explicit thickness
         w.write_bd(2.5);
         w.write_b(false); // explicit extrusion

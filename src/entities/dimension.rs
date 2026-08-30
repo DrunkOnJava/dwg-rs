@@ -70,6 +70,7 @@ pub struct DimensionCommon {
     pub flip_arrow_2: bool,
 }
 
+/// Reads the fields shared by every DIMENSION subtype that precede the subtype-specific data.
 pub fn read_common(c: &mut BitCursor<'_>, version: Version) -> Result<DimensionCommon> {
     let version_flag = if version.is_r2010_plus() {
         c.read_rc()?

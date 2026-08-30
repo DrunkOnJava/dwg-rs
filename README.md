@@ -17,7 +17,7 @@
 
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
-Empirical entity-decode coverage as measured on 2026-04-25 by
+Empirical entity-decode coverage as measured on 2026-04-29 by
 [`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
 local `samples/` set:
 
@@ -25,29 +25,34 @@ local `samples/` set:
 |---------|--------------|---------|---------|---------|--------------|
 | R14 / R2000 / R2007 | 9 | n/a | n/a | n/a | not supported (no handle-map for this layout yet) |
 | R2004 (AC1018)      | 3 | 15 | 522 | 60 | **2.5 %** |
-| R2010 (AC1024)      | 3 | 18 | 474 | 51 | **3.3 %** |
-| R2013 (AC1027)      | 3 | 30 | 327 | 39 | **7.6 %** |
-| R2018 (AC1032)      | 1 | 103 | 332 | 310 | **13.8 %** |
-| **Aggregate** | **19** | **166** | **1655** | **460** | **7.3 %** |
+| R2010 (AC1024)      | 3 | 54 | 474 | 15 | **9.9 %** |
+| R2013 (AC1027)      | 3 | 60 | 327 | 9 | **15.2 %** |
+| R2018 (AC1032)      | 1 | 329 | 337 | 79 | **44.2 %** |
+| **Aggregate** | **19** | **458** | **1660** | **163** | **20.1 %** |
 
-Per-entity-type error concentration in the R2018 sample (where most real data is):
+Per-entity-type error concentration in the measured corpus:
 
 | Type code | DXF name | Occurrences as error |
 |-----------|----------|-----------------------|
-| 0x13 (19) | `LINE` | 83 |
-| 0x05 (5) | unknown / table-dependent | 47 |
-| 0x31 (49) | unknown / table-dependent | 39 |
-| 0x2C (44) | `MTEXT` | 33 |
-| 0x39 (57) | unknown / table-dependent | 30 |
-| 0x1B (27) | `POINT` | 29 |
-| ... | (long tail) | 199 |
+| 0x01 (1) | `TEXT` | 25 |
+| 0x35 (53) | `STYLE` | 21 |
+| 0x45 (69) | `DIMSTYLE` | 20 |
+| 0x41 (65) | `VPORT` | 11 |
+| 0x31 (49) | `BLOCK_HEADER` | 10 |
+| 0x04 (4) | `BLOCK` | 9 |
+| 0x05 (5) | `ENDBLK` | 9 |
+| 0x39 (57) | `LTYPE` | 9 |
+| ... | (long tail) | 49 |
 
 **Translation:** the 27 entity decoders in [`src/entities/*.rs`](./src/entities/)
-are verified against hand-crafted synthetic input (193 unit + proptest + sample tests pass)
-but fail on real-world files because the common-entity preamble, extended-data loop, and
-handle-stream layout in production DWG files has version-specific deviations this
-crate doesn't yet fully model. This is the gap between "decoder functions exist" and
-"decoders work end-to-end." Closing it is the 0.2.0 milestone.
+are verified against hand-crafted synthetic input, and the R2013/R2018
+common-entity/body boundary is now pinned by real-DWG tests for LINE,
+CIRCLE, ARC, the `sample_AC1032.dwg` LINE population, common LWPOLYLINE
+vertices, and R2007+ `BLOCK_HEADER` / simple `LTYPE` string-stream names. The remaining gap is
+broader than "does the dispatcher return a variant": several table, text,
+insert, dimension, hatch, and LWPOLYLINE flag variants still misread
+version-specific field layouts or split streams. Closing that real-file decode
+gap is the 0.2.0 milestone.
 
 ## Capability matrix at a glance
 
@@ -65,9 +70,9 @@ crate doesn't yet fully model. This is the gap between "decoder functions exist"
 | HandleMap + ClassMap parsing | ✓ shipped | — |
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker (R2004+) | ✓ shipped | R14 / R2000 / R2007 pending (#104) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~7.3% (#103) |
+| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently ~20.1% (#103) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
-| Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ✓ dispatch shipped | Content-field decode pending |
+| Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
 | DXF writer | ⚠ alpha | Writer exists for R12..R2018 targets; DXF parser is not implemented |
 | DWG writer | ⚠ alpha | `DwgFile::to_bytes()` and R2004-family byte assembly exist; external CAD acceptance not automated |
@@ -79,7 +84,7 @@ crate doesn't yet fully model. This is the gap between "decoder functions exist"
 
 ## What *does* work today
 
-The container layer is the most mature part of the crate and is covered by the test suite (run `cargo test` for the current count; 645 unit + ~100 integration + 10 doctests as of 2026-04-20):
+The container layer is the most mature part of the crate and is covered by the test suite (run `cargo test` for the current count; 649 lib tests plus integration suites and 10 doctests as of 2026-04-29):
 
 - Version identification across AC1014 (R14, 1997) → AC1032 (2018, 2024+)
 - R13–R15 simple file header + R2004+ XOR-encrypted header
@@ -104,6 +109,9 @@ The container layer is the most mature part of the crate and is covered by the t
 ### Hard-no list — what dwg-rs does NOT do today
 
 - End-to-end entity decoding on most real R2004-family files (see coverage table above).
+  R2013/R2018 LINE/CIRCLE/ARC alignment is now pinned; many text,
+  insert, dimension, hatch, LWPOLYLINE flag variants, and table-object paths still
+  need real-file field-layout work.
 - R14 / R2000 object-stream walking (different layout from R2004-family; not yet implemented).
 - R2007 section payloads (layer-1 Sec_Mask shipped, layer-2 bit-rotation scaffolded only).
 - Full HATCH boundary path tree, full MLEADER leader-line list, full 75-field DIMSTYLE.
@@ -233,7 +241,7 @@ Quick layer overview:
 
 ```text
 $ cargo test --release
-# 645 unit tests + integration suites (code_table, corpus_roundtrip,
+# 649 lib tests + integration suites (code_table, corpus_roundtrip,
 # dispatch_roundtrip, dxf_roundtrip, entity_regression, fuzz_corpus,
 # gltf, svg_goldens, write_roundtrip, mutation_failure, proptest,
 # samples) + 10 doctests. Exact count grows with each commit; check
@@ -246,8 +254,9 @@ $ cargo deny check                                                # no advisorie
 
 Tests exercise the container layer end-to-end across all 19 corpus files and verify
 bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 22 % / 43 % /
-85 % coverage numbers above measure. Both classes of testing are needed.
+entity decoder succeeds on every real-world drawing — that's what the 20.1 %
+aggregate / 44.2 % AC1032 coverage numbers above measure. Both classes of
+testing are needed.
 
 ## Safety
 

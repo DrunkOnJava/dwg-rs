@@ -43,6 +43,7 @@ pub struct UcsEntry {
 // [`UcsEntry`].
 pub type Ucs = UcsEntry;
 
+/// Decodes a `UcsEntry` table entry that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<UcsEntry> {
     let header = read_table_entry_header(c, version)?;
     let origin = read_bd3(c)?;

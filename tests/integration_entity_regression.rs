@@ -52,9 +52,9 @@ fn build_line_payload() -> Vec<u8> {
     let mut w = BitWriter::new();
     w.write_b(true); // 2D
     w.write_rd(1.0); // start.x
-    w.write_bd(5.0); // end.x delta
+    w.write_dd(1.0, 6.0); // end.x
     w.write_rd(2.0); // start.y
-    w.write_bd(3.0); // end.y delta
+    w.write_dd(2.0, 5.0); // end.y
     w.write_b(true); // thickness default
     w.write_b(true); // extrusion default
     w.into_bytes()
@@ -251,10 +251,12 @@ fn build_lwpolyline_payload() -> Vec<u8> {
     let mut w = BitWriter::new();
     w.write_bs_u(0); // no flags
     w.write_bl(3); // 3 vertices
-    for (x, y) in [(0.0_f64, 0.0), (10.0, 0.0), (10.0, 10.0)] {
-        w.write_rd(x);
-        w.write_rd(y);
-    }
+    w.write_rd(0.0);
+    w.write_rd(0.0);
+    w.write_dd(0.0, 10.0);
+    w.write_dd(0.0, 0.0);
+    w.write_dd(10.0, 10.0);
+    w.write_dd(0.0, 10.0);
     w.into_bytes()
 }
 

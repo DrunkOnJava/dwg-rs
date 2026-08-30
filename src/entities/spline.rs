@@ -67,6 +67,7 @@ pub struct ControlForm {
     pub weights: Vec<f64>,
 }
 
+/// Decodes the `Spline` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Spline> {
     let scenario = c.read_bl()? as u32;
     let (flag1, knot_param) = if matches!(version, Version::R2013 | Version::R2018) {

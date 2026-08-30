@@ -64,6 +64,19 @@ proptest! {
         prop_assert_eq!(c.read_bd().unwrap(), v);
     }
 
+    /// DD — bitdouble with default. Exclude NaN for equality assertion.
+    #[test]
+    fn dd_roundtrip(
+        default in any::<f64>().prop_filter("not NaN", |f| !f.is_nan()),
+        v in any::<f64>().prop_filter("not NaN", |f| !f.is_nan()),
+    ) {
+        let mut w = BitWriter::new();
+        w.write_dd(default, v);
+        let bytes = w.into_bytes();
+        let mut c = BitCursor::new(&bytes);
+        prop_assert_eq!(c.read_dd(default).unwrap(), v);
+    }
+
     /// RC (raw char u8).
     #[test]
     fn rc_roundtrip(v: u8) {

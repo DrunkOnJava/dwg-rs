@@ -129,6 +129,7 @@ pub enum ObjectType {
 }
 
 impl ObjectType {
+    /// Maps a raw object-type code to its variant; unknown codes are preserved as `Unknown`.
     pub fn from_code(code: u16) -> Self {
         match code {
             0x00 => Self::Unused,
@@ -325,6 +326,7 @@ impl ObjectType {
         )
     }
 
+    /// Upper-case spec-style label (`LINE`, `LWPOLYLINE`, ...) for diagnostics and reports.
     pub fn short_label(self) -> &'static str {
         match self {
             Self::Unused => "UNUSED",

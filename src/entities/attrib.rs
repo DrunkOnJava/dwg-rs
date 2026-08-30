@@ -37,20 +37,25 @@ pub struct Attrib {
 }
 
 impl Attrib {
+    /// Bit 0x01 of `flags`: the attribute is invisible.
     pub fn is_invisible(&self) -> bool {
         self.flags & 0x01 != 0
     }
+    /// Bit 0x02 of `flags`: the attribute is constant.
     pub fn is_constant(&self) -> bool {
         self.flags & 0x02 != 0
     }
+    /// Bit 0x04 of `flags`: verification is required on insertion.
     pub fn is_verifiable(&self) -> bool {
         self.flags & 0x04 != 0
     }
+    /// Bit 0x08 of `flags`: the attribute is preset (no prompt on insertion).
     pub fn is_preset(&self) -> bool {
         self.flags & 0x08 != 0
     }
 }
 
+/// Decodes the `Attrib` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Attrib> {
     let text = text::decode(c, version)?;
     let tag = read_tv(c, version)?;

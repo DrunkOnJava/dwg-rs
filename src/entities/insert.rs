@@ -39,6 +39,7 @@ pub struct Insert {
     pub has_attribs: bool,
 }
 
+/// Decodes the `Insert` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Insert> {
     let insertion_point = read_bd3(c)?;
     let scale_flag = c.read_bb()?;
