@@ -158,6 +158,17 @@ impl Version {
     pub fn is_r2010_plus(self) -> bool {
         matches!(self, Self::R2010 | Self::R2013 | Self::R2018)
     }
+
+    /// True when an object record carries the `RL` "object data size in
+    /// bits" field between the object type and the object handle
+    /// (spec §19.1 object prologue).
+    ///
+    /// The field spans the whole R2000..R2007 band. R13/R14 predate it;
+    /// R2010+ replaces it with the leading `MC` handle-stream size (see
+    /// [`is_r2010_plus`](Self::is_r2010_plus)).
+    pub fn has_object_size_field(self) -> bool {
+        matches!(self, Self::R2000 | Self::R2004 | Self::R2007)
+    }
 }
 
 impl fmt::Display for Version {

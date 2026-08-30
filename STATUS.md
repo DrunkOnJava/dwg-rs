@@ -6,17 +6,17 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 664 passing in default/debug and release-all-features
+- **Lib tests:** 666 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
   entity-regression (18), real-DWG value regression (8).
-- **Current real-file decode coverage:** 527 decoded / 1,660 skipped /
-  94 errored / 23.1% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 374 / 337 / 34 / 50.2%. The
-  R2010 and R2013 files decode with zero errors; 60 of the 94
-  remaining errors are the three R2004 (AC1018) files.
+- **Current real-file decode coverage:** 587 decoded / 1,660 skipped /
+  34 errored / 25.7% on the local 19-file `samples/` corpus. The
+  R2018 `sample_AC1032.dwg` sample is 374 / 337 / 34 / 50.2%, and it
+  is now the only file with any errors — the R2004, R2010 and R2013
+  samples all decode with zero.
 - **Fuzz targets:** 9 (lz77 / bitcursor / dwg-file-open / section-map /
   object-walker / classmap / handlemap / header-vars / rs-fec).
   Seed corpus: 30 hand-crafted inputs across all targets.
@@ -70,6 +70,12 @@ scrolling the changelog.
 ### Symbol tables (Phase 6)
 - LAYER, LTYPE, STYLE, VIEW, UCS, VPORT, APPID, DIMSTYLE.
 - BLOCK_RECORD.
+- R2004 (AC1018) object prologue: the `RL` object-data-size-in-bits
+  field (§19.1) is read across the whole R2000..R2007 band, and the
+  non-entity common object data (§19.4.2 — EED chain, `BL` reactor
+  count, xdictionary flag) is consumed before every pre-R2007 table
+  decoder. `RawObject::obj_size_bits` exposes the field as the
+  pre-R2010 analogue of the string-stream start bit.
 - R2007+ split-stream (`src/string_stream.rs` + `src/tables/modern.rs`)
   for LAYER / LTYPE / STYLE / UCS / VIEW / VPORT / APPID / DIMSTYLE /
   BLOCK_HEADER, plus the TEXT / ATTRIB / ATTDEF entities. Each modern
@@ -191,21 +197,21 @@ scrolling the changelog.
 These have genuine open scope requiring focused work, not stubs.
 
 - **Current real-file decode baseline:** the 2026-08-30
-  `examples/coverage_report.rs ../../samples` run reports 527 decoded,
-  1660 skipped, 94 errored, 23.1% aggregate coverage. This is the
+  `examples/coverage_report.rs ../../samples` run reports 587 decoded,
+  1660 skipped, 34 errored, 25.7% aggregate coverage. This is the
   practical product-readiness blocker even though synthetic decoder
   tests are broad.
 
 - **#103 remaining real-file decoder alignment** (P0). The
   R2013/R2018 common-entity/body boundary is fixed for LINE/CIRCLE/ARC,
-  common LWPOLYLINE vertices now use DD correctly, and the whole R2007+
-  symbol table plus TEXT/ATTRIB/ATTDEF now read through the split string
-  stream. The next blockers are MTEXT (silently decodes a garbage
-  string today), INSERT rotation, DIMENSION, HATCH, multi-line
-  attributes (which embed an MTEXT record), and the R2004 object header
-  — the three AC1018 sample files still error on 20 objects each with
-  cursor-exhaustion in the common preamble, which is a separate bug
-  from the string-stream work.
+  common LWPOLYLINE vertices now use DD correctly, the whole R2007+
+  symbol table plus TEXT/ATTRIB/ATTDEF read through the split string
+  stream, and the R2004 (AC1018) object prologue now reads its `RL`
+  object-data-size field so all three AC1018 samples decode with zero
+  errors. The next blockers are MTEXT (silently decodes a garbage
+  string today), INSERT rotation, DIMENSION, HATCH, TOLERANCE and
+  multi-line attributes (which embed an MTEXT record) — all now
+  isolated to the R2018 sample.
 - **#104 R14 / R2000 / R2007 handle-map walker.** Container layer
   ships for these versions, but the object-stream walker is
   R2004+ only. Unlocks `decoded_entities()` for those release

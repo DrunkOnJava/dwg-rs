@@ -5,7 +5,8 @@
 //!
 //! ```text
 //! entry header (TV name + xref bits)
-//! RC     flags            -- 0x01 shape-file, 0x04 vertical, 0x08 xref-dep
+//! B      shape_file       -- surfaced as flags bit 0x01
+//! B      vertical         -- surfaced as flags bit 0x04
 //! BD     fixed_height     -- 0 prompts for height per-insertion
 //! BD     width_factor
 //! BD     oblique_angle    -- radians
@@ -57,9 +58,29 @@ impl StyleEntry {
 }
 
 /// Decodes a `StyleEntry` table entry that follows the common object header.
+///
+/// # Measured
+///
+/// The shape-file / vertical pair is two `B` bits, not a packed `RC`
+/// byte. In `line_2004.dwg` the `Standard` STYLE record has
+/// `obj_size = 275` bits and its common object data ends at bit 63;
+/// reading the pair as an `RC` overruns the record by exactly the
+/// 6 extra bits (`Bit cursor exhausted: wanted 8 bits, 6 bits
+/// remain`), while the two-bit form lands the trailing `TV` fields
+/// inside the record. This matches the field order the R2007+
+/// split-stream decoder was already measured against.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<StyleEntry> {
     let header = read_table_entry_header(c, version)?;
-    let flags = c.read_rc()?;
+    let mut flags = 0u8;
+    if c.read_b()? {
+        flags |= 0x01; // shape file
+    }
+    if c.read_b()? {
+        flags |= 0x04; // vertical
+    }
+    if header.is_xref_dependent {
+        flags |= 0x08;
+    }
     let fixed_height = c.read_bd()?;
     let width_factor = c.read_bd()?;
     let oblique_angle = c.read_bd()?;
@@ -174,7 +195,8 @@ mod tests {
     fn roundtrip_standard_style() {
         let mut w = BitWriter::new();
         write_header(&mut w, b"Standard");
-        w.write_rc(0); // flags
+        w.write_b(false); // shape file
+        w.write_b(false); // vertical
         w.write_bd(0.0); // fixed_height — prompt
         w.write_bd(1.0); // width factor
         w.write_bd(0.0); // oblique
@@ -267,7 +289,8 @@ mod tests {
     fn roundtrip_vertical_shape_style() {
         let mut w = BitWriter::new();
         write_header(&mut w, b"TXT-V");
-        w.write_rc(0x05); // shape file + vertical
+        w.write_b(true); // shape file
+        w.write_b(true); // vertical
         w.write_bd(0.2); // fixed height
         w.write_bd(0.9); // width factor
         w.write_bd(15.0_f64.to_radians());

@@ -161,6 +161,7 @@ fn every_fixed_entity_code_is_routed_not_unhandled() {
                 value: 0,
             },
             raw: vec![0u8; 256],
+            obj_size_bits: None,
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         match decoded {
@@ -208,6 +209,7 @@ fn non_entity_codes_route_to_unhandled() {
                 value: 0,
             },
             raw: vec![0u8; 256],
+            obj_size_bits: None,
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         match decoded {

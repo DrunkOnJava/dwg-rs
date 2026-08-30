@@ -130,6 +130,77 @@ pub struct CommonEntityData {
     pub had_extended_data: bool,
 }
 
+/// Consume the extended entity data (EED) chain — a stream of
+/// `<BS size, H appid, RC*size payload>` groups terminated by
+/// `size == 0` (§19.4.1). Returns whether any group was present.
+///
+/// Defensive cap: real XDATA payloads per object rarely exceed a few
+/// hundred bytes per iteration. The `size` field is a `BS`, so one
+/// iteration can read up to 64 KB. Bounding total iterations at 256
+/// gives a per-object worst case of ~16 MB of XDATA reads — an order
+/// of magnitude past anything observed in real drawings but still
+/// bounded against adversarial streams that would otherwise spin the
+/// loop indefinitely.
+fn skip_extended_data(c: &mut BitCursor<'_>) -> Result<bool> {
+    const MAX_XDATA_ITERATIONS: usize = 256;
+    let mut had_extended = false;
+    for _ in 0..MAX_XDATA_ITERATIONS {
+        let size = c.read_bs_u()?;
+        if size == 0 {
+            return Ok(had_extended);
+        }
+        had_extended = true;
+        // Appid handle (may be absolute or offset).
+        let _appid: Handle = c.read_handle()?;
+        // App-data payload: `size` raw chars (bounded above via iteration cap).
+        for _ in 0..size {
+            let _ = c.read_rc()?;
+        }
+    }
+    Err(crate::error::Error::SectionMap(format!(
+        "common object XDATA loop exceeded {MAX_XDATA_ITERATIONS} iterations; \
+         malformed or adversarial payload"
+    )))
+}
+
+/// Read the **non-entity** object's common data (§19.4.2), advancing
+/// past it, and return the reactor count.
+///
+/// Symbol-table entries, dictionaries and the other non-drawable
+/// objects share this shorter prefix — no graphics block and no
+/// entity mode, but the same EED chain, reactor count and
+/// xdictionary-missing flag an entity carries:
+///
+/// ```text
+/// //  extended entity data: loops while size > 0
+/// BL  num_reactors
+/// B   no_xdictionary_handle  (R2004+)
+/// B   has_ds_binary_data     (R2013+)
+/// ```
+///
+/// The cursor must be positioned immediately after the object handle.
+///
+/// # Measured
+///
+/// `examples/probe_r2004_object_prefix.rs` reads the four candidate
+/// prefixes at that position for every LAYER / STYLE / LTYPE / APPID
+/// record of `line_2004.dwg`. Only `EED + BL + B` yields readable
+/// names — `0`, `Standard`, `Annotative`, `ACAD`, `AcadAnnotative`,
+/// `ByBlock`, `ByLayer`, `Continuous`. Dropping the `BL` (a 5-bit
+/// prefix becoming 3) shifts every name into an unreadable length
+/// prefix of 65-73 characters.
+pub fn read_common_object_data(c: &mut BitCursor<'_>, version: Version) -> Result<u32> {
+    skip_extended_data(c)?;
+    let num_reactors = c.read_bl()? as u32;
+    if version.is_r2004_plus() {
+        let _no_xdictionary = c.read_b()?;
+    }
+    if matches!(version, Version::R2013 | Version::R2018) {
+        let _has_ds_binary_data = c.read_b()?;
+    }
+    Ok(num_reactors)
+}
+
 /// Read the common entity preamble from `c`, advancing past it.
 ///
 /// The cursor must be positioned at the start of the extended-data
@@ -143,40 +214,7 @@ pub fn read_common_entity_data(
     version: Version,
 ) -> Result<CommonEntityData> {
     // -- Extended data loop --------------------------------------------------
-    // Stream of <BS size, H appid, RC*size app-payload>. Loop
-    // terminates when size == 0.
-    //
-    // Defensive cap: real XDATA payloads per entity rarely exceed a
-    // few hundred bytes per iteration. The `size` field is u16, so one
-    // iteration can read up to 64 KB. Bound total iterations at 256,
-    // giving a per-entity worst case of ~16 MB of XDATA reads — an
-    // order of magnitude past anything observed in real drawings but
-    // still bounded against adversarial streams that would otherwise
-    // spin the loop indefinitely (the previous implementation's cap
-    // was checked AFTER reading the payload, making it useless).
-    const MAX_XDATA_ITERATIONS: usize = 256;
-    let mut had_extended = false;
-    let mut iterations = 0usize;
-    loop {
-        if iterations >= MAX_XDATA_ITERATIONS {
-            return Err(crate::error::Error::SectionMap(format!(
-                "common entity XDATA loop exceeded {MAX_XDATA_ITERATIONS} iterations; \
-                 malformed or adversarial payload"
-            )));
-        }
-        iterations += 1;
-        let size = c.read_bs_u()?;
-        if size == 0 {
-            break;
-        }
-        had_extended = true;
-        // Appid handle (may be absolute or offset).
-        let _appid: Handle = c.read_handle()?;
-        // App-data payload: `size` raw chars (bounded above via iteration cap).
-        for _ in 0..size {
-            let _ = c.read_rc()?;
-        }
-    }
+    let had_extended = skip_extended_data(c)?;
 
     // -- Graphics preview ----------------------------------------------------
     let had_graphics = c.read_b()?;

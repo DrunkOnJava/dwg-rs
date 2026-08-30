@@ -134,27 +134,41 @@ fn build_object_record<E: ElementEncoder>(
     version: Version,
     entity: &E,
 ) -> Vec<u8> {
-    let mut w = BitWriter::new();
-    // R2010+: MC handle-stream-size-in-bits. We emit no handle stream,
-    // so the value is 0 — a single 0x00 byte with no continuation bit.
-    if version.is_r2010_plus() {
-        w.write_rc(0x00);
-    }
-    // Object type: R2010+ uses a 2-bit dispatch tag (00 = one raw byte
-    // follows); earlier R2004-family releases use a plain BS.
-    if version.is_r2010_plus() {
-        w.write_bb(0b00);
-        w.write_rc(type_code as u8);
-    } else {
-        w.write_bs(type_code as i16);
-    }
-    // Object handle: 4-bit code + 4-bit counter + counter bytes.
-    w.write_handle(0, handle);
-    write_common_entity_preamble(&mut w, version);
-    entity
-        .encode(&mut w, version)
-        .expect("ElementEncoder impls for LINE/CIRCLE/ARC/POINT are infallible");
-    let payload = w.into_bytes();
+    // The R2000-R2007 `RL` object-data-size-in-bits can only be known
+    // once the body is written, and it is a fixed-width field, so the
+    // payload is built twice: once with a placeholder to measure, then
+    // again with the measured value. Both passes produce the same
+    // number of bits.
+    let emit = |obj_size_bits: u32| -> BitWriter {
+        let mut w = BitWriter::new();
+        // R2010+: MC handle-stream-size-in-bits. We emit no handle stream,
+        // so the value is 0 — a single 0x00 byte with no continuation bit.
+        if version.is_r2010_plus() {
+            w.write_rc(0x00);
+        }
+        // Object type: R2010+ uses a 2-bit dispatch tag (00 = one raw byte
+        // follows); earlier R2004-family releases use a plain BS.
+        if version.is_r2010_plus() {
+            w.write_bb(0b00);
+            w.write_rc(type_code as u8);
+        } else {
+            w.write_bs(type_code as i16);
+        }
+        // R2000-R2007 (§19.1): object data size in bits, between the
+        // object type and the object handle.
+        if version.has_object_size_field() {
+            w.write_rl(obj_size_bits);
+        }
+        // Object handle: 4-bit code + 4-bit counter + counter bytes.
+        w.write_handle(0, handle);
+        write_common_entity_preamble(&mut w, version);
+        entity
+            .encode(&mut w, version)
+            .expect("ElementEncoder impls for LINE/CIRCLE/ARC/POINT are infallible");
+        w
+    };
+    let obj_size_bits = emit(0).position_bits() as u32;
+    let payload = emit(obj_size_bits).into_bytes();
 
     let mut header = BitWriter::new();
     header.write_ms(payload.len() as u64);
