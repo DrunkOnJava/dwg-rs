@@ -441,7 +441,7 @@ list does not start at a fixed offset:
 [20..24]  RL  (R2010+) unknown, observed 0
 [24..28]  RL  (R2010+) size of the class data area, in bits
 -- bit stream: byte 20 on R2004, byte 28 on R2010+ --
-BS max_class_number, RC, RC, B, then one record per class
+BL max_class_number, B, then one record per class
 ```
 
 From R2007 the records themselves split the same way object records do:
@@ -449,6 +449,71 @@ every record's non-string fields first, then `3 × N` strings as a block
 in record order. `ClassMap::parse` accepts a table only when its class
 numbers run consecutively from 500, so a mislocated stream reports no
 classes rather than a desynchronised list a dispatcher would trust.
+
+### The class record's width fields are `BL`, not `BS` (2026-08-30, #37)
+
+The spec describes this record twice and the two descriptions disagree:
+§10.2 (R18+) gives `BS max_class_number` + `RC 0x00` + `RC 0x00`,
+`BS dwg_version` and `BS maintenance_version`; §5.8 (R2007) gives
+`BL max_class_number` and `BL` for both version fields. The bytes side
+with §5.8, and the readings are bit-identical almost everywhere:
+
+| Tag | `BS` consumes | `BL` consumes |
+|---|---|---|
+| `10` | 2 bits (value 0) | 2 bits (value 0) |
+| `01` | 10 bits (one byte) | 10 bits (one byte) |
+| `00` | 18 bits (`RS`) | 34 bits (`RL`) |
+
+`BS max_class_number` + two `RC 0x00` is 34 bits over the same four
+little-endian bytes as a tag-`00` `BL`, so the header never
+discriminates. The record tail does — but only when a version field
+exceeds 255, which no class on `arc_2004` / `arc_2010` / `arc_2013`
+does. On `sample_AC1032.dwg` four classes do:
+
+| Class | DXF name | `num_objects` | `dwg_version` | `maintenance_version` | record width |
+|---|---|---|---|---|---|
+| 508 | `MLEADERSTYLE` | 2 | 33 | 329 | 113 bits |
+| 516 | `ACDBDETAILVIEWSTYLE` | 2 | 33 | 329 | 113 bits |
+| 520 | `WIPEOUT` | 1 | 33 | 329 | 113 bits |
+| 526 | `MULTILEADER` | 15 | 33 | 329 | 113 bits |
+
+Every other record on that file is 57-89 bits wide. Reading the
+329 as a `BS` consumes 18 bits instead of 34, so record 8 ran 16 bits
+long, record 9 hit a reserved `BL` tag, and the consecutiveness check
+threw the whole table away — leaving 194 `Custom(N)` records
+undispatchable.
+
+Three independent measurements confirm the corrected field list. With
+it, exactly `max_class_number - 500 + 1` records decode with
+consecutive class numbers, and the `3 × N` strings that follow end
+precisely where the section's §19.4.1 string-stream trailer says they
+should:
+
+| File | records | records end | strings end | trailer at `size_in_bits − 32` | trailer length word |
+|---|---|---|---|---|---|
+| `arc_2010.dwg` | 10 | 877 | 8665 | 8682 | 7788 = 8665 − 877 |
+| `arc_2013.dwg` | 9 | 788 | 7826 | 7843 | 7038 = 7826 − 788 |
+| `sample_AC1032.dwg` | 50 | 4093 | 49897 | 49930 | 45804 = 49897 − 4093 |
+
+(bit offsets relative to the start of the bit stream). On the
+pre-R2007 layout, where the names are inline and there is no string
+block, the equivalent check is the declared size: `arc_2004.dwg`'s ten
+records consume 5161 of the 5168 bits its header declares, the
+remaining 7 being byte padding. A fourth check
+is the `num_objects` field the record tail now carries: summed over the
+corpus and compared with what `all_objects()` actually walks, it agrees
+exactly on the high-count classes — VISUALSTYLE 240 / 240, SCALE
+186 / 186, ACDBDETAILVIEWSTYLE 11 / 11, ACDBSECTIONVIEWSTYLE 11 / 11,
+MLEADERSTYLE 11 / 11, TABLESTYLE 10 / 10,
+BLOCKGRIPLOCATIONCOMPONENT 6 / 6 — a coincidence the mis-aligned
+reading could not produce. Where the two disagree (DICTIONARYVAR
+104 / 72, MULTILEADER 15 / 10, LAYOUT 4 / 0, CELLSTYLEMAP 18 / 3) the
+shortfall is on the *walk* side, i.e. objects the handle-map walker
+does not reach — a separate gap, not a class-table one.
+
+Reproduce with `cargo run --release --example probe_class_layout --
+samples/sample_AC1032.dwg`, which prints the per-field bit offsets,
+the record widths, the resolved names, and the trailer arithmetic.
 
 ## 8. Write pipeline (current scope)
 
