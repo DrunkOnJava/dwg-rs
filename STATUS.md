@@ -6,7 +6,7 @@ scrolling the changelog.
 
 ## Summary
 
-- **Lib tests:** 766 passing in default/debug and release-all-features
+- **Lib tests:** 774 passing in default/debug and release-all-features
   profiles, clippy + fmt clean.
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
@@ -14,16 +14,16 @@ scrolling the changelog.
   entity-regression (18), real-DWG value regression (8),
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
-- **Current real-file decode coverage:** 3,695 decoded / 741 skipped /
-  **9 errored** / 83.1% on the local 19-file `samples/` corpus. The
+- **Current real-file decode coverage:** 3,911 decoded / 525 skipped /
+  **9 errored** / 88.0% on the local 19-file `samples/` corpus. The
   R2018 `sample_AC1032.dwg` sample is 776 / 57 / 9 / 92.2%. Per
-  version: R14 48.6%, R2000 84.4%, R2004 97.5%, R2007 82.8%,
+  version: R14 56.8%, R2000 95.7%, R2004 97.5%, R2007 95.7%,
   R2010 97.8%, R2013 97.0%, R2018 92.2%.
 - **All nineteen corpus files now decode.** Until #104/#110 the nine
   R14 / R2000 / R2007 files reported `n/a (no-handle-map)` — no record
   of those releases reached a decoder, so none of them counted in
   either column. The aggregate rate therefore *fell* from 95.6% while
-  the decoded count rose by 1,422: the old figure averaged ten files,
+  the decoded count rose by 1,638: the old figure averaged ten files,
   the new one nineteen. The per-version rows are comparable; the
   aggregates are not.
 - **Every entity record is boundary-checked** (#63). The nine errors
@@ -141,7 +141,10 @@ scrolling the changelog.
   decoder asserts its data fields end exactly on the string-stream
   start bit, so a wrong layout errors rather than returning garbage.
 - Named-object dictionary, ACAD_GROUP, ACAD_SCALE, ACAD_VISUALSTYLE
-  (R2010+, 58 properties on R2013/R2018), ACAD_PROPERTYSET_DATA, and
+  (every release: one flag-less list for R14 / R2000 / R2004 / R2007,
+  the `(value, flag)` list from R2010, 58 properties on R2013/R2018 —
+  456 of 456 corpus records, ARCHITECTURE.md §7d.1b),
+  ACAD_PROPERTYSET_DATA, and
   LAYOUT + PLOTSETTINGS (one §20.4.84 field list, closing on all 31
   corpus LAYOUT records across R2004, R2010, R2013 and R2018).
 - MLINESTYLE from the §20.4.73 prescription, closing on all 10 corpus
@@ -305,9 +308,10 @@ These have genuine open scope requiring focused work, not stubs.
   ACAD_SCALE now dispatch through `src/objects/modern.rs`, taking their
   `TV` fields from the R2007+ string stream and checking their data
   fields end exactly on the record's data-stream boundary.
-  VISUALSTYLE dispatches on R2004, R2010, R2013 and R2018 — 240 of its
-  240 corpus records, the R2004 band on a second, flag-less field list
-  measured against all 72 of its records — LAYOUT (with its embedded
+  VISUALSTYLE dispatches on every release the crate reads — 456 of its
+  456 corpus records, R14 through R2018, on two field lists: the
+  flag-less one that covers R14 / R2000 / R2004 / R2007 and the
+  `(value, flag)` one R2010 introduced — LAYOUT (with its embedded
   PLOTSETTINGS block)
   dispatches on all 31 of its corpus records, and MLINESTYLE (10),
   MLEADERSTYLE (11), ACDBDETAILVIEWSTYLE (11) and
@@ -347,9 +351,9 @@ These have genuine open scope requiring focused work, not stubs.
   stream, treat an `H` slot as consuming no data bits, and assert the
   data fields end exactly on the record's data-stream boundary — and
   since #63 so does every other entity type, on every band. What is
-  left under this issue is mostly *coverage*: the 741 skipped records
+  left under this issue is mostly *coverage*: the 525 skipped records
   belong to types with no field list matched against real bytes yet,
-  and 645 of them are in the three release bands that only became
+  and 429 of them are in the three release bands that only became
   walkable with #104/#110. The alignment residue is the nine errored records
   tabulated in the #63 note above.
 
@@ -357,13 +361,6 @@ These have genuine open scope requiring focused work, not stubs.
   stream decoder shipped (SEC-04, #279); wiring it into
   `section_map` as a fallback path when CRC-8 fails is a separate
   cut.
-- **VISUALSTYLE on R14 / R2000 / R2007 — 216 records, layout not
-  determined.** #64 measured the R2004 "flag-less" field list and #47
-  the R2010+ `(value, flag)` one. Neither closes on the three earlier
-  bands: all 24 records of each of those nine files miss their
-  data-stream boundary under the R2004 list, so a third layout exists.
-  The records stay unhandled rather than decoded from a list that does
-  not close (`objects/acad_visual_style.rs`).
 - **R14 DIMSTYLE.** §20.4.68 gives R13/R14 their own block — the flags
   come first as `B`s and `RC`s, then the `BD` variables, in an order
   that shares nothing with the R2000+ list. Two records per R14 file
