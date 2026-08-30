@@ -4,6 +4,53 @@ Thanks for your interest. This project is small, solo-maintained,
 and evolving — contribution guidelines are intentionally light, but
 a few practices keep the repo healthy.
 
+## Quickstart: clone to first PR in ten minutes
+
+Everything CI checks runs locally with stock cargo — no corpus, no
+credentials, no Windows box.
+
+```sh
+git clone git@github.com:DrunkOnJava/dwg-rs.git && cd dwg-rs
+cargo build --release
+cargo run --release --example basic_open -- path/to/any.dwg   # optional smoke
+```
+
+The gate (identical to the required CI checks — run it before every push):
+
+```sh
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --release
+cargo deny check all          # cargo install cargo-deny
+```
+
+Two soft gates you will also hit:
+
+- **Docstrings.** The docs-rs workflow requires at least 80% of `pub fn` in
+  `src/` to carry a `///` line directly above them (attributes in between
+  are fine). Today the tree is at 100% — keep it there: every new `pub fn`
+  gets a one-line doc naming the ODA bit code, flag mask, or spec section
+  it implements.
+- **Benchmarks.** `cargo bench` results are compared against `main`; a
+  ≥ 20% regression on any Criterion bench fails the job. Measure before
+  touching `src/bitcursor.rs`, `src/bitwriter.rs`, or `src/lz77*.rs`.
+
+Coverage numbers in `README.md` / `STATUS.md` are *measured*, never
+estimated. If your change moves them, re-run the report on a real corpus
+and paste the table into the PR:
+
+```sh
+git clone --depth 1 https://github.com/nextgis/dwg_samples ../dwg_samples
+cargo run --release --example coverage_report -- ../dwg_samples
+```
+
+Pick a starting point from the
+[`good first issue`](https://github.com/DrunkOnJava/dwg-rs/labels/good%20first%20issue)
+label — each one names the spec section, the file, and the test that will
+prove it. Then: branch → change → gate → PR (the template asks for the ODA
+spec citation and the source-provenance declaration below). `main` is
+squash-merge only, so one PR is one commit; keep them small.
+
 ## What's welcome
 
 - **Entity decoder coverage — the #1 most-wanted contribution.** The

@@ -296,6 +296,13 @@ It is **pre-alpha and not a finished DWG reader.** The container layer is shippi
 
 ## Contributing
 
+New here? [`CONTRIBUTING.md`](./CONTRIBUTING.md) opens with a ten-minute
+quickstart — clone, run the exact gate CI runs, pick a
+[`good first issue`](https://github.com/DrunkOnJava/dwg-rs/labels/good%20first%20issue)
+(each names the spec section, the file, and the test that proves it), PR.
+Coverage numbers in this README are measured with
+`examples/coverage_report.rs`, never estimated.
+
 The project needs help, in rough order of impact:
 
 1. **Per-version entity preamble fixes** — figuring out why LINE and MTEXT fail on R2004/R2010/R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
