@@ -225,7 +225,7 @@ jobs:
       # --------------------------------------------------------------
       - name: Save `main` baseline cache
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
         with:
           path: target/criterion
           key: criterion-baseline-${{ hashFiles('.github/workflows/perf.yml', 'Cargo.lock', 'benches/**/*.rs') }}
