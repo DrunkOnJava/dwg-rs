@@ -1,7 +1,7 @@
 name: Feature request
 description: Suggest a new decoder, API surface, or format feature.
 title: "[feat] "
-labels: ["enhancement", "triage"]
+labels: ["type:feature", "needs-triage"]
 body:
   - type: markdown
     attributes:

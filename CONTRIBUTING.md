@@ -44,6 +44,13 @@ git clone --depth 1 https://github.com/nextgis/dwg_samples ../dwg_samples
 cargo run --release --example coverage_report -- ../dwg_samples
 ```
 
+The plan is [`ROADMAP.md`](ROADMAP.md) and its milestones; every section of
+ODA spec v5.4.1 and its state on `main` is in
+[`docs/spec-coverage.md`](docs/spec-coverage.md), and each `missing` or
+`partial` row names the issue that tracks it. Cite spec sections by their
+v5.4.1 numbers. How issues are labelled and placed is in
+[`docs/maintaining.md`](docs/maintaining.md).
+
 Pick a starting point from the
 [`good first issue`](https://github.com/DrunkOnJava/dwg-rs/labels/good%20first%20issue)
 label — each one names the spec section, the file, and the test that will

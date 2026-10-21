@@ -89,6 +89,16 @@ TABLESTYLE have no field list matched against real bytes yet. The
 unidentified trailing bits) and LEADER (1 record, twelve bits short).
 Closing both is the 0.2.0 milestone.
 
+## Roadmap
+
+The plan to 1.0 is the [milestones](https://github.com/DrunkOnJava/dwg-rs/milestones)
+and their epics, described in [`ROADMAP.md`](./ROADMAP.md).
+[`docs/spec-coverage.md`](./docs/spec-coverage.md) gives every section of
+ODA spec v5.4.1 its state on `main`, and
+[`docs/release-1.0-criteria.md`](./docs/release-1.0-criteria.md) is the 1.0
+release decision: no release tagged 1.0 until every requirement there has
+passed.
+
 ## Capability matrix at a glance
 
 | Layer | Status | Notes |
@@ -354,7 +364,7 @@ The project needs help, in rough order of impact:
 Before submitting a PR:
 
 - Run `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
-- Cite the ODA spec section for any new decoder behavior.
+- Cite the ODA spec section for any new decoder behavior, numbered as in v5.4.1 ([`docs/spec-coverage.md`](./docs/spec-coverage.md) lists them).
 - **Source-provenance declaration**: confirm in the PR body that your contribution does not incorporate executable code (not just comments, not just API shapes) from any source whose license is incompatible with Apache-2.0 — in particular, no Autodesk SDK source, no ODA SDK / Teigha source, and no GPL-licensed DWG implementation source (LibreDWG). Reading algorithm-description comments in permissively-licensed projects (MIT / Apache / BSD) to resolve a spec ambiguity is allowed and should be disclosed in the PR body so we can record it in [`CLEANROOM.md`](./CLEANROOM.md). The PR template has a checkbox for this.
 - Follow the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) code of conduct.
 

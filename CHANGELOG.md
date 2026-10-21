@@ -8,6 +8,29 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — the roadmap to 1.0 as milestones, epics and a spec coverage matrix (2026-10-21)
+
+The plan is now on GitHub: seven milestones from 0.2.0 to 1.0.0, eighteen
+epics and their sub-issues, every open issue labelled and placed. 1.0 has no
+gaps or limitations: every release from R13 to R2018 and every section of
+ODA spec v5.4.1, values equal to AutoCAD's own DXF export, a writer AutoCAD
+opens, and complete exports, viewer and Python bindings.
+
+- `docs/spec-coverage.md` (data in `docs/data/spec-coverage.tsv`) lists all
+  138 sections of the spec with their state on `main`: 86 close on every
+  corpus record, 7 have an unmeasured decoder, 11 are partial, 34 are
+  missing, and none is complete, because no value has yet been compared
+  with AutoCAD's export.
+- `docs/release-1.0-criteria.md` lists each 1.0 requirement with its bar,
+  the value measured now and a status (passed, failed, not measured).
+- `docs/maintaining.md` sets out the tracker: labels, milestones, epics,
+  triage and the monthly housekeeping that `tools/maintainer/audit.py`
+  checks.
+- `ROADMAP.md` is rewritten around the milestones.
+- CodeQL scans the workflows and the Rust sources (`.github/workflows/codeql.yml`),
+  and the `main-protection` ruleset is kept as code in `.github/rulesets/`.
+- The issue forms apply labels that exist.
+
 ### Fixed — a record's `MS` excludes its own `MC`, and the class table is not always a live census (2026-08-30, closes #77, closes #76)
 
 **The walker's raw slice ended one `MC` width short on every R2010+
