@@ -19,6 +19,42 @@ updates:
         update-types:
           - patch
 
+  # The fuzz harness and the WASM viewer are workspaces of their own, with
+  # their own lockfiles.
+  - package-ecosystem: cargo
+    directory: "/fuzz"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "deps"
+      include: scope
+    groups:
+      fuzz:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directory: "/wasm"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: "deps"
+      include: scope
+    groups:
+      patch-updates:
+        update-types:
+          - patch
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

@@ -1,166 +1,137 @@
 # Roadmap
 
-`dwg-rs` is pre-alpha. This document maps concrete engineering work to
-named version milestones. It is a living document — expect it to move
-as gaps get closed or new ones surface.
+Last reviewed: 2026-10-21
 
-## 0.1.0-alpha.1 — current
+The plan is the [milestones](https://github.com/DrunkOnJava/dwg-rs/milestones),
+the epics under them, and the sections of the spec dwg-rs is built from. This
+page describes them; [`docs/spec-coverage.md`](docs/spec-coverage.md) gives
+every section of the *Open Design Specification for .dwg files* v5.4.1 its
+state on `main`; [`docs/release-1.0-criteria.md`](docs/release-1.0-criteria.md)
+is the 1.0 release decision; and [`docs/maintaining.md`](docs/maintaining.md)
+says how the tracker is run.
 
-**Theme: honest foundation.** Container parsing, metadata, and an
-object-stream walker that exposes every record. Typed entity decoders
-exist for 27 entity types but real-world decode coverage is low (see
-`README.md` for the measured numbers).
+## Where 1.0 is going
 
-Ship bar for this milestone:
+dwg-rs 1.0 is a complete, permissively licensed DWG library with no gaps or
+limitations (the maintainer's decision, 2026-10-21):
 
-- [x] R2004+ container parsing — file-open header, section map,
-      section info, LZ77 decompression, Sec_Mask layer-1
-- [x] Metadata parsers — `SummaryInfo`, `AppInfo`, `Preview`,
-      `FileDepList`
-- [x] Handle map + class map parsers
-- [x] Object-stream walker with typed dispatch (`DispatchSummary`)
-- [x] Source-provenance policy documented in `NOTICE` + `CLEANROOM.md`
-- [x] Safe-Rust parser (`#![deny(unsafe_code)]`)
-- [x] Per-entity decoders verified against hand-crafted synthetic
-      bit streams (193 unit + proptest tests)
-- [x] LZ77 decompression-bomb defense (`DecompressLimits`)
-- [x] `BitWriter` correctness fixes for `position_bits`,
-      `write_mc(i64::MIN)`, `try_write_3b`, BLL
-- [x] `HATCH` decoder returns `Error::Unsupported` instead of
-      silently misaligning when `num_paths > 0`
-- [x] `ObjectWalker::collect_all_strict` / `collect_all_lossy`
-      diagnostic APIs
+- it reads every release from R13 to R2018, every section of ODA spec
+  v5.4.1, with every value equal to AutoCAD's own DXF export of the same
+  drawing;
+- it writes DWG that AutoCAD opens without recovery, on every release;
+- its DXF export equals AutoCAD's, and its SVG, PDF and glTF exports equal
+  the decoded geometry;
+- the browser viewer has no stubs, and the Python bindings reach the whole
+  reader.
 
-## 0.2.0 — entity-decode correctness
+## Where it stands (2026-10-21)
 
-**Theme: make the decoders work on real files.** The biggest known
-gap: `coverage_report.rs` shows only 20.1% of entities decode on the
-measured corpus. The first boundary layer is now fixed for
-R2013/R2018 LINE/CIRCLE/ARC records, common LWPOLYLINE vertices, and
-R2007+ BLOCK_HEADER / simple LTYPE string-stream names, but table, text,
-insert, dimension, hatch, and remaining LWPOLYLINE variants still need
-real-file field-layout work.
+| Area | State on `main` | Evidence |
+|---|---|---|
+| Containers | R14 to R2018 read, R2007 included (#110); R13 never seen | STATUS.md |
+| Object walk | Every R2004+ corpus file tiles its object stream with zero bytes between records; class census and reference closure closed on all 19 files | STATUS.md, `examples/probe_reference_closure` |
+| Decode | 3,911 records decoded, 525 skipped, 9 errored (88.0%) on a local 19-file corpus; every entity record boundary-checked (#63) | README.md, measured locally 2026-08-30 |
+| Values | Checked for LINE, CIRCLE and ARC on R2013 only; nothing compared with AutoCAD's DXF | `tests/r2013_entity_values.rs` |
+| Spec coverage | Of the 104 object prescriptions in §20.4, most close on the corpus; 22 have no decoder and 8 are partial; the header variables (§9) and seven data sections are unread | [`docs/spec-coverage.md`](docs/spec-coverage.md) |
+| Writer | R2004-family section round-trips; no file shown to open in AutoCAD | ARCHITECTURE.md §8 |
+| Exports, viewer, Python | DXF, SVG, glTF and PDF written and checked syntactically; the viewer has stubs; Python has type stubs only | STATUS.md |
+| CI | Synthetic fixtures only: no real DWG file is read in CI | `.github/workflows/ci.yml` |
+| Releases | Nothing published; a v0.1.0-alpha.1 draft from April | GitHub releases, crates.io |
 
-Ship bar:
+## Milestones
 
-- [x] Handle-driven walk reaches modelspace LINE/CIRCLE/ARC geometry
-      consistently across the R2013 samples and the R2018 AC1032
-      sample's LINE population
-- [x] Bit-cursor alignment inside those typed geometry payloads
-      produces finite, plausible coordinates
-- [x] Real-DWG value tests in `tests/r2013_entity_values.rs` are
-      active in the default test run and pass
-- [x] Common LWPOLYLINE vertices decode first-point `RD/RD` and
-      subsequent `DD/DD`, pinned by AC1032 plausibility coverage
-- [x] Recover R2007+ `BLOCK_HEADER` names from the split string stream
-      and pin them against `sample_AC1032.dwg`
-- [x] Recover simple R2007+ `LTYPE` names/descriptions from the split
-      string stream and pin `ByBlock`, `ByLayer`, and `Continuous`
-      against `sample_AC1032.dwg`
-- [ ] Extend the real-file field-layout fixes to TEXT / MTEXT strings,
-      INSERT rotation, remaining table records, DIMENSION, HATCH,
-      remaining LWPOLYLINE flag variants, and trailing-handle variants
-- [ ] Decode-rate ≥ 75% aggregate on the measured corpus
-- [ ] `tests/fixtures/raw_entities/` holds hand-authored byte-level
-      fixtures for `LINE`, `CIRCLE`, `ARC`, `POINT`, `LWPOLYLINE`,
-      `TEXT`, `MTEXT`, `INSERT`, `HATCH` (no paths) with asserted
-      field values
+### 0.2.0: measured reader, first release
 
-## 0.3.0 — older-format object walking + R2007 full support
+Every published number comes from a public corpus measured in CI, values are
+checked against AutoCAD's DXF, every spec section is traced, the 9 errored
+corpus records are closed, and the `dwg` crate is published for the first
+time.
 
-**Theme: stop returning `None` from `decoded_entities()` on R14, R2000,
-and R2007.** Shipped — every one of the nineteen corpus files walks,
-with zero errored records outside the three named R2018 residues.
+- Measure the reader on public files in CI (#94): the
+  [nextgis/dwg_samples](https://github.com/nextgis/dwg_samples) drawings
+  (AutoCAD 2016 saves of the same drawings as R14 to 2013, each with
+  AutoCAD's DXF export) fetched by pinned hash (#95), the R2018 file's
+  provenance (#96), the coverage report ratcheted in CI (#97), and a
+  Measure workflow (#98).
+- AutoCAD's own DXF export as the value oracle (#99): a DXF reader keyed by
+  handle (#100), record pairing (#101), field scorers (#102) and their CI
+  ratchet (#103).
+- Trace every spec section (#104): the coverage matrix's CI check (#105), one
+  citation numbering (#106), and the spec's own worked examples as fixtures
+  (#107).
+- Close the decode residue (#108): the 9 errored records (#71), latent wrong
+  field types (#62), the pre-R2007 symbol tables (#34, #35, #40), and two API
+  traps (#81, #83).
+- First release (#109): trusted publishing (#110), the stale draft (#111),
+  numbers from CI (#112), and post-publish checks (#113).
+- Repository health (#114): the audit (#115), security settings (#116),
+  rulesets as code (#117).
 
-Ship bar:
+### 0.3.0: every spec section read, on every release
 
-- [x] Object-stream walker for R14 / R2000 layouts — §3.2.6 flat
-      locators, object map offsets are absolute file offsets
-- [x] R2007 container implemented (§5.1-§5.4) — Reed-Solomon
-      de-interleave, the §5.10 LZ variant, page map, section map;
-      `.section` payloads return decoded bytes
-- [x] `decoded_entities()` returns `Some(Ok(...))` for all seven
-      release families (R14, R2000, R2004, R2007, R2010, R2013, R2018)
+The reader is complete: every section of chapters 2 to 29, and every
+prescription of §20.4, for every release from R13 to R2018, on a corpus that
+holds each one.
 
-Remaining under this theme, now that the records are visible:
+- File structure on every release (#118): R13 (#119), the R13-R15 header
+  fields (#120), the second file header (#121), protected and signed
+  drawings (#122), colour objects (#123), the containers' constants (#124).
+- Header variables, §9 (#125): a table-driven decoder (#126) and the
+  variables of each release band (#127 to #130).
+- Data sections (#131): AuxHeader (#132), RevHistory, ObjFreeSpace and
+  Template (#133), VBAProject (#134), the unnamed and unknown sections
+  (#135), DataStorage and the ACIS payloads (#136), and re-verifying the
+  sections already read (#137).
+- Every object prescription of §20 (#138), by family: common formats (#139),
+  text (#140), blocks (#141), polylines (#142), curves (#143), dimensions
+  (#144), planar and ACIS (#145), viewports and layouts (#146), leaders,
+  multilines and hatches (#147), symbol tables (#148), dictionaries and
+  non-graphical objects (#149), raster, OLE and geolocation (#150), the
+  TABLE family (#151), and the classes the spec does not prescribe (#152).
+- A corpus that holds every section on every release (#153): a registry
+  (#154), a section-by-release coverage report (#155), an authored corpus
+  (#156), a survey of public sources (#157), and a held-out set for 1.0
+  (#158).
 
-- [x] VISUALSTYLE on R14 / R2000 / R2007 — 216 records; there is no
-      third field list. R14 / R2000 are the R2004 list read with
-      §2.11's pre-R2004 bare-index colours, and R2007 is the R2004 list
-      plus one 2-bit slot (#73)
-- [ ] DIMSTYLE on R14 — §20.4.68 gives R13/R14 their own block order
-- [ ] Password-protected R2007 files (refused, not mis-decoded)
+### 0.4.0: a DWG writer AutoCAD opens
 
-## 0.4.0 — write path
+Byte-identical round-trips (#160), the R2007 (#161) and R13-R2000 (#162)
+containers, a real LZ77 compressor (#163), header variables (#164), an
+encoder for every object (#165), an authoring API (#166), and an openability
+protocol with recorded evidence (#167). Epic: #159.
 
-**Theme: round-trip.** The container layer's `file_writer.rs` now has
-an experimental R2004-family byte-buffer assembler, but the public
-writer is not complete until it has a stable `DwgFile::to_bytes()` API,
-byte-identical canonical fixtures, and external CAD acceptance evidence.
+### 0.5.0: exports equal to AutoCAD's
 
-Ship bar:
+DXF equal to AutoCAD's (#169), nothing dropped silently (#170), SVG and PDF
+geometry (#171), glTF that validates (#172), and solids tessellated from their
+ACIS data (#173). Epic: #168.
 
-- [x] Stage 2 — section encoding (LZ77 compress + page pack +
-      section CRC)
-- [x] Stage 3 — full buffer assembly (system section + data sections
-      + section map + section info)
-- [x] Stage 4 — CRC + checksum computation at every spec-defined
-      splice point
-- [x] Stage 5 — file-level byte-buffer assembly plus in-crate
-      section round-trip validation
-- [ ] File-level write validation against a known real sample file
-- [x] Experimental `DwgFile::to_bytes()` exists for R2004-family
-      section round-trips
-- [ ] `DwgFile::to_bytes()` can reproduce a byte-identical copy of at
-      least one sample file
-- [x] Reed-Solomon FEC implemented for R2004+ system-section
-      generation
-- [ ] `tests/fixtures/canonical/` populated with small, deterministic
-      `.dwg` files generated by the write path
+### 0.6.0: browser viewer and Python bindings
 
-## 0.5.0 — hardening before 1.0
+The viewer without stubs (#174): selection (#175), section box and clipping
+(#176), progressive open (#177), print preview and spaces (#178), and browser
+tests with the zero-network invariant (#179). Python (#180): a pyo3 crate
+(#181), wheels on PyPI (#182), and end-to-end tests (#183).
 
-**Theme: stop being pre-alpha.**
+### 0.9.0: hardening and the stable surface
 
-Ship bar:
+Hardening (#184): one ParseLimits (#185), best-effort diagnostics (#186), fuzz
+hours (#187), no panics on 64- or 32-bit targets (#188), performance budgets
+(#189). The stable surface (#190): a workspace split (#191), semver checks
+(#192), examples that run (#193), and release policies (#194).
 
-- [ ] Each fuzz target under `fuzz/` has logged at least 1 hour of
-      stable run time with no new findings; stable corpus seeds
-      committed to `fuzz/corpus/`
-- [ ] `ParseLimits` struct exposes every cap; conservative default,
-      permissive profile documented
-- [ ] `ParseDiagnostics` available from
-      `DwgFile::from_bytes_best_effort(...)`
-- [ ] Crate split into a workspace: `crates/dwg/` (library),
-      `crates/dwg-cli/` (binaries), `crates/dwg-fuzz/` (fuzz
-      harness)
-- [ ] CLI dependencies (`clap`, `anyhow`, `serde_json`) feature-
-      gated behind `cli` in the library crate
-- [ ] `THREAT_MODEL.md` kept in sync with the cap registry
-- [ ] Published to crates.io (behind the existing manual-approval
-      gate in `release.yml`)
+### 1.0.0: complete and stable
 
-## 1.0.0 — stable API
-
-**Theme: commit to the public surface.**
-
-Ship bar:
-
-- [ ] Every `pub` symbol reviewed for semantic-versioning
-      commitment; anything experimental moved under a
-      `pub mod experimental` module
-- [ ] A reference table maps each ODA spec section to the module
-      and function that implements it, with open gaps marked
-- [ ] Round-trip tests pass on a published test corpus covering
-      every release family
-- [ ] Published docs on docs.rs; crate listed on crates.io as the
-      canonical Apache-2.0 Rust DWG reader
-- [ ] Release cadence documented; a deprecation policy published
-      before the first minor-bump after 1.0
+The criteria in [`docs/release-1.0-criteria.md`](docs/release-1.0-criteria.md)
+all passed (#195), held-out files measured before any fix (#196), and
+practitioners' reports (#197).
 
 ## How to help
 
-If you want to pick something up, the highest-leverage items are in
-**0.2.0** (decode correctness) and **0.4.0** (write path). See
-`CONTRIBUTING.md` for the workflow and `CLEANROOM.md` for the source
-constraints before submitting a PR.
+The highest-leverage work is in 0.2.0: CI measurement (#94) and the DXF
+oracle (#99) make every later claim checkable. After that, any `missing` or
+`partial` row of [`docs/spec-coverage.md`](docs/spec-coverage.md) is a
+self-contained task: pick its family issue, say which section you are taking,
+and cite the section in the PR. Corpus files with a DXF export and a licence
+that lets CI fetch them are as valuable as code (#153). Read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CLEANROOM.md`](CLEANROOM.md) first.

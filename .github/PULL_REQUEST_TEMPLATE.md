@@ -10,7 +10,7 @@ Thank you for the PR. Please read below before submitting.
 
 <!--
 If this PR decodes a new format feature, cite the ODA spec section
-(e.g. "spec §19.4.25 LWPOLYLINE"). If it fixes a bug, link the issue.
+by its v5.4.1 number (e.g. "spec §20.4.85 LWPLINE"; docs/spec-coverage.md lists them). If it fixes a bug, link the issue.
 If it improves entity-decode coverage, include before/after numbers
 from `cargo run --release --example coverage_report -- <path>`.
 -->
@@ -22,7 +22,7 @@ from `cargo run --release --example coverage_report -- <path>`.
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings` passes
 - [ ] `cargo test --release` passes
 - [ ] `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` passes
-- [ ] New code covered by unit or proptest tests
+- [ ] Shown working on real files: the corpus records it was measured on, with the command that reproduces it (no new unit tests)
 - [ ] For decoder changes: coverage-report numbers attached
 -->
 

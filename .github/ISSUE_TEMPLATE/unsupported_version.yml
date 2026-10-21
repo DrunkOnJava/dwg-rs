@@ -1,7 +1,7 @@
 name: Unsupported DWG version
 description: The reader rejects or mis-handles a version that isn't in the R13–R2018 support matrix.
 title: "[version] AC10XX — "
-labels: ["version", "enhancement"]
+labels: ["type:feature", "area:container", "needs-triage"]
 body:
   - type: markdown
     attributes:

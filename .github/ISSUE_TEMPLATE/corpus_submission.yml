@@ -1,7 +1,7 @@
 name: Corpus submission
 description: Contribute a publicly-redistributable DWG file for the project's test corpus.
 title: "[corpus] "
-labels: ["corpus", "help-wanted"]
+labels: ["type:test", "area:corpus", "help wanted", "needs-triage"]
 body:
   - type: markdown
     attributes:
