@@ -3,7 +3,7 @@ name: Streaming invariants
 on:
   pull_request:
   push:
-    branches: [main, codex/streaming-core]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
