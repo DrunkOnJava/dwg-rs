@@ -1,0 +1,36 @@
+name: Streaming invariants
+
+on:
+  pull_request:
+  push:
+    branches: [main, codex/streaming-core]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: streaming-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  streaming:
+    name: Streaming E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae
+      - name: Build actual streaming entry point
+        run: cargo build --locked --example stream_header
+      - name: End-to-end header boundary acceptance
+        run: python3 tools/streaming/verify.py target/debug/examples/stream_header
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: streaming-evidence
+          path: streaming-evidence.json
+          if-no-files-found: error

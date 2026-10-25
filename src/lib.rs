@@ -138,6 +138,7 @@ pub mod reed_solomon_encode;
 pub mod section;
 pub mod section_map;
 pub mod section_writer;
+pub mod streaming;
 pub mod string_stream;
 pub mod svg;
 pub mod tables;
