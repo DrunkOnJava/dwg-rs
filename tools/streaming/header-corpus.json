@@ -1,0 +1,90 @@
+{
+  "scope": "Header fields only. No object-count or large-model oracle. Fetched temporarily; source DWGs are not redistributed by this repository.",
+  "source": "https://github.com/nextgis/dwg_samples",
+  "commit": "ff05d5a89ce123da511ed93c5fe5e6df85e02ab8",
+  "files": [
+    {
+      "name": "line_R14.dwg",
+      "bytes": 122353,
+      "sha256": "4ae12afb4052f1be913003b84021054c0e07b08e6aef5e430bf523c6f85c0903",
+      "header": {
+        "magic": "AC1014",
+        "maintenance": 10,
+        "image_seeker": 88,
+        "codepage": 29,
+        "locator_count": 5
+      },
+      "locators": [
+        [
+          0,
+          17479,
+          448
+        ],
+        [
+          1,
+          17927,
+          839
+        ],
+        [
+          2,
+          121246,
+          958
+        ],
+        [
+          3,
+          0,
+          0
+        ],
+        [
+          4,
+          122349,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "line_2000.dwg",
+      "bytes": 116899,
+      "sha256": "f1936ccc5e26dd1aae3f6a26bf5803bdf53d8e0b24f8c18bf3fb96fc540918e0",
+      "header": {
+        "magic": "AC1015",
+        "maintenance": 15,
+        "image_seeker": 220,
+        "codepage": 29,
+        "locator_count": 6
+      },
+      "locators": [
+        [
+          0,
+          17611,
+          559
+        ],
+        [
+          1,
+          18170,
+          742
+        ],
+        [
+          2,
+          116068,
+          679
+        ],
+        [
+          3,
+          0,
+          0
+        ],
+        [
+          4,
+          116895,
+          4
+        ],
+        [
+          5,
+          97,
+          123
+        ]
+      ]
+    }
+  ]
+}

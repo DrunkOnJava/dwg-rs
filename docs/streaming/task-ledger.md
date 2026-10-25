@@ -11,8 +11,8 @@ verification receipts go to `docs/streaming/` or uploaded CI artifacts.
 | Review startup drift, health queue, Git and active jobs | complete | Counts reviewed; no Rust build; existing clients preserved; isolated clean worktree |
 | Audit current reader against requested invariants | complete | Whole-file reads in reader; whole-section buffers; WASM copies uploaded file |
 | File ordered gaps in GitHub, link existing issues | complete | Epic #204 and ordered gaps #205–#212 |
-| Hand-written byte-demand state machine | in progress | Explicit suspension, bounded storage, fail closed |
-| Transport abstraction | pending | Grammar must contain no I/O |
+| Hand-written byte-demand state machine | in progress | Header core passed remote E2E at 9a93736 (run 40234332022); full container/object migration #205 remains open |
+| Transport abstraction | in progress | Grammar must contain no I/O |
 | Portable checkpointing | pending | Fresh-process resume at exact next byte |
 | Spec compiler upgrade | pending | Only after a working hand-written reader; never patch generated output |
 | WASM streaming API and native/WASM gate | pending | Existing full-buffer WASM is insufficient |
@@ -22,3 +22,5 @@ verification receipts go to `docs/streaming/` or uploaded CI artifacts.
 | Known prior prunable worktree | existing peer artifact | Preserve; not owned by this work unit |
 
 Discovered: canonical `synthetic_2000.dwg` has zero header CRC and zero sentinel; the strict §3.2 core must reject it. Track under #205/#211; preserve the fixture until its writer is corrected and the corpus regenerated with proof.
+
+Real inputs acquired read-only outside Git: nextgis `line_R14.dwg` (122353 bytes, SHA-256 `4ae12afb4052f1be913003b84021054c0e07b08e6aef5e430bf523c6f85c0903`) and `line_2000.dwg` (116899 bytes, `f1936ccc5e26dd1aae3f6a26bf5803bdf53d8e0b24f8c18bf3fb96fc540918e0`). Independent prefix CRC/sentinel checks agree with §3.2.6. Native parser measurement pending.

@@ -3,9 +3,9 @@
 //! Output is deterministic across every legal chunk schedule. This reads
 //! only the header; success says nothing about the drawing's object coverage.
 
+use dwg::byte_source::{FileSource, HeaderPoll, poll_header};
 use dwg::streaming::{CHUNK_BYTES, FlatHeaderParser, SourceIdentity};
 use std::fs::File;
-use std::io::Read;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1);
@@ -20,20 +20,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if chunk == 0 || chunk > CHUNK_BYTES {
         return Err("chunk must be 1..=256".into());
     }
-    let mut file = File::open(path)?;
+    let file = File::open(path)?;
     let length = file.metadata()?.len();
     let mut parser = FlatHeaderParser::new(SourceIdentity {
         digest: [0; 32],
         length,
     });
     let mut scratch = [0; CHUNK_BYTES];
-    while let Some(request) = parser.request()? {
-        let n = file.read(&mut scratch[..request.len.min(chunk)])?;
-        if n == 0 {
-            parser.end_of_input()?;
+    let mut source = FileSource::new(file);
+    loop {
+        match poll_header(&mut parser, &mut source, &mut scratch[..chunk])? {
+            HeaderPoll::Complete => break,
+            HeaderPoll::Pending => return Err("source pending; reschedule this poll".into()),
+            HeaderPoll::Progress(_) => (),
         }
-        parser.feed(request.offset, &scratch[..n])?;
     }
-    println!("{:?}", parser.header().ok_or("missing header")?);
+    let header = parser.header().ok_or("missing header")?;
+    print!(
+        "{{\"magic\":\"{}\",\"maintenance\":{},\"image_seeker\":{},\"codepage\":{},\"locator_count\":{},\"locators\":[",
+        std::str::from_utf8(&header.magic)?,
+        header.maintenance,
+        header.image_seeker,
+        header.codepage,
+        header.locator_count
+    );
+    for (index, locator) in header.locators[..header.locator_count as usize]
+        .iter()
+        .enumerate()
+    {
+        if index != 0 {
+            print!(",");
+        }
+        print!("[{},{},{}]", locator.number, locator.offset, locator.size);
+    }
+    println!("]}}");
     Ok(())
 }

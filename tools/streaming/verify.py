@@ -7,6 +7,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.request
 
 SENTINEL = bytes.fromhex('95a04e2899821ae55e41e05f9d3a4d00')
 
@@ -46,12 +47,33 @@ def main():
                 data = fixture(magic, count)
                 base = run(data)
                 assert base[0] == 0, base
-                assert 'FlatHeader' in base[1], base
+                header = json.loads(base[1])
+                assert header['magic'] == magic.decode() and header['locator_count'] == count, header
                 for split in range(1, 33):
                     assert run(data, split) == base, (magic, count, split)
                 for length in range(25 + count * 9 + 18):
                     assert run(data[:length])[0] != 0, (magic, count, length)
                 receipts.append({'magic': magic.decode(), 'locators': count, 'sha256': hashlib.sha256(data).hexdigest(), 'schedules': 33, 'truncations': 25 + count * 9 + 18})
+        manifest = json.loads(Path('tools/streaming/header-corpus.json').read_text())
+        for item in manifest['files']:
+            url = f"https://raw.githubusercontent.com/nextgis/dwg_samples/{manifest['commit']}/{item['name']}"
+            with urllib.request.urlopen(url, timeout=30) as src, path.open('wb') as dst:
+                total = 0
+                digest = hashlib.sha256()
+                while block := src.read(65536):
+                    total += len(block)
+                    assert total <= item['bytes'], 'source exceeds manifest'
+                    digest.update(block)
+                    dst.write(block)
+            assert total == item['bytes'] and digest.hexdigest() == item['sha256'], item
+            data = path.read_bytes()
+            base = run(data)
+            assert base[0] == 0, base
+            expected = dict(item['header'], locators=item['locators'])
+            assert json.loads(base[1]) == expected, (base, expected)
+            for split in (1, 2, 3, 7, 9, 15, 16, 17, 31, 64, 256):
+                assert run(data, split) == base, (item['name'], split)
+            receipts.append({'real_file': item['name'], 'sha256': digest.hexdigest(), 'header': expected, 'schedules': 12})
         for at in (0, 21, 25, 34, 25 + 27, 25 + 27 + 2):
             data = fixture()
             data[at] ^= 0xff
