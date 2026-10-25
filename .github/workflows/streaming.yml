@@ -23,14 +23,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
         with:
           toolchain: stable
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae
+      - name: Enforce grammar isolation and bounded state
+        run: |
+          python3 tools/streaming/check_invariants.py
+          mkdir -p streaming-build
+          rustc --edition=2024 --crate-type rlib tools/streaming/no_std.rs --out-dir streaming-build
+          rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/streaming/no_std.rs --out-dir streaming-build
       - name: Build actual streaming entry point
-        run: cargo build --locked --example stream_header
+        run: cargo build --locked --example stream_header --example streaming_schedules
       - name: End-to-end header boundary acceptance
-        run: python3 tools/streaming/verify.py target/debug/examples/stream_header
+        run: python3 tools/streaming/verify.py target/debug/examples/stream_header target/debug/examples/streaming_schedules
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: streaming-evidence
-          path: streaming-evidence.json
+          path: |
+            streaming-evidence.json
+            streaming-schedules-*.jsonl
           if-no-files-found: error

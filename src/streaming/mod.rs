@@ -4,6 +4,9 @@
 
 use core::fmt;
 
+mod checkpoint;
+pub use checkpoint::Checkpoint;
+
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
 const END_SENTINEL: [u8; 16] = [
@@ -51,7 +54,7 @@ impl fmt::Display for StreamError {
     }
 }
 
-impl std::error::Error for StreamError {}
+impl core::error::Error for StreamError {}
 
 /// A section locator; unknown record 5 remains opaque rather than guessed.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -195,6 +198,11 @@ impl FlatHeaderParser {
         })
     }
 
+    /// Absolute first unconsumed source byte, including partial fields.
+    pub fn position(&self) -> u64 {
+        self.filled as u64
+    }
+
     /// Source identity is part of the state and checkpoint contract.
     pub fn source(&self) -> SourceIdentity {
         self.source
@@ -269,8 +277,10 @@ impl FlatHeaderParser {
                 self.index += 1;
                 if self.index == self.count {
                     // The first three records have defined mandatory roles (§3.2.6).
-                    if self.seen & 7 != 7 {
-                        return Err(StreamError::MissingLocator(0));
+                    for number in 0..3 {
+                        if self.seen & (1 << number) == 0 {
+                            return Err(StreamError::MissingLocator(number));
+                        }
                     }
                     self.phase = Phase::Crc;
                     self.target += 2;

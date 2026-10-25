@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.request
+import zlib
 
 SENTINEL = bytes.fromhex('95a04e2899821ae55e41e05f9d3a4d00')
 
@@ -38,9 +39,9 @@ def main():
     receipts = []
     with tempfile.TemporaryDirectory(prefix='dwg-streaming-') as tmp:
         path = Path(tmp) / 'input.dwg'
-        def run(data, split=256):
+        def run(data, split=256, extra=()):
             path.write_bytes(data)
-            result = subprocess.run([binary, str(path), str(split)], capture_output=True, timeout=10)
+            result = subprocess.run([binary, str(path), str(split), *extra], capture_output=True, timeout=10)
             return result.returncode, result.stdout.decode(), result.stderr.decode()
         for magic in (b'AC1012', b'AC1014', b'AC1015'):
             for count in range(3, 7):
@@ -73,11 +74,65 @@ def main():
             assert json.loads(base[1]) == expected, (base, expected)
             for split in (1, 2, 3, 7, 9, 15, 16, 17, 31, 64, 256):
                 assert run(data, split) == base, (item['name'], split)
+            if len(sys.argv) > 2:
+                property_receipt = Path('streaming-schedules-' + item['name'] + '.jsonl')
+                result = subprocess.run([sys.argv[2], binary, str(path), str(property_receipt)], capture_output=True, timeout=120)
+                assert result.returncode == 0, result.stderr.decode()
             receipts.append({'real_file': item['name'], 'sha256': digest.hexdigest(), 'header': expected, 'schedules': 12})
+        checkpoint = str(Path(tmp) / 'state.bin')
+        trace = str(Path(tmp) / 'reads.jsonl')
+        data = fixture(b'AC1015', 6)
+        identity = hashlib.sha256(data).hexdigest()
+        base = run(data)
+        header_end = 25 + 6 * 9 + 18
+        for stop in range(header_end + 1):
+            paused = run(data, 7, ('--identity', identity, '--checkpoint-out', checkpoint, '--stop-after', str(stop), '--pending'))
+            assert paused[0] == 0 and json.loads(paused[1]) == {'checkpoint': True, 'offset': stop}, paused
+            saved = Path(checkpoint).read_bytes()
+            assert len(saved) <= 256
+            resumed = run(data, 1, ('--identity', identity, '--resume', checkpoint, '--trace', trace, '--pending'))
+            assert resumed == base, (stop, resumed, base)
+            reads = [json.loads(line) for line in Path(trace).read_text().splitlines()]
+            position = stop
+            for read in reads:
+                assert read['offset'] == position and read['bytes'] > 0, (stop, reads)
+                position += read['bytes']
+            assert position == header_end, (stop, reads)
+        receipts.append({'checkpoint_positions': header_end + 1, 'fresh_process_resume': True, 'source_rereads': 0, 'pending_delivery': 'passed'})
+        run(data, 7, ('--identity', identity, '--checkpoint-out', checkpoint, '--stop-after', '33'))
+        valid = Path(checkpoint).read_bytes()
+        for at in range(len(valid)):
+            bad = bytearray(valid)
+            bad[at] ^= 1
+            Path(checkpoint).write_bytes(bad)
+            result = run(data, 7, ('--identity', identity, '--resume', checkpoint))
+            assert result[0] != 0 and 'InvalidCheckpoint' in result[2], (at, result)
+        for at in (5, 6, 7, 8, 9, 12):
+            bad = bytearray(valid)
+            bad[at] ^= 1
+            bad[-4:] = struct.pack('<I', zlib.crc32(bad[:-4]))
+            Path(checkpoint).write_bytes(bad)
+            result = run(data, 7, ('--identity', identity, '--resume', checkpoint))
+            assert result[0] != 0 and 'InvalidCheckpoint' in result[2], (at, result)
+        for length in range(len(valid)):
+            Path(checkpoint).write_bytes(valid[:length])
+            assert run(data, 7, ('--identity', identity, '--resume', checkpoint))[0] != 0, length
+        Path(checkpoint).write_bytes(bytes(257))
+        assert run(data, 7, ('--identity', identity, '--resume', checkpoint))[0] != 0
+        Path(checkpoint).write_bytes(valid)
+        wrong_id = run(data, 7, ('--identity', 'f' * 64, '--resume', checkpoint))
+        assert wrong_id[0] != 0 and 'SourceMismatch' in wrong_id[2], wrong_id
+        wrong_length = run(data + b'X', 7, ('--identity', identity, '--resume', checkpoint))
+        assert wrong_length[0] != 0 and 'SourceMismatch' in wrong_length[2], wrong_length
         for at in (0, 21, 25, 34, 25 + 27, 25 + 27 + 2):
             data = fixture()
             data[at] ^= 0xff
-            assert run(data)[0] != 0, ('corrupt byte accepted', at)
+            failed = run(data)
+            assert failed[0] != 0, ('corrupt byte accepted', at)
+            identity = hashlib.sha256(data).hexdigest()
+            snap = run(data, 7, ('--identity', identity, '--checkpoint-out', checkpoint))
+            assert snap == failed, (at, snap, failed)
+            assert run(data, 1, ('--identity', identity, '--resume', checkpoint)) == failed, ('failed-state restore', at)
         for magic in (b'AC1018', b'AC1021', b'AC1024', b'AC1027', b'AC1032'):
             result = run(fixture(magic))
             assert result[0] != 0 and 'UnsupportedLayout' in result[2], result

@@ -12,8 +12,8 @@ verification receipts go to `docs/streaming/` or uploaded CI artifacts.
 | Audit current reader against requested invariants | complete | Whole-file reads in reader; whole-section buffers; WASM copies uploaded file |
 | File ordered gaps in GitHub, link existing issues | complete | Epic #204 and ordered gaps #205–#212 |
 | Hand-written byte-demand state machine | in progress | Header core passed remote E2E at 9a93736 (run 40234332022); full container/object migration #205 remains open |
-| Transport abstraction | in progress | Grammar must contain no I/O |
-| Portable checkpointing | pending | Fresh-process resume at exact next byte |
+| Transport abstraction | in progress | File/slice adapters and real-file E2E passed at 422dc67 (run 40234514166); network/worker adapters remain #206 |
+| Portable checkpointing | in progress | Fresh-process resume at exact next byte |
 | Spec compiler upgrade | pending | Only after a working hand-written reader; never patch generated output |
 | WASM streaming API and native/WASM gate | pending | Existing full-buffer WASM is insufficient |
 | Boundary fuzzing through real entry point | pending | proptest-driven executable, one byte and random splits |
