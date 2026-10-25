@@ -13,6 +13,19 @@
 
 ---
 
+## Streaming architecture work
+
+The new [streaming core](docs/streaming/README.md) reads the complete
+R13–R2000 **file header** with explicit byte demands, fixed storage, pausable
+sources and portable partial-state checkpoints. Native E2E and the identical
+no-allocator grammar compiled for native/WASM are measured in the linked
+report. This is the first stage of [#204](https://github.com/DrunkOnJava/dwg-rs/issues/204),
+not a streaming model reader: the existing `DwgFile` and browser APIs still
+load full files/sections. R2004+ streaming, objects, decompression state, the
+spec compiler and large-model evidence remain open. Competitive success-rate,
+object-coverage and memory comparisons for the streaming reader are **NOT
+MEASURED**; no claim of superiority to another DWG reader is made.
+
 ## ⚠ Pre-alpha status — read this first
 
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
