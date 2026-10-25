@@ -55,6 +55,14 @@ def main():
                 for length in range(25 + count * 9 + 18):
                     assert run(data[:length])[0] != 0, (magic, count, length)
                 receipts.append({'magic': magic.decode(), 'locators': count, 'sha256': hashlib.sha256(data).hexdigest(), 'schedules': 33, 'truncations': 25 + count * 9 + 18})
+        canonical = Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes()
+        base = run(canonical)
+        assert base[0] == 0, ('canonical R2000 header rejected', base)
+        header = json.loads(base[1])
+        assert header['magic'] == 'AC1015' and header['locator_count'] == 3, header
+        for split in range(1, 33):
+            assert run(canonical, split) == base, ('canonical', split)
+        receipts.append({'canonical': 'synthetic_2000.dwg', 'sha256': hashlib.sha256(canonical).hexdigest(), 'header': header, 'schedules': 33})
         manifest = json.loads(Path('tools/streaming/header-corpus.json').read_text())
         for item in manifest['files']:
             url = f"https://raw.githubusercontent.com/nextgis/dwg_samples/{manifest['commit']}/{item['name']}"
