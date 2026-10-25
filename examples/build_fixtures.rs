@@ -137,13 +137,13 @@ fn write_common_entity_preamble(w: &mut BitWriter, version: Version) {
     w.write_rc(0);
 }
 
-/// Build one `AcDb:AcDbObjects` record: `MS size` + payload + 2-byte CRC
-/// slot, where the payload is the object header (R2010+ handle-stream MC,
+/// Build one `AcDb:AcDbObjects` record: `MS size` + payload + 2-byte CRC,
+/// where the payload is the object header (R2010+ handle-stream MC,
 /// object type, handle), the common entity preamble, and the entity body.
 ///
 /// Mirrors `dwg::object::ObjectWalker::read_one_at_pos` field-for-field.
-/// The 2 trailing bytes are the record CRC-16 slot; the reader skips over
-/// it without verifying, so zeros are a faithful placeholder.
+/// The CRC is little-endian, seeded 0xC0C1, over the `MS` bytes and the
+/// payload (§20.1), as on real R14 through R2013 records.
 ///
 /// # R2010+ record framing (#77)
 ///
@@ -219,7 +219,9 @@ fn build_object_record<E: ElementEncoder>(
     header.write_ms((payload.len() - mc_width) as u64);
     let mut record = header.into_bytes();
     record.extend_from_slice(&payload);
-    record.extend_from_slice(&[0x00, 0x00]);
+    // §20.1: the CRC covers the size bytes too.
+    let crc = crc::crc8(0xC0C1, &record);
+    record.extend_from_slice(&crc.to_le_bytes());
     record
 }
 
