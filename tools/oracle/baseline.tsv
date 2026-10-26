@@ -36,6 +36,38 @@ R14	§20.4.31	POINT	position.y	20	2	0	0	0
 R14	§20.4.31	POINT	position.z	30	2	0	0	0
 R14	§20.4.31	POINT	thickness	39	0	2	0	0
 R14	§20.4.31	POINT	x_axis_angle	50	0	2	0	0
+R2000	-	VISUALSTYLE	description	2	192	0	0	0
+R2000	-	VISUALSTYLE	display_brightness	44	192	0	0	0
+R2000	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
+R2000	-	VISUALSTYLE	edge_color	66	192	0	0	0
+R2000	-	VISUALSTYLE	edge_crease_angle	42	192	0	0	0
+R2000	-	VISUALSTYLE	edge_halo_gap	170	192	0	0	0
+R2000	-	VISUALSTYLE	edge_hide_precision	290	192	0	0	0
+R2000	-	VISUALSTYLE	edge_intersection_color	64	192	0	0	0
+R2000	-	VISUALSTYLE	edge_intersection_linetype	175	192	0	0	0
+R2000	-	VISUALSTYLE	edge_isoline_count	171	192	0	0	0
+R2000	-	VISUALSTYLE	edge_jitter	78	192	0	0	0
+R2000	-	VISUALSTYLE	edge_model	74	192	0	0	0
+R2000	-	VISUALSTYLE	edge_modifier	92	192	0	0	0
+R2000	-	VISUALSTYLE	edge_obscured_color	65	192	0	0	0
+R2000	-	VISUALSTYLE	edge_obscured_linetype	75	192	0	0	0
+R2000	-	VISUALSTYLE	edge_opacity	43	192	0	0	0
+R2000	-	VISUALSTYLE	edge_overhang	77	192	0	0	0
+R2000	-	VISUALSTYLE	edge_silhouette_color	67	192	0	0	0
+R2000	-	VISUALSTYLE	edge_silhouette_width	79	192	0	0	0
+R2000	-	VISUALSTYLE	edge_style	91	192	0	0	0
+R2000	-	VISUALSTYLE	edge_style_apply	93	192	0	0	0
+R2000	-	VISUALSTYLE	edge_unknown_byte	-	0	0	0	192
+R2000	-	VISUALSTYLE	edge_width	76	192	0	0	0
+R2000	-	VISUALSTYLE	face_color_mode	73	192	0	0	0
+R2000	-	VISUALSTYLE	face_lighting_model	71	192	0	0	0
+R2000	-	VISUALSTYLE	face_lighting_quality	72	184	0	8	0
+R2000	-	VISUALSTYLE	face_modifier	90	192	0	0	0
+R2000	-	VISUALSTYLE	face_mono_color	63	192	0	0	0
+R2000	-	VISUALSTYLE	face_opacity	40	192	0	0	0
+R2000	-	VISUALSTYLE	face_specular	41	192	0	0	0
+R2000	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
+R2000	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
 R2000	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2000	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2000	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -83,6 +115,21 @@ R2000	§20.4.21	LINE	start.x	10	99	0	0	0
 R2000	§20.4.21	LINE	start.y	20	99	0	0	0
 R2000	§20.4.21	LINE	start.z	30	99	0	0	0
 R2000	§20.4.21	LINE	thickness	39	0	99	0	0
+R2000	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2000	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2000	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2000	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2000	§20.4.3	TEXT	generation	71	0	29	0	0
+R2000	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2000	§20.4.3	TEXT	height	40	29	0	0	0
+R2000	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2000	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2000	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2000	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2000	§20.4.3	TEXT	text	1	29	0	0	0
+R2000	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2000	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2000	§20.4.3	TEXT	width_factor	41	0	29	0	0
 R2000	§20.4.31	POINT	extrusion.x	210	0	42	0	0
 R2000	§20.4.31	POINT	extrusion.y	220	0	42	0	0
 R2000	§20.4.31	POINT	extrusion.z	230	0	42	0	0
@@ -135,6 +182,29 @@ R2000	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
 R2000	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
 R2000	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
 R2000	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2000	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2000	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2000	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2000	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2000	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2000	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2000	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2000	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2000	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2000	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2000	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2000	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2000	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2000	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2000	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2000	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2000	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2000	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2000	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2000	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2000	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2000	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2000	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
 R2000	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2000	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2000	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -174,6 +244,30 @@ R2000	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
 R2000	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
 R2000	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
 R2000	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2000	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2000	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2000	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2000	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2000	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2000	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2000	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2000	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2000	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2000	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2000	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2000	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2000	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2000	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2000	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2000	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2000	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2000	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2000	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2000	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2000	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2000	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2000	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2000	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
 R2000	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -249,6 +343,28 @@ R2000	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
 R2000	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
 R2000	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
 R2000	§20.4.6	BLOCK	name	2	46	0	1	0
+R2000	§20.4.60	VIEW	back_clip	44	1	0	0	0
+R2000	§20.4.60	VIEW	flag_64 (the export never writes bit 64)	-	0	0	0	1
+R2000	§20.4.60	VIEW	front_clip	43	1	0	0	0
+R2000	§20.4.60	VIEW	is_associated_ucs	72	1	0	0	0
+R2000	§20.4.60	VIEW	is_paperspace	70&1	1	0	0	0
+R2000	§20.4.60	VIEW	is_xref_dependent (Xdep)	70&16	1	0	0	0
+R2000	§20.4.60	VIEW	lens_length	42	1	0	0	0
+R2000	§20.4.60	VIEW	name	2	1	0	0	0
+R2000	§20.4.60	VIEW	render_mode	281	1	0	0	0
+R2000	§20.4.60	VIEW	target.x	12	1	0	0	0
+R2000	§20.4.60	VIEW	target.y	22	1	0	0	0
+R2000	§20.4.60	VIEW	target.z	32	1	0	0	0
+R2000	§20.4.60	VIEW	twist_angle	50	1	0	0	0
+R2000	§20.4.60	VIEW	view_center.x	10	1	0	0	0
+R2000	§20.4.60	VIEW	view_center.y	20	1	0	0	0
+R2000	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
+R2000	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
+R2000	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
+R2000	§20.4.60	VIEW	view_height	40	1	0	0	0
+R2000	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2000	§20.4.60	VIEW	view_width	41	1	0	0	0
+R2000	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2000	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
 R2000	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
 R2000	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
@@ -424,6 +540,48 @@ R2000	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
 R2000	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
 R2000	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
 R2000	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	align_space	46	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	arrowhead_size	44	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	block_content_color	94	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	block_content_connection_type	177	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	block_content_rotation	141	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	block_content_scale_x	47	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	block_content_scale_y	49	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	block_content_scale_z	140	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	bottom_text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2000	§20.4.87	MLEADERSTYLE	break_gap_size	143	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	content_type	170	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	default_mtext_contents	300	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	description	3	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	dogleg_length	43	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	draw_leader_order_type	172	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	draw_mleader_order_type	171	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	enable_block_content_rotation	294	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	enable_block_content_scale	293	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	enable_dogleg	291	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	enable_frame_text	292	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	enable_landing	290	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	extended_flag	298	0	9	0	0
+R2000	§20.4.87	MLEADERSTYLE	first_segment_angle	40	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	is_annotative	296	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	landing_gap	42	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	leader_line_color	91	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	leader_line_type	173	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	leader_lineweight	92	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	max_leader_segment_points	90	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	overwrite_property_value	295	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	scale	142	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	second_segment_angle	41	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_align_always_left	297	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_alignment_type	176	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_angle_type	175	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2000	§20.4.87	MLEADERSTYLE	text_color	93	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_height	45	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_left_attachment	174	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	text_right_attachment	178	9	0	0	0
+R2000	§20.4.87	MLEADERSTYLE	top_text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2000	§20.4.87	MLEADERSTYLE	version	179	0	0	0	9
 R2000	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
 R2000	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
 R2000	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
@@ -442,6 +600,40 @@ R2000	§20.4.92	SCALE	paper_units	140	152	0	0	0
 R2000	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2000	§20.4.92	SCALE	version	70	152	0	0	0
 R2004	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2004	-	VISUALSTYLE	description	2	192	0	0	0
+R2004	-	VISUALSTYLE	display_brightness	44	192	0	0	0
+R2004	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
+R2004	-	VISUALSTYLE	edge_color	66	184	0	0	0
+R2004	-	VISUALSTYLE	edge_color (RGB)	420	0	0	0	8
+R2004	-	VISUALSTYLE	edge_crease_angle	42	192	0	0	0
+R2004	-	VISUALSTYLE	edge_halo_gap	170	192	0	0	0
+R2004	-	VISUALSTYLE	edge_hide_precision	290	192	0	0	0
+R2004	-	VISUALSTYLE	edge_intersection_color	64	192	0	0	0
+R2004	-	VISUALSTYLE	edge_intersection_linetype	175	192	0	0	0
+R2004	-	VISUALSTYLE	edge_isoline_count	171	192	0	0	0
+R2004	-	VISUALSTYLE	edge_jitter	78	192	0	0	0
+R2004	-	VISUALSTYLE	edge_model	74	192	0	0	0
+R2004	-	VISUALSTYLE	edge_modifier	92	192	0	0	0
+R2004	-	VISUALSTYLE	edge_obscured_color	65	192	0	0	0
+R2004	-	VISUALSTYLE	edge_obscured_linetype	75	192	0	0	0
+R2004	-	VISUALSTYLE	edge_opacity	43	192	0	0	0
+R2004	-	VISUALSTYLE	edge_overhang	77	192	0	0	0
+R2004	-	VISUALSTYLE	edge_silhouette_color	67	184	0	0	0
+R2004	-	VISUALSTYLE	edge_silhouette_color (RGB)	420	0	0	0	8
+R2004	-	VISUALSTYLE	edge_silhouette_width	79	192	0	0	0
+R2004	-	VISUALSTYLE	edge_style	91	192	0	0	0
+R2004	-	VISUALSTYLE	edge_style_apply	93	192	0	0	0
+R2004	-	VISUALSTYLE	edge_unknown_byte	-	0	0	0	192
+R2004	-	VISUALSTYLE	edge_width	76	192	0	0	0
+R2004	-	VISUALSTYLE	face_color_mode	73	192	0	0	0
+R2004	-	VISUALSTYLE	face_lighting_model	71	192	0	0	0
+R2004	-	VISUALSTYLE	face_lighting_quality	72	184	0	8	0
+R2004	-	VISUALSTYLE	face_modifier	90	192	0	0	0
+R2004	-	VISUALSTYLE	face_mono_color (RGB)	421	192	0	0	0
+R2004	-	VISUALSTYLE	face_opacity	40	192	0	0	0
+R2004	-	VISUALSTYLE	face_specular	41	192	0	0	0
+R2004	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
+R2004	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
 R2004	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2004	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2004	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -490,6 +682,21 @@ R2004	§20.4.21	LINE	start.x	10	99	0	0	0
 R2004	§20.4.21	LINE	start.y	20	99	0	0	0
 R2004	§20.4.21	LINE	start.z	30	99	0	0	0
 R2004	§20.4.21	LINE	thickness	39	0	99	0	0
+R2004	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2004	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2004	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2004	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2004	§20.4.3	TEXT	generation	71	0	29	0	0
+R2004	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2004	§20.4.3	TEXT	height	40	29	0	0	0
+R2004	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2004	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2004	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2004	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2004	§20.4.3	TEXT	text	1	29	0	0	0
+R2004	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2004	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2004	§20.4.3	TEXT	width_factor	41	0	29	0	0
 R2004	§20.4.31	POINT	extrusion.x	210	0	42	0	0
 R2004	§20.4.31	POINT	extrusion.y	220	0	42	0	0
 R2004	§20.4.31	POINT	extrusion.z	230	0	42	0	0
@@ -543,6 +750,29 @@ R2004	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
 R2004	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
 R2004	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
 R2004	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2004	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2004	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2004	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2004	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2004	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2004	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2004	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2004	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2004	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2004	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2004	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2004	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2004	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2004	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2004	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2004	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2004	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2004	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2004	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2004	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2004	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2004	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2004	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
 R2004	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2004	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2004	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -582,6 +812,30 @@ R2004	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
 R2004	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
 R2004	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
 R2004	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2004	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2004	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2004	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2004	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2004	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2004	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2004	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2004	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2004	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2004	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2004	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2004	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2004	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2004	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2004	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2004	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2004	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2004	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2004	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2004	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2004	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2004	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2004	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2004	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
 R2004	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -659,6 +913,28 @@ R2004	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
 R2004	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
 R2004	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
 R2004	§20.4.6	BLOCK	name	2	46	0	1	0
+R2004	§20.4.60	VIEW	back_clip	44	1	0	0	0
+R2004	§20.4.60	VIEW	flag_64 (the export never writes bit 64)	-	0	0	0	1
+R2004	§20.4.60	VIEW	front_clip	43	1	0	0	0
+R2004	§20.4.60	VIEW	is_associated_ucs	72	1	0	0	0
+R2004	§20.4.60	VIEW	is_paperspace	70&1	1	0	0	0
+R2004	§20.4.60	VIEW	is_xref_dependent (Xdep)	70&16	1	0	0	0
+R2004	§20.4.60	VIEW	lens_length	42	1	0	0	0
+R2004	§20.4.60	VIEW	name	2	1	0	0	0
+R2004	§20.4.60	VIEW	render_mode	281	1	0	0	0
+R2004	§20.4.60	VIEW	target.x	12	1	0	0	0
+R2004	§20.4.60	VIEW	target.y	22	1	0	0	0
+R2004	§20.4.60	VIEW	target.z	32	1	0	0	0
+R2004	§20.4.60	VIEW	twist_angle	50	1	0	0	0
+R2004	§20.4.60	VIEW	view_center.x	10	1	0	0	0
+R2004	§20.4.60	VIEW	view_center.y	20	1	0	0	0
+R2004	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
+R2004	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
+R2004	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
+R2004	§20.4.60	VIEW	view_height	40	1	0	0	0
+R2004	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2004	§20.4.60	VIEW	view_width	41	1	0	0	0
+R2004	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2004	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
 R2004	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
 R2004	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
@@ -834,6 +1110,48 @@ R2004	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
 R2004	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
 R2004	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
 R2004	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	align_space	46	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	arrowhead_size	44	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	block_content_color	94	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	block_content_connection_type	177	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	block_content_rotation	141	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	block_content_scale_x	47	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	block_content_scale_y	49	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	block_content_scale_z	140	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	bottom_text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2004	§20.4.87	MLEADERSTYLE	break_gap_size	143	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	content_type	170	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	default_mtext_contents	300	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	description	3	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	dogleg_length	43	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	draw_leader_order_type	172	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	draw_mleader_order_type	171	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	enable_block_content_rotation	294	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	enable_block_content_scale	293	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	enable_dogleg	291	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	enable_frame_text	292	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	enable_landing	290	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	extended_flag	298	0	9	0	0
+R2004	§20.4.87	MLEADERSTYLE	first_segment_angle	40	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	is_annotative	296	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	landing_gap	42	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	leader_line_color	91	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	leader_line_type	173	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	leader_lineweight	92	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	max_leader_segment_points	90	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	overwrite_property_value	295	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	scale	142	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	second_segment_angle	41	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_align_always_left	297	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_alignment_type	176	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_angle_type	175	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2004	§20.4.87	MLEADERSTYLE	text_color	93	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_height	45	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_left_attachment	174	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	text_right_attachment	178	9	0	0	0
+R2004	§20.4.87	MLEADERSTYLE	top_text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2004	§20.4.87	MLEADERSTYLE	version	179	0	0	0	9
 R2004	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
 R2004	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
 R2004	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
@@ -852,6 +1170,40 @@ R2004	§20.4.92	SCALE	paper_units	140	152	0	0	0
 R2004	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2004	§20.4.92	SCALE	version	70	152	0	0	0
 R2007	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2007	-	VISUALSTYLE	description	2	192	0	0	0
+R2007	-	VISUALSTYLE	display_brightness	44	192	0	0	0
+R2007	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
+R2007	-	VISUALSTYLE	edge_color	66	184	0	0	0
+R2007	-	VISUALSTYLE	edge_color (RGB)	420	0	0	0	8
+R2007	-	VISUALSTYLE	edge_crease_angle	42	192	0	0	0
+R2007	-	VISUALSTYLE	edge_halo_gap	170	192	0	0	0
+R2007	-	VISUALSTYLE	edge_hide_precision	290	192	0	0	0
+R2007	-	VISUALSTYLE	edge_intersection_color	64	192	0	0	0
+R2007	-	VISUALSTYLE	edge_intersection_linetype	175	192	0	0	0
+R2007	-	VISUALSTYLE	edge_isoline_count	171	192	0	0	0
+R2007	-	VISUALSTYLE	edge_jitter	78	192	0	0	0
+R2007	-	VISUALSTYLE	edge_model	74	192	0	0	0
+R2007	-	VISUALSTYLE	edge_modifier	92	192	0	0	0
+R2007	-	VISUALSTYLE	edge_obscured_color	65	192	0	0	0
+R2007	-	VISUALSTYLE	edge_obscured_linetype	75	192	0	0	0
+R2007	-	VISUALSTYLE	edge_opacity	43	192	0	0	0
+R2007	-	VISUALSTYLE	edge_overhang	77	192	0	0	0
+R2007	-	VISUALSTYLE	edge_silhouette_color	67	184	0	0	0
+R2007	-	VISUALSTYLE	edge_silhouette_color (RGB)	420	0	0	0	8
+R2007	-	VISUALSTYLE	edge_silhouette_width	79	192	0	0	0
+R2007	-	VISUALSTYLE	edge_style	91	192	0	0	0
+R2007	-	VISUALSTYLE	edge_style_apply	93	192	0	0	0
+R2007	-	VISUALSTYLE	edge_unknown_byte	-	0	0	0	192
+R2007	-	VISUALSTYLE	edge_width	76	192	0	0	0
+R2007	-	VISUALSTYLE	face_color_mode	73	192	0	0	0
+R2007	-	VISUALSTYLE	face_lighting_model	71	192	0	0	0
+R2007	-	VISUALSTYLE	face_lighting_quality	72	184	0	8	0
+R2007	-	VISUALSTYLE	face_modifier	90	192	0	0	0
+R2007	-	VISUALSTYLE	face_mono_color (RGB)	421	192	0	0	0
+R2007	-	VISUALSTYLE	face_opacity	40	192	0	0	0
+R2007	-	VISUALSTYLE	face_specular	41	192	0	0	0
+R2007	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
+R2007	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
 R2007	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2007	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2007	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -1132,6 +1484,28 @@ R2007	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
 R2007	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
 R2007	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
 R2007	§20.4.6	BLOCK	name	2	46	0	1	0
+R2007	§20.4.60	VIEW	back_clip	44	1	0	0	0
+R2007	§20.4.60	VIEW	flag_64 (the export never writes bit 64)	-	0	0	0	1
+R2007	§20.4.60	VIEW	front_clip	43	1	0	0	0
+R2007	§20.4.60	VIEW	is_associated_ucs	72	1	0	0	0
+R2007	§20.4.60	VIEW	is_paperspace	70&1	1	0	0	0
+R2007	§20.4.60	VIEW	is_xref_dependent (Xdep)	70&16	1	0	0	0
+R2007	§20.4.60	VIEW	lens_length	42	1	0	0	0
+R2007	§20.4.60	VIEW	name	2	1	0	0	0
+R2007	§20.4.60	VIEW	render_mode	281	1	0	0	0
+R2007	§20.4.60	VIEW	target.x	12	1	0	0	0
+R2007	§20.4.60	VIEW	target.y	22	1	0	0	0
+R2007	§20.4.60	VIEW	target.z	32	1	0	0	0
+R2007	§20.4.60	VIEW	twist_angle	50	1	0	0	0
+R2007	§20.4.60	VIEW	view_center.x	10	1	0	0	0
+R2007	§20.4.60	VIEW	view_center.y	20	1	0	0	0
+R2007	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
+R2007	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
+R2007	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
+R2007	§20.4.60	VIEW	view_height	40	1	0	0	0
+R2007	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2007	§20.4.60	VIEW	view_width	41	1	0	0	0
+R2007	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2007	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
 R2007	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
 R2007	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
@@ -1175,25 +1549,25 @@ R2007	§20.4.66	APPID	unknown	71	0	60	0	0
 R2007	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
 R2007	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
 R2007	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
-R2007	§20.4.68	DIMSTYLE	dimaltf	143	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimaltrnd	148	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	dimasz	41	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimcen	141	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimexe	44	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimexo	42	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimlfac	144	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	dimscale	40	2	15	0	0
-R2007	§20.4.68	DIMSTYLE	dimtad	77	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtfac	146	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	dimtih	73	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtoh	74	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtolj	283	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtxt	140	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimupt	288	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	17
-R2007	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	17	0	0	0
-R2007	§20.4.68	DIMSTYLE	name	2	17	0	0	0
-R2007	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	17
+R2007	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2007	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2007	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2007	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2007	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
 R2007	§20.4.73	MLINESTYLE	description	3	8	0	0	0
 R2007	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
 R2007	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
@@ -1307,6 +1681,48 @@ R2007	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
 R2007	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
 R2007	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
 R2007	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	align_space	46	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	arrowhead_size	44	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	block_content_color	94	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	block_content_connection_type	177	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	block_content_rotation	141	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	block_content_scale_x	47	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	block_content_scale_y	49	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	block_content_scale_z	140	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	bottom_text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2007	§20.4.87	MLEADERSTYLE	break_gap_size	143	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	content_type	170	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	default_mtext_contents	300	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	description	3	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	dogleg_length	43	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	draw_leader_order_type	172	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	draw_mleader_order_type	171	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	enable_block_content_rotation	294	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	enable_block_content_scale	293	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	enable_dogleg	291	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	enable_frame_text	292	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	enable_landing	290	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	extended_flag	298	0	9	0	0
+R2007	§20.4.87	MLEADERSTYLE	first_segment_angle	40	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	is_annotative	296	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	landing_gap	42	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	leader_line_color	91	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	leader_line_type	173	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	leader_lineweight	92	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	max_leader_segment_points	90	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	overwrite_property_value	295	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	scale	142	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	second_segment_angle	41	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_align_always_left	297	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_alignment_type	176	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_angle_type	175	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2007	§20.4.87	MLEADERSTYLE	text_color	93	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_height	45	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_left_attachment	174	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	text_right_attachment	178	9	0	0	0
+R2007	§20.4.87	MLEADERSTYLE	top_text_attachment_direction (no such field before R2010)	-	0	0	0	9
+R2007	§20.4.87	MLEADERSTYLE	version	179	0	0	0	9
 R2007	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
 R2007	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
 R2007	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
@@ -1325,6 +1741,69 @@ R2007	§20.4.92	SCALE	paper_units	140	152	0	0	0
 R2007	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2007	§20.4.92	SCALE	version	70	152	0	0	0
 R2010	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2010	-	VISUALSTYLE	description	2	192	0	0	0
+R2010	-	VISUALSTYLE	display_brightness	44	192	0	0	0
+R2010	-	VISUALSTYLE	display_brightness flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
+R2010	-	VISUALSTYLE	display_shadow_type flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_color	66	184	0	0	0
+R2010	-	VISUALSTYLE	edge_color (RGB)	420	0	0	0	8
+R2010	-	VISUALSTYLE	edge_color flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_crease_angle	42	192	0	0	0
+R2010	-	VISUALSTYLE	edge_crease_angle flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_halo_gap	170	192	0	0	0
+R2010	-	VISUALSTYLE	edge_halo_gap flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_hide_precision	290	192	0	0	0
+R2010	-	VISUALSTYLE	edge_hide_precision flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_intersection_color	64	192	0	0	0
+R2010	-	VISUALSTYLE	edge_intersection_color flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_intersection_linetype	175	192	0	0	0
+R2010	-	VISUALSTYLE	edge_intersection_linetype flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_isoline_count	171	192	0	0	0
+R2010	-	VISUALSTYLE	edge_isoline_count flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_jitter	78	192	0	0	0
+R2010	-	VISUALSTYLE	edge_jitter flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_model	74	192	0	0	0
+R2010	-	VISUALSTYLE	edge_model flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_modifier	92	192	0	0	0
+R2010	-	VISUALSTYLE	edge_modifier flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_obscured_color	65	192	0	0	0
+R2010	-	VISUALSTYLE	edge_obscured_color flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_obscured_linetype	75	192	0	0	0
+R2010	-	VISUALSTYLE	edge_obscured_linetype flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_opacity	43	192	0	0	0
+R2010	-	VISUALSTYLE	edge_opacity flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_overhang	77	192	0	0	0
+R2010	-	VISUALSTYLE	edge_overhang flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_silhouette_color	67	184	0	0	0
+R2010	-	VISUALSTYLE	edge_silhouette_color (RGB)	420	0	0	0	8
+R2010	-	VISUALSTYLE	edge_silhouette_color flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_silhouette_width	79	192	0	0	0
+R2010	-	VISUALSTYLE	edge_silhouette_width flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_style	91	192	0	0	0
+R2010	-	VISUALSTYLE	edge_style flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_style_apply	93	192	0	0	0
+R2010	-	VISUALSTYLE	edge_style_apply flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	edge_unknown_byte	-	0	0	0	192
+R2010	-	VISUALSTYLE	edge_width	76	192	0	0	0
+R2010	-	VISUALSTYLE	edge_width flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_color_mode	73	192	0	0	0
+R2010	-	VISUALSTYLE	face_color_mode flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_lighting_model	71	192	0	0	0
+R2010	-	VISUALSTYLE	face_lighting_model flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_lighting_quality	72	192	0	0	0
+R2010	-	VISUALSTYLE	face_lighting_quality flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_modifier	90	192	0	0	0
+R2010	-	VISUALSTYLE	face_modifier flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_mono_color (RGB)	421	192	0	0	0
+R2010	-	VISUALSTYLE	face_mono_color flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_opacity	40	192	0	0	0
+R2010	-	VISUALSTYLE	face_opacity flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	face_specular	41	192	0	0	0
+R2010	-	VISUALSTYLE	face_specular flag	176	192	0	0	0
+R2010	-	VISUALSTYLE	format_version	177	192	0	0	0
+R2010	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
+R2010	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
 R2010	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2010	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2010	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -1604,6 +2083,28 @@ R2010	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
 R2010	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
 R2010	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
 R2010	§20.4.6	BLOCK	name	2	47	0	0	0
+R2010	§20.4.60	VIEW	back_clip	44	1	0	0	0
+R2010	§20.4.60	VIEW	flag_64 (the export never writes bit 64)	-	0	0	0	1
+R2010	§20.4.60	VIEW	front_clip	43	1	0	0	0
+R2010	§20.4.60	VIEW	is_associated_ucs	72	1	0	0	0
+R2010	§20.4.60	VIEW	is_paperspace	70&1	1	0	0	0
+R2010	§20.4.60	VIEW	is_xref_dependent (Xdep)	70&16	1	0	0	0
+R2010	§20.4.60	VIEW	lens_length	42	1	0	0	0
+R2010	§20.4.60	VIEW	name	2	1	0	0	0
+R2010	§20.4.60	VIEW	render_mode	281	1	0	0	0
+R2010	§20.4.60	VIEW	target.x	12	1	0	0	0
+R2010	§20.4.60	VIEW	target.y	22	1	0	0	0
+R2010	§20.4.60	VIEW	target.z	32	1	0	0	0
+R2010	§20.4.60	VIEW	twist_angle	50	1	0	0	0
+R2010	§20.4.60	VIEW	view_center.x	10	1	0	0	0
+R2010	§20.4.60	VIEW	view_center.y	20	1	0	0	0
+R2010	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
+R2010	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
+R2010	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
+R2010	§20.4.60	VIEW	view_height	40	1	0	0	0
+R2010	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2010	§20.4.60	VIEW	view_width	41	1	0	0	0
+R2010	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2010	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
 R2010	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
 R2010	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
@@ -1647,25 +2148,25 @@ R2010	§20.4.66	APPID	unknown	71	0	60	0	0
 R2010	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
 R2010	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
 R2010	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
-R2010	§20.4.68	DIMSTYLE	dimaltf	143	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimaltrnd	148	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	dimasz	41	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimcen	141	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimexe	44	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimexo	42	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimlfac	144	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	dimscale	40	2	15	0	0
-R2010	§20.4.68	DIMSTYLE	dimtad	77	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtfac	146	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	dimtih	73	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtoh	74	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtolj	283	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtxt	140	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimupt	288	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	17
-R2010	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	17	0	0	0
-R2010	§20.4.68	DIMSTYLE	name	2	17	0	0	0
-R2010	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	17
+R2010	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2010	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2010	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2010	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2010	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
 R2010	§20.4.73	MLINESTYLE	description	3	8	0	0	0
 R2010	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
 R2010	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
@@ -1779,6 +2280,48 @@ R2010	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
 R2010	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
 R2010	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
 R2010	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	align_space	46	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	arrowhead_size	44	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	block_content_color	94	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	block_content_connection_type	177	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	block_content_rotation	141	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	block_content_scale_x	47	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	block_content_scale_y	49	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	block_content_scale_z	140	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	bottom_text_attachment_direction	272	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	break_gap_size	143	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	content_type	170	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	default_mtext_contents	300	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	description	3	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	dogleg_length	43	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	draw_leader_order_type	172	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	draw_mleader_order_type	171	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	enable_block_content_rotation	294	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	enable_block_content_scale	293	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	enable_dogleg	291	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	enable_frame_text	292	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	enable_landing	290	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	extended_flag	298	0	9	0	0
+R2010	§20.4.87	MLEADERSTYLE	first_segment_angle	40	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	is_annotative	296	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	landing_gap	42	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	leader_line_color	91	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	leader_line_type	173	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	leader_lineweight	92	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	max_leader_segment_points	90	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	overwrite_property_value	295	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	scale	142	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	second_segment_angle	41	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_align_always_left	297	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_alignment_type	176	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_angle_type	175	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_attachment_direction	271	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_color	93	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_height	45	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_left_attachment	174	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	text_right_attachment	178	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	top_text_attachment_direction	273	9	0	0	0
+R2010	§20.4.87	MLEADERSTYLE	version	179	9	0	0	0
 R2010	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
 R2010	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
 R2010	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
@@ -1797,6 +2340,127 @@ R2010	§20.4.92	SCALE	paper_units	140	152	0	0	0
 R2010	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2010	§20.4.92	SCALE	version	70	152	0	0	0
 R2013	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2013	-	VISUALSTYLE	description	2	192	0	0	0
+R2013	-	VISUALSTYLE	display_brightness	40	192	0	0	0
+R2013	-	VISUALSTYLE	display_brightness flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	display_shadow_type	90	192	0	0	0
+R2013	-	VISUALSTYLE	display_shadow_type flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_color	62	192	0	0	0
+R2013	-	VISUALSTYLE	edge_color flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_crease_angle	40	192	0	0	0
+R2013	-	VISUALSTYLE	edge_crease_angle flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_halo_gap	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_halo_gap flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_hide_precision	290	192	0	0	0
+R2013	-	VISUALSTYLE	edge_hide_precision flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_intersection_color	62	192	0	0	0
+R2013	-	VISUALSTYLE	edge_intersection_color flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_intersection_linetype	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_intersection_linetype flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_isoline_count	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_isoline_count flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_jitter	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_jitter flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_model	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_model flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_modifier	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_modifier flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_obscured_color	62	192	0	0	0
+R2013	-	VISUALSTYLE	edge_obscured_color flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_obscured_linetype	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_obscured_linetype flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_opacity	40	192	0	0	0
+R2013	-	VISUALSTYLE	edge_opacity flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_overhang	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_overhang flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_silhouette_color	62	192	0	0	0
+R2013	-	VISUALSTYLE	edge_silhouette_color flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_silhouette_width	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_silhouette_width flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_style	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_style flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_style_apply	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_style_apply flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	edge_width	90	192	0	0	0
+R2013	-	VISUALSTYLE	edge_width flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[0]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[0] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[10]	40	192	0	0	0
+R2013	-	VISUALSTYLE	extended[10] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[11]	40	192	0	0	0
+R2013	-	VISUALSTYLE	extended[11] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[12]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[12] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[13]	62	192	0	0	0
+R2013	-	VISUALSTYLE	extended[13] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[14]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[14] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[15]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[15] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[16]	62	192	0	0	0
+R2013	-	VISUALSTYLE	extended[16] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[17]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[17] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[18]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[18] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[19]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[19] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[1]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[1] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[20]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[20] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[21]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[21] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[22]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[22] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[23]	62	192	0	0	0
+R2013	-	VISUALSTYLE	extended[23] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[24]	40	192	0	0	0
+R2013	-	VISUALSTYLE	extended[24] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[25]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[25] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[26]	1	192	0	0	0
+R2013	-	VISUALSTYLE	extended[26] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[27]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[27] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[28]	40	192	0	0	0
+R2013	-	VISUALSTYLE	extended[28] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[29]	40	192	0	0	0
+R2013	-	VISUALSTYLE	extended[29] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[2]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[2] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[3]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[3] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[4]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[4] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[5]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[5] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[6]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[6] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[7]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[7] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[8]	290	192	0	0	0
+R2013	-	VISUALSTYLE	extended[8] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	extended[9]	90	192	0	0	0
+R2013	-	VISUALSTYLE	extended[9] flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_color_mode	90	192	0	0	0
+R2013	-	VISUALSTYLE	face_color_mode flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_lighting_model	90	192	0	0	0
+R2013	-	VISUALSTYLE	face_lighting_model flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_lighting_quality	90	192	0	0	0
+R2013	-	VISUALSTYLE	face_lighting_quality flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_modifier	90	192	0	0	0
+R2013	-	VISUALSTYLE	face_modifier flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_mono_color	62	192	0	0	0
+R2013	-	VISUALSTYLE	face_mono_color flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_opacity	40	192	0	0	0
+R2013	-	VISUALSTYLE	face_opacity flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	face_specular	40	192	0	0	0
+R2013	-	VISUALSTYLE	face_specular flag	176	192	0	0	0
+R2013	-	VISUALSTYLE	format_version	177	0	0	192	0
+R2013	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
+R2013	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
+R2013	-	VISUALSTYLE	property count	70	192	0	0	0
 R2013	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2013	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2013	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -2075,6 +2739,28 @@ R2013	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
 R2013	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
 R2013	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
 R2013	§20.4.6	BLOCK	name	2	47	0	0	0
+R2013	§20.4.60	VIEW	back_clip	44	1	0	0	0
+R2013	§20.4.60	VIEW	flag_64 (the export never writes bit 64)	-	0	0	0	1
+R2013	§20.4.60	VIEW	front_clip	43	1	0	0	0
+R2013	§20.4.60	VIEW	is_associated_ucs	72	1	0	0	0
+R2013	§20.4.60	VIEW	is_paperspace	70&1	1	0	0	0
+R2013	§20.4.60	VIEW	is_xref_dependent (Xdep)	70&16	1	0	0	0
+R2013	§20.4.60	VIEW	lens_length	42	1	0	0	0
+R2013	§20.4.60	VIEW	name	2	1	0	0	0
+R2013	§20.4.60	VIEW	render_mode	281	1	0	0	0
+R2013	§20.4.60	VIEW	target.x	12	1	0	0	0
+R2013	§20.4.60	VIEW	target.y	22	1	0	0	0
+R2013	§20.4.60	VIEW	target.z	32	1	0	0	0
+R2013	§20.4.60	VIEW	twist_angle	50	1	0	0	0
+R2013	§20.4.60	VIEW	view_center.x	10	1	0	0	0
+R2013	§20.4.60	VIEW	view_center.y	20	1	0	0	0
+R2013	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
+R2013	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
+R2013	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
+R2013	§20.4.60	VIEW	view_height	40	1	0	0	0
+R2013	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2013	§20.4.60	VIEW	view_width	41	1	0	0	0
+R2013	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2013	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
 R2013	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
 R2013	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
@@ -2250,6 +2936,48 @@ R2013	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
 R2013	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
 R2013	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
 R2013	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	align_space	46	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	arrowhead_size	44	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	block_content_color	94	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	block_content_connection_type	177	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	block_content_rotation	141	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	block_content_scale_x	47	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	block_content_scale_y	49	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	block_content_scale_z	140	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	bottom_text_attachment_direction	272	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	break_gap_size	143	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	content_type	170	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	default_mtext_contents	300	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	description	3	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	dogleg_length	43	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	draw_leader_order_type	172	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	draw_mleader_order_type	171	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	enable_block_content_rotation	294	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	enable_block_content_scale	293	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	enable_dogleg	291	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	enable_frame_text	292	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	enable_landing	290	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	extended_flag	298	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	first_segment_angle	40	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	is_annotative	296	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	landing_gap	42	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	leader_line_color	91	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	leader_line_type	173	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	leader_lineweight	92	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	max_leader_segment_points	90	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	overwrite_property_value	295	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	scale	142	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	second_segment_angle	41	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_align_always_left	297	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_alignment_type	176	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_angle_type	175	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_attachment_direction	271	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_color	93	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_height	45	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_left_attachment	174	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	text_right_attachment	178	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	top_text_attachment_direction	273	9	0	0	0
+R2013	§20.4.87	MLEADERSTYLE	version	179	9	0	0	0
 R2013	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
 R2013	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
 R2013	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
@@ -2268,6 +2996,127 @@ R2013	§20.4.92	SCALE	paper_units	140	152	0	0	0
 R2013	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2013	§20.4.92	SCALE	version	70	152	0	0	0
 R2018	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	2	0	0	0
+R2018	-	VISUALSTYLE	description	2	48	0	0	0
+R2018	-	VISUALSTYLE	display_brightness	40	48	0	0	0
+R2018	-	VISUALSTYLE	display_brightness flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	display_shadow_type	90	48	0	0	0
+R2018	-	VISUALSTYLE	display_shadow_type flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_color	62	48	0	0	0
+R2018	-	VISUALSTYLE	edge_color flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_crease_angle	40	48	0	0	0
+R2018	-	VISUALSTYLE	edge_crease_angle flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_halo_gap	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_halo_gap flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_hide_precision	290	48	0	0	0
+R2018	-	VISUALSTYLE	edge_hide_precision flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_intersection_color	62	48	0	0	0
+R2018	-	VISUALSTYLE	edge_intersection_color flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_intersection_linetype	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_intersection_linetype flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_isoline_count	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_isoline_count flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_jitter	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_jitter flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_model	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_model flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_modifier	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_modifier flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_obscured_color	62	48	0	0	0
+R2018	-	VISUALSTYLE	edge_obscured_color flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_obscured_linetype	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_obscured_linetype flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_opacity	40	48	0	0	0
+R2018	-	VISUALSTYLE	edge_opacity flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_overhang	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_overhang flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_silhouette_color	62	48	0	0	0
+R2018	-	VISUALSTYLE	edge_silhouette_color flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_silhouette_width	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_silhouette_width flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_style	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_style flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_style_apply	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_style_apply flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	edge_width	90	48	0	0	0
+R2018	-	VISUALSTYLE	edge_width flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[0]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[0] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[10]	40	48	0	0	0
+R2018	-	VISUALSTYLE	extended[10] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[11]	40	48	0	0	0
+R2018	-	VISUALSTYLE	extended[11] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[12]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[12] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[13]	62	48	0	0	0
+R2018	-	VISUALSTYLE	extended[13] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[14]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[14] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[15]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[15] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[16]	62	48	0	0	0
+R2018	-	VISUALSTYLE	extended[16] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[17]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[17] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[18]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[18] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[19]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[19] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[1]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[1] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[20]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[20] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[21]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[21] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[22]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[22] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[23]	62	48	0	0	0
+R2018	-	VISUALSTYLE	extended[23] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[24]	40	48	0	0	0
+R2018	-	VISUALSTYLE	extended[24] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[25]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[25] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[26]	1	48	0	0	0
+R2018	-	VISUALSTYLE	extended[26] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[27]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[27] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[28]	40	48	0	0	0
+R2018	-	VISUALSTYLE	extended[28] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[29]	40	48	0	0	0
+R2018	-	VISUALSTYLE	extended[29] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[2]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[2] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[3]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[3] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[4]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[4] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[5]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[5] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[6]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[6] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[7]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[7] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[8]	290	48	0	0	0
+R2018	-	VISUALSTYLE	extended[8] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	extended[9]	90	48	0	0	0
+R2018	-	VISUALSTYLE	extended[9] flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_color_mode	90	48	0	0	0
+R2018	-	VISUALSTYLE	face_color_mode flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_lighting_model	90	48	0	0	0
+R2018	-	VISUALSTYLE	face_lighting_model flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_lighting_quality	90	48	0	0	0
+R2018	-	VISUALSTYLE	face_lighting_quality flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_modifier	90	48	0	0	0
+R2018	-	VISUALSTYLE	face_modifier flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_mono_color	62	48	0	0	0
+R2018	-	VISUALSTYLE	face_mono_color flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_opacity	40	48	0	0	0
+R2018	-	VISUALSTYLE	face_opacity flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	face_specular	40	48	0	0	0
+R2018	-	VISUALSTYLE	face_specular flag	176	48	0	0	0
+R2018	-	VISUALSTYLE	format_version	177	0	0	48	0
+R2018	-	VISUALSTYLE	internal_style_type	70	48	0	0	0
+R2018	-	VISUALSTYLE	is_internal_use_only	291	48	0	0	0
+R2018	-	VISUALSTYLE	property count	70	48	0	0	0
 R2018	§20.4.104	XRECORD	cloning_flags	280	102	0	0	0
 R2018	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	102
 R2018	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -2548,6 +3397,28 @@ R2018	§20.4.58	LTYPE	pattern_length	40	11	0	0	0
 R2018	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	11
 R2018	§20.4.59	VIEW_CONTROL	num_entries	70	1	0	1	0
 R2018	§20.4.6	BLOCK	name	2	29	0	0	0
+R2018	§20.4.60	VIEW	back_clip	44	1	0	0	0
+R2018	§20.4.60	VIEW	flag_64 (the export never writes bit 64)	-	0	0	0	1
+R2018	§20.4.60	VIEW	front_clip	43	1	0	0	0
+R2018	§20.4.60	VIEW	is_associated_ucs	72	1	0	0	0
+R2018	§20.4.60	VIEW	is_paperspace	70&1	1	0	0	0
+R2018	§20.4.60	VIEW	is_xref_dependent (Xdep)	70&16	1	0	0	0
+R2018	§20.4.60	VIEW	lens_length	42	1	0	0	0
+R2018	§20.4.60	VIEW	name	2	1	0	0	0
+R2018	§20.4.60	VIEW	render_mode	281	1	0	0	0
+R2018	§20.4.60	VIEW	target.x	12	1	0	0	0
+R2018	§20.4.60	VIEW	target.y	22	1	0	0	0
+R2018	§20.4.60	VIEW	target.z	32	1	0	0	0
+R2018	§20.4.60	VIEW	twist_angle	50	1	0	0	0
+R2018	§20.4.60	VIEW	view_center.x	10	1	0	0	0
+R2018	§20.4.60	VIEW	view_center.y	20	1	0	0	0
+R2018	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
+R2018	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
+R2018	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
+R2018	§20.4.60	VIEW	view_height	40	1	0	0	0
+R2018	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2018	§20.4.60	VIEW	view_width	41	1	0	0	0
+R2018	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2018	§20.4.61	UCS_CONTROL	num_entries	70	2	0	0	0
 R2018	§20.4.63	VPORT_CONTROL	num_entries	70	2	0	0	0
 R2018	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	2	0	0	0
@@ -2723,6 +3594,48 @@ R2018	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
 R2018	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
 R2018	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
 R2018	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	align_space	46	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	arrowhead_size	44	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	block_content_color	94	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	block_content_connection_type	177	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	block_content_rotation	141	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	block_content_scale_x	47	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	block_content_scale_y	49	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	block_content_scale_z	140	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	bottom_text_attachment_direction	272	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	break_gap_size	143	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	content_type	170	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	default_mtext_contents	300	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	description	3	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	dogleg_length	43	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	draw_leader_order_type	172	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	draw_mleader_order_type	171	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	enable_block_content_rotation	294	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	enable_block_content_scale	293	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	enable_dogleg	291	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	enable_frame_text	292	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	enable_landing	290	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	extended_flag	298	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	first_segment_angle	40	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	is_annotative	296	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	landing_gap	42	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	leader_line_color	91	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	leader_line_type	173	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	leader_lineweight	92	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	max_leader_segment_points	90	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	overwrite_property_value	295	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	scale	142	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	second_segment_angle	41	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_align_always_left	297	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_alignment_type	176	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_angle_type	175	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_attachment_direction	271	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_color	93	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_height	45	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_left_attachment	174	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	text_right_attachment	178	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	top_text_attachment_direction	273	4	0	0	0
+R2018	§20.4.87	MLEADERSTYLE	version	179	4	0	0	0
 R2018	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
 R2018	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
 R2018	§20.4.9	INSERT	extrusion.z	230	0	12	0	0

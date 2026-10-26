@@ -71,14 +71,11 @@
 //! 3. **The `*_CONTROL` objects** close on their single `BL numentries`
 //!    only with the reactor count consumed first.
 //!
-//! Note that [`crate::tables::modern::skip_object_prefix`] — the R2007+
-//! symbol-table variant — deliberately does *not* read this `BL`, and
-//! compensates with a different flag order in
-//! [`crate::tables::modern::read_entry_flags`]. The two readings sum to
-//! the same total for an APPID record, so both satisfy the boundary
-//! check; which one assigns the right values to the right fields is not
-//! determinable from the 16 bits an APPID record spends there, so this
-//! module does not touch the table path.
+//! [`crate::tables::modern::skip_object_prefix`], the R2007+
+//! symbol-table variant, used to skip this `BL` and compensate with a
+//! different flag order. It reads the same prefix now: the `BL` equals
+//! the reactor count of AutoCAD's DXF export on every table entry of the
+//! corpus (#40, ARCHITECTURE §7x).
 //!
 //! # The R2013+ AcDs binary-data flag carries no further bits
 //!
@@ -109,9 +106,9 @@
 //! they are not a block at all: they are the first half of
 //! `plot_layout_flags` in its full `BS` form, so the flag is followed by
 //! no bits on objects either (see that module).
-//! (`tables::modern`'s 8-bit `RC` is DIMSTYLE's counterpart; that path
-//! also omits the `BL num_reactors` this one reads, so its bit
-//! accounting is a separate open question and is left alone here.)
+//! `tables::modern`'s 8-bit `RC` was the `BL num_reactors` misread: its
+//! `01` code was taken for the xdictionary and binary-data bits, and its
+//! byte for an `RC` after them (#40).
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};

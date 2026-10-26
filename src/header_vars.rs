@@ -37,7 +37,7 @@
 //!
 //! # What the files say that §9 does not
 //!
-//! `ARCHITECTURE.md` §7n has the measurements. In short: `MENUNAME` is read
+//! `ARCHITECTURE.md` §7s has the measurements. In short: `MENUNAME` is read
 //! on every release; four `BS` slots end the section on every release from
 //! R14 (in the handle stream from R2007) and five `B` slots follow them from
 //! R2004; the padding is all ones on every AutoCAD 2016 to 2025 file; R2000

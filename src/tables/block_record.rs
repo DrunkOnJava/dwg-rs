@@ -233,8 +233,7 @@ pub(crate) fn decode_modern_split_stream(
     }
 
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let is_anonymous = split.data.read_b()?;
     let has_attribs = split.data.read_b()?;
     let is_xref = split.data.read_b()?;
@@ -455,11 +454,11 @@ mod tests {
     fn block_header_body(name_is_anonymous: bool) -> Vec<bool> {
         let mut w = BitWriter::new();
         w.write_bs_u(0); // no EED
+        w.write_bl(0); // no reactors
         w.write_b(true); // no xdictionary
         w.write_b(false); // no AcDs binary data
         w.write_b(true); // 64-flag
         w.write_b(false); // xref dependent
-        w.write_bs(1); // xref index + 1
         w.write_b(name_is_anonymous); // anonymous
         w.write_b(false); // has attribs
         w.write_b(false); // is xref
@@ -490,7 +489,7 @@ mod tests {
         assert_eq!(block.num_owned_objects, Some(0));
         assert!(block.header.flag_64);
         assert!(!block.header.is_xref_dependent);
-        assert_eq!(block.header.xref_index_plus_1, 1);
+        assert_eq!(block.header.xref_index_plus_1, 0);
         assert!(
             block.base_point.x == 0.0 && block.base_point.y == 0.0 && block.base_point.z == 0.0
         );
