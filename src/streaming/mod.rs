@@ -1,17 +1,20 @@
 //! Bounded, pausable DWG grammar. It covers the complete R13–R2000 file
 //! header (ODA v5.4.1 §3.2) and the R13–R2000 container walk: header
 //! variables, classes, the object map and every mapped record's framing,
-//! type and handle. Object bodies, decompression and the R2004+
-//! containers remain open; see issue #205.
+//! type and handle. It also has a bounded, resumable decoder for the
+//! R2004-family LZ77 dialect (§4.7). Object bodies and the R2004+
+//! container walk remain open; see issue #205.
 
 use core::fmt;
 
 mod checkpoint;
 mod flat;
-pub use checkpoint::{Checkpoint, WalkCheckpoint};
+mod lz77;
+pub use checkpoint::{Checkpoint, Lz77Checkpoint, WalkCheckpoint};
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
 };
+pub use lz77::{Lz77Decoder, Progress, WINDOW};
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -94,6 +97,24 @@ pub enum StreamError {
     ObjectHandle {
         map: u64,
         record: u64,
+    },
+    /// §4.7: an opcode in the reserved range 0x00–0x0F, at input byte `at`.
+    Lz77Opcode {
+        at: u64,
+        opcode: u8,
+    },
+    /// §4.7: a back-reference reaching before the first output byte.
+    Lz77Offset {
+        at: u64,
+        distance: u32,
+    },
+    /// Output would pass the declared decompressed size.
+    Lz77Overrun {
+        limit: u64,
+    },
+    /// The compressed bytes ended before the 0x11 terminator.
+    Lz77Truncated {
+        consumed: u64,
     },
 }
 

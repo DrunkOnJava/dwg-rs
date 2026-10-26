@@ -32,11 +32,13 @@ jobs:
           rustc --edition=2024 --crate-type rlib tools/streaming/no_std.rs --out-dir streaming-build
           rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/streaming/no_std.rs --out-dir streaming-build
       - name: Build actual streaming entry point
-        run: cargo build --locked --example stream_header --example stream_walk --example streaming_schedules
+        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example streaming_schedules
       - name: End-to-end header boundary acceptance
         run: python3 tools/streaming/verify.py target/debug/examples/stream_header target/debug/examples/streaming_schedules
       - name: End-to-end R13-R2000 container walk acceptance
         run: python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
+      - name: End-to-end R2004-family LZ77 decoder acceptance
+        run: python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -46,4 +48,6 @@ jobs:
             streaming-schedules-*.jsonl
             walk-evidence.json
             walk-schedules-*.jsonl
+            lz77-evidence.json
+            lz77-schedules-*.jsonl
           if-no-files-found: error

@@ -50,6 +50,15 @@ four independently authored drawings. All remain explicit migration gaps.
    after their CRC, sentinel and handle checks pass. A failed check is
    a terminal error; the caller discards uncommitted payload.
 
+8. LZ77 decoder state (October 26, 2026). **The window is bounded by the
+   format, not by the page.** §4.7 distances reach at most `0xBFFF` with
+   the crate's measured distance rules, so a `0xC000`-byte window decodes
+   any page, including system pages whose declared size has no fixed cap.
+   Output is produced into caller slices of any size and is provisional
+   until the caller's own commit point, as in decision 7. A mid-page
+   checkpoint must carry the window; it is bounded by
+   `min(produced, 0xC000)` and never re-reads compressed bytes.
+
 ## Core failure cases to exercise before implementation
 
 - EOF at every byte of a field, locator, CRC and sentinel.
@@ -102,3 +111,22 @@ seeded 0xC0C1 over the `MS` bytes and data.
 - Committed records equal the legacy reader's handle-map walk (count,
   handle, offset, size, type, payload CRC-32) and an independent
   Python framing parse on every real file in the pinned manifest.
+
+## LZ77 decoder failure cases (§4.7, written before the decoder)
+
+- Reserved opcode `0x00`–`0x0F` where an opcode must stand (a byte in
+  that range where a literal length may stand is a literal length).
+- Back-reference distance of zero or beyond the output produced so far.
+- Literal run, copy or `0x00` extension run passing the declared size.
+- Input ending inside a literal run, an extension, a two-byte offset, an
+  `0x40`–`0xFF` opcode's second byte, or before the `0x11` terminator.
+- Copies longer than their distance (the run repeats its own output).
+- Every input and output slice schedule (one byte, odd sizes, random,
+  with Pending polls) produces the same output and consumption.
+- Checkpoint between any two calls, in every mode, restored in a fresh
+  process: source reads and output of the two processes concatenate to
+  the uninterrupted run's.
+- Corrupt, truncated, oversized, wrong-version and resealed but
+  unreachable decoder checkpoints are rejected before use.
+- Output equals the legacy whole-buffer decoder and an independent parse
+  on every compressed page of every real file in the pinned manifest.
