@@ -1,7 +1,7 @@
 """ARCHITECTURE.md section numbering for the merge train.
 
-renumber MB MAIN   at the PR head: every `## 7X.` section the PR adds (relative to merge-base MB)
-                   whose letter is already taken on MAIN moves to the next free letter, and every
+renumber MB MAIN   at the PR head: the `## 7X.` sections the PR adds (relative to merge-base MB,
+                   compared by heading text) take the suffixes right after MAIN's last one, and every
                    `§7X` in lines the PR added (any file) follows it. Edits files in place; prints
                    the mapping, or nothing when no section moves.
 resolve PATH       during a merge: each conflict hunk whose base side is empty (both sides appended
@@ -17,9 +17,25 @@ def git(*args):
     return subprocess.run(['git', *args], capture_output=True, text=True, check=True).stdout
 
 
+def ordinal(suffix):
+    """Section suffixes run a..z, then aa, ab, ...: bijective base 26."""
+    n = 0
+    for ch in suffix:
+        n = n * 26 + ord(ch) - 96
+    return n
+
+
+def suffix(n):
+    s = ''
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(97 + r) + s
+    return s
+
+
 def renumber(mb, main):
-    taken = set(re.findall(r'^## 7([a-z])\.', git('show', f'{main}:ARCHITECTURE.md'), re.M))
-    base = set(re.findall(r'^## 7([a-z])\.', git('show', f'{mb}:ARCHITECTURE.md'), re.M))
+    heading = re.compile(r'^## 7([a-z]+)\..*$', re.M)
+    on_main = {m.group(0): m.group(1) for m in heading.finditer(git('show', f'{main}:ARCHITECTURE.md'))}
     added = {}
     current = None
     for line in git('diff', '-U0', mb, 'HEAD').splitlines():
@@ -27,18 +43,17 @@ def renumber(mb, main):
             current = line[6:] if line.startswith('+++ b/') else None
         elif line.startswith('+') and current:
             added.setdefault(current, set()).add(line[1:])
-    mine = re.findall(r'^## 7([a-z])\.', '\n'.join(added.get('ARCHITECTURE.md', ())), re.M)
-    mine = sorted(set(mine) - base)
+    # The PR's own sections are the headings it adds that main does not already have, compared by
+    # their whole text: a suffix alone cannot tell the PR's 7n from another section's 7n on main.
+    mine = sorted({m.group(1) for m in heading.finditer('\n'.join(added.get('ARCHITECTURE.md', ())))
+                   if m.group(0) not in on_main}, key=ordinal)
     if not mine:
         return
-    last = max(taken | base)
-    free = [c for c in 'abcdefghijklmnopqrstuvwxyz' if c > last]
-    if len(free) < len(mine):
-        raise SystemExit('no section letters left after 7' + last)
-    mapping = {k: v for k, v in zip(mine, free) if k != v}
+    last = max((ordinal(v) for v in on_main.values()), default=0)
+    mapping = {k: suffix(last + i + 1) for i, k in enumerate(mine) if k != suffix(last + i + 1)}
     if not mapping:
         return
-    pattern = re.compile(r'(§7|^## 7)(' + '|'.join(mapping) + r')(?![a-z])')
+    pattern = re.compile(r'(§7|^## 7)(' + '|'.join(sorted(mapping, key=len, reverse=True)) + r')(?![a-z])')
     for path, lines in added.items():
         hits = {l for l in lines if pattern.search(l)}
         if not hits:
