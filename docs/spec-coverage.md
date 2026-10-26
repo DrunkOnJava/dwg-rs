@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 65 `closes`, 6 `decoder`, 33 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 46 `closes`, 6 `decoder`, 30 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 66 `closes`, 6 `decoder`, 32 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 47 `closes`, 6 `decoder`, 29 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -134,7 +134,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.81 | IMAGEDEF | 199 | `decoder` | src/entities/imagedef.rs | #150 |  |
 | §20.4.82 | IMAGEDEFREACTOR | 200 | `missing` |  | #150 |  |
 | §20.4.83 | LAYER_INDEX | 201 | `missing` |  | #149 |  |
-| §20.4.84 | LAYOUT | 202 | `partial` | src/objects/acad_layout.rs, src/objects/acad_plot_settings.rs | #146 | Closes on R2004, R2010, R2013 and R2018; the 75 records on R14, R2000 and R2007 are never routed (#229). |
+| §20.4.84 | LAYOUT | 202 | `closes` | src/objects/acad_layout.rs, src/objects/acad_plot_settings.rs | #146 | Closes on every LAYOUT of the public corpus, R14 to R2018 (no R13 file): the R13-R2000 plot view name and the R2004+ shade-plot fields and viewport count as printed, routed by class name on R14 and R2000. Every R14, R2000 and R2007 record equals the R2004 save of the same drawing (#229, ARCHITECTURE.md §7s). |
 | §20.4.85 | LWPLINE | 204 | `partial` | src/entities/lwpolyline.rs | #142 | The 24 R14 records are never routed: R14 gives LWPOLYLINE a class number (#229). |
 | §20.4.86 | MLeaderAnnotContext | 206 | `closes` | src/entities/mleader.rs | #147 |  |
 | §20.4.87 | MLEADERSTYLE | 209 | `closes` | src/objects/acad_mleader_style.rs | #147 |  |

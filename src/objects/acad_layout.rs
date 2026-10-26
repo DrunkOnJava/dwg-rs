@@ -115,8 +115,12 @@
 //! |---|---|
 //! | R2004 | closes on all 9 corpus records (inline `TV`s, `RL` boundary) |
 //! | R2010 / R2013 / R2018 | closes on all 22 corpus records (string-stream `TV`s) |
-//! | R13 / R14 / R2000 | §20.4.84 inserts `T plot_view_name` and omits shade-plot + `viewport_count`; those files have no walkable object stream in this crate (`STATUS.md` #104), so the branch is undetermined — [`crate::error::Error::Unsupported`] |
-//! | R2007 | same field list as R2004 is likely, but the R2007 string stream is not locatable here yet — [`crate::error::Error::Unsupported`] |
+//! | R14 / R2000 | §20.4.84's R13-R2000 `TV` plot view name, and no shade-plot fields or `viewport_count`; a class number from AcDb:Classes rather than `0x52`. Closes on all 50 corpus records (2026-10-26, #229) |
+//! | R2007 | the R2004 field list with string-stream `TV`s; closes on all 25 corpus records (2026-10-26, #229) |
+//!
+//! Every R14, R2000 and R2007 record decodes to the same values as the
+//! R2004 save of the same drawing, handle by handle, apart from the
+//! fields the earlier releases do not store (ARCHITECTURE.md §7s).
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
@@ -188,8 +192,9 @@ pub struct AcadLayout {
     pub extent_min: Point3D,
     /// Maximum drawing extents (group 15).
     pub extent_max: Point3D,
-    /// Number of viewports this layout owns. R2004+; see the module
-    /// docs on why this is a `BL` rather than the `RL` §20.4.84 prints.
+    /// Number of viewports this layout owns. R2004+ (0 before, where the
+    /// record does not store it); see the module docs on why this is a
+    /// `BL` rather than the `RL` §20.4.84 prints.
     pub viewport_count: i32,
     /// String-stream entries the field list does not place. Empty on
     /// every corpus record; a `TV` costs no data-stream bits, so an
@@ -239,15 +244,12 @@ impl AcadLayout {
 /// its five `TV` fields from the R2007+ string stream and checking
 /// that the data fields end exactly on the data-stream boundary.
 ///
-/// Returns [`crate::error::Error::Unsupported`] for the release bands listed in the
-/// module docs.
 pub fn decode_object(
     payload: &[u8],
     body_start: usize,
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<AcadLayout> {
-    acad_plot_settings::check_version(version, "LAYOUT")?;
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
     let plot_settings = acad_plot_settings::read_fields(&mut split, version)?;
     let layout_name = modern::read_tv(&mut split.data, &mut split.strings, version)?;
@@ -264,7 +266,12 @@ pub fn decode_object(
     let ucs_ortho_view_type = c.read_bs()?;
     let extent_min = read_bd3(c)?;
     let extent_max = read_bd3(c)?;
-    let viewport_count = c.read_bl()?;
+    // §20.4.84: the viewport count is R2004+ (measured as a `BL`).
+    let viewport_count = if version.is_r2004_plus() {
+        c.read_bl()?
+    } else {
+        0
+    };
 
     split.finish("LAYOUT")?;
 
@@ -302,7 +309,6 @@ pub fn decode_object(
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
-    use crate::error::Error;
     use crate::objects::acad_plot_settings::tests::write_split_stream_block;
 
     fn write_bd3(w: &mut BitWriter, p: Point3D) {
@@ -440,15 +446,6 @@ mod tests {
         let bits = crate::string_stream::tests::bits_of(&body);
         let payload = crate::string_stream::tests::build_payload(&bits, &["", "", "", "", "Model"]);
         assert!(decode_object(&payload, 8, None, Version::R2018).is_err());
-    }
-
-    #[test]
-    fn rejects_the_undetermined_release_bands() {
-        let payload = build_r2018("Model", 0, Point2D::default(), 0);
-        for version in [Version::R14, Version::R2000, Version::R2007] {
-            let err = decode_object(&payload, 8, None, version).unwrap_err();
-            assert!(matches!(&err, Error::Unsupported { feature } if feature.contains("LAYOUT")));
-        }
     }
 
     #[test]
