@@ -243,10 +243,13 @@ fn write_signed_mc(out: &mut Vec<u8>, v: i64) {
 // section (size = 0). Each handle section:
 //
 // ```text
-//   2 bytes big-endian u16 size (pairs + CRC = size)
+//   2 bytes big-endian u16 size (these 2 bytes + pairs)
 //   N bytes pairs of (MC handle_delta, MC offset_delta)
-//   2 bytes LE CRC-8 (§2.14.1, seed 0xC0C1) over the pairs only
+//   2 bytes big-endian CRC-8 (§2.14.1, seed 0xC0C1) over size and pairs
 // ```
+//
+// The map ends with an empty section: size 2 and its own CRC (§23.1).
+// Real R14 through R2013 files frame every section this way.
 //
 // Section payload is bounded by [`MAX_HANDLE_SECTION_BYTES`] (≤ 2032 as
 // documented in `SECURITY.md`). If the caller's entries won't fit in a
@@ -265,10 +268,10 @@ fn write_signed_mc(out: &mut Vec<u8>, v: i64) {
 ///
 /// # CRC
 ///
-/// Each handle-section's 2-byte trailer is a DWG CRC-8 (spec §2.14.1)
-/// computed over the section's pair bytes with seed 0xC0C1, matching
-/// what the reader verifies. An empty handle map produces a single
-/// 2-byte terminator (size-0 section header).
+/// Each handle-section's 2-byte big-endian trailer is a DWG CRC-8 (spec
+/// §2.14.1, seed 0xC0C1) over the section's size bytes and pairs, as the
+/// streaming walk verifies. An empty handle map produces only the
+/// 4-byte terminator section.
 pub fn write_handle_map(
     map: &HandleMap,
     _writer: &mut BitWriter,
@@ -281,7 +284,8 @@ pub fn write_handle_map(
     let mut idx = 0;
     while idx < map.entries.len() {
         // Accumulate one section's pairs until adding the next pair would
-        // exceed MAX_HANDLE_SECTION_BYTES - 2 (leaving room for the CRC).
+        // make the section size, which counts its own 2 bytes, exceed
+        // MAX_HANDLE_SECTION_BYTES.
         // Both baselines start at zero: the reader restarts its
         // accumulators on every section, so the first pair is absolute.
         let mut pairs = Vec::with_capacity(32);
@@ -300,7 +304,6 @@ pub fn write_handle_map(
             let mut pair_bytes = Vec::with_capacity(4);
             write_unsigned_mc(&mut pair_bytes, h_delta);
             write_signed_mc(&mut pair_bytes, o_delta);
-            // 2 bytes reserved for the trailing CRC.
             if pairs.len() + pair_bytes.len() + 2 > MAX_HANDLE_SECTION_BYTES {
                 break;
             }
@@ -309,16 +312,15 @@ pub fn write_handle_map(
             sec_last_offset = e.offset as i64;
             idx += 1;
         }
-        // Section header: big-endian u16 (pair_bytes + 2 CRC bytes).
-        let section_size = pairs.len() + 2;
-        out.extend_from_slice(&(section_size as u16).to_be_bytes());
+        let start = out.len();
+        out.extend_from_slice(&((pairs.len() + 2) as u16).to_be_bytes());
         out.extend_from_slice(&pairs);
-        // CRC-8 over the pair bytes.
-        let crc = crc8(0xC0C1, &pairs);
-        out.extend_from_slice(&crc.to_le_bytes());
+        let crc = crc8(0xC0C1, &out[start..]);
+        out.extend_from_slice(&crc.to_be_bytes());
     }
-    // Terminator: size = 0.
-    out.extend_from_slice(&0u16.to_be_bytes());
+    let end = 2u16.to_be_bytes();
+    out.extend_from_slice(&end);
+    out.extend_from_slice(&crc8(0xC0C1, &end).to_be_bytes());
     Ok(out)
 }
 
@@ -537,12 +539,12 @@ mod tests {
     }
 
     #[test]
-    fn write_handle_map_empty_map_emits_two_byte_terminator() {
+    fn write_handle_map_empty_map_emits_only_the_terminator_section() {
         let map = HandleMap::default();
         let mut w = BitWriter::new();
         let bytes = write_handle_map(&map, &mut w, Version::R2018).unwrap();
-        // Just the size-0 terminator.
-        assert_eq!(bytes, vec![0x00, 0x00]);
+        // Just the empty size-2 section and its CRC, as real files end.
+        assert_eq!(bytes, vec![0x00, 0x02, 0x01, 0xD0]);
         // Parse roundtrips to empty.
         let parsed = HandleMap::parse(&bytes).unwrap();
         assert!(parsed.entries.is_empty());
@@ -631,12 +633,12 @@ mod tests {
         };
         let mut w = BitWriter::new();
         let bytes = write_handle_map(&map, &mut w, Version::R2018).unwrap();
-        // Two data sections plus the 2-byte terminator.
+        // Two data sections plus the empty size-2 terminator section.
         let mut sections = 0;
         let mut pos = 0usize;
         while pos + 2 <= bytes.len() {
             let size = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as usize;
-            if size == 0 {
+            if size == 2 {
                 break;
             }
             sections += 1;
