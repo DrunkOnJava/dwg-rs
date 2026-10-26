@@ -116,6 +116,9 @@ pub enum StreamError {
     Lz77Truncated {
         consumed: u64,
     },
+    /// A position or count would pass `u64::MAX`. No real input reaches
+    /// this; a forged but CRC-valid checkpoint can.
+    CounterOverflow,
 }
 
 impl fmt::Display for StreamError {

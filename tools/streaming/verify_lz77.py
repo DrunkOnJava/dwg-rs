@@ -201,6 +201,7 @@ def main():
 
         small = min((v for (f, _), v in saved.items() if f == name and v[0] > 0), key=lambda v: len(v[1]))
         _, state, caller, _ = small
+        flipped = len(state)
         assert restore(state, caller)[0] == 0
         for at in range(len(state)):
             bad = bytearray(state)
@@ -232,12 +233,34 @@ def main():
         _, literal_state, literal_caller, _ = saved[(name, 2)]
         forgeries.append((literal_state, [(22, struct.pack('<Q', 0))]))  # empty literal run
         rejected = 0
-        for state, edits in forgeries:
-            result = restore(resealed(state, edits), copy_caller if state is copy_state else literal_caller)
+        for forged_state, edits in forgeries:
+            result = restore(resealed(forged_state, edits), copy_caller if forged_state is copy_state else literal_caller)
             assert result[0] != 0 and 'InvalidCheckpoint' in result[2], (edits, result)
             rejected += 1
-        receipts.append({'file': name, 'checkpoint_modes': modes, 'bit_flips_rejected': len(state),
-                         'truncations_rejected': len(state), 'resealed_forgeries_rejected': rejected})
+        # Counters at the top of their range: a CRC-valid checkpoint may carry
+        # any consumed count, so the next byte must be a typed error, never a
+        # panic or a wrapped position. produced cannot pass its limit.
+        def direct(state, hex_input):
+            checkpoint.write_bytes(state)
+            return run(data, '--decode-checkpoint', checkpoint, '--input', hex_input, name=name)
+        top = (1 << 64) - 1
+        overflow = []
+        for label, base_state in (('literal run', literal_state), ('opcode', saved[(name, 3)][1])):
+            forged = resealed(base_state, [(38, struct.pack('<Q', top))])
+            result = direct(forged, '0102')
+            assert result[0] != 0 and 'CounterOverflow' in result[2] and 'panicked' not in result[2], (label, result)
+            overflow.append(label)
+        # A literal run ending exactly at a limit of 2^64 - 1 decodes.
+        edge = bytearray(b'DWGZ\x01\x02' + bytes(48))
+        struct.pack_into('<QQQQ', edge, 22, 3, top - 3, 5, top)
+        edge += bytes(WINDOW)
+        edge += struct.pack('<I', zlib.crc32(bytes(edge)))
+        result = direct(bytes(edge), '414243')
+        assert result[0] == 0, ('top-of-range literal run', result)
+        assert json.loads(result[1]) == {'consumed': 3, 'produced': 3, 'total_consumed': 8, 'total_produced': top}, result
+        receipts.append({'file': name, 'checkpoint_modes': modes, 'bit_flips_rejected': flipped,
+                         'truncations_rejected': flipped, 'resealed_forgeries_rejected': rejected,
+                         'counter_overflow_typed': overflow, 'top_of_range_literal': 'decoded'})
 
         # Corrupt compressed bytes end in the named error.
         for name, data, _ in corpus:

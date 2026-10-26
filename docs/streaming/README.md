@@ -134,7 +134,11 @@ under a CRC-32. It is `54 + kept + 4` bytes, so at most 49,210 bytes, and
 29,754 for a full `0x7400` page. Restore checks length, version and CRC
 before copying anything, then requires a state `decode` can reach: fields
 a mode does not use are zero, runs fit the limit, a pending copy points
-inside the window. Where the compressed bytes come from, how many the
+inside the window. `produced` can never pass the limit, since every
+pending run is bounded by `limit - produced`; `consumed` has no bound a
+checkpoint can prove, so it is accumulated with a check, and a forged
+count at the top of its range ends in `CounterOverflow`, never a panic or
+a wrapped position. Where the compressed bytes come from, how many the
 caller has read but not yet fed, and the output already handed out are
 the caller's state; `stream_lz77` saves them beside the checkpoint.
 
@@ -156,7 +160,10 @@ at every call of the canonical page and 45 or 46 sampled calls of three
 real pages: the two processes' source reads and output concatenate to the
 uninterrupted run's. Checkpoints were taken in seven of the ten modes; bit
 flips at every byte, every truncation and nine resealed forgeries are
-rejected. A reserved opcode, a distance before the first byte, an output
+rejected. A CRC-valid checkpoint with `consumed = 2^64 - 1`, in a literal
+run and at an opcode, fed directly to the restored decoder
+(`--decode-checkpoint`), ends in `CounterOverflow`; a literal run ending
+exactly at a limit of `2^64 - 1` decodes. A reserved opcode, a distance before the first byte, an output
 past the declared size and a stream cut before the terminator each end in
 their named error.
 

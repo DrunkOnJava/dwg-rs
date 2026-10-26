@@ -128,5 +128,8 @@ seeded 0xC0C1 over the `MS` bytes and data.
   the uninterrupted run's.
 - Corrupt, truncated, oversized, wrong-version and resealed but
   unreachable decoder checkpoints are rejected before use.
+- A resealed checkpoint whose counters sit at the top of their range:
+  the next byte is a typed error, never an overflow; a run ending exactly
+  at the largest limit still decodes.
 - Output equals the legacy whole-buffer decoder and an independent parse
   on every compressed page of every real file in the pinned manifest.

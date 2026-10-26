@@ -173,13 +173,20 @@ impl Lz77Decoder {
                     let n = (out.len() - o)
                         .min(input.len() - i)
                         .min(usize::try_from(self.count).unwrap_or(usize::MAX));
+                    // `produced` cannot overflow: restore and every transition
+                    // keep `count <= limit - produced`. `consumed` has no such
+                    // bound, so it is checked before anything moves.
+                    let Some(consumed) = self.consumed.checked_add(n as u64) else {
+                        self.failure = Some(StreamError::CounterOverflow);
+                        return Err(StreamError::CounterOverflow);
+                    };
                     for (slot, &byte) in out[o..o + n].iter_mut().zip(&input[i..i + n]) {
                         self.push(byte);
                         *slot = byte;
                     }
                     i += n;
                     o += n;
-                    self.consumed += n as u64;
+                    self.consumed = consumed;
                     self.count -= n as u64;
                     if self.count == 0 {
                         self.mode = Mode::Opcode;
@@ -191,8 +198,12 @@ impl Lz77Decoder {
                     }
                     let byte = input[i];
                     let at = self.consumed;
+                    let Some(consumed) = at.checked_add(1) else {
+                        self.failure = Some(StreamError::CounterOverflow);
+                        return Err(StreamError::CounterOverflow);
+                    };
                     i += 1;
-                    self.consumed += 1;
+                    self.consumed = consumed;
                     if let Err(error) = self.step(byte, at) {
                         self.failure = Some(error);
                         return Err(error);

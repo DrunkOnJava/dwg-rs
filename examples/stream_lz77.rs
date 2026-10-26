@@ -17,7 +17,10 @@
 //! invocation with `--resume <path>` continues. `--trace <path>` records
 //! actual source reads. `--truncate <bytes>` delivers only that many
 //! compressed bytes and `--limit <bytes>` overrides the declared output
-//! size, to exercise the typed truncation and overrun errors. A bare
+//! size, to exercise the typed truncation and overrun errors.
+//! `--decode-checkpoint <path> --input <hex>` restores a decoder
+//! checkpoint and feeds it those bytes directly, with no page or caller
+//! state, so a forged checkpoint reaches the decoder itself. A bare
 //! number is a one-size input schedule and `--pending` makes the source
 //! report Pending before every read, the shape `streaming_schedules`
 //! drives.
@@ -285,6 +288,7 @@ fn main() -> Result<()> {
     };
     let (mut only, mut resume, mut trace, mut limit) = (None, None, None, None);
     let (mut use_legacy, mut inject_pending) = (false, false);
+    let (mut decode_checkpoint, mut direct_input) = (None, None);
     while let Some(arg) = args.next() {
         let mut value = || args.next().ok_or(format!("missing value for {arg}"));
         match arg.as_str() {
@@ -299,12 +303,35 @@ fn main() -> Result<()> {
             "--truncate" => schedule.truncate = Some(value()?.parse()?),
             "--limit" => limit = Some(value()?.parse::<u64>()?),
             "--pending" => inject_pending = true,
+            "--decode-checkpoint" => decode_checkpoint = Some(value()?),
+            "--input" => direct_input = Some(value()?),
             number if !number.starts_with('-') => schedule.input = list(number, 256)?,
             _ => return Err(format!("unknown option {arg}").into()),
         }
     }
     if schedule.stop_after.is_some() != schedule.checkpoint_out.is_some() {
         return Err("--stop-after and --checkpoint-out go together".into());
+    }
+    if let Some(state) = decode_checkpoint {
+        let hex = direct_input.ok_or("--decode-checkpoint needs --input")?;
+        if hex.len() > 512 || hex.len() % 2 != 0 {
+            return Err("--input is at most 256 bytes of hex".into());
+        }
+        let input = (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
+            .collect::<std::result::Result<Vec<u8>, _>>()?;
+        let mut decoder = Lz77Decoder::restore(&fs::read(state)?)?;
+        let mut output = [0u8; 4096];
+        let progress = decoder.decode(&input, &mut output)?;
+        println!(
+            "{{\"consumed\":{},\"produced\":{},\"total_consumed\":{},\"total_produced\":{}}}",
+            progress.consumed,
+            progress.produced,
+            decoder.consumed(),
+            decoder.produced()
+        );
+        return Ok(());
     }
     let bytes = fs::read(&path)?;
     let mut all = pages(&bytes)?;
@@ -326,7 +353,8 @@ fn main() -> Result<()> {
         let mut decoder = Lz77Decoder::restore(&fs::read(&state)?)?;
         if decoder.limit() != page.limit
             || decoder.produced() != caller.produced
-            || decoder.consumed() + caller.pending.len() as u64 != caller.read
+            || caller.read > page.compressed
+            || decoder.consumed().checked_add(caller.pending.len() as u64) != Some(caller.read)
         {
             return Err("checkpoint does not match the caller state".into());
         }
