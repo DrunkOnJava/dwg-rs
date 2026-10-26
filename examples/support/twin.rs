@@ -115,6 +115,27 @@ impl Twin {
     pub fn record(&self, handle: u64) -> Option<&Record> {
         self.by_handle.get(&handle).map(|&i| &self.records[i])
     }
+
+    /// Every record of DXF type `kind`, in file order.
+    pub fn records_of(&self, kind: &str) -> Vec<&Record> {
+        self.records.iter().filter(|r| r.kind == kind).collect()
+    }
+}
+
+/// How a DWG record finds its DXF partner.
+pub enum Pairing {
+    /// The DXF record with the same handle.
+    Handle,
+    /// The DXF record with the same handle; failing that, the DXF records of
+    /// the type that no DWG record shares a handle with, taken in file order
+    /// against the DWG records that find none. For the objects of a table
+    /// AutoCAD created while saving, whose handles differ between the DWG and
+    /// the DXF of the same drawing.
+    HandleThenOrder,
+    /// The one record of the DXF type in the twin, for an object AutoCAD
+    /// writes afresh on every save, so that the two files never share a
+    /// handle. A twin with none or several has no partner for it.
+    OnlyOfKind,
 }
 
 pub struct Drawing {
@@ -290,6 +311,17 @@ pub fn run(
     p: &Probe,
     compare: impl Fn(&DecodedEntity, Option<&Record>, &mut Tally) -> bool,
 ) -> ExitCode {
+    run_with_twin(p, Pairing::Handle, |d, r, _, t| compare(d, r, t))
+}
+
+/// [`run`], with the record's partner found by `pairing` and the whole twin
+/// handed to `compare`, for a record whose values also live in a second DXF
+/// object.
+pub fn run_with_twin(
+    p: &Probe,
+    pairing: Pairing,
+    compare: impl Fn(&DecodedEntity, Option<&Record>, Option<&Twin>, &mut Tally) -> bool,
+) -> ExitCode {
     let Some(dir) = std::env::args().nth(1) else {
         eprintln!(
             "usage: {} <corpus-dir>",
@@ -312,6 +344,22 @@ pub fn run(
         let release = format!("{:?}", d.version);
         let mut records = p.class.map_or_else(Vec::new, |c| d.class_records(c));
         records.extend(p.kind.map_or_else(Vec::new, |k| d.kind_records(k)));
+        let mut by_order: HashMap<u64, &Record> = HashMap::new();
+        if let (Pairing::HandleThenOrder, Some(t), false) =
+            (&pairing, &d.twin, p.dxf_kind.is_empty())
+        {
+            let mut spare = t
+                .records_of(p.dxf_kind)
+                .into_iter()
+                .filter(|r| !records.iter().any(|(h, _)| r.handle == Some(*h)));
+            for (h, _) in &records {
+                if t.record(*h).is_none_or(|r| r.kind != p.dxf_kind) {
+                    if let Some(r) = spare.next() {
+                        by_order.insert(*h, r);
+                    }
+                }
+            }
+        }
         for (handle, decoded) in records {
             let row = per_release.entry(release.clone()).or_default();
             row[0] += 1;
@@ -334,20 +382,28 @@ pub fn run(
                     let rec = if p.dxf_kind.is_empty() {
                         None
                     } else {
-                        d.twin
-                            .as_ref()
-                            .map(|t| t.record(handle).filter(|r| r.kind == p.dxf_kind))
+                        d.twin.as_ref().map(|t| match pairing {
+                            Pairing::Handle => t.record(handle).filter(|r| r.kind == p.dxf_kind),
+                            Pairing::HandleThenOrder => t
+                                .record(handle)
+                                .filter(|r| r.kind == p.dxf_kind)
+                                .or_else(|| by_order.get(&handle).copied()),
+                            Pairing::OnlyOfKind => {
+                                let all = t.records_of(p.dxf_kind);
+                                (all.len() == 1).then(|| all[0])
+                            }
+                        })
                     };
                     if matches!(rec, Some(None)) {
                         failed = true;
                         println!(
                             "{name} ({release}) {tag} 0x{handle:X} closes; the DXF has no {} \
-                             with this handle",
+                             to pair it with",
                             p.dxf_kind
                         );
                         continue;
                     }
-                    if !compare(&decoded, rec.flatten(), &mut tally) {
+                    if !compare(&decoded, rec.flatten(), d.twin.as_ref(), &mut tally) {
                         failed = true;
                         println!("{name} ({release}) {tag} 0x{handle:X} decoded as another type");
                         continue;
