@@ -21,7 +21,7 @@
 //! ```
 //!
 //! Exits non-zero if any value differs, a GEODATA record fails to
-//! decode, or none is found.
+//! decode or has no twin record, or none is found.
 
 use std::collections::HashMap;
 use std::process::ExitCode;
@@ -305,7 +305,7 @@ fn main() -> ExitCode {
     let class_map = file.class_map().and_then(Result::ok);
     let twins = read_geodata_twins(dxf_path);
 
-    let (mut records, mut failed, mut compared, mut differ) = (0, 0, 0, 0);
+    let (mut records, mut failed, mut missing, mut compared, mut differ) = (0, 0, 0, 0, 0);
     for object in &objects {
         let decoded = match (class_map.as_ref(), object.kind) {
             (Some(cm), ObjectType::Custom(code)) => {
@@ -325,6 +325,7 @@ fn main() -> ExitCode {
             continue;
         };
         let Some(groups) = twins.get(&handle) else {
+            missing += 1;
             println!(
                 "0x{handle:X}: object version {}, no twin record",
                 g.object_version
@@ -346,9 +347,9 @@ fn main() -> ExitCode {
 
     let name = dwg_path.rsplit('/').next().unwrap_or(dwg_path);
     println!(
-        "{name} ({version}): {records} GEODATA, {failed} not decoded, {compared} values compared, {differ} differ"
+        "{name} ({version}): {records} GEODATA, {failed} not decoded, {missing} without a twin record, {compared} values compared, {differ} differ"
     );
-    if records == 0 || failed > 0 || differ > 0 {
+    if records == 0 || failed > 0 || missing > 0 || differ > 0 {
         println!("RESULT: FAIL");
         ExitCode::FAILURE
     } else {
