@@ -52,6 +52,41 @@ pub enum HeaderValue {
     Double(f64),
     /// 3D point — emits X/Y/Z as group codes 10/20/30.
     Point(Point3D),
+    /// Explicit group codes, for a variable whose codes the other variants
+    /// cannot say (`$CLAYER` is group 8, `$HANDSEED` group 5, `$CELWEIGHT`
+    /// group 370).
+    Groups(Vec<HeaderGroup>),
+}
+
+/// One group of a [`HeaderValue::Groups`] variable.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HeaderGroup {
+    /// A text group.
+    Text(i32, String),
+    /// An integer group (16, 32 or 64 bit alike, and the 290 flags).
+    Int(i32, i64),
+    /// A real group, written to the shortest text that reads back exactly.
+    Real(i32, f64),
+    /// A handle group, written in hexadecimal.
+    Handle(i32, u64),
+}
+
+/// The shortest decimal text of `v` that reads back as `v`, with an
+/// exponent in the form DXF writes (`1.0E+20`).
+fn real_text(v: f64) -> String {
+    let s = format!("{v:?}");
+    let Some((mantissa, exponent)) = s.split_once('e') else {
+        return s;
+    };
+    let mantissa = if mantissa.contains('.') {
+        mantissa.to_string()
+    } else {
+        format!("{mantissa}.0")
+    };
+    match exponent.strip_prefix('-') {
+        Some(digits) => format!("{mantissa}E-{digits}"),
+        None => format!("{mantissa}E+{exponent}"),
+    }
 }
 
 /// A single HEADER entry pairing name + value.
@@ -81,6 +116,13 @@ impl HeaderEntry {
         HeaderEntry {
             name: name.into(),
             value: HeaderValue::Double(value),
+        }
+    }
+    /// Builds a header variable from explicit groups.
+    pub fn groups(name: impl Into<String>, groups: Vec<HeaderGroup>) -> Self {
+        HeaderEntry {
+            name: name.into(),
+            value: HeaderValue::Groups(groups),
         }
     }
     /// Builds a header variable holding a 3D point (emitted as the 10/20/30 triple).
@@ -120,6 +162,16 @@ pub fn write_header_section(w: &mut DxfWriter, vars: &[HeaderEntry]) {
             HeaderValue::Int(n) => w.write_int(70, *n),
             HeaderValue::Double(f) => w.write_double(40, *f),
             HeaderValue::Point(p) => w.write_point(10, *p),
+            HeaderValue::Groups(groups) => {
+                for g in groups {
+                    match g {
+                        HeaderGroup::Text(code, t) => w.write_string(*code, t),
+                        HeaderGroup::Int(code, n) => w.write_int(*code, *n),
+                        HeaderGroup::Real(code, v) => w.write_string(*code, &real_text(*v)),
+                        HeaderGroup::Handle(code, h) => w.write_string(*code, &format!("{h:X}")),
+                    }
+                }
+            }
         }
     }
     w.end_section();

@@ -111,6 +111,7 @@ pub mod crc;
 pub mod curve;
 pub mod dxf;
 pub mod dxf_convert;
+pub mod dxf_header;
 #[cfg(feature = "dxf-reader")]
 pub mod dxf_reader;
 pub mod dxf_sections;
