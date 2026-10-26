@@ -312,6 +312,9 @@ fn compare(
                 want == Some(t.as_str())
             }
         }
+        Value::RawText(b) => first
+            .and_then(DxfValue::as_str)
+            .is_some_and(|t| t.as_bytes() == b.as_slice()),
         Value::Color(c) => match c.aci() {
             Some(i) => Some(i64::from(i)) == first.and_then(DxfValue::as_i64),
             None => match first.and_then(DxfValue::as_i64) {

@@ -45,6 +45,10 @@
 //! named `$TDUCREATE` and `$TDUUPDATE`; and a `CMC` from R2004 carries its
 //! meaning in the top byte of its `BL`.
 //!
+//! Text before R2007 is in the drawing's code page. The crate applies none, so
+//! a text with a byte above 0x7F is kept as [`Value::RawText`] bytes instead of
+//! being read as UTF-8; all-ASCII text is [`Value::Text`] as on later releases.
+//!
 //! # How it fails
 //!
 //! Every length is checked against the bytes before it is used, and every
@@ -144,6 +148,10 @@ pub enum Value {
     Point3([f64; 3]),
     /// `TV`.
     Text(String),
+    /// A pre-R2007 `T` with a byte above 0x7F. Those releases store text in
+    /// the drawing's code page, which the crate does not apply, so the
+    /// bytes are kept as they are rather than read as UTF-8.
+    RawText(Vec<u8>),
     /// `H`.
     Handle(Handle),
     /// `CMC`.
@@ -183,6 +191,14 @@ impl Value {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Self::Text(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// The bytes of a [`Value::RawText`].
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        match self {
+            Self::RawText(b) => Some(b),
             _ => None,
         }
     }
@@ -387,20 +403,47 @@ fn bit_at(bytes: &[u8], bit: usize) -> Option<bool> {
 
 struct Reader<'a> {
     data: BitCursor<'a>,
-    version: Version,
     split: bool,
     strings: Option<crate::string_stream::StringReader<'a>>,
     handles: Option<BitCursor<'a>>,
 }
 
 impl Reader<'_> {
-    fn tv(&mut self) -> Result<String> {
-        if !self.split {
-            return crate::tables::read_tv(&mut self.data, self.version);
+    fn tv_value(&mut self) -> Result<Value> {
+        if self.split {
+            return Ok(Value::Text(match self.strings.as_mut() {
+                Some(s) => s.read_tv()?,
+                None => String::new(),
+            }));
         }
-        match self.strings.as_mut() {
-            Some(s) => s.read_tv(),
-            None => Ok(String::new()),
+        let len = usize::from(self.data.read_bs_u()?);
+        if len > self.data.remaining_bits() / 8 {
+            return Err(Error::BitsExhausted {
+                wanted: len.saturating_mul(8),
+                remaining: self.data.remaining_bits(),
+            });
+        }
+        let mut bytes = Vec::with_capacity(len);
+        for _ in 0..len {
+            bytes.push(self.data.read_rc()?);
+        }
+        if bytes.last() == Some(&0) {
+            bytes.pop();
+        }
+        Ok(if bytes.is_ascii() {
+            Value::Text(String::from_utf8_lossy(&bytes).into_owned())
+        } else {
+            Value::RawText(bytes)
+        })
+    }
+
+    fn tv(&mut self) -> Result<String> {
+        match self.tv_value()? {
+            Value::Text(s) => Ok(s),
+            _ => Err(Error::Unsupported {
+                feature: "a pre-R2007 colour name outside ASCII (the code page is not applied)"
+                    .into(),
+            }),
         }
     }
 
@@ -472,7 +515,7 @@ impl Reader<'_> {
                 let c = &mut self.data;
                 Value::Point2([c.read_rd()?, c.read_rd()?])
             }
-            Kind::Tv => Value::Text(self.tv()?),
+            Kind::Tv => self.tv_value()?,
             Kind::H => Value::Handle(self.handle()?),
             Kind::HData => Value::Handle(self.data.read_handle()?),
             Kind::TailB => {
@@ -632,7 +675,6 @@ impl HeaderVars {
         let body = std::mem::take(&mut self.body);
         let mut r = Reader {
             data: BitCursor::new(&body),
-            version,
             split: false,
             strings: None,
             handles: None,
@@ -714,7 +756,6 @@ impl HeaderVars {
         let string_start = plan.strings.map_or(plan.handles_at - 1, |s| s.start_bit);
         let mut r = Reader {
             data: BitCursor::new(&body),
-            version,
             split: true,
             strings: Some(strings),
             handles: Some(handles),
