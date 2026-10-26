@@ -1309,7 +1309,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_RAY => DecodedEntity::Ray(ray::decode(c)?),
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode_for(c, version)?),
-        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
+        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode_for(c, version)?),
         OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
