@@ -748,14 +748,12 @@ the prescription and the bytes disagree:
   string-stream start: a 32-bit `RL` cannot fit, and a `BL` in its
   8-bit form is exactly 10 bits and decodes `2`. The 28 records with no
   viewport spend 2 bits there, where an `RL` would overrun by 30.
-- **The R2013+ `has_ds_binary_data` bit carries 16 further bits.** The
-  spec gives only the `B`. Four corpus records set it — the four
-  LAYOUTs of `sample_AC1032.dwg`, out of 331 non-entity records across
-  the R2013 and R2018 files — and on all four the field list closes
-  only with 16 bits consumed after the flag, the first byte `0x2C` on
-  every one. `objects::modern` previously consumed a single `RC` there,
-  an unvalidated guess no record had ever reached. See that module's
-  docs for the reading this crate takes and the one it cannot rule out.
+- **The R2013+ `has_ds_binary_data` bit carries no further bits.**
+  (Corrected 2026-10-26; see "LAYOUT's plot flags, measured against
+  AutoCAD's DXF" below.) This section first read 16 bits after the flag
+  on the four LAYOUTs of `sample_AC1032.dwg` that set it, because that
+  reading closes. Reading nothing closes too, and only that reading
+  gives the plot-layout flags AutoCAD exports.
 
 Because §20.4.84 is the only place the spec prescribes the
 plot-settings block, `objects::acad_plot_settings` and
@@ -1627,3 +1625,32 @@ The term "clean-room" as used elsewhere in this project refers to
 the project's solo-developer, spec-only, no-reference-source
 discipline — it is not a formal two-team clean-room protocol in the
 IBM-BIOS sense. The scope is defined precisely in `CLEANROOM.md`.
+
+## 2026-10-26 — LAYOUT's plot flags, measured against AutoCAD's DXF
+
+The DXF value oracle (#99) pairs every DWG record with the record of the
+same handle in AutoCAD's own DXF export of the drawing and compares their
+values. On the LAYOUT records that set the R2013+ `has AcDs binary data`
+bit, it found the "data-store block" `objects::acad_layout` read after the
+flag to be a misreading that the data-stream boundary cannot catch.
+
+`plot_layout_flags` is the first `BS` of the §20.4.84 plot-settings
+block. A `BS` whose value needs 16 bits is written as the code `00` and an
+`RS`, 18 bits. The old reading took the first 16 of them as two `RC`s and
+the last two, `10`, as a `BS` of value 0: the same 18 bits, so both
+readings close. The export decides it:
+
+| Record | DXF 70 (plot flags) | Full-form `BS` bits | Old reading | Old `plot_layout_flags` |
+|---|---|---|---|---|
+| `Model` (`sample_AC1032.dwg`, `sample_AC1027.dwg`, `geoloc.dwg`, handle `22`) | 11952 = `0x2EB0` | `00` `B0 2E` | `RC 0x2C`, `RC 0x0B`, `BS 10` | 0 |
+| paper layouts (handles `59`, `5E`, `25A` of the two samples) | 688 = `0x02B0` | `00` `B0 02` | `RC 0x2C`, `RC 0x00`, `BS 10` | 0 |
+
+Reading no bits after the flag decodes 688 and 11952 on all nine records,
+equal to the export, and every other LAYOUT field stays equal. Coverage
+is unchanged (`coverage_report` totals identical on both corpora), since
+the two readings consume the same bits. The flag is followed by nothing
+on objects, as on the three ACIS entities that set it.
+
+Reproduce with `cargo run --release --features dxf-reader --example
+dxf_oracle -- <corpus-dir>` over the pinned corpus of #225; the LAYOUT
+table's `plot_layout_flags` row reads `=` on every release.
