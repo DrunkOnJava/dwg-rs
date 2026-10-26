@@ -33,7 +33,7 @@
 
 use dwg::crc::{crc8, r13_locator_seed};
 use dwg::streaming::{CLASS_SENTINELS, END_SENTINEL, HEADER_VARS_SENTINELS};
-use dwg::{BitCursor, DwgFile, HeaderVars, Version};
+use dwg::{BitCursor, DwgFile, HeaderVars};
 use std::process::ExitCode;
 
 const IMAGE_SENTINEL: [u8; 16] = [
@@ -252,19 +252,7 @@ fn main() -> ExitCode {
                         h.unknowns().count(),
                         h.diagnostics.len()
                     ),
-                    Err(e) => {
-                        let closes = |v: Version| {
-                            HeaderVars::parse_strict(&bytes, v)
-                                .map(|h| h.closed)
-                                .unwrap_or(false)
-                        };
-                        println!(
-                            "    header variables: FAIL({e}); with the R14 table {}, with the R2000 table {}, with the R2004 table {}",
-                            closes(Version::R14),
-                            closes(Version::R2000),
-                            closes(Version::R2004)
-                        );
-                    }
+                    Err(e) => println!("    header variables: FAIL({e})"),
                 }
             }
         }

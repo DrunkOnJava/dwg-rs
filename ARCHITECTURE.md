@@ -2059,14 +2059,24 @@ the map ending on its locator. All six pass on all 22 files. No three-locator
 (R13 C2) drawing is in the corpus, so that layout, and the PRE-R13C3 image
 position, are untested.
 
-The §9 header variables read with the R13 rows of the table: `Cabin.dwg`'s 195
-slots decode strictly and end on the stated size, as the R14 files' 199 do
-(the four extra slots are §9's "R14+" shorts). The 21 Sovol headers do not:
-the slots end 84 bits before the stated size in every one (bit 3084 of 3168,
-or 3148 of 3232), and the R14, R2000 and R2004 tables end no better. The 84
-bits are the same shape in all 21 (long runs of one bits with two zero bits
-between them) and are not explained; the header-variable table has no row
-for them.
+The §9 header variables decode strictly on all 22, to the stated size. The
+R13 rows of the table close `Cabin.dwg` as they are (195 slots, the R14
+files' 199 less §9's four "R14+" shorts). The 21 Sovol headers read their R13
+slots plausibly (the control-object handles are 3.1.06 to 3.1.0B, the
+dictionaries 5.1.0D, 5.1.17, 3.1.0C) and then hold 84 bits: four BS of
+`00` + `FFFF`, 18 bits each (72 bits), and 12 bits of padding. The four are
+§9's "R14+" block, "unknown short (type 5/6 only) ... these do not seem to be
+required", so §9 itself says a writer may omit them; this one writes -1 in all
+four where AutoCAD's R14 files hold arbitrary values (`line_R14.dwg`: -32079,
+7245, -8010, 30738), and writes 0 where AutoCAD writes 256 in the first short
+(§9's "R13-R14 Only" unknown short). The 12 bits are the 4 bits that end the
+byte holding the last slot (always `1010`; AutoCAD R14 writes `1111`) and one
+whole byte more (`00` in 19 files, `52` and `7F` in the others): the Sovol
+section size is `ceil(bits / 8) + 1` (403 to 404 bytes, 395 to 396), where
+AutoCAD's is `ceil(bits / 8)`. The decoder reads an AC1012 header with the R14
+rows when the R13 rows leave a whole byte or more, and lets that header end
+one byte before its data does; `Cabin.dwg` is untouched by either rule, and
+the byte-after-the-last-slot rule for every other release is unchanged.
 
 The §26 second header's head is verified on all 22 (its sentinel sits where
 locator 3 ends; the self-address and `AC1012` read as printed). Its body

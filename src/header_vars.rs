@@ -259,7 +259,8 @@ pub struct HeaderVars {
     /// From R2007, the bit at which the handle stream ended.
     pub handle_end_bit: Option<usize>,
     /// Whether every slot was read and the data ends on that slot's last
-    /// byte.
+    /// byte. An AC1012 header that carries §9's "R14+" shorts may end one
+    /// byte later than that (see `read_inline`).
     pub closed: bool,
     /// Whether the bits between the last slot and the end of the data are
     /// all ones, as they are on every file measured (§9 says random).
@@ -400,6 +401,53 @@ fn tail_is_ones(bytes: &[u8], from: usize) -> bool {
 fn bit_at(bytes: &[u8], bit: usize) -> Option<bool> {
     let byte = *bytes.get(bit / 8)?;
     Some((byte >> (7 - (bit % 8))) & 1 != 0)
+}
+
+/// What reading a release's rows from an inline (pre-R2007) data stream found.
+struct InlineRows {
+    entries: Vec<Entry>,
+    diagnostics: Vec<String>,
+    end_bit: usize,
+    done: bool,
+}
+
+fn read_rows(body: &[u8], rel: Rel) -> InlineRows {
+    let mut r = Reader {
+        data: BitCursor::new(body),
+        split: false,
+        strings_present: false,
+        strings: None,
+        handles: None,
+    };
+    let mut out = InlineRows {
+        entries: Vec::new(),
+        diagnostics: Vec::new(),
+        end_bit: 0,
+        done: true,
+    };
+    let mut flags = 0u32;
+    for row in header_table::rows_for(rel) {
+        match r.value(row, rel, flags, &out.entries) {
+            Ok(Some(value)) => {
+                if row.name == "FLAGS" {
+                    flags = value.as_i64().unwrap_or(0) as u32;
+                }
+                out.entries.push(Entry { var: row, value });
+            }
+            Ok(None) => {}
+            Err(e) => {
+                out.diagnostics.push(format!(
+                    "{} (bit {}): {e}",
+                    row.name,
+                    r.data.position_bits()
+                ));
+                out.done = false;
+                break;
+            }
+        }
+    }
+    out.end_bit = r.data.position_bits();
+    out
 }
 
 struct Reader<'a> {
@@ -682,41 +730,28 @@ impl HeaderVars {
     }
 
     fn read_inline(&mut self, version: Version) {
-        let rel = release_of(version);
         let body = std::mem::take(&mut self.body);
-        let mut r = Reader {
-            data: BitCursor::new(&body),
-            split: false,
-            strings_present: false,
-            strings: None,
-            handles: None,
-        };
-        let mut flags = 0u32;
-        let mut done = true;
-        for row in header_table::rows_for(rel) {
-            match r.value(row, rel, flags, &self.entries) {
-                Ok(Some(value)) => {
-                    if row.name == "FLAGS" {
-                        flags = value.as_i64().unwrap_or(0) as u32;
-                    }
-                    self.entries.push(Entry { var: row, value });
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    self.diagnostics.push(format!(
-                        "{} (bit {}): {e}",
-                        row.name,
-                        r.data.position_bits()
-                    ));
-                    done = false;
-                    break;
-                }
+        let total = body.len() * 8;
+        let mut rows = read_rows(&body, release_of(version));
+        let mut slack = 8;
+        // §9 lists four "unknown short" slots as "R14+" and adds "these do not
+        // seem to be required". The 21 Sovol AC1012 drawings write them
+        // (each -1) after the R13 slots, and size the section one byte past
+        // the byte that holds the last slot; Cabin.dwg writes neither. A
+        // whole byte left over by the R13 rows is where the two differ, so
+        // such a header is read with the R14 rows and may carry that byte.
+        if version == Version::R13 && rows.done && total - rows.end_bit >= 8 {
+            let with_shorts = read_rows(&body, header_table::R14);
+            if with_shorts.done {
+                rows = with_shorts;
+                slack = 16;
             }
         }
-        self.end_bit = r.data.position_bits();
-        if done {
-            let total = body.len() * 8;
-            if self.end_bit <= total && total - self.end_bit < 8 {
+        self.diagnostics.extend(rows.diagnostics);
+        self.entries = rows.entries;
+        self.end_bit = rows.end_bit;
+        if rows.done {
+            if self.end_bit <= total && total - self.end_bit < slack {
                 self.closed = true;
                 self.pad_ones = tail_is_ones(&body, self.end_bit);
             } else {
