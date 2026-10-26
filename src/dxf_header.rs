@@ -27,11 +27,12 @@
 //!   that cannot be resolved omits the variable rather than guessing.
 //! - If a record's fields do not all decode (an R2007 `DIMSTYLE` with a custom
 //!   dimension variable), its name is still the first string of its string stream.
-//! - A name is kept only if the output defines the record. The converter writes
-//!   the LAYER records it is given and no other symbol table, so `$CLAYER` is
-//!   kept for a written layer, an empty name (a null handle) is always kept, and
-//!   every other name (`$TEXTSTYLE`, `$DIMSTYLE`, `$CELTYPE`, ...) is omitted
-//!   until those tables are written.
+//! - A name is kept only if the output defines the record
+//!   ([`crate::dxf_tables`] writes LAYER, STYLE, LTYPE and APPID): `$CLAYER` for a
+//!   written layer, `$TEXTSTYLE` and `$DIMTXSTY` for a written style, `$CELTYPE`
+//!   and the `$DIMLTYPE` family for a written linetype. An empty name (a null
+//!   handle) is always kept, and every other name (`$DIMSTYLE`, `$CMLSTYLE`, the
+//!   UCS names, the arrowhead blocks) is omitted until those records are written.
 //! - An angle is degrees in DXF group 50 (`$ANGBASE`), radians in the database.
 //!   Before R2007 text that is not ASCII is written as `\U+XXXX` escapes, since
 //!   those releases read bytes in `$DWGCODEPAGE`.
@@ -60,6 +61,7 @@ use std::collections::BTreeMap;
 
 use crate::dxf::DxfVersion;
 use crate::dxf_sections::{HeaderEntry, HeaderGroup};
+use crate::dxf_tables::Defined;
 use crate::entities::DecodedEntity;
 use crate::header_table::{R2000, R2004, R2007, R2010, R2013, R2018, Rel};
 use crate::header_vars::Value;
@@ -385,14 +387,14 @@ struct Names {
     blocks: BTreeMap<u64, String>,
     mlines: BTreeMap<u64, String>,
     mline_keys: Vec<String>,
-    /// The LAYER records the output defines; no other symbol record is written.
-    layers_out: Vec<String>,
+    /// The symbol records the output defines.
+    defined: Defined,
 }
 
 impl Names {
-    fn build(file: &DwgFile, mline_dictionary: Option<u64>, layers_out: &[&str]) -> Self {
+    fn build(file: &DwgFile, mline_dictionary: Option<u64>, defined: &Defined) -> Self {
         let mut names = Names {
-            layers_out: layers_out.iter().map(|l| (*l).to_string()).collect(),
+            defined: defined.clone(),
             ..Names::default()
         };
         let Some(Ok(objects)) = file.all_objects() else {
@@ -458,14 +460,18 @@ impl Names {
 
     /// The name a variable holds, if the output defines the record it names.
     ///
-    /// The converter writes the LAYER records it is given and no other symbol
-    /// record, so a name that is not empty is kept only for a defined layer:
-    /// a DXF whose `$TEXTSTYLE` names a style it never defines is not one.
+    /// A name that is not empty is kept only for a layer, text style or
+    /// linetype the written tables define: a DXF whose `$DIMSTYLE` names a
+    /// style it never defines is not one.
     fn resolve(&self, var: &str, handle: u64) -> Option<String> {
         let name = self.record_name(var, handle)?;
-        let defined =
-            name.is_empty() || (var == "$CLAYER" && self.layers_out.iter().any(|l| l == &name));
-        defined.then_some(name)
+        let set = match var {
+            "$CLAYER" => &self.defined.layers,
+            "$TEXTSTYLE" | "$DIMTXSTY" => &self.defined.styles,
+            "$CELTYPE" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2" => &self.defined.ltypes,
+            _ => return name.is_empty().then_some(name),
+        };
+        (name.is_empty() || set.iter().any(|n| n == &name)).then_some(name)
     }
 
     fn record_name(&self, var: &str, handle: u64) -> Option<String> {
@@ -627,15 +633,11 @@ fn groups(
 /// export of either is in the corpus to measure the set against), and when the
 /// file has no readable header.
 ///
-/// `layers_out` names the LAYER records the output defines. A variable that
-/// names any other symbol record is omitted, since the converter writes none
-/// (a `$CLAYER` or `$TEXTSTYLE` pointing at nothing is not a valid reference);
-/// an empty name (a null handle) is always kept.
-pub fn header_entries(
-    file: &DwgFile,
-    version: DxfVersion,
-    layers_out: &[&str],
-) -> Vec<HeaderEntry> {
+/// `defined` names the layers, text styles and linetypes the written tables
+/// define. A variable that names any other symbol record is omitted, since the
+/// converter writes none (a `$DIMSTYLE` pointing at nothing is not a valid
+/// reference); an empty name (a null handle) is always kept.
+pub fn header_entries(file: &DwgFile, version: DxfVersion, defined: &Defined) -> Vec<HeaderEntry> {
     let Some(target) = target_release(version) else {
         return Vec::new();
     };
@@ -650,7 +652,7 @@ pub fn header_entries(
         header
             .get_handle("DICTIONARY_ACAD_MLINESTYLE")
             .map(|h| h.value),
-        layers_out,
+        defined,
     );
     let mut out = Vec::new();
     if let Some(page) = code_page_name(file) {

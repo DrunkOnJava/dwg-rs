@@ -2365,6 +2365,40 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 `examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
 `probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
 
+## 7aa. dwg-to-dxf: the TABLES section (2026-10-26, #126)
+
+`src/dxf_tables.rs` writes the LAYER, STYLE, LTYPE and APPID tables from the
+decoded symbol-table records, each `TABLE` block under its control object's
+handle with its records under their own and owned by the table, in the group
+order of AutoCAD's exports. The header then names a layer, text style or
+linetype only if a written table defines it
+(§7s, "dwg-to-dxf writes it back"). `examples/probe_dxf_tables.rs`
+converts each drawing that has an AutoCAD export, reads the output back and pairs
+every record written with the export's record of the same handle; the Corpus job
+runs it.
+
+| Release | Records written | Paired | Groups written | Agree | Disagree | Extra | Groups omitted | Records omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 | 154 | 154 | 608 | 608 | 0 | 0 | 166 | 4 |
+| AC1018 | 154 | 154 | 605 | 605 | 0 | 0 | 173 | 4 |
+| AC1021 | 142 | 142 | 581 | 581 | 0 | 0 | 201 | 4 |
+| AC1024 | 132 | 132 | 557 | 557 | 0 | 0 | 182 | 4 |
+| AC1027 | 131 | 131 | 555 | 555 | 0 | 0 | 208 | 4 |
+| AC1032 | 76 | 76 | 277 | 277 | 0 | 0 | 166 | 4 |
+
+Every group written has the export's code and value. What is omitted has a
+reason the probe checks, and an unexplained omission fails it: a LAYER's linetype
+name (6), plot-style handle (390) and R2013 material and visual style handles
+(347, 348), and the extension dictionary (102, 360), all of which are in the
+handle stream the decoder does not read for a table record; a true-colour layer's
+420 and the 62 beside it, because the DWG stores no index for it; the extended
+data (1000 to 1071) of a record, which the decoder does not read; and a LTYPE
+record with a shape or text dash (four in the corpus, written by none). A record
+the export registers again under another handle (an APPID, a layer) pairs by name.
+`ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that application on all
+four drawings that hold it. DIMSTYLE, BLOCK_RECORD, VPORT, VIEW and UCS are not
+written yet, so a header name that points at one of them is still omitted.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

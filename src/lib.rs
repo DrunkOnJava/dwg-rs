@@ -114,6 +114,7 @@ pub mod dxf_header;
 #[cfg(feature = "dxf-reader")]
 pub mod dxf_reader;
 pub mod dxf_sections;
+pub mod dxf_tables;
 pub mod element_encoder;
 pub mod entities;
 pub mod entity_geometry;

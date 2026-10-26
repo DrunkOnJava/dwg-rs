@@ -111,21 +111,35 @@ pub fn convert_dxf_to_dwg(
 pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     let mut writer = DxfWriter::with_version(version);
 
-    // The one LAYER record this pipeline writes; the header names no other
-    // symbol record because none is defined (see crate::dxf_header).
+    // TABLES — the decoded LAYER, STYLE, LTYPE and APPID records (see
+    // crate::dxf_tables); a file without them, or a target before R2000, keeps
+    // the default "0" layer every DXF reader requires. The header is written
+    // first but names only records these tables define.
     let layers = [LayerEntry::default()];
-    let layer_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
+    let tables = match file.header_vars() {
+        Some(Ok(h)) if h.closed => crate::dxf_tables::build(file, version, &h),
+        _ => Vec::new(),
+    };
+    let defined = if tables.is_empty() {
+        crate::dxf_tables::Defined {
+            layers: layers.iter().map(|l| l.name.clone()).collect(),
+            ..Default::default()
+        }
+    } else {
+        crate::dxf_tables::defined(&tables)
+    };
 
     // HEADER — auto-emits $ACADVER from writer.version(); the rest is the
     // decoded AcDb:Header under the names and groups AutoCAD's export uses
     // (see crate::dxf_header).
-    let header_vars: Vec<HeaderEntry> =
-        crate::dxf_header::header_entries(file, version, &layer_names);
+    let header_vars: Vec<HeaderEntry> = crate::dxf_header::header_entries(file, version, &defined);
     write_header_section(&mut writer, &header_vars);
 
-    // TABLES — at minimum a default "0" LAYER, which every DXF
-    // reader requires to exist.
-    write_tables_section(&mut writer, &layers);
+    if tables.is_empty() {
+        write_tables_section(&mut writer, &layers);
+    } else {
+        crate::dxf_tables::write(&mut writer, &tables);
+    }
 
     // BLOCKS — *Model_Space + *Paper_Space placeholders. Real block
     // expansion is deferred.
