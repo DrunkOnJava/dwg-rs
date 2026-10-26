@@ -188,7 +188,7 @@ pub struct CommonEntityData {
 /// of magnitude past anything observed in real drawings but still
 /// bounded against adversarial streams that would otherwise spin the
 /// loop indefinitely.
-fn skip_extended_data(c: &mut BitCursor<'_>) -> Result<bool> {
+pub(crate) fn skip_extended_data(c: &mut BitCursor<'_>) -> Result<bool> {
     const MAX_XDATA_ITERATIONS: usize = 256;
     let mut had_extended = false;
     for _ in 0..MAX_XDATA_ITERATIONS {

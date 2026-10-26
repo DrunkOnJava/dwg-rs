@@ -647,12 +647,13 @@ impl DwgFile {
             Some(Err(e)) => return Some(Err(e)),
             None => return None,
         };
-        Some(Ok(crate::object::ObjectWalker::with_handle_map(
-            &obj_bytes,
-            self.version,
-            &hmap,
-        )
-        .collect_all_lossy()))
+        let classes = self.class_map().and_then(std::result::Result::ok);
+        let mut walker =
+            crate::object::ObjectWalker::with_handle_map(&obj_bytes, self.version, &hmap);
+        if let Some(classes) = classes.as_ref() {
+            walker = walker.with_classes(classes);
+        }
+        Some(Ok(walker.collect_all_lossy()))
     }
 
     /// End-to-end entity decode: walk every object via the handle map,
