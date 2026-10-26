@@ -204,7 +204,16 @@ pub struct ObjectWalkSummary {
     /// on is missing. [`dangling_soft_pointers`](Self::dangling_soft_pointers)
     /// and [`unanswered_hard_references`](Self::unanswered_hard_references)
     /// split the list (#81).
+    ///
+    /// At most [`WalkerLimits::max_retained_references`] are kept; the
+    /// rest are counted in
+    /// [`unanswered_references_suppressed`](Self::unanswered_references_suppressed),
+    /// since a handle stream is input-controlled and every byte of it can
+    /// be a reference (`examples/probe_reference_cap.rs`).
     pub unanswered_references: Vec<(u64, u64, u8)>,
+    /// Unanswered references past
+    /// [`WalkerLimits::max_retained_references`]: counted, not kept.
+    pub unanswered_references_suppressed: usize,
     /// Handle-driven mode only: records whose handle stream cannot be
     /// located (R13/R14 state no boundary for it), so their references
     /// go unchecked.
@@ -414,18 +423,22 @@ impl<'a> ObjectWalker<'a> {
         if let Some(map) = self.handle_map {
             let known: std::collections::HashSet<u64> =
                 map.entries.iter().map(|e| e.handle).collect();
+            let cap = self.limits.max_retained_references;
             for obj in &out {
-                let Some(references) = handle_references(obj, self.version) else {
-                    summary.references_unchecked += 1;
-                    continue;
-                };
-                for (target, code) in references {
+                let checked = for_each_handle_reference(obj, self.version, |target, code| {
                     summary.references_decoded += 1;
                     if !known.contains(&target) {
-                        summary
-                            .unanswered_references
-                            .push((obj.handle.value, target, code));
+                        if summary.unanswered_references.len() < cap {
+                            summary
+                                .unanswered_references
+                                .push((obj.handle.value, target, code));
+                        } else {
+                            summary.unanswered_references_suppressed += 1;
+                        }
                     }
+                });
+                if !checked {
+                    summary.references_unchecked += 1;
                 }
             }
         }
@@ -743,19 +756,33 @@ pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
 /// object-data size on R2000 and R2004. R13/R14 state no such boundary
 /// in a form this crate reads, so they return `None`.
 pub fn handle_references(obj: &RawObject, version: Version) -> Option<Vec<(u64, u8)>> {
+    let mut out = Vec::new();
+    for_each_handle_reference(obj, version, |target, code| out.push((target, code))).then_some(out)
+}
+
+/// The allocation-free form of [`handle_references`]: calls `f(target,
+/// code)` for each reference and returns `false` when the record has no
+/// locatable handle stream.
+pub fn for_each_handle_reference(
+    obj: &RawObject,
+    version: Version,
+    mut f: impl FnMut(u64, u8),
+) -> bool {
     let start = if version.is_r2007_plus() {
-        crate::string_stream::data_section_end(&obj.raw, version)?
+        crate::string_stream::data_section_end(&obj.raw, version)
     } else {
-        obj.obj_size_bits? as usize
+        obj.obj_size_bits.map(|b| b as usize)
+    };
+    let Some(start) = start else {
+        return false;
     };
     let total = obj.raw.len() * 8;
-    let mut out = Vec::new();
     if start >= total {
-        return Some(out);
+        return true;
     }
     let mut c = BitCursor::new(&obj.raw);
     if crate::string_stream::seek(&mut c, start).is_err() {
-        return Some(out);
+        return true;
     }
     while c.position_bits() + 8 <= total {
         let Ok(h) = c.read_handle() else { break };
@@ -768,10 +795,10 @@ pub fn handle_references(obj: &RawObject, version: Version) -> Option<Vec<(u64, 
             _ => continue,
         };
         if target != 0 {
-            out.push((target, h.code));
+            f(target, h.code);
         }
     }
-    Some(out)
+    true
 }
 
 #[cfg(test)]
