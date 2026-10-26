@@ -742,7 +742,7 @@ impl HeaderVars {
         // such a header is read with the R14 rows and may carry that byte.
         // This is a tolerance for that writer's R13 variant, confined to
         // AC1012: AutoCAD-written R13 headers have neither the four shorts
-        // nor the extra byte (ARCHITECTURE.md §7ai).
+        // nor the extra byte (ARCHITECTURE.md §7aj).
         if version == Version::R13 && rows.done && total - rows.end_bit >= 8 {
             let with_shorts = read_rows(&body, header_table::R14);
             if with_shorts.done {
