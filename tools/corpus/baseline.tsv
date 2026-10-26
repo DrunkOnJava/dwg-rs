@@ -27,7 +27,7 @@ ellipse_2013.dwg	nextgis	AC1027	131	1	0	0	0	-	0	369	0	0	0
 ellipse_R14.dwg	nextgis	AC1014	300	5	0	0	0	-	0	0	0	0	305
 empty.dwg	acadsharp	AC1032	144	1	0	0	0	-	0	408	0	0	0
 export_sample.dwg	acadsharp	AC1032	456	8	14	0	0	-	0	1505	0	0	0
-geoloc.dwg	acadsharp	AC1032	147	3	0	0	0	AcGeoBackupObject 1>0;DICTIONARYVAR 11>10;GEODATA 2>1	0	422	0	0	0
+geoloc.dwg	acadsharp	AC1032	148	2	0	0	0	AcGeoBackupObject 1>0;DICTIONARYVAR 11>10;GEODATA 2>1	0	422	0	0	0
 line_2000.dwg	nextgis	AC1015	208	3	0	0	0	-	0	573	0	0	0
 line_2004.dwg	nextgis	AC1018	197	2	0	0	0	CELLSTYLEMAP 5>1;DICTIONARYVAR 16>10	0	542	0	0	0
 line_2007.dwg	nextgis	AC1021	184	2	0	0	0	CELLSTYLEMAP 3>1;DICTIONARYVAR 11>6	0	507	0	0	0

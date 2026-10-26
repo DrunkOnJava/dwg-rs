@@ -184,7 +184,8 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | ACDBDETAILVIEWSTYLE / ACDBSECTIONVIEWSTYLE | `closes` | src/objects/acad_detail_view_style.rs, src/objects/acad_section_view_style.rs | Joint-boundary search, delta 0 (ARCHITECTURE §7d.4). |
 | EXTRUDEDSURFACE / REVOLVEDSURFACE / SWEPTSURFACE / LOFTEDSURFACE | `decoder` | src/entities/*_surface.rs |  |
 | MESH (subdivision) | `partial` | src/entities/mesh.rs | 2 records error (#71). |
-| CAMERA / LIGHT / SUN / HELIX | `decoder` | src/entities/camera.rs, light.rs, sun.rs, helix.rs |  |
+| CAMERA / LIGHT / HELIX | `decoder` | src/entities/camera.rs, light.rs, helix.rs |  |
+| SUN | `closes` | src/entities/sun.rs | 1 of 1 corpus record (R2018, `geoloc.dwg`); 11 values equal the DXF twin by handle; the corpus holds no SUN on any other release; group 63 is not a field of the data bits (ARCHITECTURE §7y, #152). |
 | WIPEOUT / WIPEOUTVARIABLES | `decoder` | src/entities/wipeout.rs | WIPEOUTVARIABLES decodes in src/objects/small_classes.rs. |
 | PDFUNDERLAY / DWFUNDERLAY / DGNUNDERLAY | `closes` | src/entities/underlay.rs | PDFUNDERLAY: 7 of 7 corpus records on every release R14 to R2018; 36 values equal the DXF twin by handle; the scale, rotation, normal and clip-vertex encoding are unverified by value; DWF and DGN share the decoder and have no corpus record (ARCHITECTURE §7x, #152). The definitions: PDFDEFINITION in src/objects/small_classes.rs. |
 | DBCOLOR | `missing` |  | Referenced by ENC colours (§2.11). |

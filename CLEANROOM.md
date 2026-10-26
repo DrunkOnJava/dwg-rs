@@ -648,3 +648,25 @@ scale, the rotation and the normal (the DXF omits groups 41 to 43, 50 and 210 to
 record in the corpus has one). The definition handle (group 340) is not decoded. No
 vocabulary beyond the DXF group codes in the twins was used, and no third-party DWG
 or DXF implementation was consulted.
+
+## 2026-10-26 — SUN: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/entities/sun.rs` replaces an earlier one that was never
+reachable (it sat on the fixed type code 0x4F9, which no corpus record carries, and
+its layout rested on no record of AutoCAD's output). The new list was derived from the data bits
+of the one SUN record of the pinned corpus (`geoloc.dwg`, AutoCAD, R2018, handle
+0x23B) and AutoCAD's DXF export of the same handle. Accepted: the record closes on
+the data-stream boundary on a string stream the field list consumes entirely, and 11
+values (groups 90, 290, 421, 40, 291, 91, 92, 292, 70, 71 and 280) equal the decoded
+fields with 0 differences (`examples/probe_sun.rs`). The class closes on one record
+of one release: no other drawing of the corpus holds a SUN, so no other release is
+shown, and a release before R2007 is refused as unsupported. Unverified by value:
+group 63 (7 in the twin; it is not a field of the data bits, whose leading colour
+`BS` reads 0), the order of the two booleans that read 0 (status, group 290, and
+daylight savings, group 292, are told apart by their position among the other
+fields and by the order of the DXF groups only), and the colour flag bits above 0.
+The owner handle (group 330) is not decoded. No vocabulary beyond the DXF group codes
+and subclass marker in the twin was used, and no third-party DWG or DXF
+implementation was consulted.
+
