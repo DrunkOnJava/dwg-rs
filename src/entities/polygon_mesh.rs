@@ -9,32 +9,27 @@
 //! POLYGON_MESH and [`super::polyface_mesh::PolyfaceMesh`] are sibling
 //! legacy 3D representations — polygon-mesh is indexed (parametric M×N
 //! grid, common for lofted surfaces), polyface-mesh is face-list
-//! (explicit face → vertex-index tuples). The stream shapes are very
-//! similar, but the field ordering differs by one swap: POLYGON_MESH
-//! writes the density pair **before** the dimension pair, while
-//! POLYFACE_MESH writes the dimensions first. This module keeps the
-//! spec-mandated order.
+//! (explicit face → vertex-index tuples).
 //!
-//! # Stream shape (all supported versions, L4-36)
+//! # Stream shape (§20.4.34 POLYLINE (MESH) (30))
 //!
 //! ```text
-//! BS   flags          -- bit 0 = closed in M, bit 1 = closed in N,
-//!                        higher bits preserved verbatim for round-trip
-//! BS   m_density      -- approximation density (display-only)
-//! BS   n_density
-//! BS   m_vert_count   -- grid dimension M
-//! BS   n_vert_count   -- grid dimension N
+//! BS   flags          -- DXF 70, kept verbatim
+//! BS   curve_type     -- DXF 75: smooth surface type
+//! BS   m_vert_count   -- DXF 71: grid dimension M
+//! BS   n_vert_count   -- DXF 72: grid dimension N
+//! BS   m_density      -- DXF 73: surface density, M direction
+//! BS   n_density      -- DXF 74
+//! BL   owned_count    -- R2004+: objects the record owns
 //! ```
 //!
-//! # Not verified against real bytes
-//!
-//! No file in the corpus carries a POLYGON_MESH record, so unlike its
-//! sibling [`super::polyface_mesh`] — whose list is pinned to the one
-//! record of `sample_AC1032.dwg` — this field list has never been
-//! landed on a data-stream boundary. It is wired through the same
-//! exact-boundary check as every other entity (#63), so the first real
-//! record to reach it will either confirm the list or report a delta;
-//! it will not silently return plausible-looking numbers.
+//! That is §20.4.34 as printed, and its own example (§20.4.34.1, an
+//! R13/R14 record) closes on its `RL` boundary with it: flags 17, curve
+//! type 0, a 6 × 7 grid, densities 0. An
+//! earlier reading had no curve type and put the densities before the
+//! dimensions, which ends two bits short there and reads N as 0 (#273;
+//! `tests/fixtures/spec-examples/r14-objects.tsv`). No corpus file holds a
+//! POLYGON_MESH, so that example is the list's only measurement.
 //!
 //! Two `H` reads were removed from the list in #63. An object
 //! reference never occupies data-stream bits from R2000 onward — the
@@ -47,8 +42,9 @@
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
+use crate::version::Version;
 
-/// Flag bits (§19.4.30). Named constants for the documented bits; any
+/// Flag bits (§20.4.34). Named constants for the documented bits; any
 /// value outside the documented set round-trips verbatim.
 pub mod flag_bits {
     /// Mesh is closed in the M direction — the last M-column
@@ -61,6 +57,8 @@ pub mod flag_bits {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PolygonMesh {
     pub flags: u16,
+    /// Smooth surface type (DXF 75).
+    pub curve_type: u16,
     /// Approximation density, M direction — display-only.
     pub m_density: u16,
     /// Approximation density, N direction — display-only.
@@ -69,6 +67,9 @@ pub struct PolygonMesh {
     pub m_vert_count: u16,
     /// Grid dimension along the N axis.
     pub n_vert_count: u16,
+    /// R2004+ count of the objects the record owns (its VERTEX_MESH
+    /// records and SEQEND); `None` before R2004.
+    pub num_owned_objects: Option<u32>,
 }
 
 impl PolygonMesh {
@@ -87,18 +88,26 @@ impl PolygonMesh {
 /// Only the header is parsed here — the VERTEX_MESH grid the record
 /// owns is reached through its handle stream, which begins where this
 /// decoder's data fields must end.
-pub fn decode(c: &mut BitCursor<'_>) -> Result<PolygonMesh> {
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<PolygonMesh> {
     let flags = c.read_bs_u()?;
-    let m_density = c.read_bs_u()?;
-    let n_density = c.read_bs_u()?;
+    let curve_type = c.read_bs_u()?;
     let m_vert_count = c.read_bs_u()?;
     let n_vert_count = c.read_bs_u()?;
+    let m_density = c.read_bs_u()?;
+    let n_density = c.read_bs_u()?;
+    let num_owned_objects = if version.is_r2004_plus() {
+        Some(c.read_bl()? as u32)
+    } else {
+        None
+    };
     Ok(PolygonMesh {
         flags,
+        curve_type,
         m_density,
         n_density,
         m_vert_count,
         n_vert_count,
+        num_owned_objects,
     })
 }
 
@@ -117,10 +126,11 @@ mod tests {
 
     fn write_pmesh(w: &mut BitWriter, f: &PmeshFields) {
         w.write_bs_u(f.flags);
-        w.write_bs_u(f.md);
-        w.write_bs_u(f.nd);
+        w.write_bs_u(0); // curve type
         w.write_bs_u(f.m);
         w.write_bs_u(f.n);
+        w.write_bs_u(f.md);
+        w.write_bs_u(f.nd);
     }
 
     #[test]
@@ -139,7 +149,7 @@ mod tests {
         let end = w.position_bits();
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let m = decode(&mut c).unwrap();
+        let m = decode(&mut c, Version::R2000).unwrap();
         assert_eq!(m.flags, 0);
         assert!(!m.is_closed_m());
         assert!(!m.is_closed_n());
@@ -147,7 +157,7 @@ mod tests {
         assert_eq!(m.n_density, 6);
         assert_eq!(m.m_vert_count, 5);
         assert_eq!(m.n_vert_count, 4);
-        // The five counts are the whole data-stream field list — the
+        // The six shorts are the whole R2000 data-stream field list — the
         // vertex-chain handles are not in it.
         assert_eq!(c.position_bits(), end);
     }
@@ -167,7 +177,7 @@ mod tests {
         );
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let m = decode(&mut c).unwrap();
+        let m = decode(&mut c, Version::R2000).unwrap();
         assert!(m.is_closed_m());
         assert!(!m.is_closed_n());
         assert_eq!(m.m_vert_count, 16);
@@ -189,7 +199,7 @@ mod tests {
         );
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let m = decode(&mut c).unwrap();
+        let m = decode(&mut c, Version::R2000).unwrap();
         assert!(m.is_closed_m());
         assert!(m.is_closed_n());
         assert_eq!(m.flags & 0x3, 0x3);
@@ -215,7 +225,7 @@ mod tests {
         );
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let m = decode(&mut c).unwrap();
+        let m = decode(&mut c, Version::R2000).unwrap();
         assert_eq!(m.flags, 0x8000);
         assert!(!m.is_closed_m());
         assert!(!m.is_closed_n());
