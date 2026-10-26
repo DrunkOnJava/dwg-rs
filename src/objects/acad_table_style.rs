@@ -62,7 +62,7 @@
 //!
 //! R14 to R2007 follow the layout above and close on every corpus record.
 //! R2010 and later store §20.4.101.2's different layout, decoded by
-//! [`decode_object_modern`] into [`AcadTableStyleModern`]: the table's own
+//! `decode_object_modern` into [`AcadTableStyleModern`]: the table's own
 //! cell style and the cell styles of the title, header and data rows, in the
 //! shape `crate::objects::table_cell_style` reads.
 
