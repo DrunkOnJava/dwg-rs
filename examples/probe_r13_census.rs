@@ -52,7 +52,8 @@ fn main() -> ExitCode {
                 continue;
             }
         };
-        let (Some(Ok(raws)), Some(Ok((decoded, _)))) = (file.all_objects(), file.decoded_entities())
+        let (Some(Ok(raws)), Some(Ok((decoded, _)))) =
+            (file.all_objects(), file.decoded_entities())
         else {
             eprintln!("{path}: no object walk");
             failed = true;
@@ -91,7 +92,11 @@ fn main() -> ExitCode {
             r.records, r.files, r.decoded, r.errored, r.unhandled
         );
     }
-    println!("{} types in {opened} of {} drawings", rows.len(), paths.len());
+    println!(
+        "{} types in {opened} of {} drawings",
+        rows.len(),
+        paths.len()
+    );
     if failed {
         ExitCode::FAILURE
     } else {
