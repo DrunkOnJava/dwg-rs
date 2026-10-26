@@ -2,8 +2,8 @@
 
 use crate::streaming::{
     CHUNK_BYTES, FlatHeaderParser, FlatWalker, MapDemand, MapStep, R2004HeaderParser,
-    R2004MapWalker, R2004SectionWalker, R2004Walker, Request, SectionDemand, SectionStep, Step,
-    StreamError, WalkDemand, WalkStep,
+    R2004MapWalker, R2004SectionWalker, R2004Walker, R2007Demand, R2007Step, R2007Walker, Request,
+    SectionDemand, SectionStep, Step, StreamError, WalkDemand, WalkStep,
 };
 use std::io::{self, Read, Seek, SeekFrom};
 
@@ -24,6 +24,45 @@ pub trait ByteSource {
     /// Poll one bounded read at an absolute source offset.
     fn poll_read(&mut self, request: Request, output: &mut [u8])
     -> Result<SourcePoll, Self::Error>;
+
+    /// Poll the bytes at `offset`, `offset + stride`, ... into `output`, as
+    /// many as are available (at least one on `Ready`). The R2007 walk
+    /// gathers each Reed-Solomon codeword this way. The default issues one
+    /// single-byte read per byte; a source that can serve the span at once
+    /// should override it. `Pending` and `Eof` refer to the first byte.
+    fn poll_gather(
+        &mut self,
+        offset: u64,
+        stride: u64,
+        output: &mut [u8],
+    ) -> Result<SourcePoll, Self::Error>
+    where
+        Self: Sized,
+    {
+        gather_by_reads(self, offset, stride, output)
+    }
+}
+
+/// Gather by single-byte reads: the default of [`ByteSource::poll_gather`].
+pub fn gather_by_reads<S: ByteSource>(
+    source: &mut S,
+    offset: u64,
+    stride: u64,
+    output: &mut [u8],
+) -> Result<SourcePoll, S::Error> {
+    let mut got = 0;
+    while got < output.len() {
+        let request = Request {
+            offset: offset + got as u64 * stride,
+            len: 1,
+        };
+        match source.poll_read(request, &mut output[got..=got])? {
+            SourcePoll::Ready(_) => got += 1,
+            other if got == 0 => return Ok(other),
+            _ => break,
+        }
+    }
+    Ok(SourcePoll::Ready(got))
 }
 
 /// Result of a single scheduler-controlled poll, with no hidden read loop.
@@ -357,6 +396,71 @@ pub fn poll_r2004_walk<S: ByteSource>(
     }
 }
 
+/// Result of one whole-file R2007 walk poll: a step from source bytes (read
+/// contiguously, or gathered across a page) or from a pump, a pending source,
+/// or the end of the walk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum R2007Poll {
+    Fed {
+        step: R2007Step,
+        offset: u64,
+        /// Bytes between the fed bytes in the source: 1 for a contiguous read.
+        stride: u64,
+        len: usize,
+    },
+    Pumped(R2007Step),
+    Pending,
+    Complete,
+}
+
+/// One poll for the whole R2007 walk: a pump when the walker needs no source
+/// bytes, otherwise at most one read, or one gather of the codeword in
+/// progress, into caller-owned bounded scratch.
+pub fn poll_r2007_walk<S: ByteSource>(
+    walker: &mut R2007Walker,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<R2007Poll, PumpError<S::Error>> {
+    let (offset, stride, wanted) = match walker.demand().map_err(PumpError::Grammar)? {
+        R2007Demand::Done => return Ok(R2007Poll::Complete),
+        R2007Demand::Pump => {
+            return Ok(R2007Poll::Pumped(walker.pump().map_err(PumpError::Grammar)?));
+        }
+        R2007Demand::Read(r) => (r.offset, 1, r.len),
+        R2007Demand::Gather(g) => (g.offset, g.stride, g.len),
+    };
+    let maximum = wanted.min(scratch.len()).min(CHUNK_BYTES);
+    if maximum == 0 {
+        return Err(PumpError::InvalidRead { maximum, actual: 0 });
+    }
+    let polled = if stride == 1 {
+        source.poll_read(Request { offset, len: maximum }, &mut scratch[..maximum])
+    } else {
+        source.poll_gather(offset, stride, &mut scratch[..maximum])
+    };
+    match polled.map_err(PumpError::Source)? {
+        SourcePoll::Pending => Ok(R2007Poll::Pending),
+        SourcePoll::Eof => {
+            walker.end_of_input().map_err(PumpError::Grammar)?;
+            Ok(R2007Poll::Complete)
+        }
+        SourcePoll::Ready(actual) => {
+            if actual == 0 || actual > maximum {
+                return Err(PumpError::InvalidRead { maximum, actual });
+            }
+            let step = walker
+                .feed(offset, &scratch[..actual])
+                .map_err(PumpError::Grammar)?;
+            Ok(R2007Poll::Fed {
+                step,
+                offset,
+                stride,
+                len: actual,
+            })
+        }
+    }
+}
+
 /// One transport poll for the R13–R2000 container walk. Completion means
 /// the object map's final chunk verified, not that bodies were decoded.
 pub fn poll_walk<S: ByteSource>(
@@ -381,7 +485,14 @@ pub fn poll_walk<S: ByteSource>(
 pub struct FileSource<R> {
     inner: R,
     position: Option<u64>,
+    window: Vec<u8>,
+    window_at: u64,
 }
+
+/// Bytes a gathering [`FileSource`] reads at once and serves strided reads
+/// from: a page's whole span (the R2007 walk gathers one byte of each codeword
+/// from every row of it), not a byte at a time.
+const GATHER_WINDOW: usize = 1 << 20;
 
 impl<R> FileSource<R> {
     /// Take custody of the reader without opening or pre-reading it.
@@ -389,6 +500,8 @@ impl<R> FileSource<R> {
         Self {
             inner,
             position: None,
+            window: Vec::new(),
+            window_at: 0,
         }
     }
 
@@ -400,6 +513,67 @@ impl<R> FileSource<R> {
 
 impl<R: Read + Seek> ByteSource for FileSource<R> {
     type Error = io::Error;
+    fn poll_gather(
+        &mut self,
+        offset: u64,
+        stride: u64,
+        output: &mut [u8],
+    ) -> io::Result<SourcePoll> {
+        if output.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "empty gather request",
+            ));
+        }
+        let span = (output.len() as u64 - 1).checked_mul(stride);
+        let last = span.and_then(|span| offset.checked_add(span));
+        let Some(last) = last.filter(|last| last - offset < GATHER_WINDOW as u64) else {
+            return gather_by_reads(self, offset, stride, output);
+        };
+        let covered = |s: &Self| {
+            offset >= s.window_at && last < s.window_at + s.window.len() as u64
+        };
+        if !covered(self) {
+            self.window.resize(GATHER_WINDOW, 0);
+            self.window_at = offset;
+            let mut filled = 0;
+            let seek = self.inner.seek(SeekFrom::Start(offset));
+            let outcome = match seek {
+                Ok(_) => loop {
+                    match self.inner.read(&mut self.window[filled..]) {
+                        Ok(0) => break Ok(()),
+                        Ok(n) => {
+                            filled += n;
+                            if filled == GATHER_WINDOW {
+                                break Ok(());
+                            }
+                        }
+                        Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                        Err(e) => break Err(e),
+                    }
+                },
+                Err(e) => Err(e),
+            };
+            self.window.truncate(filled);
+            self.position = None;
+            if let Err(e) = outcome {
+                self.window.clear();
+                return if e.kind() == io::ErrorKind::WouldBlock {
+                    Ok(SourcePoll::Pending)
+                } else {
+                    Err(e)
+                };
+            }
+        }
+        if !covered(self) {
+            return gather_by_reads(self, offset, stride, output);
+        }
+        for (k, slot) in output.iter_mut().enumerate() {
+            *slot = self.window[(offset + k as u64 * stride - self.window_at) as usize];
+        }
+        Ok(SourcePoll::Ready(output.len()))
+    }
+
     fn poll_read(&mut self, request: Request, output: &mut [u8]) -> io::Result<SourcePoll> {
         if self.position != Some(request.offset) {
             match self.inner.seek(SeekFrom::Start(request.offset)) {
@@ -462,6 +636,28 @@ impl<'a> SliceSource<'a> {
 
 impl ByteSource for SliceSource<'_> {
     type Error = core::convert::Infallible;
+    fn poll_gather(
+        &mut self,
+        offset: u64,
+        stride: u64,
+        output: &mut [u8],
+    ) -> Result<SourcePoll, Self::Error> {
+        let mut got = 0;
+        while got < output.len() {
+            let at = usize::try_from(offset + got as u64 * stride)
+                .ok()
+                .and_then(|at| self.bytes.get(at));
+            let Some(&byte) = at else { break };
+            output[got] = byte;
+            got += 1;
+        }
+        Ok(if got == 0 {
+            SourcePoll::Eof
+        } else {
+            SourcePoll::Ready(got)
+        })
+    }
+
     fn poll_read(
         &mut self,
         request: Request,
