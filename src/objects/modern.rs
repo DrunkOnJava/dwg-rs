@@ -103,14 +103,15 @@
 //! wireframe point would decode to nonsense.
 //!
 //! So the flag is a flag. The 16 bits four LAYOUT records of the same
-//! file need are LAYOUT's own — a data-store block at the head of its
-//! §20.4.84 field list, moved to
-//! [`crate::objects::acad_layout`] where the evidence for it lives.
+//! file seemed to need after it were moved to
+//! [`crate::objects::acad_layout`] as a "data-store block", and AutoCAD's
+//! DXF export of the drawing (the DXF value oracle, #99) later showed
+//! they are not a block at all: they are the first half of
+//! `plot_layout_flags` in its full `BS` form, so the flag is followed by
+//! no bits on objects either (see that module).
 //! (`tables::modern`'s 8-bit `RC` is DIMSTYLE's counterpart; that path
 //! also omits the `BL num_reactors` this one reads, so its bit
 //! accounting is a separate open question and is left alone here.)
-//! Three record types needing three different widths is itself the
-//! argument that the width belongs to the record, not to the flag.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -131,11 +132,6 @@ pub(crate) struct ObjectStream<'a> {
     data_end: Option<usize>,
     /// `BL num_reactors` from the common object data (§19.4.2).
     pub num_reactors: u32,
-    /// R2013+ `has AcDs binary data` bit from the common object data
-    /// (§20.4.2). The bit itself consumes no further bits — see the
-    /// module docs — but a record that sets it may carry a
-    /// data-store block of its own, as LAYOUT does.
-    pub has_ds_binary_data: bool,
 }
 
 /// Read a `TV` from whichever stream actually holds it.
@@ -238,7 +234,6 @@ pub(crate) fn open<'a>(
         strings,
         data_end,
         num_reactors: prefix.num_reactors,
-        has_ds_binary_data: prefix.has_ds_binary_data,
     })
 }
 
@@ -246,8 +241,6 @@ pub(crate) fn open<'a>(
 struct CommonObjectPrefix {
     /// `BL num_reactors`.
     num_reactors: u32,
-    /// R2013+ `has AcDs binary data`.
-    has_ds_binary_data: bool,
     /// R13/R14 `RL` object-data-size-in-bits — the record's data-stream
     /// boundary, which those releases write here instead of in the
     /// object prologue.
@@ -293,14 +286,13 @@ fn read_common_object_prefix(
             if version.is_r2004_plus() {
                 let _no_xdictionary = c.read_b()?;
             }
-            let has_ds_binary_data = if matches!(version, Version::R2013 | Version::R2018) {
-                c.read_b()?
-            } else {
-                false
-            };
+            // R2013+ `has AcDs binary data`: no further bits follow it, on
+            // objects (LAYOUT, see `objects::acad_layout`) as on entities.
+            if matches!(version, Version::R2013 | Version::R2018) {
+                let _has_ds_binary_data = c.read_b()?;
+            }
             return Ok(CommonObjectPrefix {
                 num_reactors,
-                has_ds_binary_data,
                 obj_size_bits,
             });
         }

@@ -6,9 +6,9 @@
 //! ```text
 //! common object data         -- handled by caller
 //! TV     name                -- handled by [`read_table_entry_header`]
-//! B      64-flag
+//! B      64-flag             -- TableEntryHeader::flag_64
 //! BS     xref_index_plus_1
-//! B      is_xref_dependent
+//! B      Xdep                -- TableEntryHeader::is_xref_dependent
 //! R13-R14:  B frozen, B on, B frozen-in-new, B locked
 //! R2000+:   BS values        -- frozen / on / frozen-in-new / locked /
 //!                                plot flag / 5-bit lineweight index
@@ -201,7 +201,8 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<Layer> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) =
+        modern::read_entry_flags(&mut split.data, version)?;
     let values = split.data.read_bs()?;
     let (_color_index_word, color_rgb, _color_byte) = modern::read_cmc_full(&mut split.data)?;
     split.finish("LAYER")?;
@@ -209,9 +210,9 @@ pub(crate) fn decode_modern_split_stream(
     Ok(Layer {
         header: TableEntryHeader {
             name,
-            is_xref_dependent,
+            flag_64: flag64,
             xref_index_plus_1,
-            is_xref_resolved: flag64,
+            is_xref_dependent,
         },
         flags: values,
         plot_flag: values & LAYER_VALUE_PLOT != 0,
