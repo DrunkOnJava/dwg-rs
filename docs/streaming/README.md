@@ -174,9 +174,11 @@ bytes after the terminator. The crate's writer does neither: its data
 pages decompress to their content length and its streams end at `11`. The
 decoder accepts both; the writer divergence is recorded on #163.
 
-Not measured: R2018 pages in CI (the one real R2018 file is local only,
-#96; it was checked by hand, 53 pages equal), pages larger than `0x7400`,
-and throughput. R2007 uses a different compression (§5.10) and is not
+Not measured: R2018 pages in this acceptance run, pages larger than
+`0x7400`, and throughput. #225 pins R2018 drawings from DomCR/ACadSharp
+in `tools/corpus/pins.tsv`; `sample_AC1032.dwg`, byte-identical to one of
+them, was checked by hand (53 pages equal), and adding them to
+`lz77-corpus.json` is a follow-up. R2007 uses a different compression (§5.10) and is not
 covered.
 
 ## Checkpoint contract
