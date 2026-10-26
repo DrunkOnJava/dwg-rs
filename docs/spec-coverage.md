@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 66 `closes`, 6 `decoder`, 32 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 47 `closes`, 6 `decoder`, 29 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 67 `closes`, 6 `decoder`, 31 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 48 `closes`, 6 `decoder`, 28 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -91,7 +91,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.38 | VIEWPORT ENTITY (34) | 133 | `partial` | src/entities/viewport.rs | #146 | 45 records error (#71): 6 on each of ACadSharp's R2000 to R2018 saves and 9 on export_sample.dwg; the decoder consumes 266 of a 1,125-bit budget. |
 | §20.4.39 | ELLIPSE (35) | 136 | `closes` | src/entities/ellipse.rs | #143 |  |
 | §20.4.40 | SPLINE (36) | 136 | `closes` | src/entities/spline.rs | #143 |  |
-| §20.4.41 | REGION (37), 3DSOLID (38), BODY (39) | 139 | `partial` | src/entities/region.rs, src/entities/three_d_solid.rs, src/entities/body.rs, src/entities/modeler.rs | #145 | The ACIS envelope, wireframe block and R2013+ revision GUID close on all three corpus records; the SAT/SAB payload is carried, not interpreted (#68). 2 3DSOLID and 1 REGION record error on each of ACadSharp's R2004, R2007 and R2010 saves (#228). |
+| §20.4.41 | REGION (37), 3DSOLID (38), BODY (39) | 139 | `closes` | src/entities/region.rs, src/entities/three_d_solid.rs, src/entities/body.rs, src/entities/modeler.rs | #145 | The ACIS envelope (version 1 blocks, and the version-2 SAB file read to its terminator), wireframe block and R2013+ revision GUID close on every ACIS record of the public corpus; the SAT/SAB payload is carried, not interpreted (#68). A version-2 text (SAT) envelope is refused (#228, ARCHITECTURE.md §7u). |
 | §20.4.42 | RAY (40) | 146 | `closes` | src/entities/ray.rs | #143 |  |
 | §20.4.43 | XLINE (41) | 147 | `closes` | src/entities/xline.rs | #143 |  |
 | §20.4.44 | DICTIONARY (42) | 147 | `closes` | src/objects/dictionary.rs | #149 |  |
