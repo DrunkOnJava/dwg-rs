@@ -1,4 +1,4 @@
-# Status — 2026-08-30
+# Status — 2026-08-30, real-file coverage 2026-10-26
 
 A plain-text snapshot of what has shipped in this crate, organized
 by the task-tracker labels, so contributors can orient without
@@ -14,11 +14,16 @@ scrolling the changelog.
   entity-regression (18), real-DWG value regression (8),
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
-- **Current real-file decode coverage:** 3,911 decoded / 525 skipped /
-  **9 errored** / 88.0% on the local 19-file `samples/` corpus. The
-  R2018 `sample_AC1032.dwg` sample is 776 / 57 / 9 / 92.2%. Per
-  version: R14 56.8%, R2000 95.7%, R2004 97.5%, R2007 95.7%,
-  R2010 97.8%, R2013 97.0%, R2018 92.2%.
+- **Current real-file decode coverage, measured in CI** (the
+  `Corpus (public DWG)` job, [run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288), on 52 public drawings
+  pinned in `tools/corpus/pins.tsv`): 13,781 decoded / 1,985 skipped /
+  **308 errored** / 85.7%. Per version: R14 55.8%, R2000 92.3%,
+  R2004 91.8%, R2007 93.4%, R2010 95.4%, R2013 94.7%, R2018 93.7%
+  (4 drawings). The 19 files every earlier number came from still
+  measure 3,911 / 525 / 9 / 88.0%; the 299 new errors are records only
+  the added drawings hold (#226, #227, #228, #71), and
+  `sample_AC1032.dwg`'s origin is now known: ACadSharp's MIT
+  `samples/`, saved by AutoCAD 2025 (#96, CLEANROOM.md).
 - **All nineteen corpus files now decode.** Until #104/#110 the nine
   R14 / R2000 / R2007 files reported `n/a (no-handle-map)` — no record
   of those releases reached a decoder, so none of them counted in
@@ -47,8 +52,11 @@ scrolling the changelog.
   `tests/class_census.rs` ratchets the real corpus.
   `examples/probe_reference_closure` decides whether a shortfall is a
   missing record or an over-declaring file — stream tiling, hard-
-  reference closure, and owner-dictionary census — and all three are
-  closed on all nineteen files. Both known shortfalls are files that
+  reference closure, and owner-dictionary census. In CI the walk is
+  closed on all 44 R2000-to-R2018 drawings and NOT MEASURED on the 8
+  R14 ones, whose records expose no handle-stream boundary (#84); every
+  file's shortfalls are pinned in `tools/corpus/baseline.tsv`, and the
+  new ones are #230. Both known shortfalls are files that
   declare instances they do not contain: TABLECONTENT / TABLEGEOMETRY
   on `sample_AC1032.dwg` (declared 5, present 2) and DICTIONARYVAR /
   CELLSTYLEMAP on the R2004 / R2007 / R2010 files, where the
@@ -334,8 +342,10 @@ These have genuine open scope requiring focused work, not stubs.
   `0xD6A`, REGION `0xD69` of `sample_AC1032.dwg`) now have a field
   list that closes, and it closes only with **zero** bits consumed
   after the flag. `common_entity.rs` and `objects/modern.rs` agree on
-  that reading; the 16 bits four LAYOUT records need moved into
-  `objects/acad_layout.rs` as LAYOUT's own data-store block.
+  that reading. The 16 bits four LAYOUT records seemed to need were
+  moved into `objects/acad_layout.rs` as a data-store block, and the DXF
+  value oracle later showed them to be `plot_layout_flags` in its full
+  `BS` form (ARCHITECTURE.md, 2026-10-26): no bits follow the flag.
   `tables/modern.rs` keeps its `RC` — that path also omits the
   `BL num_reactors` the object path reads, so its bit accounting has a
   second unresolved variable (see the next item) and was left alone.

@@ -1,0 +1,63 @@
+//! Pairing every DWG record with the DXF record of the same handle (#101).
+
+use crate::corpus::{DwgRecord, LoadedPair, record_key};
+use dwg::dxf_reader::DxfRecord;
+use std::collections::BTreeSet;
+
+/// How the two sides of one drawing line up by handle.
+pub struct Pairing<'a> {
+    /// Same handle, and the DXF record is the type the DWG one exports as.
+    pub paired: Vec<(&'a DwgRecord, &'a DxfRecord)>,
+    /// Same handle, different types.
+    pub type_differs: Vec<(&'a DwgRecord, &'a DxfRecord)>,
+    /// DWG records whose handle the DXF does not define.
+    pub dwg_only: Vec<&'a DwgRecord>,
+    /// DXF records with a handle the DWG walk did not reach.
+    pub dxf_only: Vec<&'a DxfRecord>,
+    /// DXF records with no handle (CLASS, ENDTAB, R12 table entries).
+    pub dxf_unkeyed: usize,
+}
+
+/// Pairs `pair`'s records by handle.
+pub fn pair(pair: &LoadedPair) -> Pairing<'_> {
+    let mut out = Pairing {
+        paired: Vec::new(),
+        type_differs: Vec::new(),
+        dwg_only: Vec::new(),
+        dxf_only: Vec::new(),
+        dxf_unkeyed: 0,
+    };
+    let mut seen = BTreeSet::new();
+    for rec in &pair.records {
+        seen.insert(rec.handle);
+        match pair.dxf.record_by_handle(rec.handle) {
+            Some(d) if rec.dxf_key.as_deref() == Some(record_key(d).as_str()) => {
+                out.paired.push((rec, d));
+            }
+            Some(d) => out.type_differs.push((rec, d)),
+            None => out.dwg_only.push(rec),
+        }
+    }
+    for r in &pair.dxf.records {
+        match r.handle {
+            Some(h) if !seen.contains(&h) => out.dxf_only.push(r),
+            Some(_) => {}
+            None => out.dxf_unkeyed += 1,
+        }
+    }
+    out
+}
+
+impl Pairing<'_> {
+    /// The highest handle the two files share. AutoCAD hands out handles in
+    /// ascending order, so a one-sided record above it was created after the
+    /// last shared one: by the save that wrote its own file.
+    pub fn last_shared_handle(&self) -> u64 {
+        self.paired
+            .iter()
+            .chain(&self.type_differs)
+            .map(|(d, _)| d.handle)
+            .max()
+            .unwrap_or(0)
+    }
+}

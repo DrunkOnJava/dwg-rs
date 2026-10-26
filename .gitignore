@@ -61,3 +61,8 @@ proptest-regressions/
 /walk-schedules-*.jsonl
 /lz77-evidence.json
 /lz77-schedules-*.jsonl
+/source-evidence.json
+/r2004-evidence.json
+/r2004-schedules-*.jsonl
+/map-evidence.json
+/map-schedules-*.jsonl

@@ -208,7 +208,8 @@ pub(crate) fn decode_modern_split_stream(
     }
 
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) =
+        modern::read_entry_flags(&mut split.data, version)?;
     let pattern_length = split.data.read_bd()?;
     let alignment = split.data.read_rc()?;
     let num_dashes = split.data.read_rc()? as usize;
@@ -253,9 +254,9 @@ pub(crate) fn decode_modern_split_stream(
     Ok(LtypeEntry {
         header: TableEntryHeader {
             name,
-            is_xref_dependent,
+            flag_64: flag64,
             xref_index_plus_1,
-            is_xref_resolved: flag64,
+            is_xref_dependent,
         },
         flags: if flag64 { 64 } else { 0 },
         used_count: 0,

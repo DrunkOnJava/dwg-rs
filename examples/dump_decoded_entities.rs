@@ -274,7 +274,7 @@ fn print_entity(i: usize, e: &DecodedEntity) {
                  grid=({:.3},{:.3}) snap_spacing=({:.3},{:.3}) snap_rot={:.3} mode={} render={}",
                 v.header.name,
                 v.view_height,
-                v.aspect_ratio,
+                v.aspect_ratio().unwrap_or(0.0),
                 v.view_center.x,
                 v.view_center.y,
                 v.view_direction.x,

@@ -103,6 +103,20 @@ documented in CLEANROOM.md (algorithm-description comments, not
 executable code, in the MIT-licensed ACadSharp were consulted to
 resolve one LZ77 offset-encoding ambiguity).
 
+The files in tests/fixtures/spec-examples/ quote that specification
+verbatim: version 5.4.1, sha256
+973628f353535b81a0be8a31f965bca4fb88b989127b2c1029d28f33be0f504b,
+freely redistributable from
+https://www.opendesign.com/files/guestdownloads/OpenDesign_Specification_for_.dwg_files.pdf.
+They hold its worked examples and printed tables: the bit streams of
+§2, the CRC tables of §2.14, the locator-CRC values of §3.2.6, the
+magic sequence of §4.1, the examples of §4.7, the copy table of
+§5.10.1, the sentinels of §3.2.6, §9 and §10.1, the R14 file header
+dump of §9 and the object dumps of §20.4. Each file names the pages it
+quotes. They remain the Open Design Alliance's work and are included
+only to test this reader against the specification
+(examples/spec_examples.rs).
+
 ==============================================================================
 Test-corpus attribution
 ==============================================================================

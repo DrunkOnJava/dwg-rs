@@ -13,11 +13,17 @@
 //! BD3    origin
 //! BD3    x_axis_direction
 //! BD3    y_axis_direction
-//! BD     elevation            -- WCS Z of the origin plane
-//! BS     ortho_view_type      -- 0..=6 per §19.5.6 (0 none, 1 top, 2 bottom,
-//!                                 3 front, 4 back, 5 left, 6 right)
-//! H      base_ucs_handle      -- 0 when this UCS is not inherited
+//! BD     elevation            -- R2000+; WCS Z of the origin plane
+//! BS     ortho_view_type      -- R2000+; 0..=6 per §19.5.6 (0 none, 1 top,
+//!                                 2 bottom, 3 front, 4 back, 5 left, 6 right)
+//! H      base_ucs_handle      -- R2000+; 0 when this UCS is not inherited
 //! ```
+//!
+//! On R13/R14 the record ends after the Y axis: §20.4.62 gives the
+//! elevation and the orthographic fields to R2000+ only, and its own
+//! example (§20.4.62.1, an R13/R14 record) closes on its `RL` boundary
+//! there (#274; `tests/fixtures/spec-examples/r14-objects.tsv`). Those
+//! records report elevation 0, ortho view type 0 and a null base handle.
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point3D, read_bd3};
@@ -49,6 +55,21 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<UcsEntry> {
     let origin = read_bd3(c)?;
     let x_axis = read_bd3(c)?;
     let y_axis = read_bd3(c)?;
+    if matches!(version, Version::R14) {
+        return Ok(UcsEntry {
+            header,
+            origin,
+            x_axis,
+            y_axis,
+            elevation: 0.0,
+            ortho_view_type: 0,
+            base_ucs_handle: Handle {
+                code: 0,
+                counter: 0,
+                value: 0,
+            },
+        });
+    }
     let elevation = c.read_bd()?;
     let ortho_view_type = c.read_bs()?;
     if !(0..=MAX_ORTHO_VIEW_TYPE).contains(&ortho_view_type) {
@@ -101,7 +122,8 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<UcsEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) =
+        modern::read_entry_flags(&mut split.data, version)?;
     let origin = read_bd3(&mut split.data)?;
     let x_axis = read_bd3(&mut split.data)?;
     let y_axis = read_bd3(&mut split.data)?;
@@ -117,9 +139,9 @@ pub(crate) fn decode_modern_split_stream(
     Ok(UcsEntry {
         header: TableEntryHeader {
             name,
-            is_xref_dependent,
+            flag_64: flag64,
             xref_index_plus_1,
-            is_xref_resolved: flag64,
+            is_xref_dependent,
         },
         origin,
         x_axis,
