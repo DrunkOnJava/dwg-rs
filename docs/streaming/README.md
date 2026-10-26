@@ -143,7 +143,7 @@ Two 1.3 MB drawings from ACadSharp (`sample_AC1014.dwg` and
 stream below: 1,242 and 1,047 records, each equal to the independent parse and
 the legacy reader. They found that the walker refused the first object map
 chunk of both, 2,033 and 2,034 bytes: a chunk's size counts its own two bytes,
-so the spec's 2,032 bytes of entries make 2,034 (ARCHITECTURE.md §7v), and the
+so the spec's 2,032 bytes of entries make 2,034 (ARCHITECTURE.md §7z), and the
 limit is now that.
 
 Not measured: a real R13 file and any throughput. The companion DXFs in the
@@ -454,7 +454,7 @@ and the framer needs the section's bytes in order. A page of the object section
 that the page map lists out of order, or a hole in it, is refused with
 `ObjectsOrder` rather than buffered or reordered, since the state is fixed and
 no page index is kept. All 28 R2004-family drawings of the pinned corpus list
-the object section's pages in order and contiguously (ARCHITECTURE.md §7v),
+the object section's pages in order and contiguously (ARCHITECTURE.md §7z),
 while pages of other sections interleave freely with them (the verifier checks
 that on built files).
 

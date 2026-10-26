@@ -2294,7 +2294,7 @@ cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
 ```
 
-## 7v. The object stream's records, framed from the stream (2026-10-26, #205)
+## 7z. The object stream's records, framed from the stream (2026-10-26, #205)
 
 The streaming object walker (`src/streaming/records.rs`,
 `r2004_objects.rs`) frames an R2004-family object section without the
