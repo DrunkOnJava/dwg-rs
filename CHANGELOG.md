@@ -17,7 +17,7 @@ an `Object` step after its checks (docs/streaming/README.md). Every pinned
 R2004, R2010, R2013 and R2018 drawing's records equal the legacy
 `ObjectWalker`'s, and a record's CRC (seed `0xC0C1`, `MS` through the last
 payload byte, `MC` included) is checked, which the legacy walker never did
-(ARCHITECTURE.md §7z). A checkpoint (`R2004ObjectCheckpoint`, `DWGO`) is
+(ARCHITECTURE.md §7aa). A checkpoint (`R2004ObjectCheckpoint`, `DWGO`) is
 self-contained and restores in the wasm32 kernel.
 
 The R13 to R2000 container walk refused an object map chunk of more than
