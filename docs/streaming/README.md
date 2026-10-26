@@ -742,3 +742,52 @@ The generator now writes both and the acceptance run checks that file
 under every chunk size from 1 to 32 bytes. Its other sections remain
 placeholders. The audit and complete ordered work
 are in [audit.md](audit.md) and [#204](https://github.com/DrunkOnJava/dwg-rs/issues/204).
+
+## Throughput
+
+Not a gate: what the fixed state, the exact demands and the verification cost
+against the legacy reader, in memory, on one machine. `examples/stream_throughput.rs`
+reads each drawing into memory once, then times the streaming walk to its end in
+256-byte reads from a `SliceSource` (`FlatWalker` for R13 to R2000; for the
+R2004 family `R2004ObjectWalker`: header, page map, section map, every data page
+checksummed, decoded and handed out, every object record framed and CRC-checked)
+against `DwgFile::from_bytes` followed by `all_objects` (every record's bytes
+copied out), and for the R2004 family against `from_bytes` followed by a read of
+every section (the decoding the walk does, without the framing or any check). It
+fails if the walk and the legacy reader disagree on the number of records.
+
+```sh
+cargo build --release --example stream_throughput
+target/release/examples/stream_throughput <corpus>/acadsharp/sample_AC1014.dwg \
+  <corpus>/acadsharp/sample_AC1015.dwg <corpus>/acadsharp/sample_AC1018.dwg \
+  <corpus>/acadsharp/sample_AC1024.dwg <corpus>/acadsharp/sample_AC1027.dwg \
+  <corpus>/acadsharp/sample_AC1032.dwg --runs 40
+```
+
+where `<corpus>` is the directory `tools/corpus/fetch.py --dest` filled. Best of
+40 runs after a warm-up, on an Apple M2 Max (12 cores) on 2026-10-26 with other
+jobs running (load average 11 to 100 during the runs); a second run of 25 gave
+the same best times within 3% for the streaming walks and within 7% for the
+legacy reader. MB/s is of the file's bytes.
+
+| Release | Drawing | MB | Records | Streaming walk | Legacy `all_objects` | Legacy read of every section |
+| --- | --- | --- | --- | --- | --- | --- |
+| R14 | `sample_AC1014` | 1.31 | 1,242 | 3.39 ms, 387 MB/s | 0.19 ms, 7,025 MB/s | n/a |
+| R2000 | `sample_AC1015` | 1.30 | 1,047 | 3.34 ms, 388 MB/s | 0.21 ms, 6,266 MB/s | n/a |
+| R2004 | `sample_AC1018` | 1.10 | 1,014 | 5.78 ms, 190 MB/s | 1.14 ms, 963 MB/s | 1.13 ms, 974 MB/s (1.32 MB of sections) |
+| R2010 | `sample_AC1024` | 1.12 | 923 | 7.20 ms, 156 MB/s | 1.36 ms, 824 MB/s | 1.39 ms, 805 MB/s (1.63 MB of sections) |
+| R2013 | `sample_AC1027` | 1.09 | 865 | 5.50 ms, 199 MB/s | 1.00 ms, 1,095 MB/s | 1.11 ms, 980 MB/s (1.25 MB of sections) |
+| R2018 | `sample_AC1032` | 1.08 | 842 | 5.34 ms, 203 MB/s | 0.94 ms, 1,153 MB/s | 1.07 ms, 1,012 MB/s (1.25 MB of sections) |
+
+The streaming walk is 5 to 6 times slower than the legacy decode on the R2004
+family and 16 to 18 times slower than the legacy bulk copy on R14 and R2000.
+What it buys is not speed: it holds a fixed state (under 512 bytes for the flat
+walk, about 100 KB for the R2004 walk), can stop and resume at every step, and
+verifies what the legacy reader does not: every record's CRC, every page's two
+checksums (each page is read three times: its header, its checksum and its
+decoding) and the page map twice. On R14 and R2000 the legacy path is a slice
+copy per record at the offset the handle map gives. Where the walk's time goes
+(the CRC, the 256-byte reads, the copy into the scratch, the second map read) has
+not been profiled. R2007 is not covered by this tool. Not measured: a file
+larger than 1.6 MB, a transport other than a slice (an `AsyncSource` or a file adds
+the transport's own cost), a browser, and any number from CI's runners.

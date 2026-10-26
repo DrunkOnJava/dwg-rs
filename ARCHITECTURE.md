@@ -856,6 +856,10 @@ a 52-bit header admits thousands of parses over `B/BS/BL/BD/RC/CMC`.
 Measured budgets, for whoever picks this up: R2004 1849, R2010 6836,
 R2013 6844, R2018 5820. The records stay `Unhandled`.
 
+*Superseded:* §20.4.101 prints TABLESTYLE after all, and its
+until-R21 layout closes on every record of R14 to R2007 (§7ad); the
+R2010+ record is §20.4.101.2's different layout.
+
 ## 7e. `AcDb:Classes` — where the class list actually starts
 
 `Custom(N)` object type codes (≥ 500) resolve through the class table,
@@ -2507,7 +2511,161 @@ and AutoCAD's first chunk in `sample_AC1014.dwg` is 2,033 and in
 `sample_AC1015.dwg` 2,034. The walk's evidence had been limited to files under
 160 KB, whose maps are one short chunk.
 
-## 7ad. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7ad. TABLESTYLE until R2007: the spec prints it (2026-10-26, #151)
+
+The notes above call TABLESTYLE "declined" (§7d) because "§20.4 has no
+entry" for it. It has: §20.4.101 prints the object, in two layouts.
+§20.4.101.1 is the one "until R21", and it is the one a record on R14 to
+R2007 follows; §20.4.101.2 is R2010's, a different object, and stays
+`Unhandled` here (the next section's job). The corpus holds one TABLESTYLE,
+`Standard`, per drawing, so the 32 records of R14 to R2007 are every one
+there is, and each closes on its data-stream boundary.
+
+The field list is the spec's: `TV` description, `BS` flow direction, `BS`
+flags, two `BD` margins, two `B` suppress flags, then three row styles
+(data, title, header) of `BD` text height, `BS` alignment, two colours, `B`
+background and six borders of `BS` line weight, `B` visible and a colour.
+Two readings are not in the spec's table and are read from the bits:
+
+| Where | What the spec prints | What the bytes say |
+|---|---|---|
+| §20.4.101.1, p233-234 | `Data type BL`, `Data unit type BL` under "R2007+", then `Format string TV` with no gate | all three are R2007+. `arc_2004.dwg` handle `0x65`: 1849 bits of data, 220 of header and 3 x 543 of rows, with every row ending on its sixth border colour; the title row's `BD 6.0` starts at bit 842, exactly where a `TV` would. `arc_2007.dwg` handle `0x65`: 1875 bits, 138 of header and 3 x 579, the extra 36 per row being `BL 512`, `BL 0` and a `TV` that costs no data-stream bits (`unread strings: []`) |
+| §2 key, `TC`; §20.4.101.1 on R2000 | `Text color CMC`, `Fill color CMC`, `Border color CMC`, and a `CMC` is one `BS` before R2004 | on R2000 the colours are the 44-bit `TC` (`BS`, `BL`, `RC`) of R2004: `arc_2000.dwg` handle `0x65` has the same 1849-bit budget as R2004's and closes only so. Read as a one-`BS` `CMC`, the second colour lands on `BS 0`, then `BS 2054`, which is the tail of `0xC1000000` and the zero `RC` |
+
+The colours are `TC` on R14 too: the eight R14 records close with the
+R2000 reading. R14's boundary is the `RL` inside the common object data.
+
+Against AutoCAD's DXF export of the same drawings (R2000 to R2007, matched
+by the handle in group 5), every decoded value equals the group that carries
+it: 76 values per record on R2000 and R2004 and 85 on R2007 (the data type,
+unit type and format string), 1896 in all, none differing and none missing
+from the DXF. A colour is compared as the index its `TC` stands for (`0xC1`
+by block is 0, `0xC3` carries the index, `0xC0` by layer is 256), which is
+what groups 62 to 69 hold. The row order is the DXF's order of its groups
+7: data, title, header. The text style of each row (group 7) is an object
+handle in the handle stream, which the decoder does not read; the DXF
+writes the style's name, so that group is not compared. R14 has no twin
+(nextgis exported it to R12 DXF, ACadSharp has no AC1014 export), so its 8
+records are boundary-only evidence.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_tablestyle -- ../dwg-corpus
+```
+
+| Release | Records | Close | Not decoded (§20.4.101.2) | Values compared | Differ |
+|---|---|---|---|---|---|
+| R14 | 8 | 8 | 0 | no twin | 0 |
+| R2000 | 8 | 8 | 0 | 608 | 0 |
+| R2004 | 8 | 8 | 0 | 608 | 0 |
+| R2007 | 8 | 8 | 0 | 680 | 0 |
+| R2010, R2013, R2018 | 20 | 0 | 20 | - | - |
+
+The oracle (`examples/dxf_oracle`) does not score TABLESTYLE yet.
+
+## 7ae. IMAGEDEFREACTOR and RASTERVARIABLES (2026-10-26, #150)
+
+§20.4.82 and §20.4.91 print the two small objects an IMAGE entity drags
+along, both after the common object data and `BL` class version: the
+reactor an IMAGEDEF keeps for each IMAGE (`IMAGEDEF_REACTOR` in the DXF and
+the class table, `IMAGEDEFREACTOR` in the spec) holds nothing else, and
+RASTERVARIABLES adds three `BS`, the display frame, the display quality and
+the units. Their notes in §7d and the STATUS table counted them unreached;
+the dispatcher had no class-name arm for either.
+
+Each drawing of the corpus that holds an IMAGE holds one of each, the
+seven ACadSharp `sample_AC10xx` saves, and all 14 records close on their
+data-stream boundary from R14 to R2018: after the common object data the
+reactor has 10 bits, its `BL` class version, and RASTERVARIABLES 32, that
+`BL` and its three `BS`, on every release.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) all 30 values equal the groups that carry them: the 6 class versions
+(group 90), and for RASTERVARIABLES 4 values on each of 6 releases (groups 90,
+70, 71, 72). R14 has no twin.
+
+```sh
+cargo run --release --example probe_imagedef_reactor -- ../dwg-corpus
+cargo run --release --example probe_rastervariables -- ../dwg-corpus
+```
+
+| Release | IMAGEDEF_REACTOR close | RASTERVARIABLES close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 1 / 1 | 1 / 1 | no twin | |
+| R2000 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2004 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2007 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2010 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2013 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2018 | 1 / 1 | 1 / 1 | 5 | 0 |
+
+## 7af. ACDBPLACEHOLDER by class number on R14 and R2000 (2026-10-26)
+
+§5 lists ACDBPLACEHOLDER with the fixed object types (`0x50`) and
+prints no field list for it: the record is the common object data and
+nothing else (`src/objects/placeholder.rs`, §7a). R2004 and later write it
+under `0x50` and have decoded since §7d. R14 and R2000 do not: their
+drawings give it a class number from `AcDb:Classes`, as they do XRECORD, and
+the class-name dispatch did not route it, so the 16 placeholders of the
+corpus's R14 and R2000 drawings (one per drawing) were skipped. They are
+the same record, and each closes on its data-stream boundary: the `RL` inside
+the common object data on R14, the prologue's `RL` on R2000.
+
+All 52 placeholders of the corpus close, by either route. Against AutoCAD's
+DXF export (R2000 to R2018, matched by handle) the one value the record
+holds, its `BL` reactor count, equals the number of reactors in the
+object's `{ACAD_REACTORS` bracket on all 42 records that have a twin; R14
+and three ACadSharp R2018 drawings have none.
+
+```sh
+cargo run --release --example probe_placeholder -- ../dwg-corpus
+```
+
+| Release | Records | Close | Reactor counts compared | Differ |
+|---|---|---|---|---|
+| R14 | 8 | 8 | no twin | |
+| R2000 | 8 | 8 | 8 | 0 |
+| R2004 | 8 | 8 | 8 | 0 |
+| R2007 | 8 | 8 | 8 | 0 |
+| R2010 | 8 | 8 | 8 | 0 |
+| R2013 | 8 | 8 | 8 | 0 |
+| R2018 | 4 | 4 | 2 | 0 |
+
+## 7ag. SORTENTSTABLE (2026-10-26, #149)
+
+§20.4.93 prints the draw-order table of a block as `BL` numentries and that
+many sort handles, typed `H` but "CODE 0, i.e. part of the main bit stream,
+not of the handle bit stream": the one place in a non-entity object where
+a handle sits in the data stream. A code-0 handle's counter bytes are the
+absolute handle, so each reads as one `H` with no offset to resolve; the
+decoder refuses another code instead of reading an offset as a handle. The
+entity each sorts is the matching handle of the handle stream, which is not
+read.
+
+The dispatcher had no class-name arm for it, so all 27 SORTENTSTABLE records
+of the corpus were skipped. All 27 close on their data-stream boundary: three
+on each release from R14 to R2013 and nine on the R2018 drawings.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) the entry count and every sort handle equal the groups the DXF writes as
+pairs, the entity under group 331 and the sort handle as a further group 5:
+66 values, none differing. R14 has no twin.
+
+```sh
+cargo run --release --example probe_sortentstable -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 3 | 3 | no twin | |
+| R2000 | 3 | 3 | 11 | 0 |
+| R2004 | 3 | 3 | 11 | 0 |
+| R2007 | 3 | 3 | 11 | 0 |
+| R2010 | 3 | 3 | 11 | 0 |
+| R2013 | 3 | 3 | 11 | 0 |
+| R2018 | 9 | 9 | 11 | 0 |
+
+## 7ah. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned
