@@ -1692,10 +1692,10 @@ cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015
 ## 7n. The R2004 data page header, as AutoCAD writes it (2026-10-26, #205)
 
 §4.6 gives every data page a 0x20-byte header, masked word by word with
-`0x4164536B` ^ the page's file offset. `section_map::DataPageHeader` names
-its eight words after that table, but two of its labels do not describe
-what the files hold, and the page-length fact it leans on is not the one it
-uses. After unmasking, on every data page of the pinned corpus:
+`0x4164536B` ^ the page's file offset. `section_map::DataPageHeader` named
+its eight words after that table, but two of its labels did not describe
+what the files hold, and the page-length fact it leaned on was not the one it
+used. After unmasking, on every data page of the pinned corpus:
 
 | Offset | Field | Equals |
 |---|---|---|
@@ -1707,12 +1707,14 @@ uses. After unmasking, on every data page of the pinned corpus:
 | `0x18` | header checksum | §4.2 over the 0x20 header bytes with this field zeroed, seeded with `0x1C` |
 | `0x1C` | data checksum | §4.2 over the stored bytes, seed 0 |
 
-`DataPageHeader` reads `0x14` as a page header checksum (it is the high
-half of the start offset, always zero), `0x18` as the data checksum (it is
-the header checksum) and `0x1C` as unknown (it is the data checksum).
-`read_section_payload` only uses the type, the data size and the page size,
-and treats the page size as a capacity hint, so no section read is wrong;
-the struct is left as it is.
+`DataPageHeader` used to read `0x14` as a page header checksum (it is the
+high half of the start offset, always zero), `0x18` as the data checksum (it
+is the header checksum) and `0x1C` as unknown (it is the data checksum).
+`read_section_payload` only used the type, the data size and the page size,
+and treated the page size as a capacity hint, so no section read was wrong.
+The struct now carries the measured layout (an 8-byte `start_offset`,
+`header_checksum`, `data_checksum`; a breaking change recorded in
+CHANGELOG.md).
 
 `examples/probe_data_page_header.rs` unmasks every data page of every
 R2004-family drawing it is given and counts agreement with each reading.
@@ -1725,9 +1727,9 @@ four canonical fixtures:
 | type, section number, data size, page size, start offset as above | 580 | 12 |
 | data checksum at `0x1C`, seed 0, over the stored bytes | 580 | 12 |
 | header checksum at `0x18`, seeded with `0x1C` | 580 | 12 |
-| legacy label: checksum at `0x14` over the header, seed 0 | 0 | 0 |
-| legacy label: data checksum at `0x18`, seed 0 | 0 | 0 |
-| legacy label: page size at `0x0C` is the decompressed size | 0 | 0 |
+| former label: checksum at `0x14` over the header, seed 0 | 0 | 0 |
+| former label: data checksum at `0x18`, seed 0 | 0 | 0 |
+| former label: page size at `0x0C` is the decompressed size | 0 | 0 |
 
 The checksum rule was found on the 54 data pages of `sample_AC1032.dwg` by
 trying §4.2 over the header (each checksum field zeroed or kept, seeded
