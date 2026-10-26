@@ -1525,7 +1525,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7u. ACIS version-2 envelopes (2026-10-26, #228)
+## 7p. ACIS version-2 envelopes (2026-10-26, #228)
 
 §20.4.41 gives the ACIS envelope two forms. Version 1 is a loop of
 length-prefixed blocks; version 2 is "an acis file" written straight

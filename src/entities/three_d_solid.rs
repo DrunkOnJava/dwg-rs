@@ -43,7 +43,7 @@
 //! after each envelope (wireframe point, isolines, wires, silhouettes)
 //! is identical across the three releases; the SAB files themselves
 //! differ only as AutoCAD writes a different ACIS file version for each
-//! target release (ARCHITECTURE.md §7u).
+//! target release (ARCHITECTURE.md §7p).
 //!
 //! # Where the R2013+ payload actually lives
 //!
