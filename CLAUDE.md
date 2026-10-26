@@ -69,11 +69,11 @@ python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/relea
 python3 -I tools/corpus/measure.py check --results r.json        # every drawing against tools/corpus/baseline.tsv
 ```
 
-The `Corpus (public DWG)` job runs exactly this and fails on any count change in either direction, so a PR that changes a decoded, skipped or errored count must commit the regenerated baseline (`python3 -I tools/corpus/measure.py baseline`, or the `corpus-measurement` artifact the job uploads). Streaming E2E reads its own pinned nextgis files (`tools/streaming/*-corpus.json`, cross-checked against `pins.tsv`).
+The `Corpus (public DWG)` job runs exactly this and fails on any count change in either direction, so a PR that changes a decoded, skipped or errored count must commit the regenerated baseline (`python3 -I tools/corpus/measure.py baseline --results r.json` after the `run` above, or the `corpus-measurement` artifact the job uploads). Streaming E2E reads its own pinned nextgis files (`tools/streaming/*-corpus.json`, cross-checked against `pins.tsv`).
 
 The older real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) read a 19-file subset at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green local `cargo test` says nothing about real drawings unless that directory exists. `fetch.py --legacy-samples ../../samples` writes exactly that subset there; from a worktree, `../../samples` resolves against the worktree's own path.
 
-Coverage numbers in `README.md`, `STATUS.md` and `docs/spec-coverage.md` come from the corpus job's run on `main`. Never estimate or carry them forward: re-measure and cite the run.
+Coverage numbers come from two places, and each says which: the headline tables in `README.md` and `STATUS.md` cite the corpus job's run on `main`, while older sections (STATUS.md's 2026-08-30 baseline, the evidence behind `closes` states in `docs/spec-coverage.md`) are dated local measurements of the 19-file subset. Never estimate or carry a number forward: re-measure, and cite the run or the command and date.
 
 ## Architecture
 
