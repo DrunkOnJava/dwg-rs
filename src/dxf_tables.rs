@@ -913,6 +913,45 @@ pub fn build(
     tables
 }
 
+/// `groups` with their text escaped for the release `w` writes (see
+/// `dxf_header::escape_text`): the markers, the preview hex and the
+/// structural groups are plain ASCII already.
+fn escaped(groups: &[HeaderGroup], version: DxfVersion) -> Vec<HeaderGroup> {
+    groups
+        .iter()
+        .map(|g| match g {
+            HeaderGroup::Text(code, t) if !matches!(code, 0 | 100 | 102 | 310) => {
+                HeaderGroup::Text(*code, crate::dxf_header::escape_text(version, t))
+            }
+            other => other.clone(),
+        })
+        .collect()
+}
+
+/// The layer the converter's entities go on while they carry no layer of their
+/// own: `0` when it is neither frozen nor off, else the first layer that is
+/// neither, so that geometry is not hidden by a layer 0 the drawing froze or
+/// switched off. `None` when no layer is visible (or there is no LAYER table).
+pub fn visible_layer(tables: &[Table]) -> Option<String> {
+    let layers = tables.iter().find(|t| t.name == "LAYER")?;
+    let visible = |r: &&Record| {
+        let int = |code: i32| {
+            r.groups.iter().find_map(|g| match g {
+                HeaderGroup::Int(c, v) if *c == code => Some(*v),
+                _ => None,
+            })
+        };
+        int(70).unwrap_or(0) & 1 == 0 && int(62).unwrap_or(0) >= 0
+    };
+    layers
+        .records
+        .iter()
+        .filter(visible)
+        .find(|r| r.name == "0")
+        .or_else(|| layers.records.iter().find(visible))
+        .map(|r| r.name.clone())
+}
+
 fn bracket(w: &mut crate::dxf::DxfWriter, name: &str, groups: &[HeaderGroup]) {
     w.write_string(102, &format!("{{{name}"));
     write_groups(w, groups);
@@ -962,7 +1001,7 @@ pub fn write(w: &mut crate::dxf::DxfWriter, tables: &[Table]) {
                     HeaderGroup::Text(100, "AcDbSymbolTableRecord".into()),
                 ],
             );
-            write_groups(w, &r.groups);
+            write_groups(w, &escaped(&r.groups, w.version()));
         }
         w.write_string(0, "ENDTAB");
     }

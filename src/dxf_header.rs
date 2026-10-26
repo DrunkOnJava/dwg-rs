@@ -348,6 +348,16 @@ fn measurement(file: &DwgFile) -> Option<i64> {
     Some(i64::from(u16::from_le_bytes([word[0], word[1]])))
 }
 
+/// `s` as text for the DXF release `version` (see `text_for`): control
+/// characters in caret notation, and before R2007 what is not ASCII as
+/// `\U+XXXX` escapes. R12 and R14 targets are returned unchanged.
+pub(crate) fn escape_text(version: DxfVersion, s: &str) -> String {
+    match target_release(version) {
+        Some(rel) => text_for(rel, s),
+        None => s.to_string(),
+    }
+}
+
 fn target_release(version: DxfVersion) -> Option<Rel> {
     match version {
         DxfVersion::R12 | DxfVersion::R14 => None,

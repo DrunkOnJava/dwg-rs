@@ -122,6 +122,9 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
         }
         _ => Vec::new(),
     };
+    let entity_layer = crate::dxf_tables::visible_layer(&tables)
+        .map(|n| crate::dxf_header::escape_text(version, &n))
+        .unwrap_or_else(|| layers[0].name.clone());
     let defined = if tables.is_empty() {
         crate::dxf_tables::Defined {
             layers: layers.iter().map(|l| l.name.clone()).collect(),
@@ -158,7 +161,7 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     if let Some(decoded_res) = file.decoded_entities() {
         let (decoded_list, _summary) = decoded_res?;
         for decoded in &decoded_list {
-            match decoded_entity_to_record(decoded) {
+            match decoded_entity_to_record(decoded, &entity_layer) {
                 Some(record) => entities.push(record),
                 None => {
                     let label = decoded_label(decoded);
@@ -341,12 +344,11 @@ fn raw_to_decoded_object(raw: &RawObject) -> Option<DecodedObject> {
 /// Best-effort conversion from a [`DecodedEntity`] to an
 /// [`EntityRecord`]. Returns `None` for any entity whose geometry
 /// isn't one of the five Curve-shaped primitives this pipeline emits.
-fn decoded_entity_to_record(e: &DecodedEntity) -> Option<EntityRecord> {
+fn decoded_entity_to_record(e: &DecodedEntity, layer: &str) -> Option<EntityRecord> {
     // Layer + color aren't yet surfaced uniformly across
-    // DecodedEntity. Default to "0" / ACI 7 (ByLayer equivalent);
-    // when common-entity decoding exposes them (L8-21+), wire
-    // through here.
-    let layer = "0".to_string();
+    // DecodedEntity: every entity goes on `layer`, chosen so that it is
+    // visible (see `crate::dxf_tables::visible_layer`), in ACI 7.
+    let layer = layer.to_string();
     let aci = 7u8;
 
     match e {
