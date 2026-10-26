@@ -56,8 +56,8 @@ src/
 ├── bitwriter.rs        — Inverse of bitcursor, round-trip tested
 ├── cipher.rs           — 108-byte magic sequence + Sec_Mask XOR
 ├── crc.rs              — CRC-8 (16-bit output) + CRC-32 (IEEE)
-├── reed_solomon.rs     — (255,239) FEC over GF(256), defensive recovery
-├── reed_solomon_encode.rs — Writer-side RS encoder
+├── reed_solomon.rs     — §5.13's two R2007 codes: check and correct, plain or interleaved
+├── reed_solomon_encode.rs — §5.13 encoder; reproduces AutoCAD's parity bytes
 │
 ├── lz77.rs             — Decompressor (the main read-path hot loop)
 ├── lz77_encode.rs      — Encoder (literal-only, correctness-first)
@@ -1609,11 +1609,56 @@ have no decoder, so their examples return `Unhandled`.
   header and page CRCs are not verified (#124).
 - §5.1's section hashcode table: the crate reads each section's
   hashcode from the file and holds no table to compare.
-- §5.13 prints Reed-Solomon configurations, not an example. Measured on
-  `line_2007.dwg`'s header page, its system-page polynomial `0x169` is
-  right and `src/reed_solomon.rs`'s `0x11D` is not (#275).
+- §5.13 prints Reed-Solomon configurations, not an example. Its
+  system-page polynomial `0x169` is right; `src/reed_solomon.rs` used
+  `0x11D` until #275 (§7l).
 - §20.4.88 and §20.4.90 print "<<No example>>", and 25 other §20.4
   sections print none.
+
+## 7l. R2007's Reed-Solomon codes, as AutoCAD writes them (2026-10-26, #275)
+
+§5.13 gives R2007 two Reed-Solomon codes over GF(2^8) and lists each one's
+primitive-polynomial coefficients, from x^0 up, in the convention of the
+Rockliff implementation it cites: `1, 0, 0, 1, 0, 1, 1, 0` for the
+(255, 239) system pages and `1, 0, 1, 1, 1, 0, 0, 0` for the (255, 251)
+data pages, that is `0x169` and `0x11D` with x^8 implied. It does not say
+where the generator's roots start, which end of a stored codeword is the
+high-order coefficient, or where in the codeword the message sits. The
+corpus settles all three.
+
+On `line_2007.dwg`'s file header page (three interleaved system
+codewords, §5.2 and §5.13.2), counting codewords whose syndromes are all
+zero:
+
+| Field polynomial | First root | Stored byte *i* is the coefficient of | Valid |
+|---|---|---|---|
+| `0x169` | α^1 | x^i | **3 / 3** |
+| `0x169` | α^0 | x^i | 0 / 3 |
+| `0x169` | α^0 or α^1 | x^(254-i) | 0 / 3 |
+| `0x11D` | α^0 or α^1 | either | 0 / 3 |
+
+The data pages answer the same way under `0x11D` with four parity bytes,
+and in both codes the message is the codeword's first *k* bytes, which is
+why `r2007::deinterleave` already gathered the right bytes without
+checking them. `src/reed_solomon.rs` had been written for "R2004+ system
+sections (§4.1)", a place with no Reed-Solomon coding, using `0x11D` with
+the byte order reversed, so no codeword of a real file verified under it;
+the reader never called it.
+
+`examples/probe_r2007_rs.rs` checks every codeword of every R2007 drawing
+it is given, through the crate's own decoder and encoder. On the eight
+R2007 drawings of the pinned corpus (seven nextgis saves from AutoCAD 2016
+and ACadSharp's `sample_AC1021.dwg` from AutoCAD 2025):
+
+| Code | Codewords | Intact | Re-encoded to AutoCAD's parity | Restored after (n-k)/2 injected errors | Verify under the other code |
+|---|---|---|---|---|---|
+| system (255, 239), `0x169` | 187 | 187 | 187 | 187 | 0 |
+| data (255, 251), `0x11D` | 4,425 | 4,425 | 4,425 | 4,425 | 0 |
+
+The Corpus job runs it on every pinned R2007 drawing. Re-encoding is the
+strongest of the four checks: an encoder built from the measured layout
+reproduces every parity byte AutoCAD wrote, so the layout is not merely
+consistent with the bytes but the one that produced them.
 
 ## 8. Write pipeline (current scope)
 
