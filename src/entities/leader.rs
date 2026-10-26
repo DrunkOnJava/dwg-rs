@@ -48,7 +48,7 @@
 //! On R14 the R13-R14 branch closes exactly too, and its two creation
 //! values are the drawing's own ISO-25 DIMSTYLE: dimgap `0.625`
 //! (DIMGAP, group 147) and dimasz `2.5` (DIMASZ, group 41).
-//! ARCHITECTURE.md §7z has the table; `examples/probe_leader.rs`
+//! ARCHITECTURE.md §7ab has the table; `examples/probe_leader.rs`
 //! reproduces it.
 
 use crate::bitcursor::BitCursor;

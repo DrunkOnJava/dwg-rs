@@ -19,7 +19,7 @@
 //!   record's first `n - 1` points are then compared with the DXF's
 //!   first `n - 1` and its last point with the DXF's last.
 //!
-//! From R2010 the record carries no box height or width (§7z), so 40
+//! From R2010 the record carries no box height or width (§7ab), so 40
 //! and 41 are reported as not in the record.
 //!
 //! ```sh
