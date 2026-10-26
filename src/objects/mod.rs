@@ -23,6 +23,7 @@
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
 //! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
 //! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
+//! | DATATABLE               | [`data_table`]            | none — derived from AutoCAD output |
 //! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
 //! | ACSH_HISTORY_CLASS, ACSH_BOX_CLASS | [`sh_history`]  | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
@@ -94,6 +95,7 @@ pub mod class_map_extension;
 pub mod color;
 pub mod control;
 pub mod custom_dict_entry;
+pub mod data_table;
 pub mod dictionary;
 pub mod dictionary_var;
 pub mod dim_assoc;

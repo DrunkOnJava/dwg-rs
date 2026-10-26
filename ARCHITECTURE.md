@@ -2463,6 +2463,54 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sun -- ../dwg-corpus
 ```
 
+## 7z. DATATABLE, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the table of typed columns AutoCAD writes for the
+data a drawing's fields and links draw on. `src/objects/data_table.rs` reads it from
+the layout below, derived by the CLEANROOM.md method of 2026-10-26: the data bits of
+the six records in `sample_base` (ACadSharp, AutoCAD 2025, saved as R14, R2000 and
+R2004; two per release) against the object in the R2004 DXF export. The R2007 to R2018
+saves declare the class and hold no object. All six close on every release the class
+occurs in, and 155 values equal the DXF with 0 differences.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 2 | 2 | 0 (no twin) | 0 |
+| R2000 | 2 | 2 | 0 (the export holds no DATATABLE) | 0 |
+| R2004 | 2 | 2 | 155 | 0 |
+| Total | 6 | 6 | 155 | 0 |
+
+```text
+BS 70 (2), BL 90 columns (4), BL 91 rows (21, 20), TV 1 name
+per column: BS 92 type, TV 2 name, then rows cells of the type
+            type 1: BL (group 93)   type 2: BD (group 40)   type 6: a handle, none in the data
+```
+
+- **Columns and cells.** Group 90 is the number of columns and group 91 the number of
+  rows; the DXF writes, per column, group 92 (the type), group 2 (the name) and one
+  cell group per row. The four columns of each record have the types 2, 1, 1 and 6.
+  The `BL` cells of the DXF's group 93 equal the `BL`, and the `BD` cells of group 40
+  equal the `BD`, one for one.
+- **The handle column.** A type 6 column holds object handles (group 360), which are in
+  the record's handle stream, so its cells take no bits of the data stream. The record
+  closes exactly on the boundary with a type 6 column of 21 and 20 rows after it, which
+  is how the width of its cells (none) is shown. The DXF lists 7 handles for the first
+  table's 21 rows and 20 for the second's 20, which the data bits cannot explain, so the
+  handle cells are not decoded and the cell count of a handle column is unverified.
+- **Pairing.** AutoCAD gave these objects different handles in the DWG and in the DXF of
+  one drawing (0xFD3 and 0xFEF against 0x143D and 0x145B), so the probe pairs each
+  record with the DXF object that no DWG record shares a handle with, in file order. The
+  row counts (21 and 20) agree with the pairing.
+- **What is not shown.** Column types other than 1, 2 and 6 (the corpus holds no
+  others) are refused as unsupported. The table and column names read as `TV` and are
+  the empty string in every record, so a non-empty name's encoding is the generic `TV`
+  of the release, not a measured one.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_data_table -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

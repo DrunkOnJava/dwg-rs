@@ -158,6 +158,8 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7v).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
+    /// DATATABLE (§7z).
+    DataTable(Box<crate::objects::data_table::DataTable>),
     /// ACSH_HISTORY_CLASS (§7w).
     ShHistory(crate::objects::sh_history::ShHistory),
     /// ACSH_BOX_CLASS (§7w).
@@ -281,6 +283,7 @@ impl DecodedEntity {
             | Self::DbColor(_)
             | Self::DynamicBlock(_)
             | Self::DimAssoc(_)
+            | Self::DataTable(_)
             | Self::ShHistory(_)
             | Self::ShBox(_)
             | Self::Sun(_)
@@ -815,6 +818,10 @@ fn dispatch_object_class(
             version,
         )
         .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
+        "DATATABLE" => {
+            crate::objects::data_table::decode_object(payload, body_start, inline_end, version)
+                .map(|t| DecodedEntity::DataTable(Box::new(t)))
+        }
         "DIMASSOC" => {
             crate::objects::dim_assoc::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DimAssoc)
