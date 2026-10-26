@@ -1,6 +1,8 @@
 //! Pausable byte delivery. Grammar declares ranges; only adapters perform I/O.
 
-use crate::streaming::{CHUNK_BYTES, FlatHeaderParser, FlatWalker, Request, Step, StreamError};
+use crate::streaming::{
+    CHUNK_BYTES, FlatHeaderParser, FlatWalker, R2004HeaderParser, Request, Step, StreamError,
+};
 use std::io::{self, Read, Seek, SeekFrom};
 
 /// `Pending` consumes nothing; EOF is an explicit terminal source observation.
@@ -82,6 +84,19 @@ impl Demand for FlatHeaderParser {
     }
 }
 
+impl Demand for R2004HeaderParser {
+    type Output = ();
+    fn request(&self) -> Result<Option<Request>, StreamError> {
+        self.request()
+    }
+    fn feed(&mut self, offset: u64, input: &[u8]) -> Result<(), StreamError> {
+        self.feed(offset, input)
+    }
+    fn end_of_input(&self) -> Result<(), StreamError> {
+        self.end_of_input()
+    }
+}
+
 impl Demand for FlatWalker {
     type Output = Step;
     fn request(&self) -> Result<Option<Request>, StreamError> {
@@ -138,6 +153,20 @@ fn poll_once<G: Demand, S: ByteSource>(
 /// Completion refers to the file header, never to the whole model.
 pub fn poll_header<S: ByteSource>(
     parser: &mut FlatHeaderParser,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<HeaderPoll, PumpError<S::Error>> {
+    Ok(match poll_once(parser, source, scratch)? {
+        Polled::Fed(_, actual, ()) => HeaderPoll::Progress(actual),
+        Polled::Pending => HeaderPoll::Pending,
+        Polled::Complete => HeaderPoll::Complete,
+    })
+}
+
+/// One transport poll for the R2004-family file header (§4.1). Completion
+/// refers to the header, never to the page maps or objects.
+pub fn poll_r2004_header<S: ByteSource>(
+    parser: &mut R2004HeaderParser,
     source: &mut S,
     scratch: &mut [u8],
 ) -> Result<HeaderPoll, PumpError<S::Error>> {

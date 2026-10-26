@@ -152,3 +152,18 @@ seeded 0xC0C1 over the `MS` bytes and data.
   byte twice, including bytes the adapter held at the checkpoint.
 - A transport answer that ignores the range or is longer than the request
   is refused before its body is read.
+
+## R2004-family header failure cases (§4.1, written before the parser)
+
+- EOF at every byte of the 0x100-byte header.
+- Unknown magic; flat (AC1012/AC1014/AC1015) or R2007 (AC1021) magic.
+- Plain 0x28 not 0x80; decrypted file ID wrong; CRC-32 of the decrypted
+  block (CRC field zeroed) wrong; a fixed decrypted field (0x0C, 0x10,
+  0x14, 0x44, 0x48, 0x4C) wrong after resealing the CRC.
+- The 0x14 bytes at 0xEC not the magic sequence continued.
+- Page map address off a 0x20 boundary or its header past the source;
+  a non-zero second-header address past the source.
+- Every chunk schedule produces the same header; checkpoint at every
+  byte resumes in a fresh process reading each byte once; corrupt,
+  truncated and wrong-identity checkpoints are rejected; a failure
+  snapshot restores the same failure.

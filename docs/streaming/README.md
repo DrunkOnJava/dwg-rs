@@ -5,8 +5,9 @@ R2000 (AC1012/AC1014/AC1015), ODA v5.4.1: the complete **file header**
 (§3.2), and the **container walk** that continues from it through the
 header-variable and class sections, the object map and every mapped
 record's framing, type and handle (below). Neither decodes object bodies.
-For the R2004 family there is a bounded, resumable **LZ77 decoder** (§4.7,
-below); the R2004+ container walk that would drive it is not implemented.
+For the R2004 family there is the **file header** (§4.1) and a bounded,
+resumable **LZ77 decoder** (§4.7), both below; the R2004+ page-map and
+section walk that would join them is not implemented.
 Those remain open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
 compiler is an upgrade after the hand-written baseline, tracked in
 [#208](https://github.com/DrunkOnJava/dwg-rs/issues/208).
@@ -137,6 +138,48 @@ must end in the named error with only the valid prefix committed.
 Not measured: a real R13 file, files larger than about 160 KB, and any
 throughput. The companion DXFs in the sample repository renumber handles
 on save, so they are not used as a handle oracle.
+
+## R2004-family file header (§4.1)
+
+`streaming::R2004HeaderParser` reads the first 0x100 bytes of an AC1018,
+AC1024, AC1027 or AC1032 file with the same contract as the flat header:
+exact byte demands, short feeds kept, wrong offsets and oversized feeds
+rejected without mutation, terminal grammar errors, and no output until
+every check passes. It checks the long `0x80` at 0x28; the decrypted
+block's file ID, its CRC-32 (computed with the CRC field zeroed), and its
+fixed fields `0`, `0x6C`, `4`, `0x20`, `0x80` and `0x40` at 0x0C, 0x10,
+0x14, 0x44, 0x48 and 0x4C; the 0x14 trailing bytes against the magic
+sequence; a page map address on a 0x20 boundary whose §4.3 header lies
+inside the source; and a second-header address, when non-zero, inside
+the source. A failing field is `R2004Field(offset)` and a CRC mismatch is
+`R2004HeaderCrc`. Flat and R2007 magics are `UnsupportedLayout`; the
+caller chooses the parser by release, and a front door that does not
+re-read the magic belongs to the R2004+ walk (#205). Plain bytes the spec
+documents as zero but real files fill (0x15–0x17, 0x2C–0x7F) and the
+decrypted "unknown" long at 0x24 are not enforced. The parser is
+0x100 retained bytes plus bookkeeping, bounded at 512 in the `no_std`
+kernel; its `R2004Checkpoint` is the flat checkpoint's layout with a
+`DWG4` marker and room for the whole header, at most 316 bytes (bounded at
+336), restored by replaying the bytes inside it.
+
+`examples/stream_r2004.rs` is the entry point; `--legacy` prints the
+legacy `header::R2004Header` fields under the same keys.
+`tools/streaming/verify_r2004.py` runs it on the four canonical
+R2004-family fixtures and the 21 pinned nextgis R2004, R2010 and R2013
+files: every header equals an independent Python §4.1 parse and the
+legacy reader's fields; chunk sizes 1 to 32 and a mixed schedule with
+Pending polls reproduce it; 128 proptest schedules run on three files;
+a file cut at each of the 256 header bytes ends in `Truncated`. On one
+file per release band and the canonical R2004 fixture, twelve corruptions
+(three magics, 0x28, the file ID, the CRC, two fixed fields, the trailer,
+a page map past the end or off its boundary, a second header past the
+end) each end in their named error with nothing printed, and a fresh
+process resumes at every one of the 257 positions reading each byte once.
+Bit flips at every byte, every truncation and a wrong source identity
+are rejected for a mid-header checkpoint, and a failure snapshot restores
+the same failure. The local R2018 file (#96) was checked by hand. The
+canonical fixtures pass only since #233 made the writer emit the fixed
+fields.
 
 ## LZ77 decoder (R2004 family, §4.7)
 
@@ -271,6 +314,7 @@ cargo build --locked --example stream_walk --example stream_lz77 --example strea
 python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
+python3 tools/streaming/verify_r2004.py target/debug/examples/stream_r2004 target/debug/examples/streaming_schedules
 ```
 
 Run these on the project's build host. The workflow uploads
