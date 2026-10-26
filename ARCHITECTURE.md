@@ -2571,6 +2571,78 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
+## 7ad. R13 through the decoders main added after the branch began (2026-10-26, #119)
+
+§7ac opened AC1012 and found, in a scratch tree, that the decoders main
+gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
+(#258), the R13/R14 DIMSTYLE block (#297) and LEADER (#249) each test the
+R13-R14 branch as `version == Version::R14` or
+`matches!(version, Version::R14)`, so on R13 they take the R2000+ field
+list and miss the record's boundary. Merging main into those branches
+could not have caught it: there is no textual conflict, and R13 is simply
+not covered. With all three on main, the tests read `is_r13_r14()`.
+
+| Decoder | Test before | R13 records in the 22 drawings | Errored before | Errored after |
+|---|---|---:|---:|---:|
+| ATTRIB (§20.4.4) | `== Version::R14` | 187 | 179 | 0 |
+| ATTDEF (§20.4.5) | `== Version::R14` | 57 | 57 | 0 |
+| DIMSTYLE (§20.4.68, "R13 & R14 Only" block) | `matches!(.., R14)` | 161 | 161 | 0 |
+| LEADER (§20.4.47) | `== Version::R14` | 42 | 42 | 0 |
+
+ATTRIB and ATTDEF both call `text::decode` for their TEXT part, so the
+one change in `text.rs` is what moves them; all 244 of those records are
+`Cabin.dwg`'s. `coverage_report` over the 74 pinned drawings:
+
+`coverage_report` over the 74 pinned drawings:
+
+| Release | Decoded before | Decoded after | Skipped | Errored before | Errored after |
+|---|---:|---:|---:|---:|---:|
+| R13 | 27,254 | 27,693 | 21 | 439 | 0 |
+| R14 to R2018 | unchanged | unchanged | unchanged | 0 | 0 |
+
+`tools/corpus/baseline.tsv` changes in the `decoded` and `errored`
+columns of the 22 R13 rows and nowhere else. The 21 skipped are the
+Sovol drawings' `SUN` class records, which no decoder claims.
+
+**LEADER's end point projection is "R14+", not "R13-R14".** §20.4.47
+files `Endptproj` under "R14+" and `DIMGAP` under "R13-R14 Only", so R13
+has the `DIMGAP` and no projection; `Leader::end_point_projection` is the
+zero vector there, the field's default. This is measured, not only read:
+`probe_leader` closes all 42 Sovol LEADER records (21 drawings; `Cabin.dwg`
+has none) and exits 0 with the projection skipped. With the three `BD`s
+read on R13 as on every other release it closes none of the four LEADERs
+of `JXHMP4602-01005-b`: three stop on a reserved `11` BD tag and one runs
+out of bits (6 remain, 8 wanted).
+
+**Not measured on R13.** The 22 drawings hold no TEXT entity and no
+VIEWPORT record (`probe_r13_census`). TEXT's field list is measured on R13
+anyway, through the 244 ATTRIB and ATTDEF records that read it with the
+same function; VIEWPORT's swap follows §20.4.38, which files every field after the height
+under "R2000+" and the entity header handle under "R13-R14 Only"; it is
+measured on R14 only (6 VIEWPORT records in one drawing, all closing).
+
+The remaining `Version::R14` tests in `src/` are R14-only on purpose:
+DICTIONARY's unknown byte (§20.4.44), the R14 header variable table, and
+the version identity matches in `file_writer.rs`, `classes.rs`,
+`header_vars.rs` and `dwg_write.rs`. Of the open pull requests, #319
+(ACAD_TABLE) tests `matches!(version, Version::R14)` for the three `BD`
+scales its §20.4.96.1 head gives "on R13 and R14". None of the 22 R13
+drawings declares an ACAD_TABLE class (ACadSharp's R14 sample holds two),
+so the R13 side of that branch cannot be measured here; it needs the same
+swap when it lands.
+
+Reproduce:
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo build --release --features dxf-reader --example coverage_report \
+    --example probe_leader --example probe_r13_census
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json
+for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"; done
+target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
