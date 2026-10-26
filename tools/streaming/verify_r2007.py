@@ -4,7 +4,8 @@ sections 5.1-5.4 and 5.10-5.13), never cargo test: one walker and one
 checkpoint over the file header, the page map, the section map and every data
 page of every section, each page's codewords and checksums checked before its
 bytes are handed out.
-Usage: verify_r2007.py <stream_r2007 binary> [<streaming_schedules binary>] [--local DIR ...]"""
+Usage: verify_r2007.py <stream_r2007 binary> [<streaming_schedules binary>] [--timing <stream_r2007_timing binary>]
+[--local DIR ...]"""
 import hashlib
 import json
 from pathlib import Path
@@ -192,6 +193,11 @@ def main():
         at = argv.index('--local')
         local.append(Path(argv[at + 1]))
         del argv[at:at + 2]
+    timing = None
+    if '--timing' in argv:
+        at = argv.index('--timing')
+        timing = str(Path(argv[at + 1]).resolve())
+        del argv[at:at + 2]
     binary = str(Path(argv[0]).resolve())
     schedules = argv[1] if len(argv) > 1 else None
     receipts = []
@@ -265,6 +271,23 @@ def main():
                 assert result.returncode == 0, result.stderr.decode()
                 receipt['proptest_schedules'] = 128
             receipts.append(receipt)
+        # The timing example's two walks must agree on every file's section bytes, holes counted as the zeros
+        # `read_section` returns for them.
+        if timing:
+            holed = []
+            for name, data in corpus:
+                path = tmp / name
+                path.write_bytes(data)
+                result = subprocess.run([timing, str(path), '1'], capture_output=True, timeout=600)
+                assert result.returncode == 0, (name, result.stderr.decode())
+                measured = json.loads(result.stdout)
+                lines, blobs = expectations[name][1], expectations[name][3]
+                assert measured['section_bytes'] == sum(len(b) for b in blobs), (name, measured)
+                if any(l.startswith('{"hole"') for l in lines):
+                    holed.append(name)
+            assert holed, 'no file has a hole'
+            receipts.append({'timing_example': len(corpus), 'section_bytes': 'equal to the assembled sections',
+                             'files_with_holes': holed})
         biggest = max(p['uncompressed'] for parsed, *_ in expectations.values() for s in parsed['sections'] for p in s['pages'])
         widest = max(p['codewords'] for parsed, *_ in expectations.values() for s in parsed['sections'] for p in s['pages'])
         assert biggest > 65536 and widest > 255, (biggest, widest)

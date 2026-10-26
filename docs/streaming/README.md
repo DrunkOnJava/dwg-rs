@@ -625,12 +625,13 @@ assembled byte equals the independent Python parse and the legacy reader's, four
 to seven fixed chunk schedules (down to one byte at a time on files under 400 KB,
 with `Pending` polls, and one through a reader under `FileSource` that fails every
 other read with `WouldBlock` and returns at most 512 bytes) and 128 proptest
-schedules on two files (`arc_2007.dwg`, `constructed_a.dwg`) reproduce it. A
-fresh process resumes at 794 stops (every step of the tiny built file at 256-byte
-reads and every thirteenth at 3-byte reads; 60 to 100 stops of each other file at
-256 and at 7-byte reads, around every section, page, hole and the end of the
-walk): the source reads and output
-of the two processes concatenate to the uninterrupted run's, the bytes written
+schedules on two files (`arc_2007.dwg`, `constructed_a.dwg`) reproduce it, and
+`stream_r2007_timing`'s two walks agree with the assembled sections on every file,
+holes counted as the zeros they stand for. A fresh process resumes at 794 stops
+(every step of the tiny built file at 256-byte reads and every thirteenth at
+3-byte reads; 60 to 100 stops of each other file at 256 and at 7-byte reads,
+around every section, page, hole and the end of the walk): the source reads and
+output of the two processes concatenate to the uninterrupted run's, the bytes written
 equal the section, all six stages were checkpointed, both passes of the page map,
 the section map and a data page, a page scan, and nine of the decoder's
 fourteen modes. Bit flips at every byte and every truncation of a 395-byte
@@ -863,7 +864,7 @@ rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/str
 The R13–R2000 walk and the LZ77 decoder have their own drivers:
 
 ```sh
-cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2004_objects --example stream_r2007 --example streaming_schedules
+cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2004_objects --example stream_r2007 --example stream_r2007_timing --example streaming_schedules
 python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
@@ -874,7 +875,7 @@ python3 tools/streaming/verify_file.py target/debug/examples/stream_r2004_file t
 python3 tools/streaming/verify_wasm.py target/debug/examples/stream_r2004_maps target/debug/examples/stream_r2004_sections target/debug/examples/stream_r2004_file
 python3 tools/streaming/verify_objects.py target/debug/examples/stream_r2004_objects target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_wasm_objects.py target/debug/examples/stream_r2004_objects
-python3 tools/streaming/verify_r2007.py target/debug/examples/stream_r2007 target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_r2007.py target/debug/examples/stream_r2007 target/debug/examples/streaming_schedules --timing target/debug/examples/stream_r2007_timing
 python3 tools/streaming/verify_wasm_r2007.py target/debug/examples/stream_r2007
 python3 tools/streaming/probe_r2007_checks.py <the eight pinned R2007 drawings>
 ```
