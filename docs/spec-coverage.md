@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 71 `closes`, 6 `decoder`, 29 `partial`, 32 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 52 `closes`, 6 `decoder`, 26 `partial`, 20 `missing`.
+- All sections: 0 `complete`, 72 `closes`, 6 `decoder`, 29 `partial`, 31 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 53 `closes`, 6 `decoder`, 26 `partial`, 19 `missing`.
 
 ## Sections
 
@@ -147,7 +147,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.94 | SPATIAL_FILTER | 214 | `missing` |  | #149 | The spec's own example (§20.4.94.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.95 | SPATIAL_INDEX | 216 | `missing` |  | #149 | The spec's own example (§20.4.95.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.96 | TABLE | 221 | `missing` |  | #151 | §20.4.96.1 until R21, §20.4.96.2 R24 and later. |
-| §20.4.97 | TABLECONTENT | 229 | `missing` |  | #151 | #82. |
+| §20.4.97 | TABLECONTENT | 229 | `closes` | src/objects/table_content.rs | #151 | Closes on all 14 TABLECONTENT records of the corpus, R14 to R2018 (two tables per release). Against AutoCAD's DXF export every value of the 12 R2000 to R2018 records equals it, 26694 in all, 0 differ (examples/probe_tablecontent); the second table's object was created while saving and has another handle in the DXF, so it is paired in file order. R14 has no DXF twin. Handles (groups 340 and 330) are not decoded. Two readings are measured where the spec is silent: a string value from R2007 is a BL byte count and UTF-16LE in the data stream, and a value with flag bit 1 (Flags & 0x01) still has its data type but no data; data types 128 and 256 are refused. No R13 file is in the corpus. |
 | §20.4.98 | Cell content geometry | 232 | `missing` |  | #151 |  |
 | §20.4.99 | Value | 232 | `missing` |  | #151 |  |
 | §20.4.100 | Custom data collection | 233 | `missing` |  | #151 |  |

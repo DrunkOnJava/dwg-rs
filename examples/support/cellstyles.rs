@@ -129,7 +129,9 @@ impl<'a> Seq<'a> {
     }
 }
 
-fn content_format(s: &mut Seq, t: &mut Tally, f: &TableContentFormat) {
+/// Compare a content format with the groups from its `300 CONTENTFORMAT` to
+/// its `309 CONTENTFORMAT_END`.
+pub fn content_format(s: &mut Seq, t: &mut Tally, f: &TableContentFormat) {
     s.marker(t, 300, "CONTENTFORMAT");
     s.marker(t, 1, "CONTENTFORMAT_BEGIN");
     s.int(
