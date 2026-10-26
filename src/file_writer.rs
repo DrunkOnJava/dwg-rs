@@ -606,13 +606,19 @@ pub fn build_system_pages(built: &[NamedBuiltSection]) -> Result<SystemPageAssem
 /// | Offset | Name                     | Source                                    |
 /// |--------|--------------------------|-------------------------------------------|
 /// | 0x00   | file_id `"AcFssFcAJMB\0"`| fixed 12 bytes                            |
-/// | 0x0C-0x27 | reserved/unknown       | zero                                      |
+/// | 0x0C   | 0                        | fixed                                     |
+/// | 0x10   | 0x6C                     | fixed (the block's length)                |
+/// | 0x14   | 0x04                     | fixed                                     |
+/// | 0x18-0x23 | tree node gaps         | zero                                      |
+/// | 0x24   | 1                        | "ODA writes 1"; every real file has 1     |
 /// | 0x28   | last_section_page_id    | `page_count` (last page number used)     |
 /// | 0x2C   | last_section_page_end   | file offset of last byte written          |
 /// | 0x34   | second_header_addr      | 0 (we don't emit a second-header copy)    |
 /// | 0x3C   | gap_amount              | 0                                         |
 /// | 0x40   | section_page_amount     | total page count incl. system pages       |
-/// | 0x44-0x4F | reserved               | zero                                      |
+/// | 0x44   | 0x20                     | fixed                                     |
+/// | 0x48   | 0x80                     | fixed                                     |
+/// | 0x4C   | 0x40                     | fixed                                     |
 /// | 0x50   | section_page_map_id     | Section Page Map's assigned page number   |
 /// | 0x54   | section_page_map_addr   | Page Map file offset minus 0x100          |
 /// | 0x5C   | section_map_id          | Section Info's assigned page number       |
@@ -632,6 +638,13 @@ fn build_decrypted_file_open_header(
     // decrypt to "AcFssFcAJMB" for the decrypt sanity check to pass.
     block[0..11].copy_from_slice(b"AcFssFcAJMB");
     // block[11] stays 0 (NUL terminator).
+    // §4.1 fixed fields, as every real R2004-family file carries them.
+    LittleEndian::write_u32(&mut block[0x10..0x14], 0x6C);
+    LittleEndian::write_u32(&mut block[0x14..0x18], 0x04);
+    LittleEndian::write_u32(&mut block[0x24..0x28], 1);
+    LittleEndian::write_u32(&mut block[0x44..0x48], 0x20);
+    LittleEndian::write_u32(&mut block[0x48..0x4C], 0x80);
+    LittleEndian::write_u32(&mut block[0x4C..0x50], 0x40);
 
     // 0x28 last_section_page_id — use last page number (section info).
     LittleEndian::write_u32(&mut block[0x28..0x2C], a.section_info_page_number as u32);
@@ -707,17 +720,15 @@ pub fn assemble_dwg_bytes(built: &[NamedBuiltSection], version: Version) -> Resu
     while out.len() < 0x80 {
         out.push(0);
     }
+    // §4.1: 0x28 is the long 0x80.
+    LittleEndian::write_u32(&mut out[0x28..0x2C], 0x80);
 
     // [0x80..0xEC] XOR-encrypted 0x6C file-open header.
     cipher::xor_in_place(&mut decrypted);
     out.extend_from_slice(&decrypted);
 
-    // [0xEC..0x100] — 0x14 bytes of reserved/locator space. The
-    // reader in this crate doesn't consume them; zero is a safe
-    // round-trip value.
-    while out.len() < 0x100 {
-        out.push(0);
-    }
+    // [0xEC..0x100] — §4.1: the magic sequence continued to 0x100.
+    out.extend_from_slice(&cipher::header_trailer());
 
     // [0x100..] — data pages, then page map, then section info.
     out.extend_from_slice(&assembly.data_pages_concat);
