@@ -82,7 +82,10 @@ fn files(path: &Path, out: &mut Vec<PathBuf>) {
         for entry in entries {
             files(&entry, out);
         }
-    } else if path.extension().is_some_and(|e| e == "dwg") {
+    } else if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("dwg"))
+    {
         out.push(path.to_path_buf());
     }
 }
