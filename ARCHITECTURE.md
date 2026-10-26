@@ -1525,7 +1525,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7s. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
+## 7o. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
 
 §20.4.84 prescribes LAYOUT (and the plot-settings block it embeds) with
 three version branches the decoder had refused rather than read: a `TV`

@@ -108,7 +108,7 @@
 20.4.81	IMAGEDEF	199	decoder	src/entities/imagedef.rs	#150	
 20.4.82	IMAGEDEFREACTOR	200	missing		#150	
 20.4.83	LAYER_INDEX	201	missing		#149	
-20.4.84	LAYOUT	202	closes	src/objects/acad_layout.rs, src/objects/acad_plot_settings.rs	#146	Closes on every LAYOUT of the public corpus, R14 to R2018 (no R13 file): the R13-R2000 plot view name and the R2004+ shade-plot fields and viewport count as printed, routed by class name on R14 and R2000. Every R14, R2000 and R2007 record equals the R2004 save of the same drawing (#229, ARCHITECTURE.md §7s).
+20.4.84	LAYOUT	202	closes	src/objects/acad_layout.rs, src/objects/acad_plot_settings.rs	#146	Closes on every LAYOUT of the public corpus, R14 to R2018 (no R13 file): the R13-R2000 plot view name and the R2004+ shade-plot fields and viewport count as printed, routed by class name on R14 and R2000. Every R14, R2000 and R2007 record equals the R2004 save of the same drawing (#229, ARCHITECTURE.md §7o).
 20.4.85	LWPLINE	204	partial	src/entities/lwpolyline.rs	#142	The 24 R14 records are never routed: R14 gives LWPOLYLINE a class number (#229).
 20.4.86	MLeaderAnnotContext	206	closes	src/entities/mleader.rs	#147	
 20.4.87	MLEADERSTYLE	209	closes	src/objects/acad_mleader_style.rs	#147	

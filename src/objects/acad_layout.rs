@@ -120,7 +120,7 @@
 //!
 //! Every R14, R2000 and R2007 record decodes to the same values as the
 //! R2004 save of the same drawing, handle by handle, apart from the
-//! fields the earlier releases do not store (ARCHITECTURE.md §7s).
+//! fields the earlier releases do not store (ARCHITECTURE.md §7o).
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
