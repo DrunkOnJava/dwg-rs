@@ -2367,8 +2367,8 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 
 ## 7aa. dwg-to-dxf: the TABLES section (2026-10-26, #126)
 
-`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, UCS, APPID and
-BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
+`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, UCS, APPID, DIMSTYLE
+and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
 under its control object's handle with its records under their own and owned by
 the table, in the group order of AutoCAD's exports (VPORT, LTYPE, LAYER, STYLE,
 VIEW, UCS, APPID, DIMSTYLE, BLOCK_RECORD). The header then names a layer, text
@@ -2386,22 +2386,24 @@ runs it.
 | STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
 | UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
+| DIMSTYLE | 108 | 108 | 1437 | 1433 | 4 | 0 | 0 | 332 | 0 |
 | BLOCK_RECORD | 270 | 270 | 1117 | 1114 | 3 | 0 | 0 | 154 | 0 |
-| All | 1101 | 1101 | 6997 | 6992 | 5 | 0 | 0 | 864 | 24 |
+| All | 1209 | 1209 | 8434 | 8425 | 9 | 0 | 0 | 1196 | 24 |
 
 Every group written has the export's code and value, over the 42 drawings of the
 public corpus that have an AutoCAD export of the same release (R2000 to R2018).
 What is omitted has a reason the probe checks, and an unexplained omission fails
 it: the extended data (1000 to 1071) of a record, which the decoder does not read;
-a true-colour layer's 420 and the 62 beside it, and a viewport's 63 beside its
-421, because the DWG stores no index for a true colour; a layer's colour name
+a true-colour layer's 420 and the 62 beside it, a viewport's 63 beside its 421
+and a dimension colour (176 to 178), because the DWG stores no index for a true
+colour; a layer's colour name
 (430); a record the export registers again under another handle (an APPID, a
 layer, a block), which pairs by name; a LTYPE with a shape or text dash (four in
-the corpus, written by none), and the 6 of a layer that uses one; and the
+the corpus, written by none), and the 6 of a layer, the 345 to 347 of a
+dimension style that use one; and the
 `{BLKREFS` bracket of a block, because ENTITIES does not carry the INSERT handles
 it lists. `ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that
-application on all four drawings that hold it. VIEW and DIMSTYLE are not written
-yet, so a header name that points at a DIMSTYLE is still omitted. UCS is written
+application on all four drawings that hold it. VIEW is not written yet. UCS is written
 as AutoCAD's empty table when the drawing has no UCS record, which is every
 drawing of the corpus; a drawing with UCS records gets no UCS table, because the
 decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
@@ -2423,12 +2425,34 @@ measured against the exports' handle groups:
 - **VPORT**: the xref block, then from R2007 the background (332), visual style
   (348) and sun (361), then the named UCS (345) and base UCS (346): 3 handles on
   R2000, 6 from R2007. Only 348 is ever set in the corpus.
+- **DIMSTYLE**: the xref block, the text style (340), the leader block (341), the
+  two arrowhead blocks (342 to 344) and, from R2007, the dimension linetype and
+  the two extension line linetypes (345 to 347): 6 handles to R2004, 9 from
+  R2007, a NULL one left out.
+
 - **BLOCK_RECORD**: a NULL, the `BLOCK` entity, on R2000 the first and last entity
   (unless an xref), on R2004 and later the owned entities (their count is in the
   data stream), the `ENDBLK` entity, one handle per non-zero `RC` of the insert
   count, and last the layout (340, `0` for a block that is not a layout). A list
   whose length is not what that order gives is not read. The layout handle equals
   the export's 340 on all 270 records.
+
+### DIMSTYLE: what AutoCAD leaves out
+
+`tables::dimstyle::decode_with_vars` returns every variable of the record in
+stored order by AutoCAD's name (the 15 fields of `DimStyleEntry` are unchanged).
+AutoCAD writes a DIMSTYLE group only when its value differs from the imperial
+default, and the defaults are the ones in `DIM_GROUPS`: measured by pairing the
+decoded value of each variable with the export's record of the same handle over
+the 108 records, a variable the export omits has the same value on every record
+that omits it, and a record whose value differs carries the group (`DIMSCALE`
+1.0, `DIMASZ` 0.18, `DIMEXO` 0.0625, `DIMDLI` 0.38, `DIMDEC` 4, `DIMTAD` 0,
+`DIMTIH` and `DIMTOH` 1, `DIMJOGANG` 45 degrees, and so on). A colour is written
+as its index (176 to 178; the fill colour as a second `70`) unless it is ByBlock.
+The `DIMFIT` slot of §20.4.68 is the group `DIMATFIT` (289) on every release.
+The table header carries `100 AcDbDimStyleTable`, a `71` and a `340` per handle
+the control object lists after its `numentries` dimstyles (non-NULL ones), and
+the probe checks that header against the export's on every drawing.
 
 A handle group is written only when the output defines the object it names: the
 OBJECTS section writes the dictionaries, layouts, plot styles, materials and

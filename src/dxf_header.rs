@@ -467,6 +467,7 @@ impl Names {
         let name = self.record_name(var, handle)?;
         let set = match var {
             "$CLAYER" => &self.defined.layers,
+            "$DIMSTYLE" => &self.defined.dimstyles,
             "$TEXTSTYLE" | "$DIMTXSTY" => &self.defined.styles,
             "$CELTYPE" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2" => &self.defined.ltypes,
             "$DIMBLK" | "$DIMBLK1" | "$DIMBLK2" | "$DIMLDRBLK" => {

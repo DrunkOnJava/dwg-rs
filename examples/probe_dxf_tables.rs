@@ -7,7 +7,7 @@
 //! release, reads the output back with [`dwg::dxf_reader`] (the converter's
 //! output as far as the end of its TABLES section) and pairs every record it
 //! wrote with the export's record of the same handle, per table (VPORT, LTYPE,
-//! LAYER, STYLE, UCS, APPID, BLOCK_RECORD). A paired record must agree group by
+//! LAYER, STYLE, UCS, APPID, DIMSTYLE, BLOCK_RECORD). A paired record must agree group by
 //! group:
 //!
 //! - every group written has the export's code and equal values (text and
@@ -60,13 +60,14 @@ use dwg::dxf::DxfVersion;
 use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
 use dwg::{DwgFile, Version};
 
-const TABLES: [&str; 7] = [
+const TABLES: [&str; 8] = [
     "VPORT",
     "LTYPE",
     "LAYER",
     "STYLE",
     "UCS",
     "APPID",
+    "DIMSTYLE",
     "BLOCK_RECORD",
 ];
 
@@ -191,6 +192,19 @@ fn complex_ltype(layer: &DxfRecord, doc: &DxfDocument) -> bool {
     })
 }
 
+/// Whether group `code` of `record` is the handle of a linetype the export
+/// gives a shape or text dash.
+fn complex_ltype_handle(record: &DxfRecord, code: u16, doc: &DxfDocument) -> bool {
+    let Some(h) = record.first(code).and_then(DxfValue::as_handle) else {
+        return false;
+    };
+    doc.records.iter().any(|r| {
+        r.kind == "LTYPE"
+            && r.handle == Some(h)
+            && r.all(74).any(|v| v.as_i64().is_some_and(|f| f != 0))
+    })
+}
+
 /// Why the converter may omit group `code` of a `table` record the export writes.
 fn group_reason(
     table: &str,
@@ -201,6 +215,10 @@ fn group_reason(
     match (table, code) {
         (_, 1000..=1071) => Some("extended data is not decoded for table records"),
         ("BLOCK_RECORD", 340) => Some("the layout object is not written to OBJECTS"),
+        ("DIMSTYLE", 176..=178) => Some("a true colour has no index in the DWG"),
+        ("DIMSTYLE", 345..=347) if complex_ltype_handle(theirs, code, doc) => {
+            Some("the linetype has a shape or text dash and is not written")
+        }
         ("VPORT", 348) => Some("the visual style object is not written to OBJECTS"),
         ("VPORT", 332 | 361 | 345 | 346) => Some("the object it names is not written"),
         ("VPORT", 63) if !values(theirs, 421).is_empty() => {
@@ -236,6 +254,13 @@ fn relation(
     ];
     if table == "VPORT" && record == "*Active" && later_save && VIEW_STATE.contains(&code) {
         return Some("the active view of a drawing whose export is a later save");
+    }
+    if table == "DIMSTYLE"
+        && code == 70
+        && theirs.len() == ours.len() + 1
+        && theirs[..ours.len()] == *ours
+    {
+        return Some("the fill colour is a true colour, which has no index in the DWG");
     }
     let anon =
         |v: &[&DxfValue], f: fn(&str) -> bool| v.first().and_then(|x| x.as_str()).is_some_and(f);
@@ -309,6 +334,19 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             .iter()
             .find(|r| r.kind == "TABLE" && r.first(2).and_then(DxfValue::as_str) == Some(table));
         if let (Some(a), Some(b)) = (our_table, their_table) {
+            if table == "DIMSTYLE" {
+                for code in [71, 340] {
+                    let (x, y) = (
+                        a.all(code).collect::<Vec<_>>(),
+                        b.all(code).collect::<Vec<_>>(),
+                    );
+                    if x != y {
+                        o.failures.push(format!(
+                            "{name} TABLE {table}: group {code} is {x:?} but AutoCAD wrote {y:?}"
+                        ));
+                    }
+                }
+            }
             if a.handle != b.handle {
                 o.failures.push(format!(
                     "{name} TABLE {table}: handle {:?} but AutoCAD wrote {:?}",

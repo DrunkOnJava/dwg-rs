@@ -2,7 +2,7 @@
 //!
 //! [`build`] turns the decoded LAYER, STYLE, LTYPE and APPID records of a
 //! drawing into the `TABLE` blocks AutoCAD's own DXF export writes for it, and
-//! [`write`] emits them. Each record carries its handle and its owner (the
+//! [`write()`] emits them. Each record carries its handle and its owner (the
 //! table's control object, from `AcDb:Header`), then the groups of its
 //! `AcDb...TableRecord` subclass that the decoder surfaces, under the codes and
 //! in the order of the exports of the public corpus.
@@ -68,7 +68,7 @@ use crate::tables::TableEntryHeader;
 use crate::tables::handles::EntryRefs;
 
 /// One record of a table: its handle and the groups after the `5`/`330`/`100`
-/// preamble (which [`write`] emits from the table's own data).
+/// preamble (which [`write()`] emits from the table's own data).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Record {
     /// The record's handle.
@@ -87,10 +87,13 @@ pub struct Record {
 /// One `TABLE` block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Table {
-    /// `VPORT`, `LTYPE`, `LAYER`, `STYLE`, `UCS` (empty), `APPID` or `BLOCK_RECORD`.
+    /// `VPORT`, `LTYPE`, `LAYER`, `STYLE`, `UCS` (empty), `APPID`, `DIMSTYLE` or `BLOCK_RECORD`.
     pub name: &'static str,
     /// The table's control object handle.
     pub handle: u64,
+    /// Groups after the table's `70` count (a DIMSTYLE table's `AcDbDimStyleTable`
+    /// subclass, its `71` count and `340` handles).
+    pub header_extra: Vec<HeaderGroup>,
     /// The records written.
     pub records: Vec<Record>,
 }
@@ -104,6 +107,8 @@ pub struct Defined {
     pub styles: Vec<String>,
     /// LTYPE record names.
     pub ltypes: Vec<String>,
+    /// DIMSTYLE names.
+    pub dimstyles: Vec<String>,
     /// BLOCK_RECORD names.
     pub blocks: Vec<String>,
 }
@@ -121,6 +126,7 @@ pub fn defined(tables: &[Table]) -> Defined {
         layers: names("LAYER"),
         styles: names("STYLE"),
         ltypes: names("LTYPE"),
+        dimstyles: names("DIMSTYLE"),
         blocks: names("BLOCK_RECORD"),
     }
 }
@@ -453,6 +459,207 @@ fn vport_groups(
     Some(g)
 }
 
+/// Where a dimension variable lands in a DIMSTYLE record: its DXF group, the
+/// value AutoCAD leaves the group out for, and the first target that has it.
+struct DimGroup {
+    name: &'static str,
+    code: i32,
+    default: DimDefault,
+    from: DimFrom,
+}
+
+enum DimDefault {
+    Real(f64),
+    Int(i64),
+    Text(&'static str),
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum DimFrom {
+    R2000,
+    R2007,
+    R2010,
+}
+
+use DimDefault::{Int as DInt, Real as DReal, Text as DText};
+use DimFrom::{R2000, R2007, R2010};
+
+const fn dg(name: &'static str, code: i32, default: DimDefault, from: DimFrom) -> DimGroup {
+    DimGroup {
+        name,
+        code,
+        default,
+        from,
+    }
+}
+
+/// The dimension variables a DIMSTYLE record carries as groups, in the order of
+/// AutoCAD's export. AutoCAD writes a group only when its value differs from the
+/// imperial default listed here, measured on every DIMSTYLE of the corpus.
+const DIM_GROUPS: &[DimGroup] = &[
+    dg("DIMPOST", 3, DText(""), R2000),
+    dg("DIMAPOST", 4, DText(""), R2000),
+    dg("DIMSCALE", 40, DReal(1.0), R2000),
+    dg("DIMASZ", 41, DReal(0.18), R2000),
+    dg("DIMEXO", 42, DReal(0.0625), R2000),
+    dg("DIMDLI", 43, DReal(0.38), R2000),
+    dg("DIMEXE", 44, DReal(0.18), R2000),
+    dg("DIMRND", 45, DReal(0.0), R2000),
+    dg("DIMDLE", 46, DReal(0.0), R2000),
+    dg("DIMTP", 47, DReal(0.0), R2000),
+    dg("DIMTM", 48, DReal(0.0), R2000),
+    dg("DIMFXL", 49, DReal(1.0), R2007),
+    dg("DIMJOGANG", 50, DReal(std::f64::consts::FRAC_PI_4), R2007),
+    dg("DIMTFILL", 69, DInt(0), R2007),
+    dg("DIMTOL", 71, DInt(0), R2000),
+    dg("DIMLIM", 72, DInt(0), R2000),
+    dg("DIMTIH", 73, DInt(1), R2000),
+    dg("DIMTOH", 74, DInt(1), R2000),
+    dg("DIMSE1", 75, DInt(0), R2000),
+    dg("DIMSE2", 76, DInt(0), R2000),
+    dg("DIMTAD", 77, DInt(0), R2000),
+    dg("DIMZIN", 78, DInt(0), R2000),
+    dg("DIMAZIN", 79, DInt(0), R2000),
+    dg("DIMARCSYM", 90, DInt(0), R2007),
+    dg("DIMTXT", 140, DReal(0.18), R2000),
+    dg("DIMCEN", 141, DReal(0.09), R2000),
+    dg("DIMTSZ", 142, DReal(0.0), R2000),
+    dg("DIMALTF", 143, DReal(25.4), R2000),
+    dg("DIMLFAC", 144, DReal(1.0), R2000),
+    dg("DIMTVP", 145, DReal(0.0), R2000),
+    dg("DIMTFAC", 146, DReal(1.0), R2000),
+    dg("DIMGAP", 147, DReal(0.09), R2000),
+    dg("DIMALTRND", 148, DReal(0.0), R2000),
+    dg("DIMALT", 170, DInt(0), R2000),
+    dg("DIMALTD", 171, DInt(2), R2000),
+    dg("DIMTOFL", 172, DInt(0), R2000),
+    dg("DIMSAH", 173, DInt(0), R2000),
+    dg("DIMTIX", 174, DInt(0), R2000),
+    dg("DIMSOXD", 175, DInt(0), R2000),
+    dg("DIMADEC", 179, DInt(0), R2000),
+    dg("DIMDEC", 271, DInt(4), R2000),
+    dg("DIMTDEC", 272, DInt(4), R2000),
+    dg("DIMALTU", 273, DInt(2), R2000),
+    dg("DIMALTTD", 274, DInt(2), R2000),
+    dg("DIMAUNIT", 275, DInt(0), R2000),
+    dg("DIMFRAC", 276, DInt(0), R2000),
+    dg("DIMLUNIT", 277, DInt(2), R2000),
+    dg("DIMDSEP", 278, DInt(46), R2000),
+    dg("DIMTMOVE", 279, DInt(0), R2000),
+    dg("DIMJUST", 280, DInt(0), R2000),
+    dg("DIMSD1", 281, DInt(0), R2000),
+    dg("DIMSD2", 282, DInt(0), R2000),
+    dg("DIMTOLJ", 283, DInt(1), R2000),
+    dg("DIMTZIN", 284, DInt(0), R2000),
+    dg("DIMALTZ", 285, DInt(0), R2000),
+    dg("DIMALTTZ", 286, DInt(0), R2000),
+    dg("DIMUPT", 288, DInt(0), R2000),
+    dg("DIMATFIT", 289, DInt(3), R2000),
+    dg("DIMFXLON", 290, DInt(0), R2007),
+    dg("DIMTXTDIRECTION", 295, DInt(0), R2010),
+    dg("DIMLWD", 371, DInt(-2), R2000),
+    dg("DIMLWE", 372, DInt(-2), R2000),
+];
+
+/// The dimension colours and their groups, written as the colour's index and
+/// left out for ByBlock (0).
+const DIM_COLORS: &[(&str, i32)] = &[
+    ("DIMCLRD", 176),
+    ("DIMCLRE", 177),
+    ("DIMCLRT", 178),
+    ("DIMTFILLCLR", 70),
+];
+
+fn dim_allowed(from: DimFrom, version: DxfVersion) -> bool {
+    match from {
+        R2000 => true,
+        R2007 => from_r2007(version),
+        R2010 => matches!(
+            version,
+            DxfVersion::R2010 | DxfVersion::R2013 | DxfVersion::R2018
+        ),
+    }
+}
+
+/// The groups of a DIMSTYLE record.
+///
+/// `refs` holds the record's handle stream: the xref block, the text style, the
+/// leader, first and second arrowhead blocks and, from R2007, the dimension
+/// linetype and the two extension line linetypes. A handle is written only when
+/// it is not NULL and the output defines what it names.
+fn dimstyle_groups(
+    e: &crate::tables::dimstyle::DimStyleEntry,
+    vars: &[crate::tables::dimstyle::DimVar],
+    refs: Option<&EntryRefs>,
+    file_version: crate::version::Version,
+    version: DxfVersion,
+    defined: &HashSet<u64>,
+) -> Option<Vec<HeaderGroup>> {
+    use crate::tables::dimstyle::DimValue;
+    let mut g = vec![
+        HeaderGroup::Text(100, "AcDbDimStyleTableRecord".into()),
+        HeaderGroup::Text(2, e.header.name.clone()),
+        HeaderGroup::Int(70, xdep(&e.header)),
+    ];
+    for d in DIM_GROUPS {
+        if !dim_allowed(d.from, version) {
+            continue;
+        }
+        let Some(v) = vars.iter().find(|v| v.name == d.name) else {
+            continue;
+        };
+        match (&v.value, &d.default) {
+            (DimValue::Real(x), DReal(def)) => {
+                if !x.is_finite() {
+                    return None;
+                }
+                if x != def {
+                    let out = if d.name == "DIMJOGANG" {
+                        x.to_degrees()
+                    } else {
+                        *x
+                    };
+                    g.push(HeaderGroup::Real(d.code, out));
+                }
+            }
+            (DimValue::Int(x), DInt(def)) if x != def => {
+                g.push(HeaderGroup::Int(d.code, *x));
+            }
+            (DimValue::Flag(x), DInt(def)) if i64::from(*x) != *def => {
+                g.push(HeaderGroup::Int(d.code, i64::from(*x)));
+            }
+            (DimValue::Text(t), DText(def)) if t != def => {
+                g.push(HeaderGroup::Text(d.code, t.clone()));
+            }
+            _ => {}
+        }
+    }
+    for (name, code) in DIM_COLORS {
+        if *name == "DIMTFILLCLR" && !from_r2007(version) {
+            continue;
+        }
+        if let Some(DimValue::Color(c)) = vars.iter().find(|v| v.name == *name).map(|v| &v.value) {
+            if let Some(aci) = c.aci().filter(|a| *a != 0) {
+                g.push(HeaderGroup::Int(*code, i64::from(aci)));
+            }
+        }
+    }
+    let want = if file_version.is_r2007_plus() { 9 } else { 6 };
+    if let Some(r) = refs.filter(|r| r.rest.len() == want) {
+        for (i, code) in [340, 341, 342, 343, 344, 345, 346, 347].iter().enumerate() {
+            if *code >= 345 && !from_r2007(version) {
+                continue;
+            }
+            if let Some(h) = r.rest.get(i + 1).copied().filter(|h| *h != 0) {
+                if defined.contains(&h) {
+                    g.push(HeaderGroup::Handle(*code, h));
+                }
+            }
+        }
+    }
+    Some(g)
+}
+
 /// The groups of a BLOCK_RECORD for the block `name`.
 ///
 /// `refs` holds the record's handle stream. Its entry-specific handles are, in
@@ -508,6 +715,34 @@ fn block_record_groups(
     g
 }
 
+/// The handles after the dimstyles in the DIMSTYLE control object's list: the
+/// `340` handles of the DXF table header, the non-NULL ones the output defines.
+///
+/// The control object (§20.4.67) holds `BL` numentries, then NULL, the
+/// extension dictionary and the dimstyles; the handles that follow the
+/// `numentries` of them are the table header's.
+fn dimstyle_extras(
+    raws: &[crate::object::RawObject],
+    file_version: crate::version::Version,
+    defined: &HashSet<u64>,
+) -> Option<Vec<u64>> {
+    let raw = raws
+        .iter()
+        .find(|r| r.kind == ObjectType::DimStyleControl)?;
+    let mut c = crate::object::body_cursor(raw, file_version).ok()?;
+    crate::common_entity::read_common_object_data_full(&mut c, file_version).ok()?;
+    let n = c.read_bl().ok()? as usize;
+    let refs = crate::tables::handles::refs(raw, file_version).ok()?;
+    let extras = refs.rest.get(n..)?;
+    Some(
+        extras
+            .iter()
+            .copied()
+            .filter(|h| *h != 0 && defined.contains(h))
+            .collect(),
+    )
+}
+
 /// The tables to write for `file` when the output targets `version`.
 ///
 /// `objects` holds the handles the OBJECTS section writes: a handle group that
@@ -538,6 +773,7 @@ pub fn build(
         ("STYLE", "STYLE_CONTROL_OBJECT"),
         ("UCS", "UCS_CONTROL_OBJECT"),
         ("APPID", "APPID_CONTROL_OBJECT"),
+        ("DIMSTYLE", "DIMSTYLE_CONTROL_OBJECT"),
         ("BLOCK_RECORD", "BLOCK_CONTROL_OBJECT"),
     ]
     .into_iter()
@@ -545,6 +781,7 @@ pub fn build(
         Some(Table {
             name,
             handle: control(ctl)?,
+            header_extra: Vec::new(),
             records: Vec::new(),
         })
     })
@@ -566,6 +803,9 @@ pub fn build(
         if let DecodedEntity::Ltype(l) = crate::entities::decode_from_raw(raw, file_version) {
             let written = raw.handle.value < seed && ltype_groups(&l).is_some();
             ltypes.insert(raw.handle.value, (l.header.name.clone(), written));
+            if !written {
+                defined.remove(&raw.handle.value);
+            }
         }
     }
     for raw in &raws {
@@ -580,41 +820,56 @@ pub fn build(
                 | ObjectType::Ltype
                 | ObjectType::AppId
                 | ObjectType::Vport
+                | ObjectType::DimStyle
                 | ObjectType::BlockHeader
         ) {
             continue;
         }
         let refs = crate::tables::handles::refs(raw, file_version).ok();
-        let (table, name, groups) = match crate::entities::decode_from_raw(raw, file_version) {
-            DecodedEntity::Layer(l) => {
-                let lr = layer_refs(refs.as_ref(), file_version, &ltypes);
-                (
-                    "LAYER",
-                    l.header.name.clone(),
-                    Some(layer_groups(&l, &lr, version, &defined)),
-                )
+        let (table, name, groups) = if raw.kind == ObjectType::DimStyle {
+            let Ok((e, vars)) = crate::tables::dimstyle::decode_with_vars(raw, file_version) else {
+                continue;
+            };
+            let groups = dimstyle_groups(&e, &vars, refs.as_ref(), file_version, version, &defined);
+            ("DIMSTYLE", e.header.name.clone(), groups)
+        } else {
+            match crate::entities::decode_from_raw(raw, file_version) {
+                DecodedEntity::Layer(l) => {
+                    let lr = layer_refs(refs.as_ref(), file_version, &ltypes);
+                    (
+                        "LAYER",
+                        l.header.name.clone(),
+                        Some(layer_groups(&l, &lr, version, &defined)),
+                    )
+                }
+                DecodedEntity::Style(s) => ("STYLE", s.header.name.clone(), style_groups(&s)),
+                DecodedEntity::Ltype(l) => ("LTYPE", l.header.name.clone(), ltype_groups(&l)),
+                // AutoCAD's export leaves this internal application out of the
+                // APPID table on all four drawings of the corpus that hold it.
+                DecodedEntity::AppId(a) if a.header.name == "ACAD_SPLINE_DATA" => continue,
+                DecodedEntity::AppId(a) => ("APPID", a.header.name.clone(), Some(appid_groups(&a))),
+                DecodedEntity::VPort(v) => (
+                    "VPORT",
+                    v.header.name.clone(),
+                    vport_groups(&v, refs.as_ref(), version, &defined),
+                ),
+                DecodedEntity::BlockRecord(b) => {
+                    let name = block_names
+                        .get(&handle)
+                        .cloned()
+                        .unwrap_or_else(|| b.header.name.clone());
+                    let groups = block_record_groups(
+                        &b,
+                        &name,
+                        refs.as_ref(),
+                        file_version,
+                        version,
+                        &defined,
+                    );
+                    ("BLOCK_RECORD", name, Some(groups))
+                }
+                _ => continue,
             }
-            DecodedEntity::Style(s) => ("STYLE", s.header.name.clone(), style_groups(&s)),
-            DecodedEntity::Ltype(l) => ("LTYPE", l.header.name.clone(), ltype_groups(&l)),
-            // AutoCAD's export leaves this internal application out of the
-            // APPID table on all four drawings of the corpus that hold it.
-            DecodedEntity::AppId(a) if a.header.name == "ACAD_SPLINE_DATA" => continue,
-            DecodedEntity::AppId(a) => ("APPID", a.header.name.clone(), Some(appid_groups(&a))),
-            DecodedEntity::VPort(v) => (
-                "VPORT",
-                v.header.name.clone(),
-                vport_groups(&v, refs.as_ref(), version, &defined),
-            ),
-            DecodedEntity::BlockRecord(b) => {
-                let name = block_names
-                    .get(&handle)
-                    .cloned()
-                    .unwrap_or_else(|| b.header.name.clone());
-                let groups =
-                    block_record_groups(&b, &name, refs.as_ref(), file_version, version, &defined);
-                ("BLOCK_RECORD", name, Some(groups))
-            }
-            _ => continue,
         };
         let Some(groups) = groups else { continue };
         let (reactors, xdictionary) = match &refs {
@@ -636,6 +891,15 @@ pub fn build(
                 reactors,
                 xdictionary,
             });
+        }
+    }
+    if let Some(extras) = dimstyle_extras(&raws, file_version, &defined) {
+        if let Some(t) = tables.iter_mut().find(|t| t.name == "DIMSTYLE") {
+            t.header_extra = vec![HeaderGroup::Text(100, "AcDbDimStyleTable".into())];
+            t.header_extra
+                .push(HeaderGroup::Int(71, extras.len() as i64));
+            t.header_extra
+                .extend(extras.into_iter().map(|h| HeaderGroup::Handle(340, h)));
         }
     }
     if !tables
@@ -670,12 +934,14 @@ pub fn write(w: &mut crate::dxf::DxfWriter, tables: &[Table]) {
                 HeaderGroup::Int(70, t.records.len() as i64),
             ],
         );
+        write_groups(w, &t.header_extra);
         for r in &t.records {
+            let handle_code = if t.name == "DIMSTYLE" { 105 } else { 5 };
             write_groups(
                 w,
                 &[
                     HeaderGroup::Text(0, t.name.into()),
-                    HeaderGroup::Handle(5, r.handle),
+                    HeaderGroup::Handle(handle_code, r.handle),
                 ],
             );
             if !r.reactors.is_empty() {
