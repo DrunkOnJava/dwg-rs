@@ -765,6 +765,7 @@ pub fn section_of(label: &str) -> &'static str {
         "DICTIONARYVAR" => "§20.4.74",
         "LAYOUT" => "§20.4.84",
         "LWPOLYLINE" => "§20.4.85",
+        "SPATIAL_FILTER" => "§20.4.94",
         "SCALE" => "§20.4.92",
         "TABLESTYLE" => "§20.4.101",
         "XRECORD" => "§20.4.104",
@@ -1046,6 +1047,7 @@ pub fn score(
             c.dwg_only("data (raw bytes)", x.data.len());
         }
         // The reactor count is the number of 330s in {ACAD_REACTORS.
+        D::SpatialFilter(f) => score_spatial_filter(&mut c, f),
         D::Placeholder(p) => {
             let n = reactor_count(dxf);
             c.derived(
@@ -1616,6 +1618,42 @@ fn score_mlinestyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mlinestyle::AcadMlin
         c.real(&format!("lines[{i}].offset"), 49, l.offset, None);
         c.int(&format!("lines[{i}].color"), 62, aci_of(&l.color), None);
         c.dwg_only(&format!("lines[{i}].linetype_index"), l.linetype_index);
+    }
+}
+
+// §20.4.94 under AcDbSpatialFilter: 70 (the point count), 10/20 per
+// boundary point, 210/220/230, 11/21/31, 71, 72 and 73, then as groups 40 in
+// stream order the front clip distance (when on) and the two twelve-value
+// matrices. The export writes the back clip distance as 41, where the spec
+// gives 40 (as the decoder's probe, examples/probe_spatial_filter.rs,
+// measures). The boundary points count under one field.
+fn score_spatial_filter(c: &mut Ctx<'_>, f: &dwg::objects::clip_spatial_filter::SpatialFilter) {
+    c.subclass("AcDbSpatialFilter");
+    c.int("point count", 70, f.boundary.len() as i64, None);
+    for (x, y) in &f.boundary {
+        c.real("boundary.x", 10, *x, None);
+        c.real("boundary.y", 20, *y, None);
+    }
+    for (k, code) in [210u16, 220, 230].into_iter().enumerate() {
+        c.real(&format!("extrusion[{k}]"), code, f.extrusion[k], None);
+    }
+    for (k, code) in [11u16, 21, 31].into_iter().enumerate() {
+        c.real(&format!("origin[{k}]"), code, f.origin[k], None);
+    }
+    c.int("display_boundary", 71, i64::from(f.display_boundary), None);
+    c.int("front clip on", 72, i64::from(f.front_clip.is_some()), None);
+    c.int("back clip on", 73, i64::from(f.back_clip.is_some()), None);
+    if let Some(d) = f.front_clip {
+        c.real("front clip distance", 40, d, None);
+    }
+    for (k, v) in f.inverse_block_transform.iter().enumerate() {
+        c.real(&format!("inverse_block_transform[{k}]"), 40, *v, None);
+    }
+    for (k, v) in f.clip_boundary_transform.iter().enumerate() {
+        c.real(&format!("clip_boundary_transform[{k}]"), 40, *v, None);
+    }
+    if let Some(d) = f.back_clip {
+        c.real("back clip distance", 41, d, None);
     }
 }
 

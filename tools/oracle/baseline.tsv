@@ -602,6 +602,42 @@ R2000	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2000	§20.4.92	SCALE	version	70	152	0	0	0
 R2000	§20.4.93	SORTENTSTABLE	entry count (5 groups)	5	3	0	0	0
 R2000	§20.4.93	SORTENTSTABLE	sort_handle	5	8	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	back clip on	73	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	boundary.x	10	2	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	boundary.y	20	2	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[0]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[10]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[11]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[1]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[2]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[3]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[4]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[5]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[6]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[7]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[8]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[9]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	display_boundary	71	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	extrusion[0]	210	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	extrusion[1]	220	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	extrusion[2]	230	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	front clip on	72	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[0]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[10]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[11]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[1]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[2]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[3]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[4]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[5]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[6]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[7]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[8]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	inverse_block_transform[9]	40	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	origin[0]	11	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	origin[1]	21	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	origin[2]	31	1	0	0	0
+R2000	§20.4.94	SPATIAL_FILTER	point count	70	1	0	0	0
 R2004	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
 R2004	-	VISUALSTYLE	description	2	192	0	0	0
 R2004	-	VISUALSTYLE	display_brightness	44	192	0	0	0
@@ -1174,6 +1210,42 @@ R2004	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2004	§20.4.92	SCALE	version	70	152	0	0	0
 R2004	§20.4.93	SORTENTSTABLE	entry count (5 groups)	5	3	0	0	0
 R2004	§20.4.93	SORTENTSTABLE	sort_handle	5	8	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	back clip on	73	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	boundary.x	10	2	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	boundary.y	20	2	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[0]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[10]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[11]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[1]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[2]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[3]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[4]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[5]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[6]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[7]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[8]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[9]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	display_boundary	71	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	extrusion[0]	210	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	extrusion[1]	220	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	extrusion[2]	230	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	front clip on	72	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[0]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[10]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[11]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[1]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[2]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[3]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[4]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[5]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[6]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[7]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[8]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	inverse_block_transform[9]	40	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	origin[0]	11	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	origin[1]	21	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	origin[2]	31	1	0	0	0
+R2004	§20.4.94	SPATIAL_FILTER	point count	70	1	0	0	0
 R2007	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
 R2007	-	VISUALSTYLE	description	2	192	0	0	0
 R2007	-	VISUALSTYLE	display_brightness	44	192	0	0	0
@@ -1747,6 +1819,42 @@ R2007	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2007	§20.4.92	SCALE	version	70	152	0	0	0
 R2007	§20.4.93	SORTENTSTABLE	entry count (5 groups)	5	3	0	0	0
 R2007	§20.4.93	SORTENTSTABLE	sort_handle	5	8	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	back clip on	73	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	boundary.x	10	2	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	boundary.y	20	2	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[0]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[10]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[11]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[1]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[2]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[3]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[4]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[5]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[6]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[7]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[8]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[9]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	display_boundary	71	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	extrusion[0]	210	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	extrusion[1]	220	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	extrusion[2]	230	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	front clip on	72	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[0]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[10]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[11]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[1]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[2]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[3]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[4]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[5]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[6]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[7]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[8]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	inverse_block_transform[9]	40	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	origin[0]	11	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	origin[1]	21	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	origin[2]	31	1	0	0	0
+R2007	§20.4.94	SPATIAL_FILTER	point count	70	1	0	0	0
 R2010	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
 R2010	-	VISUALSTYLE	description	2	192	0	0	0
 R2010	-	VISUALSTYLE	display_brightness	44	192	0	0	0
@@ -2348,6 +2456,42 @@ R2010	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2010	§20.4.92	SCALE	version	70	152	0	0	0
 R2010	§20.4.93	SORTENTSTABLE	entry count (5 groups)	5	3	0	0	0
 R2010	§20.4.93	SORTENTSTABLE	sort_handle	5	8	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	back clip on	73	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	boundary.x	10	2	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	boundary.y	20	2	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[0]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[10]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[11]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[1]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[2]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[3]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[4]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[5]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[6]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[7]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[8]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[9]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	display_boundary	71	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	extrusion[0]	210	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	extrusion[1]	220	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	extrusion[2]	230	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	front clip on	72	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[0]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[10]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[11]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[1]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[2]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[3]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[4]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[5]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[6]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[7]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[8]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	inverse_block_transform[9]	40	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	origin[0]	11	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	origin[1]	21	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	origin[2]	31	1	0	0	0
+R2010	§20.4.94	SPATIAL_FILTER	point count	70	1	0	0	0
 R2013	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
 R2013	-	VISUALSTYLE	description	2	192	0	0	0
 R2013	-	VISUALSTYLE	display_brightness	40	192	0	0	0
@@ -3006,6 +3150,42 @@ R2013	§20.4.92	SCALE	scale_name	300	152	0	0	0
 R2013	§20.4.92	SCALE	version	70	152	0	0	0
 R2013	§20.4.93	SORTENTSTABLE	entry count (5 groups)	5	3	0	0	0
 R2013	§20.4.93	SORTENTSTABLE	sort_handle	5	8	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	back clip on	73	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	boundary.x	10	2	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	boundary.y	20	2	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[0]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[10]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[11]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[1]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[2]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[3]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[4]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[5]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[6]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[7]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[8]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[9]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	display_boundary	71	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	extrusion[0]	210	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	extrusion[1]	220	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	extrusion[2]	230	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	front clip on	72	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[0]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[10]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[11]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[1]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[2]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[3]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[4]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[5]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[6]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[7]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[8]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	inverse_block_transform[9]	40	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	origin[0]	11	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	origin[1]	21	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	origin[2]	31	1	0	0	0
+R2013	§20.4.94	SPATIAL_FILTER	point count	70	1	0	0	0
 R2018	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	2	0	0	0
 R2018	-	VISUALSTYLE	description	2	48	0	0	0
 R2018	-	VISUALSTYLE	display_brightness	40	48	0	0	0
@@ -3666,3 +3846,39 @@ R2018	§20.4.92	SCALE	scale_name	300	66	0	0	0
 R2018	§20.4.92	SCALE	version	70	66	0	0	0
 R2018	§20.4.93	SORTENTSTABLE	entry count (5 groups)	5	3	0	0	0
 R2018	§20.4.93	SORTENTSTABLE	sort_handle	5	8	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	back clip on	73	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	boundary.x	10	2	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	boundary.y	20	2	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[0]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[10]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[11]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[1]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[2]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[3]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[4]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[5]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[6]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[7]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[8]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	clip_boundary_transform[9]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	display_boundary	71	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	extrusion[0]	210	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	extrusion[1]	220	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	extrusion[2]	230	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	front clip on	72	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[0]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[10]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[11]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[1]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[2]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[3]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[4]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[5]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[6]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[7]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[8]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	inverse_block_transform[9]	40	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	origin[0]	11	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	origin[1]	21	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	origin[2]	31	1	0	0	0
+R2018	§20.4.94	SPATIAL_FILTER	point count	70	1	0	0	0
