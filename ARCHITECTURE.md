@@ -1794,6 +1794,42 @@ cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC
     --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
 ```
 
+## 7x. SPATIAL_FILTER (2026-10-26, #149)
+
+§20.4.94 prints the clip of an xref or block insert as `BS` numpts, that many
+`2RD` boundary points, an extrusion and an origin (`3BD` each), three `BS`
+(the display boundary and the front and back clip switches), a `BD` distance
+after each switch that is 1, and two matrices of 12 `BD`. The dispatcher had
+no class-name arm for it, so the one record of each release was skipped.
+
+The field list closes as printed on all 7 records, R14 to R2018. The spec
+calls each matrix "double [4][3], column major order"; the values arrive as
+three rows of four with the translation last. `sample_AC1018.dwg`'s inverse
+block transformation reads `25.4 0 0 -1087.95`, `0 25.4 0 942.62`,
+`0 0 25.4 0`, an inch-to-millimetre scale with a shift, and its clip boundary
+transformation is the identity. They are kept in stream order, the order of
+the DXF's twenty-four groups 40. Neither clip switch is on in the corpus, so
+the two optional distances are never read there.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) the point count, the boundary points, the extrusion, the origin, the display
+boundary, both switches and all 24 matrix values equal the groups that carry
+them: 234 values, none differing. R14 has no twin.
+
+```sh
+cargo run --release --example probe_spatial_filter -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 1 | 1 | no twin | |
+| R2000 | 1 | 1 | 39 | 0 |
+| R2004 | 1 | 1 | 39 | 0 |
+| R2007 | 1 | 1 | 39 | 0 |
+| R2010 | 1 | 1 | 39 | 0 |
+| R2013 | 1 | 1 | 39 | 0 |
+| R2018 | 1 | 1 | 39 | 0 |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

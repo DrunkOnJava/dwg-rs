@@ -118,7 +118,7 @@
 20.4.91	RASTERVARIABLES	212	missing		#150	The spec's own example (§20.4.91.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.92	SCALE	213	closes	src/objects/acad_scale.rs	#149	DXF oracle (examples/dxf_oracle): 826 records R2000-R2018, every decoded value equals AutoCAD's (4130 equal, 0 by the DXF default, 0 with no DXF group); 1652 DXF groups not decoded.
 20.4.93	SORTENTSTABLE	213	missing		#149	The spec's own example (§20.4.93.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
-20.4.94	SPATIAL_FILTER	214	missing		#149	The spec's own example (§20.4.94.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.94	SPATIAL_FILTER	214	closes	src/objects/spatial_filter.rs	#149	Closes on the one SPATIAL_FILTER of each release R14 to R2018 (the ACadSharp sample set). Against AutoCAD's DXF export the point count, boundary points, extrusion, origin, display boundary, clip switches and all 24 matrix values of the 6 R2000 to R2018 records equal it: 234 values, 0 differ (examples/probe_spatial_filter); R14 has no DXF twin. No R13 file is in the corpus. The spec's own example (§20.4.94.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.95	SPATIAL_INDEX	216	missing		#149	The spec's own example (§20.4.95.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.96	TABLE	221	missing		#151	§20.4.96.1 until R21, §20.4.96.2 R24 and later.
 20.4.97	TABLECONTENT	229	missing		#151	#82.
