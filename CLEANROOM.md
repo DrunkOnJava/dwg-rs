@@ -731,3 +731,30 @@ graph larger than the one 12-node, 10-edge graph the corpus holds. The node hand
 marker in the twins was used, and no third-party DWG or DXF implementation was
 consulted.
 
+## 2026-10-26 — ACSH_EXTRUSION_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints. The
+field list in `src/objects/sh_history.rs` was derived from the data bits of the seven
+ACSH_EXTRUSION_CLASS records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013 and R2018; one per release, handle 0xD6D) and
+AutoCAD's DXF export of the same handle (R2007 to R2018: the R2000 and R2004 exports
+hold no such object). Accepted: all seven close on the data-stream boundary, from R2007
+on a fully consumed string stream, and 328 values (the evaluation base, the 16-value
+transform of groups 40 to 55 with groups 50 to 55 in degrees, groups 62 and 92 of the
+node, the sweep base's 90, 91, 10, 20, 30, 92, the bit count 90, the 84 bytes of the
+profile data of groups 310, 93, 42 to 45, 48, 49, 290, 70, 71, 292 to 296, 11, 21, 31,
+and the two 16-value matrices of groups 46 and 47) equal the decoded fields with 0
+differences (`examples/probe_sh_extrusion.rs`), with one measured convention: the DXF
+writes one byte more of group 310 than the bit count 672 holds (85, where 672 bits are
+84). The DXF lists the sweep base's groups in a different order from the data stream
+(the data holds the six scalars and the flags before the two matrices and the profile
+data, and group 93 last), so the probe pairs them by group code and ordinal. Unverified
+by value: the roles of the equal zeros among groups 42 to 45 and 49, of groups 293, 294
+and 296 and of groups 11, 21 and 31 (each reads 0 in the one object the corpus holds,
+seven times), the meaning of group 92 = 77, how a profile bit count that is not a
+multiple of 8 is stored (such a count is refused as unsupported), the profile data's own
+structure (it is carried as bytes), the `BL -1` that opens the evaluation base and the
+leading `BS` of the R2004+ colour; the handles (347 and the rest) are not decoded. No
+vocabulary beyond the DXF group codes and subclass markers in the twins was used, and no
+third-party DWG or DXF implementation was consulted.
+

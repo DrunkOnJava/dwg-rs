@@ -168,6 +168,8 @@ pub enum DecodedEntity {
     ShHistory(crate::objects::sh_history::ShHistory),
     /// ACSH_BOX_CLASS (§7w).
     ShBox(Box<crate::objects::sh_history::ShBox>),
+    /// ACSH_EXTRUSION_CLASS (§7ac).
+    ShExtrusion(Box<crate::objects::sh_history::ShExtrusion>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -292,6 +294,7 @@ impl DecodedEntity {
             | Self::TextObjectContextData(_)
             | Self::ShHistory(_)
             | Self::ShBox(_)
+            | Self::ShExtrusion(_)
             | Self::Sun(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
@@ -843,6 +846,10 @@ fn dispatch_object_class(
         "ACSH_HISTORY_CLASS" => {
             crate::objects::sh_history::decode_history(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ShHistory)
+        }
+        "ACSH_EXTRUSION_CLASS" => {
+            crate::objects::sh_history::decode_extrusion(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShExtrusion(Box::new(e)))
         }
         "SUN" => crate::entities::sun::decode_object(payload, body_start, inline_end, version)
             .map(DecodedEntity::Sun),
