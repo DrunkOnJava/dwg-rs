@@ -16,7 +16,7 @@
 //! | Slot   | Field              | Type | Notes                       |
 //! |--------|--------------------|------|-----------------------------|
 //! | 1      | view_height        | BD   |                             |
-//! | 2      | aspect_ratio       | BD   |                             |
+//! | 2      | view_width         | BD   | aspect ratio × view height  |
 //! | 3,4    | view_center        | 2×BD |                             |
 //! | 5..7   | view_target        | BD3  |                             |
 //! | 8..10  | view_direction     | BD3  |                             |
@@ -24,7 +24,7 @@
 //! | 12     | lens_length        | BD   |                             |
 //! | 13     | front_clip         | BD   |                             |
 //! | 14     | back_clip          | BD   |                             |
-//! | 15     | view_mode          | BS   | perspective/clip bits       |
+//! | 15     | view_mode          | 4 B  | as DXF 71, with UCSFOLLOW   |
 //! | 16     | render_mode        | RC   | 0..=6 visual style          |
 //! | 17     | lower_left         | 2×RD | screen-space (0..1)         |
 //! | 18     | upper_right        | 2×RD | screen-space (0..1)         |
@@ -34,6 +34,25 @@
 //! | 23,24  | snap_spacing       | 2×RD |                             |
 //! | 25,26  | grid_spacing       | 2×RD |                             |
 //! | 27     | snap_rotation      | BD   |                             |
+
+//!
+//! # Values in AutoCAD's terms (§20.4.64)
+//!
+//! Two fields are stored in a form the DXF does not use, and this module
+//! converts both, as §20.4.64 prescribes; the DXF value oracle (#99) shows
+//! the converted values equal AutoCAD's export on every VPORT of the corpus
+//! (42 records, R2000 to R2018), where the stored ones disagreed on all 42:
+//!
+//! - The second `BD` "is actually the aspect ratio times the view height
+//!   (40), so this number must be divided by the 40-value to produce the
+//!   aspect ratio": it is kept as [`VportEntry::view_width`] and
+//!   [`VportEntry::aspect_ratio`] divides. (`603.8576 / 297.0` is the
+//!   `2.033190578158458` the R2013 export writes in group 41.)
+//! - The view mode is four bits, "0: 71's bit 0 (1), 1: 71's bit 1 (2),
+//!   2: 71's bit 2 (4), 3: OPPOSITE of 71's bit 4 (16)", in read order,
+//!   with bit 3 (8) of group 71 coming from the later `UCSFOLLOW` bit.
+//!   [`VportEntry::view_mode`] is that group-71 value. The `*Active` VPORTs
+//!   store `0001` (front clip at the eye) and export `71 = 0`.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Point3D, read_bd3};
@@ -45,7 +64,9 @@ use crate::version::Version;
 pub struct VportEntry {
     pub header: TableEntryHeader,
     pub view_height: f64,
-    pub aspect_ratio: f64,
+    /// The view's width: the stored `BD` §20.4.64 calls the aspect ratio,
+    /// which it says holds the aspect ratio times the view height.
+    pub view_width: f64,
     pub view_center: Point2D,
     pub view_target: Point3D,
     pub view_direction: Point3D,
@@ -53,6 +74,8 @@ pub struct VportEntry {
     pub lens_length: f64,
     pub front_clip: f64,
     pub back_clip: f64,
+    /// VIEWMODE as DXF group 71: perspective 1, front clip 2, back clip 4,
+    /// UCS follow 8, front clip not at the eye 16 (see the module docs).
     pub view_mode: i16,
     pub render_mode: u8,
     pub lower_left: Point2D,
@@ -68,6 +91,37 @@ pub struct VportEntry {
 // Legacy alias retained so callers keep compiling while they migrate to
 // [`VportEntry`].
 pub type VPort = VportEntry;
+
+impl VportEntry {
+    /// The aspect ratio, DXF group 41: [`view_width`](Self::view_width) over
+    /// the view height (§20.4.64). `None` when the height is 0.
+    pub fn aspect_ratio(&self) -> Option<f64> {
+        (self.view_height != 0.0).then(|| self.view_width / self.view_height)
+    }
+}
+
+/// DXF group 71 from §20.4.64's four view-mode bits (first read first) and
+/// the `UCSFOLLOW` bit: bits 1, 2 and 4 as stored, 16 set when the fourth
+/// bit is clear, 8 from `UCSFOLLOW`.
+fn viewmode_from_bits(bits: u8, ucs_follow: bool) -> i16 {
+    let mut mode = 0i16;
+    if bits & 0b1000 != 0 {
+        mode |= 1;
+    }
+    if bits & 0b0100 != 0 {
+        mode |= 2;
+    }
+    if bits & 0b0010 != 0 {
+        mode |= 4;
+    }
+    if bits & 0b0001 == 0 {
+        mode |= 16;
+    }
+    if ucs_follow {
+        mode |= 8;
+    }
+    mode
+}
 
 /// Decodes a `VportEntry` table entry that follows the common object header.
 ///
@@ -85,7 +139,7 @@ pub type VPort = VportEntry;
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let header = read_table_entry_header(c, version)?;
     let view_height = c.read_bd()?;
-    let aspect_ratio = c.read_bd()?;
+    let view_width = c.read_bd()?;
     let view_center = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
@@ -96,7 +150,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = modern::read_4bits(c)? as i16;
+    let view_mode_bits = modern::read_4bits(c)?;
     // §20.4.64 gates `Render Mode RC 281` on R2000+; R13/R14 go
     // straight from the view mode to the lower-left corner.
     let render_mode = if matches!(version, Version::R14) {
@@ -112,7 +166,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let _ucs_follow = c.read_b()?;
+    let ucs_follow = c.read_b()?;
     let _circle_zoom = c.read_bs()?;
     let _fast_zoom = c.read_b()?;
     let ucs_icon = c.read_bb()?;
@@ -151,7 +205,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     Ok(VportEntry {
         header,
         view_height,
-        aspect_ratio,
+        view_width,
         view_center,
         view_target,
         view_direction,
@@ -159,7 +213,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         lens_length,
         front_clip,
         back_clip,
-        view_mode,
+        view_mode: viewmode_from_bits(view_mode_bits, ucs_follow),
         render_mode,
         lower_left,
         upper_right,
@@ -182,7 +236,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
 /// B     xref dependent
 /// BS    xref index + 1
 /// BD    view height
-/// BD    view width          (surfaced as `aspect_ratio`, see below)
+/// BD    view width          (§20.4.64's "aspect ratio"; see the module docs)
 /// 2RD   view center
 /// BD3   view target
 /// BD3   view direction
@@ -249,7 +303,7 @@ pub(crate) fn decode_modern_split_stream(
     let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let c = &mut split.data;
     let view_height = c.read_bd()?;
-    let aspect_ratio = c.read_bd()?;
+    let view_width = c.read_bd()?;
     let view_center = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
@@ -260,7 +314,7 @@ pub(crate) fn decode_modern_split_stream(
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = modern::read_4bits(c)? as i16;
+    let view_mode_bits = modern::read_4bits(c)?;
     // §20.4.64 gates `Render Mode RC 281` on R2000+; R13/R14 go
     // straight from the view mode to the lower-left corner.
     let render_mode = if matches!(version, Version::R14) {
@@ -281,7 +335,7 @@ pub(crate) fn decode_modern_split_stream(
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let _ucs_follow = c.read_b()?;
+    let ucs_follow = c.read_b()?;
     let _circle_zoom = c.read_bs()?;
     let _fast_zoom = c.read_b()?;
     let ucs_icon = c.read_bb()?;
@@ -321,7 +375,7 @@ pub(crate) fn decode_modern_split_stream(
             is_xref_resolved: flag64,
         },
         view_height,
-        aspect_ratio,
+        view_width,
         view_center,
         view_target,
         view_direction,
@@ -329,7 +383,7 @@ pub(crate) fn decode_modern_split_stream(
         lens_length,
         front_clip,
         back_clip,
-        view_mode,
+        view_mode: viewmode_from_bits(view_mode_bits, ucs_follow),
         render_mode,
         lower_left,
         upper_right,
@@ -506,7 +560,7 @@ mod tests {
         let mut c = BitCursor::new(&bytes);
         let v = decode(&mut c, Version::R2000).unwrap();
         assert_eq!(v.header.name, "*Active");
-        assert_eq!(v.aspect_ratio, 1.5);
+        assert_eq!(v.view_width, 1.5);
         assert_eq!(v.upper_right, Point2D { x: 1.0, y: 1.0 });
         assert!(v.ucs_at_origin);
         assert_eq!(v.snap_spacing, Point2D { x: 0.5, y: 0.5 });
