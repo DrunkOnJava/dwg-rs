@@ -751,6 +751,7 @@ pub fn section_of(label: &str) -> &'static str {
         "LTYPE_CONTROL" => "§20.4.57",
         "LTYPE" => "§20.4.58",
         "VIEW_CONTROL" => "§20.4.59",
+        "VIEW" => "§20.4.60",
         "UCS_CONTROL" => "§20.4.61",
         "VPORT_CONTROL" => "§20.4.63",
         "VPORT" => "§20.4.64",
@@ -759,6 +760,7 @@ pub fn section_of(label: &str) -> &'static str {
         "DIMSTYLE_CONTROL" => "§20.4.67",
         "DIMSTYLE" => "§20.4.68",
         "MLINESTYLE" => "§20.4.73",
+        "MLEADERSTYLE" => "§20.4.87",
         "DICTIONARYVAR" => "§20.4.74",
         "LAYOUT" => "§20.4.84",
         "LWPOLYLINE" => "§20.4.85",
@@ -1005,6 +1007,7 @@ pub fn score(
         }
         D::DimStyle(d) => score_dimstyle(&mut c, d),
         D::VPort(v) => score_vport(&mut c, v),
+        D::View(v) => score_view(&mut c, v),
         D::BlockRecord(b) => score_block_record(&mut c, b, rec.handle, dwg),
         // §20.4.51 and the other controls: BL num_entries; the TABLE's 70 is
         // the DXF Reference's "maximum number of entries".
@@ -1052,6 +1055,8 @@ pub fn score(
             );
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
+        D::VisualStyle(v) => score_visualstyle(&mut c, v),
+        D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::Layout(l) => score_layout(&mut c, l),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
@@ -1759,4 +1764,461 @@ fn score_lwpolyline(c: &mut Ctx<'_>, p: &dwg::entities::lwpolyline::LwPolyline) 
         }
     }
     c.scope = (s, e);
+}
+
+use dwg::objects::acad_visual_style::{AcadVisualStyle, VisualStyleColor, VisualStyleValue};
+
+/// The DXF colour number of a VISUALSTYLE colour, `None` for an RGB one
+/// (whose 62/63-67 the export derives; the RGB goes in 420/421).
+fn vs_aci(c: &VisualStyleColor) -> Option<i64> {
+    match c.method() {
+        0xC0 => Some(256),
+        0xC1 => Some(0),
+        0xC3 => Some(i64::from(c.payload())),
+        0xC8 => Some(257),
+        0xC2 => None,
+        // R14 and R2000 write the bare index (§2.11).
+        _ => Some(i64::from(c.index)),
+    }
+}
+
+/// VISUALSTYLE, which v5.4.1 does not prescribe, against the DXF
+/// Reference's AcDbVisualStyle groups. Up to R2010 every property has its
+/// own group (71 face lighting model ... 173 shadow type), and from R2010
+/// each is followed by its 176 flag; R2013 and R2018 write the 58
+/// properties as a counted list (70 = 58) of value groups and 176 flags,
+/// compared by position. The decoder names its slots after the
+/// conventional property order and says only the face group is
+/// corroborated; the named groups test every name.
+fn score_visualstyle(c: &mut Ctx<'_>, v: &AcadVisualStyle) {
+    c.subclass("AcDbVisualStyle");
+    c.text("description", 2, &v.description, None);
+    c.int(
+        "internal_style_type",
+        70,
+        i64::from(v.internal_style_type),
+        None,
+    );
+    if v.format_version != 0 {
+        c.int("format_version", 177, i64::from(v.format_version), None);
+    }
+    c.int(
+        "is_internal_use_only",
+        291,
+        i64::from(v.is_internal_use_only),
+        Some(0),
+    );
+    use VisualStyleValue::{Bool, Color, Double, Short};
+    let named: [(&str, u16, VisualStyleValue); 28] = [
+        ("face_lighting_model", 71, Short(v.face_lighting_model)),
+        ("face_lighting_quality", 72, Short(v.face_lighting_quality)),
+        ("face_color_mode", 73, Short(v.face_color_mode)),
+        ("face_modifier", 90, Short(v.face_modifier)),
+        ("face_opacity", 40, Double(v.face_opacity)),
+        ("face_specular", 41, Double(v.face_specular)),
+        ("face_mono_color", 63, Color(v.face_mono_color)),
+        ("edge_model", 74, Short(v.edge_model)),
+        ("edge_style", 91, Short(v.edge_style)),
+        (
+            "edge_intersection_color",
+            64,
+            Color(v.edge_intersection_color),
+        ),
+        ("edge_obscured_color", 65, Color(v.edge_obscured_color)),
+        (
+            "edge_obscured_linetype",
+            75,
+            Short(v.edge_obscured_linetype),
+        ),
+        (
+            "edge_intersection_linetype",
+            175,
+            Short(v.edge_intersection_linetype),
+        ),
+        ("edge_crease_angle", 42, Double(v.edge_crease_angle)),
+        ("edge_modifier", 92, Short(v.edge_modifier)),
+        ("edge_color", 66, Color(v.edge_color)),
+        ("edge_opacity", 43, Double(v.edge_opacity)),
+        ("edge_width", 76, Short(v.edge_width)),
+        ("edge_overhang", 77, Short(v.edge_overhang)),
+        ("edge_jitter", 78, Short(v.edge_jitter)),
+        ("edge_silhouette_color", 67, Color(v.edge_silhouette_color)),
+        ("edge_silhouette_width", 79, Short(v.edge_silhouette_width)),
+        ("edge_halo_gap", 170, Short(v.edge_halo_gap)),
+        ("edge_isoline_count", 171, Short(v.edge_isoline_count)),
+        ("edge_hide_precision", 290, Bool(v.edge_hide_precision)),
+        ("edge_style_apply", 93, Short(v.edge_style_apply)),
+        ("display_brightness", 44, Double(v.display_brightness)),
+        ("display_shadow_type", 173, Short(v.display_shadow_type)),
+    ];
+    let counted = c.peek(70).and_then(DxfValue::as_i64);
+    match counted {
+        Some(n) => {
+            c.take(70);
+            let mut all: Vec<(String, VisualStyleValue, Option<i16>)> = named
+                .iter()
+                .enumerate()
+                .map(|(i, (name, _, val))| {
+                    (
+                        name.to_string(),
+                        val.clone(),
+                        v.property_flags.get(i).copied(),
+                    )
+                })
+                .collect();
+            for (i, p) in v.extended.iter().enumerate() {
+                all.push((format!("extended[{i}]"), p.value.clone(), Some(p.flag)));
+            }
+            c.derived(
+                "property count",
+                "70",
+                n == all.len() as i64,
+                all.len().to_string(),
+                n.to_string(),
+            );
+            score_property_list(c, &all);
+        }
+        None => {
+            for (i, (name, code, val)) in named.iter().enumerate() {
+                score_vs_value(c, name, *code, val);
+                if let Some(flag) = v.property_flags.get(i) {
+                    c.int(&format!("{name} flag"), 176, i64::from(*flag), None);
+                }
+            }
+            c.dwg_only("edge_unknown_byte", v.edge_unknown_byte);
+            if v.display_unknown_short != 0 {
+                c.dwg_only("display_unknown_short", v.display_unknown_short);
+            }
+        }
+    }
+}
+
+/// One named VISUALSTYLE property in its own group.
+fn score_vs_value(c: &mut Ctx<'_>, name: &str, code: u16, val: &VisualStyleValue) {
+    match val {
+        VisualStyleValue::Short(x) => c.int(name, code, i64::from(*x), None),
+        VisualStyleValue::Double(x) => c.real(name, code, *x, None),
+        VisualStyleValue::Bool(x) => c.int(name, code, i64::from(*x), None),
+        VisualStyleValue::Text(x) => c.text(name, code, x, None),
+        VisualStyleValue::Color(col) => {
+            let rgb_code = if code == 63 { 421 } else { 420 };
+            match vs_aci(col) {
+                Some(aci) => c.int(name, code, aci, None),
+                None => {
+                    c.take(code);
+                    c.int(
+                        &format!("{name} (RGB)"),
+                        rgb_code,
+                        i64::from(col.payload()),
+                        None,
+                    );
+                }
+            }
+            if vs_aci(col).is_some() && c.peek(rgb_code).is_some() {
+                c.take(rgb_code);
+            }
+        }
+    }
+}
+
+/// The R2013+ counted property list: each value group (62 and an optional
+/// 420 for a colour) followed by its 176 flag, compared by position.
+fn score_property_list(c: &mut Ctx<'_>, all: &[(String, VisualStyleValue, Option<i16>)]) {
+    let free = c.free();
+    let mut k = 0usize;
+    for (name, val, flag) in all {
+        let Some(&(i, code, x)) = free.get(k) else {
+            c.dwg_only(name, ());
+            continue;
+        };
+        k += 1;
+        c.take_at(i);
+        let p = c.precision();
+        let (agree, dwg, dxf) = match (val, code) {
+            (VisualStyleValue::Short(a), 90) => (
+                x.as_i64() == Some(i64::from(*a)),
+                a.to_string(),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Double(a), 40) => (
+                x.as_f64().is_some_and(|b| reals_agree(*a, b, p)),
+                format!("{a:?}"),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Bool(a), 290) => (
+                x.as_i64() == Some(i64::from(*a)),
+                a.to_string(),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Text(a), 1) => (
+                x.as_str().map(caret_decode).as_deref() == Some(a.as_str()),
+                format!("{a:?}"),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Color(col), 62) => {
+                let rgb = match free.get(k) {
+                    Some(&(j, 420, r)) => {
+                        k += 1;
+                        c.take_at(j);
+                        r.as_i64()
+                    }
+                    _ => None,
+                };
+                match (vs_aci(col), rgb) {
+                    (Some(aci), _) => (x.as_i64() == Some(aci), aci.to_string(), x.to_string()),
+                    (None, Some(r)) => (
+                        r == i64::from(col.payload()),
+                        format!("{:#08X}", col.payload()),
+                        format!("{r:#08X}"),
+                    ),
+                    (None, None) => (false, format!("{:#08X}", col.payload()), x.to_string()),
+                }
+            }
+            _ => (false, format!("{val:?}"), format!("{code}={x}")),
+        };
+        c.derived(name, &code.to_string(), agree, dwg, dxf);
+        if let Some(f) = flag {
+            match free.get(k) {
+                Some(&(j, 176, fx)) => {
+                    k += 1;
+                    c.take_at(j);
+                    c.derived(
+                        &format!("{name} flag"),
+                        "176",
+                        fx.as_i64() == Some(i64::from(*f)),
+                        f.to_string(),
+                        fx.to_string(),
+                    );
+                }
+                _ => c.dwg_only(&format!("{name} flag"), f),
+            }
+        }
+    }
+}
+
+/// A colour as MLEADERSTYLE writes it: the CMC's 32-bit true-colour word as
+/// a signed group-90-range integer (`0xC1000000` ByBlock is -1056964608).
+/// Before R2004 the CMC is a bare index (§2.11), which the export writes
+/// as the matching word: 0 ByBlock `0xC1000000`, 256 ByLayer `0xC0000000`,
+/// 257 none `0xC8000000`, an index `0xC3000000 | n`.
+fn color_word(c: &ObjectColor) -> i64 {
+    let word = if c.rgb != 0 {
+        c.rgb
+    } else {
+        match c.index {
+            0 => 0xC100_0000,
+            256 => 0xC000_0000,
+            257 => 0xC800_0000,
+            n => 0xC300_0000 | u32::from(n),
+        }
+    };
+    i64::from(word as i32)
+}
+
+/// §20.4.87 MLEADERSTYLE: each field against the group the spec's DXF
+/// column gives it (which are also the DXF Reference's AcDbMLeaderStyle
+/// groups). Angles are radians on both sides.
+fn score_mleaderstyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mleader_style::AcadMLeaderStyle) {
+    c.subclass("AcDbMLeaderStyle");
+    c.int("version", 179, i64::from(m.version), None);
+    c.int("content_type", 170, i64::from(m.content_type), None);
+    c.int(
+        "draw_mleader_order_type",
+        171,
+        i64::from(m.draw_mleader_order_type),
+        None,
+    );
+    c.int(
+        "draw_leader_order_type",
+        172,
+        i64::from(m.draw_leader_order_type),
+        None,
+    );
+    c.int(
+        "max_leader_segment_points",
+        90,
+        i64::from(m.max_leader_segment_points),
+        None,
+    );
+    c.real("first_segment_angle", 40, m.first_segment_angle, None);
+    c.real("second_segment_angle", 41, m.second_segment_angle, None);
+    c.int("leader_line_type", 173, i64::from(m.leader_line_type), None);
+    c.int(
+        "leader_line_color",
+        91,
+        color_word(&m.leader_line_color),
+        None,
+    );
+    c.int(
+        "leader_lineweight",
+        92,
+        i64::from(m.leader_lineweight),
+        None,
+    );
+    c.int("enable_landing", 290, i64::from(m.enable_landing), None);
+    c.real("landing_gap", 42, m.landing_gap, None);
+    c.int("enable_dogleg", 291, i64::from(m.enable_dogleg), None);
+    c.real("dogleg_length", 43, m.dogleg_length, None);
+    c.text("description", 3, &m.description, None);
+    c.real("arrowhead_size", 44, m.arrowhead_size, None);
+    c.text(
+        "default_mtext_contents",
+        300,
+        &m.default_mtext_contents,
+        None,
+    );
+    c.int(
+        "text_left_attachment",
+        174,
+        i64::from(m.text_left_attachment),
+        None,
+    );
+    c.int(
+        "text_right_attachment",
+        178,
+        i64::from(m.text_right_attachment),
+        None,
+    );
+    c.int("text_angle_type", 175, i64::from(m.text_angle_type), None);
+    c.int(
+        "text_alignment_type",
+        176,
+        i64::from(m.text_alignment_type),
+        None,
+    );
+    c.int("text_color", 93, color_word(&m.text_color), None);
+    c.real("text_height", 45, m.text_height, None);
+    c.int(
+        "enable_frame_text",
+        292,
+        i64::from(m.enable_frame_text),
+        None,
+    );
+    c.int(
+        "text_align_always_left",
+        297,
+        i64::from(m.text_align_always_left),
+        None,
+    );
+    c.real("align_space", 46, m.align_space, None);
+    c.int(
+        "block_content_color",
+        94,
+        color_word(&m.block_content_color),
+        None,
+    );
+    c.real("block_content_scale_x", 47, m.block_content_scale_x, None);
+    c.real("block_content_scale_y", 49, m.block_content_scale_y, None);
+    c.real("block_content_scale_z", 140, m.block_content_scale_z, None);
+    c.int(
+        "enable_block_content_scale",
+        293,
+        i64::from(m.enable_block_content_scale),
+        None,
+    );
+    c.real(
+        "block_content_rotation",
+        141,
+        m.block_content_rotation,
+        None,
+    );
+    c.int(
+        "enable_block_content_rotation",
+        294,
+        i64::from(m.enable_block_content_rotation),
+        None,
+    );
+    c.int(
+        "block_content_connection_type",
+        177,
+        i64::from(m.block_content_connection_type),
+        None,
+    );
+    c.real("scale", 142, m.scale, None);
+    c.int(
+        "overwrite_property_value",
+        295,
+        i64::from(m.overwrite_property_value),
+        None,
+    );
+    c.int("is_annotative", 296, i64::from(m.is_annotative), None);
+    c.real("break_gap_size", 143, m.break_gap_size, None);
+    // 271 to 273 exist from R2010; the earlier exports omit them and the
+    // earlier DWGs have no such fields.
+    for (name, code, v) in [
+        (
+            "text_attachment_direction",
+            271,
+            m.text_attachment_direction,
+        ),
+        (
+            "bottom_text_attachment_direction",
+            272,
+            m.bottom_text_attachment_direction,
+        ),
+        (
+            "top_text_attachment_direction",
+            273,
+            m.top_text_attachment_direction,
+        ),
+    ] {
+        if c.peek(code).is_some() {
+            c.int(name, code, i64::from(v), None);
+        } else {
+            c.dwg_only(&format!("{name} (no such field before R2010)"), v);
+        }
+    }
+    c.int("extended_flag", 298, i64::from(m.extended_flag), Some(0));
+}
+
+/// DXF group 71 from §20.4.60's (and §20.4.64's) four stored view-mode bits,
+/// first read first: bits 1, 2 and 4 as stored, 16 when the fourth is clear.
+fn viewmode_71(bits: i16) -> i64 {
+    let mut m = 0;
+    if bits & 0b1000 != 0 {
+        m |= 1;
+    }
+    if bits & 0b0100 != 0 {
+        m |= 2;
+    }
+    if bits & 0b0010 != 0 {
+        m |= 4;
+    }
+    if bits & 0b0001 == 0 {
+        m |= 16;
+    }
+    m
+}
+
+// §20.4.60 VIEW: 40, 41, 10/20, 12/22/32 target, 11/21/31 direction, 50
+// twist (degrees in the DXF), 42, 43, 44, 71 view mode (four stored bits,
+// converted), 281 render mode, 70 bit 1 paper space, 72 associated UCS.
+fn score_view(c: &mut Ctx<'_>, v: &dwg::tables::view::ViewEntry) {
+    c.subclass("AcDbViewTableRecord");
+    c.text("name", 2, &v.header.name, None);
+    c.bit("is_paperspace", 70, 1, v.is_paperspace);
+    flags_64_xdep(c, &v.header);
+    c.done(70);
+    c.real("view_height", 40, v.view_height, None);
+    c.real("view_width", 41, v.view_width, None);
+    c.point2("view_center", 10, v.view_center);
+    c.point3("target", 12, v.target, None);
+    c.point3("view_direction", 11, v.view_direction, None);
+    c.angle("twist_angle", 50, v.twist_angle, None);
+    c.real("lens_length", 42, v.lens_length, None);
+    c.real("front_clip", 43, v.front_clip, None);
+    c.real("back_clip", 44, v.back_clip, None);
+    c.int(
+        "view_mode (stored bits, as group 71)",
+        71,
+        viewmode_71(v.view_mode),
+        None,
+    );
+    c.int("render_mode", 281, i64::from(v.render_mode), Some(0));
+    c.int(
+        "is_associated_ucs",
+        72,
+        i64::from(v.is_associated_ucs),
+        Some(0),
+    );
 }

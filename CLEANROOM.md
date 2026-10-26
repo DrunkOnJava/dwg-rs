@@ -513,3 +513,12 @@ print is learned from AutoCAD's own output, by this method and no other:
 - **Record of derivation.** Each class gets its own dated entry below this one,
   naming the drawings and the record counts per release it was derived from,
   and the fields left unverified by value.
+
+## 2026-10-26 — DXF value oracle: VISUALSTYLE, MLEADERSTYLE and VIEW scorers
+
+The follow-up to #248 scores three more types the same way. MLEADERSTYLE
+and VIEW take each field's group from the DXF column of §20.4.87 and
+§20.4.60. VISUALSTYLE, which v5.4.1 does not prescribe, takes the group of
+each named property from Autodesk's public *DXF Reference* (VISUALSTYLE),
+recalled, and every one of them is measured on the exports and documented
+in `scorers.rs`. Only the same two corpora were read, as data.
