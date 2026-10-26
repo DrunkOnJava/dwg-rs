@@ -24,13 +24,16 @@
 //!   `BS`), whether the rest follows §26: the locator copies against the first
 //!   header's, the handle records.
 //!
+//! After each drawing it prints the object map's entry count and whether the
+//! §9 header variables decode strictly and end on the size they state.
+//!
 //! ```sh
 //! cargo run --release --example probe_r13_container -- a.dwg b.dwg
 //! ```
 
 use dwg::crc::{crc8, r13_locator_seed};
 use dwg::streaming::{CLASS_SENTINELS, END_SENTINEL, HEADER_VARS_SENTINELS};
-use dwg::{BitCursor, DwgFile};
+use dwg::{BitCursor, DwgFile, HeaderVars, Version};
 use std::process::ExitCode;
 
 const IMAGE_SENTINEL: [u8; 16] = [
@@ -237,6 +240,32 @@ fn main() -> ExitCode {
         if let Ok(file) = DwgFile::from_bytes(b) {
             if let Some(Ok(handles)) = file.handle_map() {
                 println!("    {} handle-map entries", handles.entries.len());
+            }
+            if let Some(Ok(bytes)) = file.read_section("AcDb:Header") {
+                match HeaderVars::parse_strict(&bytes, file.version()) {
+                    Ok(h) => println!(
+                        "    header variables: {} slots, crc {}, end sentinel {}, fields {} on the stated end, {} unknown slots, {} diagnostics",
+                        h.entries().len(),
+                        verdict(h.crc_ok),
+                        verdict(h.end_sentinel_ok),
+                        if h.closed { "end" } else { "do not end" },
+                        h.unknowns().count(),
+                        h.diagnostics.len()
+                    ),
+                    Err(e) => {
+                        let closes = |v: Version| {
+                            HeaderVars::parse_strict(&bytes, v)
+                                .map(|h| h.closed)
+                                .unwrap_or(false)
+                        };
+                        println!(
+                            "    header variables: FAIL({e}); with the R14 table {}, with the R2000 table {}, with the R2004 table {}",
+                            closes(Version::R14),
+                            closes(Version::R2000),
+                            closes(Version::R2004)
+                        );
+                    }
+                }
             }
         }
     }

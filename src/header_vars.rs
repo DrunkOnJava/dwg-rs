@@ -290,6 +290,7 @@ const MIN_SECTION: usize = 16 + 4 + 2 + 16;
 
 fn release_of(version: Version) -> Rel {
     match version {
+        Version::R13 => header_table::R13,
         Version::R14 => R14,
         Version::R2000 => R2000,
         Version::R2004 => R2004,
@@ -336,7 +337,7 @@ fn frame(bytes: &[u8], version: Version, limits: &ParseLimits, strict: bool) -> 
 
     // (bytes before `size` counts from, where the size in bits sits).
     let candidates: &[(usize, Option<usize>)] = match version {
-        Version::R14 | Version::R2000 | Version::R2004 => &[(20, None)],
+        Version::R13 | Version::R14 | Version::R2000 | Version::R2004 => &[(20, None)],
         Version::R2007 => &[(20, Some(20))],
         Version::R2010 | Version::R2013 => &[(24, Some(24)), (20, Some(20))],
         Version::R2018 => &[(24, Some(24))],

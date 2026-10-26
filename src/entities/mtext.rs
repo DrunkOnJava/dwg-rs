@@ -243,7 +243,7 @@ fn read_fields(c: &mut BitCursor<'_>, version: Version, inline_text: bool) -> Re
     // §20.4.46: line spacing and the unknown bit are R2000+. R13/R14
     // store neither, and the two fields are left 0 rather than given a
     // default the record does not hold.
-    let (linespace_style, linespace_factor) = if version == Version::R14 {
+    let (linespace_style, linespace_factor) = if version.is_r13_r14() {
         (0, 0.0)
     } else {
         let style = c.read_bs()?;
