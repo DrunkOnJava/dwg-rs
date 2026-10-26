@@ -88,7 +88,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.35 | SOLID (31) | 131 | `closes` | src/entities/solid.rs | #145 |  |
 | §20.4.36 | TRACE (32) | 131 | `closes` | src/entities/trace.rs | #145 |  |
 | §20.4.37 | SHAPE (33) | 132 | `missing` |  | #140 |  |
-| §20.4.38 | VIEWPORT ENTITY (34) | 133 | `closes` | src/entities/viewport.rs | #146 | Every field of the section, every version branch, closes on all 51 records of the public corpus (R14 to R2018; no R13 file). Values equal the DXF twin on the 36 R2000 to R2018 records that have one (#71, ARCHITECTURE.md §7k). |
+| §20.4.38 | VIEWPORT ENTITY (34) | 133 | `closes` | src/entities/viewport.rs | #146 | Every field of the section, every version branch, closes on all 51 records of the public corpus (R14 to R2018; no R13 file). Values equal the DXF twin on the 36 R2000 to R2018 records that have one (#71, ARCHITECTURE.md §7m). |
 | §20.4.39 | ELLIPSE (35) | 136 | `closes` | src/entities/ellipse.rs | #143 |  |
 | §20.4.40 | SPLINE (36) | 136 | `closes` | src/entities/spline.rs | #143 |  |
 | §20.4.41 | REGION (37), 3DSOLID (38), BODY (39) | 139 | `partial` | src/entities/region.rs, src/entities/three_d_solid.rs, src/entities/body.rs, src/entities/modeler.rs | #145 | The ACIS envelope, wireframe block and R2013+ revision GUID close on all three corpus records; the SAT/SAB payload is carried, not interpreted (#68). 2 3DSOLID and 1 REGION record error on each of ACadSharp's R2004, R2007 and R2010 saves (#228). |

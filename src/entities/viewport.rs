@@ -65,7 +65,7 @@
 //! of AutoCAD's DXF export of the same drawing, matched by handle
 //! (1,686 values). The R14 save and `export_sample.dwg` have no DXF
 //! export, so their 15 records are measured on the boundary only, and
-//! no R13 file exists to measure. ARCHITECTURE.md §7k has the table;
+//! no R13 file exists to measure. ARCHITECTURE.md §7m has the table;
 //! `examples/probe_viewport.rs` reproduces it.
 
 use crate::bitcursor::BitCursor;
