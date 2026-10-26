@@ -334,8 +334,10 @@ These have genuine open scope requiring focused work, not stubs.
   `0xD6A`, REGION `0xD69` of `sample_AC1032.dwg`) now have a field
   list that closes, and it closes only with **zero** bits consumed
   after the flag. `common_entity.rs` and `objects/modern.rs` agree on
-  that reading; the 16 bits four LAYOUT records need moved into
-  `objects/acad_layout.rs` as LAYOUT's own data-store block.
+  that reading. The 16 bits four LAYOUT records seemed to need were
+  moved into `objects/acad_layout.rs` as a data-store block, and the DXF
+  value oracle later showed them to be `plot_layout_flags` in its full
+  `BS` form (ARCHITECTURE.md, 2026-10-26): no bits follow the flag.
   `tables/modern.rs` keeps its `RC` — that path also omits the
   `BL num_reactors` the object path reads, so its bit accounting has a
   second unresolved variable (see the next item) and was left alone.
