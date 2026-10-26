@@ -394,6 +394,25 @@ pub fn run_with_twin(
                             }
                         })
                     };
+                    // A release whose whole DXF export holds no record of this kind (AutoCAD's
+                    // R2000/R2004 exports omit some object classes entirely) has no twin for it:
+                    // the record is compared by its boundary only, as on R14. A missing record
+                    // where the export does hold others of the kind still fails.
+                    let rec = match rec {
+                        Some(None)
+                            if d.twin
+                                .as_ref()
+                                .is_some_and(|t| t.records_of(p.dxf_kind).is_empty()) =>
+                        {
+                            println!(
+                                "{name} ({release}) {tag} 0x{handle:X} closes; this release's DXF \
+                                 export holds no {} at all, so it is checked by its boundary only",
+                                p.dxf_kind
+                            );
+                            None
+                        }
+                        other => other,
+                    };
                     if matches!(rec, Some(None)) {
                         failed = true;
                         println!(
