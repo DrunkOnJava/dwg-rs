@@ -1,0 +1,81 @@
+// Drives tools/streaming/wasm_resume.rs under node: a JSON job list in, a JSON
+// result list out, a fresh module instance per job.
+// Usage: node wasm_resume.mjs <wasm_resume.wasm> <jobs.json>
+// A job is {kind, file, digest, chunk, ...}: kind "maps-resume" and
+// "section-resume" take a native `checkpoint` path (and the section walk its
+// `sidecar`); kind "maps-run" takes `stop` and `checkpoint_out`.
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const [wasmPath, jobsPath] = process.argv.slice(2);
+const module = await WebAssembly.compile(readFileSync(wasmPath));
+const jobs = JSON.parse(readFileSync(jobsPath, 'utf8'));
+
+function hex(digest) {
+  if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error('identity must be 64 hex characters');
+  return Uint8Array.from(digest.match(/../g), (b) => parseInt(b, 16));
+}
+
+function sidecar(text, wanted) {
+  const [head, ...lines] = text.split('\n');
+  const [, section, nextRef, pageCrc, pageLen, sectionCrc] = head.split(' ').map(Number);
+  const pages = new Map();
+  const sections = [];
+  for (const line of lines) {
+    const f = line.split(' ');
+    if (f[0] === 'P') {
+      if (!pages.has(Number(f[1]))) pages.set(Number(f[1]), f.slice(1).map(Number));
+    } else if (f[0] === 'S') {
+      sections.push({ name: f.slice(8).join(' '), refs: [] });
+    } else if (f[0] === 'R') {
+      sections.at(-1).refs.push(f.slice(1).map(Number));
+    }
+  }
+  return { section: sections[section], nextRef, pageCrc, pageLen, sectionCrc, pages };
+}
+
+const results = [];
+for (const job of jobs) {
+  const { exports: x } = await WebAssembly.instantiate(module, {});
+  const base = x.layout(0);
+  const at = (which) => base + x.layout(which);
+  const file = readFileSync(job.file);
+  if (file.length > x.layout(1)) throw new Error('source larger than the kernel scratch');
+  const mem = () => new Uint8Array(x.memory.buffer);
+  mem().set(file, base);
+  mem().set(hex(job.digest), at(4));
+  let code;
+  if (job.kind === 'maps-resume' || job.kind === 'section-resume') {
+    const state = readFileSync(job.checkpoint);
+    mem().set(state, at(2));
+    if (job.kind === 'maps-resume') {
+      code = x.resume_maps(file.length, state.length, job.chunk);
+    } else {
+      const s = sidecar(readFileSync(job.sidecar, 'utf8'));
+      const table = new DataView(x.memory.buffer, at(5), x.layout(6));
+      mem().set(new TextEncoder().encode(s.section.name), at(5));
+      s.section.refs.forEach((ref, i) => {
+        const page = s.pages.get(ref[1]);
+        if (!page) throw new Error(`page ${ref[1]} is not in the index`);
+        const row = 64 + i * 32;
+        table.setInt32(row, page[0], true);
+        table.setUint32(row + 4, page[1], true);
+        table.setBigUint64(row + 8, BigInt(page[2]), true);
+        table.setUint32(row + 16, ref[1], true);
+        table.setUint32(row + 20, ref[2], true);
+        table.setBigUint64(row + 24, BigInt(ref[3]), true);
+      });
+      code = x.resume_section(file.length, state.length, job.chunk, s.section.refs.length, s.nextRef,
+        s.pageCrc, s.pageLen, s.sectionCrc);
+    }
+  } else if (job.kind === 'maps-run') {
+    code = x.run_maps(file.length, job.stop, job.chunk);
+    if (code >= 0) {
+      writeFileSync(job.checkpoint_out, mem().slice(at(2), at(2) + x.layout(9)));
+    }
+  } else {
+    throw new Error(`unknown job kind ${job.kind}`);
+  }
+  const out = code > 0 ? Buffer.from(mem().slice(at(7), at(7) + code)).toString('utf8') : '';
+  results.push({ code, out });
+}
+process.stdout.write(JSON.stringify(results));

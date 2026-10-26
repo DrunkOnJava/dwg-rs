@@ -51,6 +51,8 @@ jobs:
         run: python3 tools/streaming/verify_maps.py target/debug/examples/stream_r2004_maps target/debug/examples/streaming_schedules
       - name: End-to-end R2004-family data page and section assembly acceptance
         run: python3 tools/streaming/verify_sections.py target/debug/examples/stream_r2004_sections target/debug/examples/streaming_schedules
+      - name: End-to-end cross-runtime checkpoint restore (native to wasm32 and back)
+        run: python3 tools/streaming/verify_wasm.py target/debug/examples/stream_r2004_maps target/debug/examples/stream_r2004_sections
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -69,4 +71,5 @@ jobs:
             map-schedules-*.jsonl
             sections-evidence.json
             sections-schedules-*.jsonl
+            wasm-evidence.json
           if-no-files-found: error
