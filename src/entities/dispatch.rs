@@ -54,6 +54,8 @@ pub enum DecodedEntity {
     Circle(circle::Circle),
     Arc(arc::Arc),
     Ellipse(ellipse::Ellipse),
+    AcadTable(Box<crate::entities::acad_table::AcadTable>),
+    AcadTableLegacy(Box<crate::entities::acad_table::AcadTableLegacy>),
     Ray(ray::Ray),
     XLine(xline::XLine),
     Solid(solid::Solid),
@@ -177,6 +179,9 @@ impl DecodedEntity {
             Self::Circle(_) => OBJECT_TYPE_CIRCLE,
             Self::Arc(_) => OBJECT_TYPE_ARC,
             Self::Ellipse(_) => OBJECT_TYPE_ELLIPSE,
+            // ACAD_TABLE is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::AcadTable(_) | Self::AcadTableLegacy(_) => 0,
             Self::Ray(_) => OBJECT_TYPE_RAY,
             Self::XLine(_) => OBJECT_TYPE_XLINE,
             Self::Solid(_) => OBJECT_TYPE_SOLID,
@@ -471,6 +476,17 @@ pub fn decode_from_raw_with_class_map(
         "HELIX" | "ACDBHELIX" => checked_inline(raw, body_start, version, "HELIX", |c, _, _, _| {
             helix::decode(c).map(DecodedEntity::Helix)
         }),
+        "ACAD_TABLE" | "ACDBTABLE" => {
+            checked_inline(raw, body_start, version, "ACAD_TABLE", |c, v, ce, s| {
+                if v.is_r2010_plus() {
+                    crate::entities::acad_table::decode(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTable(Box::new(t)))
+                } else {
+                    crate::entities::acad_table::decode_legacy(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTableLegacy(Box::new(t)))
+                }
+            })
+        }
         // WIPEOUT shares the IMAGE payload (§19.4.86).
         "WIPEOUT" | "ACDBWIPEOUT" => {
             checked_inline(raw, body_start, version, "WIPEOUT", |c, v, _, _| {
@@ -494,6 +510,11 @@ pub fn decode_from_raw_with_class_map(
     };
     match result {
         Ok(entity) => entity,
+        // "this release's layout is not decoded" is not a decode failure.
+        Err(crate::error::Error::Unsupported { .. }) => DecodedEntity::Unhandled {
+            type_code,
+            kind: raw.kind,
+        },
         Err(e) => DecodedEntity::Error {
             type_code,
             kind: raw.kind,

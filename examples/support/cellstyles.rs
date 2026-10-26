@@ -296,8 +296,10 @@ fn custom_data(s: &mut Seq, t: &mut Tally, d: &TableCustomData) {
 
 /// Compare a decoded table content with the groups of the `AcDbTableContent`
 /// object (or of a table's embedded copy) walked in the order §20.4.97 prints
-/// the fields.
-pub fn compare_content(ours: &TableContent, rec: &Record, t: &mut Tally) {
+/// the fields. The DXF's object is the table's round-trip data and holds no
+/// laid-out cell geometry, which the entity's embedded copy does (`embedded`):
+/// there the cell's geometry is passed over, not compared.
+pub fn compare_content(ours: &TableContent, rec: &Record, t: &mut Tally, embedded: bool) {
     let from = rec
         .groups
         .iter()
@@ -383,28 +385,32 @@ pub fn compare_content(ours: &TableContent, rec: &Record, t: &mut Tally) {
             s.marker(t, 309, "FORMATTEDTABLEDATACELL_END");
             s.marker(t, 1, "TABLECELL_BEGIN");
             s.int(t, "cell style id", i64::from(cell.cell_style_id), 90);
-            s.int(t, "unknown flag", i64::from(cell.extra.is_some()), 91);
-            if let Some(x) = &cell.extra {
-                s.int(t, "extra unknown", i64::from(x.unknown_a), 91);
-                s.real(t, "extra width", x.unknown_b, 40);
-                s.real(t, "extra height", x.unknown_c, 41);
-                s.handle(t, "extra handle", 330);
-                s.int(t, "geometry flags", i64::from(x.geometry_flags), 92);
-                if let Some(g) = &x.geometry {
-                    for (k, (v, code)) in g
-                        .distance_to_top_left
-                        .iter()
-                        .zip([10, 20, 30])
-                        .chain(g.distance_to_center.iter().zip([11, 21, 31]))
-                        .enumerate()
-                    {
-                        s.real(t, &format!("geometry distance {k}"), *v, code);
+            if embedded {
+                s.handle(t, "unknown flag", 91);
+            } else {
+                s.int(t, "unknown flag", i64::from(cell.extra.is_some()), 91);
+                if let Some(x) = &cell.extra {
+                    s.int(t, "extra unknown", i64::from(x.unknown_a), 91);
+                    s.real(t, "extra width", x.unknown_b, 40);
+                    s.real(t, "extra height", x.unknown_c, 41);
+                    s.handle(t, "extra handle", 330);
+                    s.int(t, "geometry flags", i64::from(x.geometry_flags), 92);
+                    if let Some(g) = &x.geometry {
+                        for (k, (v, code)) in g
+                            .distance_to_top_left
+                            .iter()
+                            .zip([10, 20, 30])
+                            .chain(g.distance_to_center.iter().zip([11, 21, 31]))
+                            .enumerate()
+                        {
+                            s.real(t, &format!("geometry distance {k}"), *v, code);
+                        }
+                        s.real(t, "geometry content width", g.content_width, 43);
+                        s.real(t, "geometry content height", g.content_height, 44);
+                        s.real(t, "geometry width", g.width, 45);
+                        s.real(t, "geometry height", g.height, 46);
+                        s.int(t, "geometry unknown", i64::from(g.unknown_flags), 95);
                     }
-                    s.real(t, "geometry content width", g.content_width, 43);
-                    s.real(t, "geometry content height", g.content_height, 44);
-                    s.real(t, "geometry width", g.width, 45);
-                    s.real(t, "geometry height", g.height, 46);
-                    s.int(t, "geometry unknown", i64::from(g.unknown_flags), 95);
                 }
             }
             s.marker(t, 309, "TABLECELL_END");
