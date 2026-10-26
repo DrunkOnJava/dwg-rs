@@ -260,7 +260,7 @@ fn main() -> dwg::error::Result<()> {
                 println!("{name} 0x{:X}: EED walk failed", object.handle.value);
                 continue;
             }
-            if matches!(version, Version::R14) {
+            if version.is_r13_r14() {
                 match c.read_rl() {
                     Ok(v) => data_end = Some(v as usize),
                     Err(_) => continue,
@@ -300,7 +300,7 @@ fn main() -> dwg::error::Result<()> {
                 );
                 continue;
             }
-            let cloning = if matches!(version, Version::R14) {
+            let cloning = if version.is_r13_r14() {
                 0
             } else {
                 match c.read_bs() {

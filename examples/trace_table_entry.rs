@@ -629,7 +629,7 @@ fn read_object_type(c: &mut BitCursor<'_>, version: Version) -> Result<u16, Erro
 }
 
 fn is_r2000_plus(version: Version) -> bool {
-    !matches!(version, Version::R14)
+    !version.is_r13_r14()
 }
 
 fn parse_type_code(s: &str) -> Result<u16, String> {
