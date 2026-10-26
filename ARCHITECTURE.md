@@ -1527,6 +1527,42 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
+## 7o. MTEXT before R2007: the version branches (2026-10-26, #226)
+
+The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
+spacing on every release and stopped there. ACadSharp's saves of one
+drawing (#225) hold 36 MTEXT records on every release:
+
+| Release | Before | What the reader missed | After |
+|---|---|---|---|
+| R14 | 36 errors, `delta` +21 / +69 / +77 | §20.4.46's line spacing `BS`, `BD` and unknown `B` are R2000+; R14 does not write them | 36 close |
+| R2000 | 36 close | nothing: R2000 ends at the unknown bit | 36 close |
+| R2004 | 36 errors, `delta` −2 / −122 | the R2004+ `BL` background flags (`−2` is a `BL` 0), and for two records the background block (scale `BD`, `CMC`, transparency `BL`) | 36 close |
+
+One reader now serves every release, with `TV` inline before R2007 and
+from the string stream after. All 257 MTEXT records of the public corpus
+close. Against the DXF twins (R2000 to R2018, matched by handle) every
+value the record holds agrees, including the two R2004+ backgrounds:
+flags `1`, scale `1.25`, true colour `0x367542` (group 421 `3568962`)
+and transparency `0`.
+
+| Release | Values compared | Differ |
+|---|---:|---:|
+| R2000 | 368 | 0 |
+| R2004 | 376 | 0 |
+| R2007 / R2010 / R2013 / R2018 | 411 each | 0 |
+
+The comparison reads R2007+ DXF as UTF-8 and undoes the DXF's caret
+escapes (`^J` where the record holds a line feed). One MTEXT per save
+(`0x1032`) has no entity of its handle in the DXF and is counted, not
+compared. R13/R14 store no line spacing, so `MText::linespace_style`
+and `linespace_factor` read 0 there rather than a default the record
+does not hold.
+
+```sh
+cargo run --release --example probe_mtext -- sample_AC1018.dwg sample_AC1018_ascii.dxf
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
