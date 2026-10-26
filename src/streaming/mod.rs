@@ -15,9 +15,10 @@ mod lz77;
 mod r2004;
 mod r2004_maps;
 mod r2004_sections;
+mod r2004_walk;
 pub use checkpoint::{
     Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004SectionCheckpoint,
-    WalkCheckpoint,
+    R2004WalkCheckpoint, WalkCheckpoint,
 };
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
@@ -28,6 +29,7 @@ pub use r2004_maps::{
     MapDemand, MapStep, PageEntry, R2004MapWalker, SectionEntry, SectionPage, SystemKind,
 };
 pub use r2004_sections::{DataPage, R2004SectionWalker, STAGE, SectionDemand, SectionStep};
+pub use r2004_walk::{MAX_SECTIONS, R2004Walker, WalkDemand, WalkStep};
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -195,6 +197,16 @@ pub enum StreamError {
     /// §4.5: the section with this id is encrypted, so its stored bytes
     /// are not its content.
     SectionEncrypted(u32),
+    /// The section map lists more sections than the whole-file walker's
+    /// table holds.
+    SectionTableFull,
+    /// A data page in the page map names a section the section map does
+    /// not describe; the number is the page's.
+    SectionPageUnknown(u32),
+    /// The data pages the page map holds for section `n` are not the pages
+    /// the section map lists for it: a listed page is missing from the page
+    /// map, or a page is walked that is not listed.
+    SectionDigest(u32),
 }
 
 impl fmt::Display for StreamError {

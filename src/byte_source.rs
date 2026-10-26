@@ -2,7 +2,8 @@
 
 use crate::streaming::{
     CHUNK_BYTES, FlatHeaderParser, FlatWalker, MapDemand, MapStep, R2004HeaderParser,
-    R2004MapWalker, R2004SectionWalker, Request, SectionDemand, SectionStep, Step, StreamError,
+    R2004MapWalker, R2004SectionWalker, R2004Walker, Request, SectionDemand, SectionStep, Step,
+    StreamError, WalkDemand, WalkStep,
 };
 use std::io::{self, Read, Seek, SeekFrom};
 
@@ -290,6 +291,64 @@ pub fn poll_r2004_section<S: ByteSource>(
                 .feed(request.offset, &scratch[..actual])
                 .map_err(PumpError::Grammar)?;
             Ok(SectionPoll::Fed {
+                step,
+                offset: request.offset,
+                len: actual,
+            })
+        }
+    }
+}
+
+/// Result of one whole-file walk poll: a step from source bytes or from a
+/// pump, a pending source, or the end of the walk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilePoll {
+    Fed {
+        step: WalkStep,
+        offset: u64,
+        len: usize,
+    },
+    Pumped(WalkStep),
+    Pending,
+    Complete,
+}
+
+/// One poll for the whole R2004-family walk: a pump when the walker needs
+/// no source bytes, otherwise at most one read into caller-owned bounded
+/// scratch.
+pub fn poll_r2004_walk<S: ByteSource>(
+    walker: &mut R2004Walker,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<FilePoll, PumpError<S::Error>> {
+    let request = match walker.demand().map_err(PumpError::Grammar)? {
+        WalkDemand::Done => return Ok(FilePoll::Complete),
+        WalkDemand::Pump => {
+            return Ok(FilePoll::Pumped(walker.pump().map_err(PumpError::Grammar)?));
+        }
+        WalkDemand::Read(request) => request,
+    };
+    let maximum = request.len.min(scratch.len()).min(CHUNK_BYTES);
+    if maximum == 0 {
+        return Err(PumpError::InvalidRead { maximum, actual: 0 });
+    }
+    match source
+        .poll_read(request, &mut scratch[..maximum])
+        .map_err(PumpError::Source)?
+    {
+        SourcePoll::Pending => Ok(FilePoll::Pending),
+        SourcePoll::Eof => {
+            walker.end_of_input().map_err(PumpError::Grammar)?;
+            Ok(FilePoll::Complete)
+        }
+        SourcePoll::Ready(actual) => {
+            if actual == 0 || actual > maximum {
+                return Err(PumpError::InvalidRead { maximum, actual });
+            }
+            let step = walker
+                .feed(request.offset, &scratch[..actual])
+                .map_err(PumpError::Grammar)?;
+            Ok(FilePoll::Fed {
                 step,
                 offset: request.offset,
                 len: actual,
