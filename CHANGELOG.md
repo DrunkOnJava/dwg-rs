@@ -8,6 +8,51 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Changed — an encrypted section is refused with a typed error by every reader (2026-10-26, #205)
+
+The R2004-family section map carries an encryption flag (§4.5: 0 none, 1
+encrypted, 2 properties only). The legacy reader ignored it, so a
+password-protected section's ciphertext was decompressed and returned as if
+it were the section; the streaming walker (`R2004SectionWalker`) already
+refused it. `section_map::read_section_payload`, and so every
+`DwgFile::read_section` and the readers built on it, now returns the new
+`Error::SectionEncrypted { name }` for a section whose flag is 1, the same
+refusal as `streaming::StreamError::SectionEncrypted`. A flag of 2 marks only
+the properties (`AcDb:FileDepList`, `AcDb:AppInfo` in real files) and is
+still read. The R2007 refusal, which was `Error::Unsupported`, returns the
+same variant. No pinned drawing has the flag set to 1, so the corpus counts
+do not move; `tools/streaming/verify_sections.py` repackages the sections of
+four real drawings with one flagged (and a control without) and checks that
+both readers refuse the one and read the other equal to the drawing.
+
+- **Added:** `Error::SectionEncrypted { name: String }`.
+- **Changed:** a section with encryption flag 1 is `Err(SectionEncrypted)`
+  from `read_section_payload` instead of its undecrypted bytes, and an R2007
+  section with encryption other than 0 or 2 is `Err(SectionEncrypted)` instead
+  of `Err(Unsupported)` (its unit test is adapted).
+
+### Changed (breaking) — `section_map::DataPageHeader` carries the measured §4.6 layout (2026-10-26, #205)
+
+The struct labelled its eight words after the §4.6 table, and from `0x14`
+on the labels did not match any data page of the pinned corpus. After the
+Sec_Mask XOR, on all 580 data pages of the 28 pinned R2004-family drawings
+and the four canonical fixtures (`examples/probe_data_page_header.rs
+--strict`, run by the Corpus job; ARCHITECTURE.md §7n): `0x08` data size
+(the stored bytes after the header), `0x0C` page size (the page map's size
+for the page, not the decompressed size), `0x10` start offset (8 bytes),
+`0x18` header checksum (§4.2 over the header with its own field zeroed,
+seeded with the data checksum) and `0x1C` data checksum (§4.2 over the
+stored bytes, seed 0).
+
+- **Changed:** `DataPageHeader::start_offset` is `u64` (was `u32`).
+- **Renamed:** `data_checksum` read `0x18` and now reads `0x1C`; the old
+  `page_header_checksum` (`0x14`, the high half of the start offset) is gone,
+  and `_unknown` (`0x1C`) is now `data_checksum`. New field: `header_checksum`
+  (`0x18`).
+- `read_section_payload` takes its LZ77 capacity hint from the section's
+  declared page size instead of the page's size on disk (a hint only; the
+  assembled bytes are unchanged).
+
 ### Fixed — Reed-Solomon uses §5.13's codes, as AutoCAD writes them (2026-10-26, closes #275)
 
 `reed_solomon` decoded R2007 system pages with `0x11D`, which §5.13 gives
@@ -131,7 +176,6 @@ So the `KNOWN_SHORTFALL` pins in `tests/class_census.rs` keep their
 counts — nothing was under-walked to recover — and are re-documented as
 files that over-declare rather than as an open walker gap. They still
 gate: a *drop* in any `walked` figure fails the ratchet.
-||||||| 6cc9b13
 ### Added — VISUALSTYLE on R14, R2000 and R2007: one field list, four releases (2026-08-30, closes #73)
 
 #72 made the R14 / R2000 / R2007 object walk work and their 216
