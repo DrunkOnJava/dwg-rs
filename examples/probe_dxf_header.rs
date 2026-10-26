@@ -17,7 +17,7 @@
 //!   failure, because a variable AutoCAD omits must be omitted;
 //! - **omitted**: a variable the export writes and the converter does not. Each
 //!   needs a stated reason (`$ACADMAINTVER` and the local `$TDCREATE` and
-//!   `$TDUPDATE`, which the DWG does not hold; a name for a symbol record the
+//!   `$TDUPDATE`, which the DWG does not hold; a handle to a MATERIAL or VISUALSTYLE object, which the converter exports as a placeholder; a name for a symbol record the
 //!   converter's output does not define, since it writes layer 0 and no other
 //!   symbol table; a true colour, which DXF writes as an approximate index; a
 //!   null `$INTERFEREOBJVS` or `$INTERFEREVPVS`, where the export names the
@@ -228,12 +228,9 @@ fn omission_reason(name: &str, header: &HeaderVars, theirs: &DxfDocument) -> Opt
                 _ => None,
             }
         }
-        "$INTERFEREOBJVS" | "$INTERFEREVPVS" => match header.get_handle(name) {
-            Some(h) if h.value == 0 => {
-                Some("null in the DWG, a default visual style in the export")
-            }
-            _ => None,
-        },
+        "$CMATERIAL" | "$INTERFEREOBJVS" | "$INTERFEREVPVS" => {
+            Some("names an object the output exports as a placeholder, not as its type")
+        }
         _ => None,
     }
 }

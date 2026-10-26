@@ -39,9 +39,14 @@
 //!   `ACAD_MLINESTYLE` dictionary (`Standard`), the record holds it in capitals.
 //! - A standard arrowhead block `_BoxBlank` is `$DIMBLK` `BoxBlank`; a block with any
 //!   other name keeps its name verbatim.
-//! - A handle variable holding the null handle (`$INTERFEREOBJVS` in an R2013
-//!   file) is omitted: AutoCAD's export names the default visual style there,
-//!   which the DWG does not hold.
+//! - A handle variable that names an object (`$CMATERIAL`, `$INTERFEREOBJVS`,
+//!   `$INTERFEREVPVS`, `$CPSNID`) is omitted: the converter exports those objects
+//!   as untyped placeholders, so the reference would point at the wrong thing.
+//!   `$HANDSEED`, the next free handle, is written. (A null handle there is
+//!   where AutoCAD's export names the default visual style, which the DWG does
+//!   not hold.)
+//! - Control characters and the caret are written in DXF's caret notation, so a
+//!   value with a line feed stays on its own line.
 //! - A colour is its AutoCAD index ([`crate::header_vars::Color::aci`]); a
 //!   true colour has none and is omitted.
 //! - Before R2010 `$XCLIPFRAME` is the flag 290, not 280: the value 2 does not
@@ -527,17 +532,24 @@ const BUILTIN_ARROWHEADS: &[&str] = &[
     "_SMALL",
 ];
 
-/// Text for a target release: DXF before R2007 reads bytes in `$DWGCODEPAGE`,
-/// not UTF-8, so what that code page cannot be assumed to hold is written as
-/// `\U+XXXX` escapes, which every release reads. From R2007 it is UTF-8.
+/// Text for a target release. Control characters and the caret are written in
+/// DXF's caret notation on every release. DXF before R2007 reads bytes in
+/// `$DWGCODEPAGE`, not UTF-8, so what that code page cannot be assumed to hold
+/// is written as `\U+XXXX` escapes, which every release reads; from R2007 it is
+/// UTF-8.
 fn text_for(target: Rel, s: &str) -> String {
-    if target >= R2007 || s.is_ascii() {
-        return s.to_string();
-    }
-    let mut out = String::with_capacity(s.len() * 2);
+    let mut out = String::with_capacity(s.len() + 8);
     let mut units = [0u16; 2];
     for c in s.chars() {
-        if c.is_ascii() {
+        if c == '^' {
+            // DXF writes a caret as a caret and a space.
+            out.push_str("^ ");
+        } else if c.is_ascii_control() {
+            // A control character, a line feed above all, is `^` and the
+            // character 64 above it (`^J`), so a value stays on its own line.
+            out.push('^');
+            out.push(char::from(c as u8 ^ 0x40));
+        } else if c.is_ascii() || target >= R2007 {
             out.push(c);
         } else {
             for u in c.encode_utf16(&mut units) {
@@ -589,7 +601,11 @@ fn groups(
         Value::Date { .. } => vec![real(0, value.as_julian()?)?],
         Value::Handle(h) => {
             if is_handle_group(*codes.first()?) {
-                if h.value == 0 {
+                // `$HANDSEED` is the next free handle, not a reference. Every other
+                // handle variable names an object (a MATERIAL, a VISUALSTYLE, a
+                // plot style) which the converter exports as a placeholder, not as
+                // that type, so the reference is omitted until it does.
+                if h.value == 0 || name != "$HANDSEED" {
                     return None;
                 }
                 vec![HeaderGroup::Handle(code(0)?, h.value)]
