@@ -135,7 +135,7 @@ pub enum DecodedEntity {
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
-    SortEntsTable(crate::objects::sortents_table::SortEntsTable),
+    SortEntsTable(crate::objects::block_sortents_table::SortEntsTable),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
@@ -678,8 +678,10 @@ fn dispatch_object_class(
                 .map(DecodedEntity::Scale)
         }
         "SORTENTSTABLE" | "ACDBSORTENTSTABLE" => {
-            crate::objects::sortents_table::decode_object(payload, body_start, inline_end, version)
-                .map(DecodedEntity::SortEntsTable)
+            crate::objects::block_sortents_table::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::SortEntsTable)
         }
         "VISUALSTYLE" | "ACDBVISUALSTYLE" => crate::objects::acad_visual_style::decode_object(
             payload, body_start, inline_end, version,
