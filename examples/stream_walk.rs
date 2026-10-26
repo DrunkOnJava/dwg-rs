@@ -11,7 +11,9 @@
 //! `--url http://host:port/path` reads through `byte_source::AsyncSource`
 //! and an HTTP range worker instead of the file (the file argument is then
 //! only a label, and `--length` is required); on completion it prints the
-//! Pending polls and fetches to stderr.
+//! Pending polls and fetches to stderr. With `--url`, a checkpoint also
+//! saves the adapter's fetched but undelivered bytes in `<path>.source`,
+//! which `--resume` restores, so nothing is fetched twice.
 
 #[path = "support/http_range.rs"]
 mod http_range;
@@ -218,8 +220,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("--stop-after requires --checkpoint-out".into());
     }
     let worker = url.as_deref().map(HttpWorker::spawn).transpose()?;
+    let held = match (&worker, &resume) {
+        (Some(_), Some(path)) => {
+            let text = fs::read_to_string(format!("{path}.source"))?;
+            let (offset, hex) = text
+                .trim()
+                .split_once(' ')
+                .ok_or("malformed source state")?;
+            if hex.len() > 2 * CHUNK_BYTES || hex.len() % 2 != 0 && hex != "-" {
+                return Err("malformed source state".into());
+            }
+            let bytes = if hex == "-" {
+                Vec::new()
+            } else {
+                (0..hex.len())
+                    .step_by(2)
+                    .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
+                    .collect::<Result<Vec<u8>, _>>()?
+            };
+            AsyncSource::with_held(offset.parse()?, &bytes)?
+        }
+        _ => AsyncSource::new(),
+    };
     let (inner, file_length) = match &worker {
-        Some(_) => (Inner::Remote(Box::new(AsyncSource::new())), None),
+        Some(_) => (Inner::Remote(Box::new(held)), None),
         None => {
             let file = File::open(&path)?;
             let len = file.metadata()?.len();
@@ -259,6 +283,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let out = checkpoint_out.as_deref().ok_or("missing checkpoint path")?;
             fs::write(out, walker.checkpoint()?.as_bytes())?;
             caller.save(&format!("{out}.caller"))?;
+            if let Inner::Remote(remote) = &source.inner {
+                if remote.in_flight() {
+                    return Err("a fetch is in flight; no checkpoint".into());
+                }
+                let (offset, bytes) = remote.held();
+                let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+                fs::write(
+                    format!("{out}.source"),
+                    format!("{offset} {}\n", if hex.is_empty() { "-" } else { &hex }),
+                )?;
+            }
             println!("{{\"checkpoint\":true,\"feeds\":{}}}", caller.feeds);
             return Ok(());
         }

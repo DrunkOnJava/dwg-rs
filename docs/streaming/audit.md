@@ -149,4 +149,6 @@ seeded 0xC0C1 over the `MS` bytes and data.
 - A transport failure surfaces as the source error on the next poll.
 - Output through the adapter equals the file-backed run; every fetched
   byte is delivered once, in order; a fresh-process resume fetches no
-  range twice.
+  byte twice, including bytes the adapter held at the checkpoint.
+- A transport answer that ignores the range or is longer than the request
+  is refused before its body is read.

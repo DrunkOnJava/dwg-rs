@@ -43,7 +43,8 @@ fetches it however it likes and hands the answer back with `complete()`,
 offset, an empty one or one longer than the request is rejected and the
 request stays in flight. Bytes the caller's next scratch cannot take are
 held (at most one chunk) for the following polls, so nothing is fetched
-twice. A forward-only transport for a complete DWG needs a spool/cache
+twice; across a checkpoint they are the caller's to save (`held()`) and
+restore (`with_held()`). A forward-only transport for a complete DWG needs a spool/cache
 because indexes can follow objects; `AsyncSource` posts absolute offsets,
 so its transport must be range-capable.
 
@@ -59,10 +60,15 @@ each after a `Pending`),
 the bytes the server sent equal the bytes delivered to the grammar, in
 order and once, and with a fixed schedule every fetch is exactly the
 grammar's demand. A walk stopped and resumed in a fresh process over HTTP
-at four points fetches no range twice. A 416 past a short file ends in
-the walk's typed `Truncated`; a `Content-Range` for another offset and a
-body cut short are source errors; each leaves only a valid prefix of the
-output. Not measured: TLS, a remote host, latency or throughput, and a
+fetches no byte twice and delivers none twice, at six stops under a fixed
+schedule and fifteen under a mixed one; at five of those the adapter held
+fetched but undelivered bytes, which `stream_walk` saves in
+`<checkpoint>.source`. Discarding them instead makes the resumed run fetch
+them again, which the check catches. A 416 past a short file ends in the
+walk's typed `Truncated`; a `Content-Range` for another offset, a body cut
+short, a 200 that ignores `Range` and a 206 longer than the request are
+source errors (the last two refused before any body is read); each leaves
+only a valid prefix of the output. Not measured: TLS, a remote host, latency or throughput, and a
 browser worker (#209).
 
 ## Container walk (R13–R2000)

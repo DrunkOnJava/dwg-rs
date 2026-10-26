@@ -24,10 +24,17 @@ class Server(http.server.ThreadingHTTPServer):
         super().__init__(('127.0.0.1', 0), Handler)
         self.files, self.log, self.counts, self.lock = {}, [], {}, threading.Lock()
 
+    def handle_error(self, request, client_address):
+        # The fault cases close connections on purpose; anything else is a
+        # server bug and is reported.
+        if not isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError)):
+            super().handle_error(request, client_address)
+
 
 class Handler(http.server.BaseHTTPRequestHandler):
     """GET /<run>/<fault>/<k>/<name>: Range requests only; the k-th request of
-    a run gets the fault (ok, badrange, short)."""
+    a run gets the fault (ok, badrange, short, ignore: 200 with the whole file,
+    oversize: a 206 longer than asked for)."""
     protocol_version = 'HTTP/1.1'
     disable_nagle_algorithm = True
 
@@ -48,6 +55,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return
+        if fault == 'ignore' and index == int(k):
+            self.server.log.append((run, 0, len(data)))
+            self.send_response(200)
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if fault == 'oversize' and index == int(k):
+            last += 64
         body = data[first:min(last, len(data) - 1) + 1]
         self.server.log.append((run, first, len(body)))
         claimed = first + 1 if fault == 'badrange' and index == int(k) else first
@@ -141,16 +157,31 @@ def main():
         name, data = corpus[2]
         identity = hashlib.sha256(data).hexdigest()
         checkpoint = tmp / 'state.bin'
-        full = remote(name, data, '--identity', identity)
-        stops = sorted({1, 50, len(full[3]) // 2, len(full[3]) - 1})
-        for stop in stops:
-            first = remote(name, data, '--identity', identity, '--checkpoint-out', checkpoint, '--stop-after', stop)
-            assert first[0] == 0, first[2]
-            second = remote(name, data, '--identity', identity, '--resume', checkpoint)
-            assert second[0] == 0, second[2]
-            assert first[1].splitlines()[:-1] + second[1].splitlines() == full[1].splitlines(), (stop, 'output not exactly once')
-            assert first[3] + second[3] == full[3], (stop, 'a range was fetched twice or skipped')
-        receipts.append({'file': name, 'fresh_process_resume_stops': stops, 'refetched_ranges': 0})
+        held_saved = 0
+        resumed = []
+        # A mixed schedule leaves fetched but undelivered bytes in the adapter
+        # at most stops; they travel in <checkpoint>.source, not over the wire
+        # again. Three sizes, so a fetch posted at 256 bytes is delivered in
+        # 1- and 7-byte feeds (a two-size cycle locks into posting at 1).
+        for schedule in ((), ('--chunks', '256,1,7')):
+            full = remote(name, data, *schedule, '--identity', identity)
+            feeds = len(full[4])
+            stops = sorted({1, 2, 3, 50, feeds // 2, feeds - 1})
+            if schedule:
+                stops = sorted({*range(1, 7), *range(50, 54), *range(feeds // 2, feeds // 2 + 4), feeds - 1})
+            for stop in stops:
+                first = remote(name, data, *schedule, '--identity', identity, '--checkpoint-out', checkpoint, '--stop-after', stop)
+                assert first[0] == 0, first[2]
+                held_saved += (tmp / 'state.bin.source').read_text().split()[1] != '-'
+                second = remote(name, data, *schedule, '--identity', identity, '--resume', checkpoint)
+                assert second[0] == 0, second[2]
+                assert first[1].splitlines()[:-1] + second[1].splitlines() == full[1].splitlines(), (stop, 'output not exactly once')
+                assert offsets(first[3]) + offsets(second[3]) == offsets(full[3]), (schedule, stop, 'a byte was fetched twice or skipped')
+                assert offsets(first[4]) + offsets(second[4]) == offsets(full[4]), (schedule, stop, 'a byte was delivered twice or skipped')
+            resumed.append({'schedule': ' '.join(schedule) or '256', 'stops': stops})
+        assert held_saved >= 5, ('too few stops carried held bytes', held_saved)
+        receipts.append({'file': name, 'fresh_process_resume': resumed, 'stops_with_held_bytes': held_saved,
+                         'refetched_bytes': 0})
 
         # Faults: each ends in a typed error with only a valid prefix printed.
         expected = local(name, data)[1].splitlines()
@@ -159,6 +190,8 @@ def main():
             ('server says 416 past a short file', dict(data=data[:cut], length=len(data)), 'Truncated'),
             ('Content-Range for another offset', dict(fault='badrange', k=40), 'answer is not for the posted request'),
             ('body cut short', dict(fault='short', k=40), 'failed to fill whole buffer'),
+            ('server ignores Range (200, whole file)', dict(fault='ignore', k=40), 'HTTP status 200'),
+            ('206 longer than the request', dict(fault='oversize', k=40), '206 body of'),
         ]
         labels = []
         for label, options, error in faults:

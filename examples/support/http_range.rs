@@ -61,17 +61,32 @@ fn get(conn: &mut BufReader<TcpStream>, host: &str, path: &str, request: Request
             }
         }
         let length = length.ok_or_else(|| invalid("no Content-Length".into()))?;
-        let mut body = vec![0; length];
-        conn.read_exact(&mut body)?;
+        // Decide from the status and length before reading or allocating a
+        // body: a server that ignores Range (200, the whole file) or claims
+        // more than was asked for is refused, not buffered.
         match status {
-            416 => Ok(Answer::Eof(request.offset)),
+            416 => {
+                if length > 1024 {
+                    return Err(invalid(format!("416 with a {length}-byte body")));
+                }
+                io::copy(&mut conn.by_ref().take(length as u64), &mut io::sink())?;
+                Ok(Answer::Eof(request.offset))
+            }
             206 => {
+                if length > request.len {
+                    return Err(invalid(format!(
+                        "206 body of {length} bytes for a {}-byte request",
+                        request.len
+                    )));
+                }
                 let range = range.ok_or_else(|| invalid("206 without Content-Range".into()))?;
                 let first = range
                     .strip_prefix("bytes ")
                     .and_then(|r| r.split('-').next())
                     .and_then(|r| r.parse::<u64>().ok())
                     .ok_or_else(|| invalid(format!("bad Content-Range {range:?}")))?;
+                let mut body = vec![0; length];
+                conn.read_exact(&mut body)?;
                 Ok(Answer::Bytes(first, body))
             }
             other => Err(invalid(format!("HTTP status {other}"))),

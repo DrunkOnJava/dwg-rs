@@ -334,6 +334,29 @@ impl AsyncSource {
         self.posted.is_some()
     }
 
+    /// Bytes fetched but not yet delivered, and the source offset of the
+    /// first. They are the caller's to save with a grammar checkpoint, so a
+    /// resumed process does not fetch them again.
+    pub fn held(&self) -> (u64, &[u8]) {
+        (self.held_offset, &self.held[..self.held_len])
+    }
+
+    /// An idle adapter that already holds `bytes` fetched at `offset`, as
+    /// saved by [`AsyncSource::held`]. At most one chunk.
+    pub fn with_held(offset: u64, bytes: &[u8]) -> io::Result<Self> {
+        if bytes.len() > CHUNK_BYTES || offset.checked_add(bytes.len() as u64).is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "held bytes exceed one chunk or the source range",
+            ));
+        }
+        let mut source = Self::new();
+        source.held[..bytes.len()].copy_from_slice(bytes);
+        source.held_offset = offset;
+        source.held_len = bytes.len();
+        Ok(source)
+    }
+
     fn answer(&mut self, offset: u64) -> io::Result<Request> {
         match self.posted {
             Some(posted) if self.taken && posted.offset == offset => Ok(posted),
@@ -353,7 +376,10 @@ impl AsyncSource {
     /// request in flight.
     pub fn complete(&mut self, offset: u64, bytes: &[u8]) -> io::Result<()> {
         let posted = self.answer(offset)?;
-        if bytes.is_empty() || bytes.len() > posted.len {
+        if bytes.is_empty()
+            || bytes.len() > posted.len
+            || offset.checked_add(bytes.len() as u64).is_none()
+        {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "answer is empty or longer than the posted request",
