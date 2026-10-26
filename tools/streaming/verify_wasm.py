@@ -4,8 +4,9 @@ A native build checkpoints the R2004 page map and section map walk and a
 section's data-page walk; a WebAssembly kernel built from the identical
 grammar (tools/streaming/wasm_resume.rs, run under node) restores it and
 finishes; and the kernel checkpoints the map walk for the native build to
-resume.
-Usage: verify_wasm.py <stream_r2004_maps binary> <stream_r2004_sections binary> [--local DIR ...]"""
+resume; the whole-file walker's one checkpoint, which carries its section table and
+needs no page index, crosses both ways.
+Usage: verify_wasm.py <stream_r2004_maps binary> <stream_r2004_sections binary> <stream_r2004_file binary> [--local DIR ...]"""
 import hashlib
 import json
 from pathlib import Path
@@ -30,7 +31,7 @@ def main():
         at = argv.index('--local')
         local.append(Path(argv[at + 1]))
         del argv[at:at + 2]
-    maps_bin, sections_bin = (str(Path(a).resolve()) for a in argv[:2])
+    maps_bin, sections_bin, file_bin = (str(Path(a).resolve()) for a in argv[:3])
     receipts = []
     with tempfile.TemporaryDirectory(prefix='dwg-wasm-') as tmp:
         tmp = Path(tmp)
@@ -54,6 +55,8 @@ def main():
                     data = vm.fetch(url, item['bytes'], item['sha256'])
                 corpus[item['name']] = data
         corpus['constructed.dwg'] = vs.constructed()
+        pages_of_built = sum(len(x['pages']) for x in vs.constructed_sections())
+        corpus['constructed_shuffled.dwg'] = vs.constructed(order=random.Random('order').sample(range(pages_of_built), pages_of_built))
 
         def native(binary, data, *args, name):
             path = tmp / name
@@ -80,7 +83,7 @@ def main():
             return sorted(s for s in chosen if 0 <= s <= steps)
 
         for name, data in corpus.items():
-            if name == 'constructed.dwg':
+            if name.startswith('constructed'):
                 continue
             identity = hashlib.sha256(data).hexdigest()
             path = tmp / name
@@ -137,6 +140,8 @@ def main():
                              'kernel_chunk_sizes': list(KERNEL_CHUNKS)})
 
         for name, data in corpus.items():
+            if name == 'constructed_shuffled.dwg':
+                continue
             identity = hashlib.sha256(data).hexdigest()
             path = tmp / name
             path.write_bytes(data)
@@ -185,6 +190,64 @@ def main():
                              'native_to_wasm': 'finished equal to the native resume and the independent assembly',
                              'kernel_chunk_sizes': list(KERNEL_CHUNKS)})
 
+        # The whole-file walker: one checkpoint, no page index, both ways.
+        for name, data in corpus.items():
+            identity = hashlib.sha256(data).hexdigest()
+            path = tmp / name
+            path.write_bytes(data)
+            full = native(file_bin, data, NATIVE_CHUNK, '--report-steps', name=name)
+            assert full[0] == 0
+            report = [json.loads(l) for l in full[2].splitlines()]
+            steps = report[-1]['steps']
+            around = {e + d for r in report[:-1] for e in (r['step'],) for d in (-1, 0, 1)}
+            full_lines = lines(full[1])
+            stops = pick(name, 25, steps, around)
+            if len(stops) > 60:
+                stops = sorted(set(random.Random(name + 'f').sample(stops, 60)) | {0, steps})
+            jobs, resumed_lines, paused_lines, native_ckpts, cursors = [], {}, {}, {}, {}
+            for stop in stops:
+                ck = tmp / f'file-{name}-{stop}.bin'
+                paused = native(file_bin, data, NATIVE_CHUNK, '--identity', identity, '--checkpoint-out', ck, '--stop-after', stop, name=name)
+                assert paused[0] == 0 and lines(paused[1])[-1] == vs.line({'checkpoint': True, 'steps': stop}), (name, stop)
+                paused_lines[stop] = lines(paused[1])[:-1]
+                native_ckpts[stop] = ck.read_bytes()
+                caller = Path(str(ck) + '.caller').read_text().split('\n')
+                cursors[stop] = tuple(int(v) for v in caller[0].split(' ')[1:4])
+                resumed = native(file_bin, data, NATIVE_CHUNK, '--identity', identity, '--resume', ck, name=name)
+                assert resumed[0] == 0, (name, stop, resumed[2])
+                assert paused_lines[stop] + lines(resumed[1]) == full_lines, (name, stop)
+                resumed_lines[stop] = lines(resumed[1])
+                crc, length, number = cursors[stop]
+                jobs.append({'kind': 'file-resume', 'file': str(path), 'digest': identity, 'checkpoint': str(ck),
+                             'chunk': KERNEL_CHUNKS[stop % len(KERNEL_CHUNKS)], 'page_crc': crc, 'page_len': length, 'number': number})
+            results = kernel_jobs(jobs)
+            for stop, result in zip(stops, results):
+                assert result['code'] >= 0, (name, stop, result)
+                assert lines(result['out']) == resumed_lines[stop], (name, stop, 'kernel output differs from the native resume')
+            jobs = [{'kind': 'file-run', 'file': str(path), 'digest': identity, 'stop': stop, 'chunk': NATIVE_CHUNK,
+                     'checkpoint_out': str(tmp / f'wasm-file-{name}-{stop}.bin')} for stop in stops]
+            results = kernel_jobs(jobs)
+            identical = 0
+            for stop, result in zip(stops, results):
+                assert result['code'] >= 0, (name, stop, result)
+                assert lines(result['out']) == paused_lines[stop], (name, stop, 'kernel output before its checkpoint differs')
+                ck = tmp / f'wasm-file-{name}-{stop}.bin'
+                identical += ck.read_bytes() == native_ckpts[stop]
+                assert tuple(result['cursors']) == cursors[stop], (name, stop, 'cursors differ')
+                sections = [json.loads(l)['section'] for l in lines(result['out']) if l.startswith('{"section"')]
+                crc, length, number = result['cursors']
+                Path(str(ck) + '.caller').write_text(f'{stop} {crc} {length} {number}\n' + ''.join(
+                    f"S {x['index']} {x['id']} {x['size']} {x['pages']} {x['name']}\n" for x in sections))
+                resumed = native(file_bin, data, NATIVE_CHUNK, '--identity', identity, '--resume', ck, name=name)
+                assert resumed[0] == 0, (name, stop, resumed[2])
+                assert lines(result['out']) + lines(resumed[1]) == full_lines, (name, stop, 'kernel checkpoint, native resume')
+            assert identical == len(stops), (name, 'kernel and native checkpoints differ at the same step')
+            receipts.append({'file': name, 'walk': 'whole file, one checkpoint', 'steps': steps, 'stops': len(stops),
+                             'native_to_wasm': 'finished equal to the native resume, from the checkpoint alone',
+                             'wasm_to_native': 'finished equal to the uninterrupted run',
+                             'checkpoints_byte_identical_across_runtimes': identical,
+                             'kernel_chunk_sizes': list(KERNEL_CHUNKS)})
+
         # The kernel refuses what the native build refuses: a flipped bit in a
         # checkpoint made natively, on both walks.
         name = 'line_2004.dwg'
@@ -193,7 +256,8 @@ def main():
         path = tmp / name
         path.write_bytes(data)
         refused = {}
-        for kind, binary, kernel_kind, stop in (('maps', maps_bin, 'maps-resume', 40), ('sections', sections_bin, 'section-resume', 2000)):
+        for kind, binary, kernel_kind, stop in (('maps', maps_bin, 'maps-resume', 40), ('sections', sections_bin, 'section-resume', 2000),
+                                               ('file', file_bin, 'file-resume', 6000)):
             ck = tmp / f'forge-{kind}.bin'
             native(binary, data, NATIVE_CHUNK, '--identity', identity, '--checkpoint-out', ck, '--stop-after', stop, name=name)
             state = ck.read_bytes()
@@ -204,12 +268,12 @@ def main():
                 bad[at] ^= 1
                 target = tmp / f'forge-{kind}-{at}.bin'
                 target.write_bytes(bytes(bad))
-                if kind == 'sections':
+                if kind != 'maps':
                     Path(str(target) + '.caller').write_bytes(Path(str(ck) + '.caller').read_bytes())
                 jobs.append({'kind': kernel_kind, 'file': str(path), 'digest': identity, 'checkpoint': str(target),
-                             'sidecar': str(target) + '.caller', 'chunk': 7})
+                             'sidecar': str(target) + '.caller', 'chunk': 7, 'page_crc': 0, 'page_len': 0, 'number': 0})
             jobs.append({'kind': kernel_kind, 'file': str(path), 'digest': 'f' * 64, 'checkpoint': str(ck),
-                         'sidecar': str(ck) + '.caller', 'chunk': 7})
+                         'sidecar': str(ck) + '.caller', 'chunk': 7, 'page_crc': 0, 'page_len': 0, 'number': 0})
             results = kernel_jobs(jobs)
             assert all(r['code'] == -1 for r in results), (kind, [r['code'] for r in results])
             refused[kind] = len(jobs)

@@ -15,8 +15,8 @@ pub mod crc;
 pub mod streaming;
 
 use streaming::{
-    MapDemand, MapStep, PageEntry, R2004MapWalker, R2004SectionWalker, SectionDemand, SectionPage,
-    SectionStep, SourceIdentity, StreamError, SystemKind,
+    MapDemand, MapStep, PageEntry, R2004MapWalker, R2004SectionWalker, R2004Walker, SectionDemand,
+    SectionPage, SectionStep, SourceIdentity, StreamError, SystemKind, WalkDemand, WalkStep,
 };
 
 const FILE_CAP: usize = 0x30_0000;
@@ -33,6 +33,7 @@ const NAME: usize = 64;
 
 static mut SCRATCH: [u8; TOTAL] = [0; TOTAL];
 static mut CKPT_LEN: usize = 0;
+static mut CURSORS: [u64; 3] = [0; 3];
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -84,7 +85,8 @@ impl Write for Lines<'_> {
 
 /// Where the host puts the source, checkpoint, digest and table and reads
 /// the output: 0 the scratch base, then (offset, capacity) pairs; 9 the length
-/// of the checkpoint the last `run_maps` wrote.
+/// of the checkpoint the last `run_maps` or `run_file` wrote; 10, 11 and 12 the
+/// page CRC-32, page length and page number the last `run_file` ended on.
 #[unsafe(no_mangle)]
 pub extern "C" fn layout(which: u32) -> u32 {
     match which {
@@ -98,6 +100,9 @@ pub extern "C" fn layout(which: u32) -> u32 {
         7 => OUT as u32,
         8 => OUT_CAP as u32,
         9 => unsafe { CKPT_LEN as u32 },
+        10 => unsafe { CURSORS[0] as u32 },
+        11 => unsafe { CURSORS[1] as u32 },
+        12 => unsafe { CURSORS[2] as u32 },
         _ => 0,
     }
 }
@@ -108,6 +113,23 @@ fn identity(file_len: usize, digest: &[u8]) -> SourceIdentity {
     SourceIdentity {
         digest: copy,
         length: file_len as u64,
+    }
+}
+
+/// A name as the body of a JSON string: the map walker admits only printable
+/// ASCII, so the quote and the backslash are all that need escaping.
+struct Json<'a>(&'a str);
+
+impl core::fmt::Display for Json<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for c in self.0.chars() {
+            match c {
+                '"' => f.write_str("\\\"")?,
+                '\\' => f.write_str("\\\\")?,
+                c => f.write_char(c)?,
+            }
+        }
+        Ok(())
     }
 }
 
@@ -166,7 +188,7 @@ fn map_line(out: &mut Lines<'_>, step: MapStep) -> core::fmt::Result {
             out,
             "{{\"section\":{},\"name\":\"{}\",\"size\":{},\"page_count\":{},\"max_page_size\":{},\"compressed\":{},\"section_id\":{},\"encrypted\":{}}}",
             s.index,
-            name(&s.name),
+            Json(name(&s.name)),
             s.size,
             s.page_count,
             s.max_page_size,
@@ -376,13 +398,153 @@ pub extern "C" fn resume_section(
             }
             SectionStep::Finished { size, pages } => writeln!(
                 out,
-                "{{\"section_done\":{{\"index\":{},\"name\":\"{label}\",\"size\":{size},\"pages\":{pages},\"crc32\":{section_crc}}}}}",
-                walker.section_index()
+                "{{\"section_done\":{{\"index\":{},\"name\":\"{}\",\"size\":{size},\"pages\":{pages},\"crc32\":{section_crc}}}}}",
+                walker.section_index(),
+                Json(label)
             ),
         };
         if wrote.is_err() {
             return -3;
         }
+    }
+    out.at as i32
+}
+
+/// Walk the whole file from `walker`, printing what the native `stream_r2004_file`
+/// prints for the same steps (no section files, so no `section_done` lines),
+/// until the walk ends or `stop` steps have run. The cursors are the page
+/// CRC-32, page length and page number.
+fn walk_file(
+    walker: &mut R2004Walker,
+    file: &[u8],
+    file_len: usize,
+    chunk: usize,
+    stop: Option<u32>,
+    out: &mut Lines<'_>,
+    cursors: &mut (u32, u64, u32),
+) -> i32 {
+    let mut steps = 0u32;
+    loop {
+        if stop == Some(steps) {
+            break;
+        }
+        let step = match walker.demand() {
+            Ok(WalkDemand::Done) => break,
+            Ok(WalkDemand::Pump) => walker.pump(),
+            Ok(WalkDemand::Read(r)) => match source(file, r.offset, r.len.min(chunk).min(256), file_len) {
+                Ok(bytes) => walker.feed(r.offset, bytes),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        };
+        let Ok(step) = step else { return -2 };
+        steps += 1;
+        let wrote = match step {
+            WalkStep::Framing | WalkStep::Header(_) => Ok(()),
+            WalkStep::Section(s) => writeln!(
+                out,
+                "{{\"section\":{{\"index\":{},\"name\":\"{}\",\"size\":{},\"pages\":{},\"id\":{}}}}}",
+                s.index,
+                Json(name(&s.name)),
+                s.size,
+                s.page_count,
+                s.section_id
+            ),
+            WalkStep::Page(p) => {
+                *cursors = (0, 0, p.page_number);
+                writeln!(
+                    out,
+                    "{{\"page\":{{\"section\":{},\"number\":{},\"address\":{},\"start\":{},\"data\":{},\"page_size\":{}}}}}",
+                    p.section_id, p.page_number, p.address, p.start_offset, p.data_size, p.page_size
+                )
+            }
+            WalkStep::Data { len, .. } => {
+                let bytes = walker.data();
+                if bytes.len() != len {
+                    return -2;
+                }
+                cursors.0 = crc::crc32(cursors.0, bytes);
+                cursors.1 += len as u64;
+                Ok(())
+            }
+            WalkStep::PageEnd {
+                decompressed,
+                emitted,
+            } => {
+                if u64::from(emitted) != cursors.1 {
+                    return -2;
+                }
+                writeln!(
+                    out,
+                    "{{\"page_end\":{{\"number\":{},\"decompressed\":{decompressed},\"emitted\":{emitted},\"crc32\":{}}}}}",
+                    cursors.2, cursors.0
+                )
+            }
+            WalkStep::Finished { sections, pages } => {
+                writeln!(out, "{{\"finished\":{{\"sections\":{sections},\"pages\":{pages}}}}}")
+            }
+        };
+        if wrote.is_err() {
+            return -3;
+        }
+    }
+    0
+}
+
+/// Restore a `DWGF` checkpoint, with the page CRC-32, length and number the
+/// native caller saved, and finish the whole walk. The checkpoint alone
+/// carries the section table: no page index is passed. Same codes as
+/// `resume_maps`.
+#[unsafe(no_mangle)]
+pub extern "C" fn resume_file(
+    file_len: u32,
+    ckpt_len: u32,
+    chunk: u32,
+    page_crc: u32,
+    page_len: u32,
+    number: u32,
+) -> i32 {
+    let file_len = file_len as usize;
+    let mem = scratch();
+    let Ok(mut walker) =
+        R2004Walker::restore(&mem.ckpt[..ckpt_len as usize], identity(file_len, mem.digest))
+    else {
+        return -1;
+    };
+    let mut out = Lines { buf: mem.out, at: 0 };
+    let mut cursors = (page_crc, u64::from(page_len), number);
+    match walk_file(&mut walker, mem.file, file_len, chunk as usize, None, &mut out, &mut cursors) {
+        0 => out.at as i32,
+        code => code,
+    }
+}
+
+/// Walk the whole file from the start for `stop` steps, print what it
+/// committed and leave the walker's checkpoint at the checkpoint offset (its
+/// length is `layout(9)`, the cursors `layout(10..=12)`). Same codes as
+/// `resume_maps`.
+#[unsafe(no_mangle)]
+pub extern "C" fn run_file(file_len: u32, stop: u32, chunk: u32) -> i32 {
+    let file_len = file_len as usize;
+    let mem = scratch();
+    let mut walker = R2004Walker::new(identity(file_len, mem.digest));
+    let mut out = Lines { buf: mem.out, at: 0 };
+    let mut cursors = (0u32, 0u64, 0u32);
+    match walk_file(&mut walker, mem.file, file_len, chunk as usize, Some(stop), &mut out, &mut cursors) {
+        0 => (),
+        code => return code,
+    }
+    let Ok(checkpoint) = walker.checkpoint() else {
+        return -2;
+    };
+    let bytes = checkpoint.as_bytes();
+    if bytes.len() > mem.ckpt.len() {
+        return -3;
+    }
+    mem.ckpt[..bytes.len()].copy_from_slice(bytes);
+    unsafe {
+        CKPT_LEN = bytes.len();
+        CURSORS = [u64::from(cursors.0), cursors.1, u64::from(cursors.2)];
     }
     out.at as i32
 }

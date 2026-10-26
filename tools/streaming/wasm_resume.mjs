@@ -3,7 +3,9 @@
 // Usage: node wasm_resume.mjs <wasm_resume.wasm> <jobs.json>
 // A job is {kind, file, digest, chunk, ...}: kind "maps-resume" and
 // "section-resume" take a native `checkpoint` path (and the section walk its
-// `sidecar`); kind "maps-run" takes `stop` and `checkpoint_out`.
+// `sidecar`); kinds "maps-run" and "file-run" take `stop` and `checkpoint_out`;
+// "file-resume" takes a native `checkpoint` and the cursors `page_crc`,
+// `page_len` and `number` the native caller saved.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const [wasmPath, jobsPath] = process.argv.slice(2);
@@ -67,6 +69,15 @@ for (const job of jobs) {
       code = x.resume_section(file.length, state.length, job.chunk, s.section.refs.length, s.nextRef,
         s.pageCrc, s.pageLen, s.sectionCrc);
     }
+  } else if (job.kind === 'file-resume') {
+    const state = readFileSync(job.checkpoint);
+    mem().set(state, at(2));
+    code = x.resume_file(file.length, state.length, job.chunk, job.page_crc, job.page_len, job.number);
+  } else if (job.kind === 'file-run') {
+    code = x.run_file(file.length, job.stop, job.chunk);
+    if (code >= 0) {
+      writeFileSync(job.checkpoint_out, mem().slice(at(2), at(2) + x.layout(9)));
+    }
   } else if (job.kind === 'maps-run') {
     code = x.run_maps(file.length, job.stop, job.chunk);
     if (code >= 0) {
@@ -76,6 +87,7 @@ for (const job of jobs) {
     throw new Error(`unknown job kind ${job.kind}`);
   }
   const out = code > 0 ? Buffer.from(mem().slice(at(7), at(7) + code)).toString('utf8') : '';
-  results.push({ code, out });
+  const cursors = job.kind === 'file-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0] : null;
+  results.push({ code, out, cursors });
 }
 process.stdout.write(JSON.stringify(results));
