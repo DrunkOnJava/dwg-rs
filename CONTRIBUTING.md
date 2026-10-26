@@ -54,6 +54,27 @@ python3 -I tools/corpus/measure.py check --results corpus-results.json
 python3 -I tools/corpus/measure.py baseline --results corpus-results.json   # record a change
 ```
 
+The same job runs the DXF value oracle (`examples/dxf_oracle`): it pairs
+every DWG record with AutoCAD's own DXF export of the drawing by handle
+and compares each decoded field with its DXF group. It fails when a
+field's agreeing count falls below `tools/oracle/baseline.tsv` or a row
+of it disappears. A change that raises, adds or renames a row commits the
+regenerated TSV (the artifact's `oracle.tsv`) in the same PR:
+
+```sh
+cargo run --release --features dxf-reader --example dxf_oracle -- ../dwg-corpus \
+    --baseline tools/oracle/baseline.tsv --tsv oracle.tsv
+cp oracle.tsv tools/oracle/baseline.tsv   # record a change
+```
+
+When the oracle's numbers for a section move, its note in
+`docs/data/spec-coverage.tsv` follows: save the oracle's text output and
+run `python3 tools/oracle/spec_notes.py <oracle-output> docs/data/spec-coverage.tsv`,
+then `python3 tools/ci/spec_coverage.py --write`. It replaces only the
+note's `DXF oracle (examples/dxf_oracle): ...` sentence and keeps a
+`The spec's own example ...` sentence last, where the spec-examples check
+(#107) writes it, so the two can be regenerated in either order.
+
 `--legacy-samples ../../samples` places the 19 drawings that
 `tests/samples.rs` and its siblings are written against where they look
 for them (they skip silently without it). To compare a branch against

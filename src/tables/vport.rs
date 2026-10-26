@@ -100,10 +100,10 @@ impl VportEntry {
     }
 }
 
-/// DXF group 71 from §20.4.64's four view-mode bits (first read first) and
-/// the `UCSFOLLOW` bit: bits 1, 2 and 4 as stored, 16 set when the fourth
+/// DXF group 71 from §20.4.64's (and §20.4.60's) four view-mode bits
+/// (first read first) and the `UCSFOLLOW` bit: bits 1, 2 and 4 as stored, 16 set when the fourth
 /// bit is clear, 8 from `UCSFOLLOW`.
-fn viewmode_from_bits(bits: u8, ucs_follow: bool) -> i16 {
+pub(crate) fn viewmode_from_bits(bits: u8, ucs_follow: bool) -> i16 {
     let mut mode = 0i16;
     if bits & 0b1000 != 0 {
         mode |= 1;
@@ -234,7 +234,6 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
 /// ```text
 /// B     64-flag
 /// B     xref dependent
-/// BS    xref index + 1
 /// BD    view height
 /// BD    view width          (§20.4.64's "aspect ratio"; see the module docs)
 /// 2RD   view center
@@ -300,8 +299,7 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<VportEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let c = &mut split.data;
     let view_height = c.read_bd()?;
     let view_width = c.read_bd()?;
@@ -417,11 +415,11 @@ mod tests {
     fn r2007_split_stream_vport_reads_name_from_string_stream() {
         let mut body = BitWriter::new();
         body.write_bs_u(0); // no EED
+        body.write_bl(0); // no reactors
         body.write_b(true); // no xdictionary
         body.write_b(false); // no binary data
         body.write_b(false); // 64-flag
         body.write_b(false); // xref dependent
-        body.write_bs(0); // xref index + 1
         body.write_bd(297.0); // view height
         body.write_bd(603.85); // view width
         body.write_rd(301.925); // centre

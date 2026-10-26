@@ -2,8 +2,9 @@
 //!
 //! # What this proves
 //!
-//! `section_map::DataPageHeader` names eight 4-byte fields after the §4.6
-//! table. For every data page of every R2004-family drawing given, this
+//! `section_map::DataPageHeader` once named eight 4-byte fields after the §4.6
+//! table, two of them wrongly; it now carries the layout this probe measures.
+//! For every data page of every R2004-family drawing given, this
 //! probe unmasks the 0x20 header (Sec_Mask, `0x4164536B` ^ the page's file
 //! offset, word by word) and counts how many pages agree with each reading
 //! of it, against the page map (§4.4) and section map (§4.5):
@@ -17,7 +18,7 @@
 //! - the data checksum as §4.2 over the stored bytes with seed 0, and the
 //!   header checksum as §4.2 over the header with its own field zeroed,
 //!   seeded with the data checksum;
-//! - the readings the legacy `DataPageHeader` labels imply, which should
+//! - the readings the former `DataPageHeader` labels implied, which should
 //!   agree with no page: a 4-byte start offset with a checksum at `0x14`,
 //!   a data checksum at `0x18`, and a page size that is the decompressed
 //!   size.
@@ -202,9 +203,9 @@ fn main() -> ExitCode {
         println!("{count:>6} / {n}  {label}");
     }
     let legacy = [
-        "legacy label: checksum at 0x14 = §4.2 over the header, seed 0",
-        "legacy label: data checksum at 0x18 = §4.2 over the stored bytes, seed 0",
-        "legacy label: page size at 0x0C = the decompressed size",
+        "former label: checksum at 0x14 = §4.2 over the header, seed 0",
+        "former label: data checksum at 0x18 = §4.2 over the stored bytes, seed 0",
+        "former label: page size at 0x0C = the decompressed size",
     ];
     for (label, count) in legacy.iter().zip(tally.legacy_labels) {
         println!("{count:>6} / {n}  {label}");
