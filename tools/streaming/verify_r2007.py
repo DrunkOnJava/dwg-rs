@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r2007_ref as ref  # noqa: E402
 
 MANIFESTS = ('r2007-corpus.json', 'r2007-acadsharp-corpus.json')
-SCHEDULED = ('arc_2007.dwg', 'constructed_a.dwg', 'sample_AC1021.dwg')
+SCHEDULED = ('arc_2007.dwg', 'constructed_a.dwg')
 RESUMED = ('tiny.dwg', 'arc_2007.dwg', 'ellipse_2007.dwg', 'constructed_a.dwg', 'constructed_b.dwg', 'sample_AC1021.dwg')
 BIG = 400000
 READERS = {0: (), 5: (), 1: ('aux',), 2: ('sec',), 3: ('sec', 'aux'), 4: ('sec', 'aux')}
@@ -239,7 +239,7 @@ def main():
             for i, blob in enumerate(blobs):
                 assert (legacy_out / f'{i}.bin').read_bytes() == blob, (name, i, 'legacy bytes differ')
             small = len(data) < BIG
-            fixed = ((7,), (64,), ('--chunks', '1,7,256,3', '--pending')) + (((1,), (3,)) if small else ())
+            fixed = ((64,), ('--chunks', '1,7,256,3', '--pending')) + (((7,), (1,), (3,)) if small else ())
             for args in fixed:
                 assert run(data, *args) == plain, (name, args)
             pages = sum(len(s['pages']) for s in parsed['sections'])

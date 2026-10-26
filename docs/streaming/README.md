@@ -504,10 +504,10 @@ emits every instruction class).
 
 Measured, by `verify_r2007.py` (11 files, 113 sections, 152 pages, 4,966 data
 codewords, 3,067,696 section bytes): on each of them every output line and every
-assembled byte equals the independent Python parse and the legacy reader's, four
-to six fixed chunk schedules (down to one byte at a time, with `Pending` polls)
-and 128 proptest schedules on three files (`arc_2007.dwg`, `constructed_a.dwg`,
-`sample_AC1021.dwg`) reproduce it. A fresh process resumes at 729 stops (every
+assembled byte equals the independent Python parse and the legacy reader's, three
+to six fixed chunk schedules (down to one byte at a time on files under 400 KB,
+with `Pending` polls) and 128 proptest schedules on two files (`arc_2007.dwg`,
+`constructed_a.dwg`) reproduce it. A fresh process resumes at 729 stops (every
 step of the tiny built file at 256-byte reads and every thirteenth at 3-byte
 reads; about 60 stops of each other file at 256 and at 7-byte reads, around
 every section, page, hole and the end of the walk): the source reads and output
