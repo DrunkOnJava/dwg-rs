@@ -1660,7 +1660,7 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
-## 7x. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
+## 7z. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
 
 GEODATA attaches a geographic coordinate system to the model-space
 block. §20.4.78 lists it among the objects: a class number from
