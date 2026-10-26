@@ -1,6 +1,9 @@
 //! Pausable byte delivery. Grammar declares ranges; only adapters perform I/O.
 
-use crate::streaming::{CHUNK_BYTES, FlatHeaderParser, FlatWalker, Request, Step, StreamError};
+use crate::streaming::{
+    CHUNK_BYTES, FlatHeaderParser, FlatWalker, MapDemand, MapStep, R2004HeaderParser,
+    R2004MapWalker, R2004SectionWalker, Request, SectionDemand, SectionStep, Step, StreamError,
+};
 use std::io::{self, Read, Seek, SeekFrom};
 
 /// `Pending` consumes nothing; EOF is an explicit terminal source observation.
@@ -82,6 +85,19 @@ impl Demand for FlatHeaderParser {
     }
 }
 
+impl Demand for R2004HeaderParser {
+    type Output = ();
+    fn request(&self) -> Result<Option<Request>, StreamError> {
+        self.request()
+    }
+    fn feed(&mut self, offset: u64, input: &[u8]) -> Result<(), StreamError> {
+        self.feed(offset, input)
+    }
+    fn end_of_input(&self) -> Result<(), StreamError> {
+        self.end_of_input()
+    }
+}
+
 impl Demand for FlatWalker {
     type Output = Step;
     fn request(&self) -> Result<Option<Request>, StreamError> {
@@ -146,6 +162,140 @@ pub fn poll_header<S: ByteSource>(
         Polled::Pending => HeaderPoll::Pending,
         Polled::Complete => HeaderPoll::Complete,
     })
+}
+
+/// One transport poll for the R2004-family file header (§4.1). Completion
+/// refers to the header, never to the page maps or objects.
+pub fn poll_r2004_header<S: ByteSource>(
+    parser: &mut R2004HeaderParser,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<HeaderPoll, PumpError<S::Error>> {
+    Ok(match poll_once(parser, source, scratch)? {
+        Polled::Fed(_, actual, ()) => HeaderPoll::Progress(actual),
+        Polled::Pending => HeaderPoll::Pending,
+        Polled::Complete => HeaderPoll::Complete,
+    })
+}
+
+/// Result of one R2004 map-walk poll: a step from source bytes or from a
+/// pump (no source bytes), a pending source, or the end of the walk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapPoll {
+    Fed {
+        step: MapStep,
+        offset: u64,
+        len: usize,
+    },
+    Pumped(MapStep),
+    Pending,
+    Complete,
+}
+
+/// One poll for the R2004 page map and section map walk (§4.3–§4.5): a
+/// pump when the walker needs no source bytes, otherwise at most one read
+/// into caller-owned bounded scratch.
+pub fn poll_r2004_maps<S: ByteSource>(
+    walker: &mut R2004MapWalker,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<MapPoll, PumpError<S::Error>> {
+    let request = match walker.demand().map_err(PumpError::Grammar)? {
+        MapDemand::Done => return Ok(MapPoll::Complete),
+        MapDemand::Pump => return Ok(MapPoll::Pumped(walker.pump().map_err(PumpError::Grammar)?)),
+        MapDemand::Read(request) => request,
+    };
+    let maximum = request.len.min(scratch.len()).min(CHUNK_BYTES);
+    if maximum == 0 {
+        return Err(PumpError::InvalidRead { maximum, actual: 0 });
+    }
+    match source
+        .poll_read(request, &mut scratch[..maximum])
+        .map_err(PumpError::Source)?
+    {
+        SourcePoll::Pending => Ok(MapPoll::Pending),
+        SourcePoll::Eof => {
+            walker.end_of_input().map_err(PumpError::Grammar)?;
+            Ok(MapPoll::Complete)
+        }
+        SourcePoll::Ready(actual) => {
+            if actual == 0 || actual > maximum {
+                return Err(PumpError::InvalidRead { maximum, actual });
+            }
+            let step = walker
+                .feed(request.offset, &scratch[..actual])
+                .map_err(PumpError::Grammar)?;
+            Ok(MapPoll::Fed {
+                step,
+                offset: request.offset,
+                len: actual,
+            })
+        }
+    }
+}
+
+/// Result of one section-walk poll: a step from source bytes or from a
+/// pump, the walker asking the caller for its next page, a pending source,
+/// or the end of the section.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionPoll {
+    Fed {
+        step: SectionStep,
+        offset: u64,
+        len: usize,
+    },
+    Pumped(SectionStep),
+    /// Call `begin_page` with the next page of the section.
+    NextPage,
+    Pending,
+    Complete,
+}
+
+/// One poll for a section's data-page walk (§4.6): a pump when the walker
+/// needs no source bytes, otherwise at most one read into caller-owned
+/// bounded scratch. `NextPage` consumes nothing.
+pub fn poll_r2004_section<S: ByteSource>(
+    walker: &mut R2004SectionWalker,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<SectionPoll, PumpError<S::Error>> {
+    let request = match walker.demand().map_err(PumpError::Grammar)? {
+        SectionDemand::Done => return Ok(SectionPoll::Complete),
+        SectionDemand::NextPage => return Ok(SectionPoll::NextPage),
+        SectionDemand::Pump => {
+            return Ok(SectionPoll::Pumped(
+                walker.pump().map_err(PumpError::Grammar)?,
+            ));
+        }
+        SectionDemand::Read(request) => request,
+    };
+    let maximum = request.len.min(scratch.len()).min(CHUNK_BYTES);
+    if maximum == 0 {
+        return Err(PumpError::InvalidRead { maximum, actual: 0 });
+    }
+    match source
+        .poll_read(request, &mut scratch[..maximum])
+        .map_err(PumpError::Source)?
+    {
+        SourcePoll::Pending => Ok(SectionPoll::Pending),
+        SourcePoll::Eof => {
+            walker.end_of_input().map_err(PumpError::Grammar)?;
+            Ok(SectionPoll::Complete)
+        }
+        SourcePoll::Ready(actual) => {
+            if actual == 0 || actual > maximum {
+                return Err(PumpError::InvalidRead { maximum, actual });
+            }
+            let step = walker
+                .feed(request.offset, &scratch[..actual])
+                .map_err(PumpError::Grammar)?;
+            Ok(SectionPoll::Fed {
+                step,
+                offset: request.offset,
+                len: actual,
+            })
+        }
+    }
 }
 
 /// One transport poll for the R13–R2000 container walk. Completion means
