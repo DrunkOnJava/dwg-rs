@@ -1527,7 +1527,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7o. MTEXT before R2007: the version branches (2026-10-26, #226)
+## 7m. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
 spacing on every release and stopped there. ACadSharp's saves of one

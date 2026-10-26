@@ -96,7 +96,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.43 | XLINE (41) | 147 | `closes` | src/entities/xline.rs | #143 |  |
 | §20.4.44 | DICTIONARY (42) | 147 | `closes` | src/objects/dictionary.rs | #149 |  |
 | §20.4.45 | DICTIONARYWDFLT | 148 | `decoder` | src/objects/dictionary.rs | #149 |  |
-| §20.4.46 | MTEXT (44) | 148 | `closes` | src/entities/mtext.rs | #140 | Closes on all 257 MTEXT records of the public corpus, R14 to R2018 (no R13 file), with the R2000+ line spacing and the R2004+ background block read as printed; R2018 tail and ATTRIB's embedded MTEXT (ARCHITECTURE §7g). Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7o). |
+| §20.4.46 | MTEXT (44) | 148 | `closes` | src/entities/mtext.rs | #140 | Closes on all 257 MTEXT records of the public corpus, R14 to R2018 (no R13 file), with the R2000+ line spacing and the R2004+ background block read as printed; R2018 tail and ATTRIB's embedded MTEXT (ARCHITECTURE §7g). Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7m). |
 | §20.4.47 | LEADER (45) | 150 | `partial` | src/entities/leader.rs | #147 | 1 record errors (#71): 12 bits left. |
 | §20.4.48 | MLEADER | 152 | `closes` | src/entities/mleader.rs | #147 | All 15 MULTILEADER records close (#58). |
 | §20.4.49 | TOLERANCE (46) | 155 | `closes` | src/entities/tolerance.rs | #140 |  |
