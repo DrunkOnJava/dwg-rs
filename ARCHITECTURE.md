@@ -1660,6 +1660,56 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
+## 7y. The class table is not a census; AutoCAD's export agrees with the walk (2026-10-26, #230)
+
+`AcDb:Classes` gives every class an instance count (DXF group 91), and
+`examples/probe_class_census` compares it with the walk. #56 and #76
+showed the count over-declares on the sample corpus. The public corpus
+(#225) added three more shortfalls: ACDB_TEXTOBJECTCONTEXTDATA_CLASS on
+ACadSharp's R2004 and R2007 saves, and GEODATA and AcGeoBackupObject on
+`geoloc.dwg`. On each, the walk is closed, with zero inter-record bytes
+and no unanswered reference.
+
+The probe's new `--twin` mode settles them against an independent census:
+AutoCAD's DXF export of the same drawing. It counts the export's records
+of each class, how many of those carry a handle that is no object of the
+drawing ("export-only"), and the count the export's own CLASSES section
+gives:
+
+| Drawing | Class | DWG declares | Walked | Export records | Export-only | Export's CLASSES count |
+|---|---|---:|---:|---:|---:|---:|
+| `sample_AC1018.dwg` (R2004) | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | 2 | 0 | 0 | 0 | 2 |
+| `sample_AC1021.dwg` (R2007) | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | 2 | 0 | 0 | 0 | 2 |
+| `sample_AC1024/1027/1032.dwg` | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | 2 | 2 | 2 | 0 | 2 |
+| `geoloc.dwg` (R2018) | GEODATA | 2 | 1 | 1 | 0 | 1 |
+| `geoloc.dwg` | AcGeoBackupObject | 1 | 0 | 0 | 0 | 0 |
+| `sample_AC1018` … `sample_AC1032.dwg` | TABLECONTENT, TABLEGEOMETRY | 9 / 8 / 7 / 6 / 5 | 2 | 2 | 1 | 16 / 15 / 14 / 13 / 12 |
+
+AutoCAD's export of the R2004 and R2007 saves holds no
+ACDB_TEXTOBJECTCONTEXTDATA_CLASS record, though the class tables of both
+the DWG and the export count 2. `geoloc.dwg`'s export holds one GEODATA
+and no AcGeoBackupObject, and its own class table counts 1 and 0 where the
+DWG's counts 2 and 1. The two class tables disagree with each other, while
+the export's records agree with the walk. So the count is a stale
+registration figure, not a census, and the three classes join the
+allowlist.
+
+With `--twin`, an allowlisted shortfall is excused only when the export
+holds no more records of the class than the walk reached, besides its
+export-only ones, and a missing twin fails the run. All 42 drawings of
+the corpus that have a twin pass. The one export-only surplus is the
+nextgis R2010 saves' CELLSTYLEMAP: the export gives TABLESTYLE `0x65`
+an xdictionary `0xD2` holding a round-trip CELLSTYLEMAP `0xD3`. Neither
+handle is an object of the DWG, and nothing in the drawing refers to a
+handle it does not hold (`probe_reference_closure`). It is the same kind
+of round-trip data the export adds to LTYPE `GAS_LINE` in ACadSharp's
+R2004 to R2010 exports (#40).
+
+```sh
+cargo run --release --example probe_class_census -- ../dwg-corpus/acadsharp/sample_AC1018.dwg --twin ../dwg-corpus/acadsharp/sample_AC1018_ascii.dxf
+cargo run --release --example probe_class_census -- ../dwg-corpus/acadsharp/geoloc.dwg --twin ../dwg-corpus/acadsharp/geoloc.dxf
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

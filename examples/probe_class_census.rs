@@ -7,7 +7,7 @@
 //! missing records.
 //!
 //! ```bash
-//! cargo run --release --example probe_class_census -- file.dwg [--strict]
+//! cargo run --release --example probe_class_census -- file.dwg [--strict] [--twin file.dxf]
 //! ```
 //!
 //! Exit code is non-zero when any class is under-walked, so the probe
@@ -23,6 +23,33 @@
 //! the probe reports them as `ALLOWED` instead of failing; `--strict`
 //! disables it so the numbers stay visible, and is what CI runs over
 //! the canonical fixtures.
+//!
+//! # The DXF twin (#230)
+//!
+//! `--twin` takes AutoCAD's DXF export of the same drawing and adds three
+//! columns: how many records of each class the export holds, how many of
+//! those have a handle that is no object of the drawing (`export-only`),
+//! and the instance count the export's own CLASSES section gives the
+//! class (group 91).
+//!
+//! The export is an independent census of what the drawing contains, so
+//! with a twin an allowlisted shortfall is excused only when the export
+//! holds no more records of the class than the walk reached, not counting
+//! export-only ones, and a missing or unreadable twin fails the run.
+//! Export-only records are data the export adds: on the nextgis R2010
+//! saves it gives the TABLESTYLE (`0x65`) an xdictionary `0xD2` holding a
+//! round-trip CELLSTYLEMAP `0xD3`. Neither handle is an object of the
+//! DWG, and `probe_reference_closure` finds no record of the drawing
+//! referring to a handle it does not hold. The export also gives some
+//! records handles the DWG does not use (one of the two TABLECONTENT
+//! records of each ACadSharp save), so the rule bounds the export from
+//! above rather than asking for equality.
+//!
+//! Wherever the corpus has a twin, no shortfall has the export holding
+//! more records of the class than the walk reached, besides export-only
+//! ones, while the two class tables disagree with each other:
+//! `sample_AC1018.dwg` declares 9 TABLECONTENT, its export's table says
+//! 16, and the drawing and the export both hold 2 records.
 
 use dwg::error::Result;
 use dwg::{DwgFile, ObjectType};
@@ -69,16 +96,42 @@ use std::process::ExitCode;
 /// `ACAD_ROUNDTRIP_2008_TABLESTYLE_CELLSTYLEMAP` dictionary key for one
 /// to hang from. Run `examples/probe_reference_closure` to reproduce.
 /// The counts stay pinned per file by `tests/class_census.rs`.
+///
+/// The public corpus (#225) added three more, each settled by AutoCAD's
+/// DXF export of the same drawing (`--twin`, #230). ACadSharp's R2004 and
+/// R2007 saves declare 2 ACDB_TEXTOBJECTCONTEXTDATA_CLASS and contain
+/// none, and their exports hold none either, while the R2010-R2018 saves
+/// and their exports hold the 2. `geoloc.dwg` declares 2 GEODATA and 1
+/// AcGeoBackupObject and holds 1 and 0; its export holds 1 and 0, and its
+/// own class table counts them 1 and 0. The same twins hold exactly 2
+/// TABLECONTENT and 2 TABLEGEOMETRY records on every release from R2004.
 pub const ALLOWLIST: &[(&str, &str)] = &[
     (
         "TABLECONTENT",
-        "declares 5 against 2 ACAD_TABLE entities; the object stream is \
-         99.92 % covered and no handle reference is unresolved (#56)",
+        "declares 5 to 9 against 2 ACAD_TABLE entities; the object stream is \
+         99.92 % covered, no handle reference is unresolved (#56), and \
+         AutoCAD's DXF export of each save holds 2 (#230)",
     ),
     (
         "TABLEGEOMETRY",
-        "declares 5 against 2 ACAD_TABLE entities; the object stream is \
-         99.92 % covered and no handle reference is unresolved (#56)",
+        "declares 5 to 9 against 2 ACAD_TABLE entities; the object stream is \
+         99.92 % covered, no handle reference is unresolved (#56), and \
+         AutoCAD's DXF export of each save holds 2 (#230)",
+    ),
+    (
+        "ACDB_TEXTOBJECTCONTEXTDATA_CLASS",
+        "the R2004 and R2007 saves declare 2 and hold none, and so do \
+         AutoCAD's DXF exports of them; the R2010+ saves and exports hold 2 (#230)",
+    ),
+    (
+        "GEODATA",
+        "geoloc.dwg declares 2 and holds 1; AutoCAD's DXF export holds 1 \
+         and its class table counts 1 (#230)",
+    ),
+    (
+        "AcGeoBackupObject",
+        "geoloc.dwg declares 1 and holds none; AutoCAD's DXF export holds \
+         none and its class table counts 0 (#230)",
     ),
     (
         "DICTIONARYVAR",
@@ -94,13 +147,74 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ),
 ];
 
+/// The handle of every record per DXF name in a DXF export, and the
+/// instance count its CLASSES section gives each class (group 91), keyed
+/// by normalized name.
+#[derive(Default)]
+struct Twin {
+    records: BTreeMap<String, Vec<Option<u64>>>,
+    class_counts: BTreeMap<String, usize>,
+}
+
+fn read_twin(path: &str) -> std::io::Result<Twin> {
+    let bytes = std::fs::read(path)?;
+    let text = String::from_utf8_lossy(&bytes);
+    let lines: Vec<&str> = text.lines().collect();
+    let mut twin = Twin::default();
+    let mut class_name: Option<String> = None;
+    let mut in_class = false;
+    let mut current: Option<String> = None;
+    for pair in lines.chunks_exact(2) {
+        let (code, value) = (pair[0].trim(), pair[1].trim());
+        if code == "0" {
+            in_class = value == "CLASS";
+            class_name = None;
+            let name = normalize(value);
+            twin.records.entry(name.clone()).or_default().push(None);
+            current = Some(name);
+        } else if code == "5" || code == "105" {
+            // The record's own handle is its first `5` (`105` on DIMSTYLE).
+            if let Some(slot) = current
+                .as_ref()
+                .and_then(|n| twin.records.get_mut(n))
+                .and_then(|v| v.last_mut())
+                .filter(|h| h.is_none())
+            {
+                *slot = u64::from_str_radix(value, 16).ok();
+            }
+        } else if in_class && code == "1" {
+            class_name = Some(normalize(value));
+        } else if in_class && code == "91" {
+            if let (Some(name), Ok(n)) = (class_name.as_ref(), value.parse()) {
+                twin.class_counts.insert(name.clone(), n);
+            }
+        }
+    }
+    Ok(twin)
+}
+
 fn main() -> ExitCode {
-    let Some(path) = env::args().nth(1) else {
-        eprintln!("usage: probe_class_census <file.dwg> [--strict]");
+    let args: Vec<String> = env::args().skip(1).collect();
+    let Some(path) = args.first().cloned() else {
+        eprintln!("usage: probe_class_census <file.dwg> [--strict] [--twin <file.dxf>]");
         return ExitCode::FAILURE;
     };
-    let strict = env::args().any(|a| a == "--strict");
-    match run(&path, strict) {
+    let strict = args.iter().any(|a| a == "--strict");
+    let twin = match args.iter().position(|a| a == "--twin") {
+        Some(i) => match args.get(i + 1).map(|p| read_twin(p)) {
+            Some(Ok(twin)) => Some(twin),
+            Some(Err(e)) => {
+                eprintln!("cannot read the DXF twin: {e}");
+                return ExitCode::FAILURE;
+            }
+            None => {
+                eprintln!("--twin needs a DXF path");
+                return ExitCode::FAILURE;
+            }
+        },
+        None => None,
+    };
+    match run(&path, strict, twin.as_ref()) {
         Ok(true) => ExitCode::SUCCESS,
         Ok(false) => ExitCode::FAILURE,
         Err(e) => {
@@ -110,7 +224,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(path: &str, strict: bool) -> Result<bool> {
+fn run(path: &str, strict: bool, twin: Option<&Twin>) -> Result<bool> {
     let file = DwgFile::open(path)?;
     println!("file    : {path}");
     println!("version : {}", file.version());
@@ -225,11 +339,18 @@ fn run(path: &str, strict: bool) -> Result<bool> {
         );
     }
     println!();
+    let twin_header = if twin.is_some() {
+        format!(" {:>6} {:>11} {:>8}", "twin", "export-only", "twin 91")
+    } else {
+        String::new()
+    };
+    let in_drawing: std::collections::HashSet<u64> =
+        objects.iter().map(|o| o.handle.value).collect();
     println!(
-        "{:<38} {:>6} {:>9} {:>7} {:>7} {:>7}",
+        "{:<38} {:>6} {:>9} {:>7} {:>7} {:>7}{twin_header}",
         "class", "code", "declared", "walked", "fixed", "delta"
     );
-    println!("{}", "-".repeat(80));
+    println!("{}", "-".repeat(if twin.is_some() { 108 } else { 80 }));
 
     let mut complete = true;
     let mut allowed = Vec::new();
@@ -244,19 +365,45 @@ fn run(path: &str, strict: bool) -> Result<bool> {
             continue;
         }
         let delta = (seen + fixed) as i64 - declared as i64;
+        let key = normalize(&def.dxf_class_name);
+        // The export's records of this class, and how many of them have a
+        // handle that is no object of the drawing: data the export writes
+        // and the DWG does not hold, such as the round-trip objects AutoCAD
+        // adds when it writes an older release.
+        let twin_records = twin.map(|t| {
+            let handles = t.records.get(&key).map(Vec::as_slice).unwrap_or(&[]);
+            let export_only = handles
+                .iter()
+                .filter(|h| h.is_some_and(|h| !in_drawing.contains(&h)))
+                .count();
+            (handles.len(), export_only)
+        });
+        // With a twin, a shortfall is excused only when the export holds no
+        // more records of the class than the walk reached, besides its
+        // export-only ones: the allowlist names the classes, and the twin
+        // has to agree for this file.
         let excused = !strict
             && delta < 0
-            && ALLOWLIST
-                .iter()
-                .any(|(name, _)| normalize(name) == normalize(&def.dxf_class_name));
+            && twin_records.is_none_or(|(n, export_only)| n - export_only <= seen + fixed)
+            && ALLOWLIST.iter().any(|(name, _)| normalize(name) == key);
         if delta < 0 && !excused {
             complete = false;
         }
         if excused {
             allowed.push(def.dxf_class_name.clone());
         }
+        let twin_cells = match (twin, twin_records) {
+            (Some(t), Some((records, export_only))) => {
+                let counted = t
+                    .class_counts
+                    .get(&key)
+                    .map_or_else(|| "-".to_string(), |n| n.to_string());
+                format!(" {records:>6} {export_only:>11} {counted:>8}")
+            }
+            _ => String::new(),
+        };
         println!(
-            "{:<38} {:>6} {:>9} {:>7} {:>7} {:>+7} {}",
+            "{:<38} {:>6} {:>9} {:>7} {:>7} {:>+7}{twin_cells} {}",
             def.dxf_class_name,
             def.class_number,
             declared,
