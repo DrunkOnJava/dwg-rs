@@ -40,7 +40,7 @@ four independently authored drawings. All remain explicit migration gaps.
    **Index bytes are verified before anything is derived from them;
    payload bytes are delivered provisionally and committed by a verdict.**
    The file header fits in one chunk and is verified whole. An object-map
-   chunk (up to 2034 bytes) does not, so the walker reads it twice: a
+   chunk (up to 2034 bytes: 2032 of entries and its size field) does not, so the walker reads it twice: a
    CRC-only pass with no storage, then a decoding pass that visits
    objects. No object is visited from an unverified chunk; the second
    pass costs one extra read of the map, which is small next to the

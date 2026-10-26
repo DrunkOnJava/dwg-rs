@@ -1,7 +1,7 @@
 {
   "source": "https://github.com/DomCR/ACadSharp",
   "commit": "c30a97ce4697e649e562fbeb52057aa9f73f7744",
-  "note": "The AutoCAD-saved R14 and R2000 drawings of the MIT samples/ directory, fetched by hash at acceptance time and never committed. Their object maps hold chunks of 2033 and 2034 bytes (the size field counts its own two bytes, so 2032 bytes of entries reach 2034), the case the bound of 2032 refused. Object counts agree across an independent framing parse, the legacy reader and the streaming walk.",
+  "note": "ACadSharp's R14 and R2000 samples at this commit (MIT, AutoCAD 2025), fetched by hash at acceptance time and never committed. At about 1.3 MB each they are the walk's only drawings larger than 160 KB: their object maps have several chunks, and the first chunk of each is 2,033 and 2,034 bytes, which the walker once refused as over 2,032. The count is the independent framing parse's, equal to the legacy reader's.",
   "files": [
     {
       "name": "samples/sample_AC1014.dwg",
