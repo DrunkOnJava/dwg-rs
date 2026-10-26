@@ -206,6 +206,13 @@ pub struct WalkerLimits {
     /// practical limit is ~32; this cap defaults higher with room for
     /// hand-authored weirdness.
     pub max_block_nesting: usize,
+    /// Maximum unanswered references a lossy walk keeps in
+    /// [`crate::object::ObjectWalkSummary::unanswered_references`].
+    /// Past it the walk still counts them, in
+    /// `unanswered_references_suppressed`, but stores none, so a crafted
+    /// handle stream (every byte a one-byte relative reference) cannot
+    /// grow the summary without bound (#81).
+    pub max_retained_references: usize,
 }
 
 impl Default for WalkerLimits {
@@ -222,6 +229,7 @@ impl WalkerLimits {
             max_handles: 1_000_000,
             max_scan_bytes: 512 * 1024 * 1024,
             max_block_nesting: 128,
+            max_retained_references: 100_000,
         }
     }
 
@@ -231,6 +239,7 @@ impl WalkerLimits {
             max_handles: 100_000,
             max_scan_bytes: 64 * 1024 * 1024,
             max_block_nesting: 32,
+            max_retained_references: 10_000,
         }
     }
 
@@ -240,6 +249,7 @@ impl WalkerLimits {
             max_handles: 10_000_000,
             max_scan_bytes: 4 * 1024 * 1024 * 1024,
             max_block_nesting: 512,
+            max_retained_references: 1_000_000,
         }
     }
 }

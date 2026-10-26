@@ -202,6 +202,11 @@ impl R2004SectionWalker {
         self.index
     }
 
+    /// The section's id, as its map entry and every page header carry it.
+    pub fn section_id(&self) -> u32 {
+        self.section_id
+    }
+
     /// Section bytes the last `Data` step produced; empty after any other
     /// step.
     pub fn data(&self) -> &[u8] {

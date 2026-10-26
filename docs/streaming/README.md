@@ -277,8 +277,8 @@ byte past the section's size is decoded and dropped.
 
 The header layout and both checksum rules are a measured finding
 ([ARCHITECTURE.md §7n](../../ARCHITECTURE.md)): `section_map::DataPageHeader`
-labels three of its fields wrongly, and its `page_size` is the page's size
-on disk, not the decompressed size. A compressed page decodes with a
+used to label three of its fields wrongly (now fixed), and its `page_size` is
+the page's size on disk, not the decompressed size. A compressed page decodes with a
 ceiling of the section's page size; it may end anywhere from
 `min(page size, bytes the section has left)` up to a whole page and no
 shorter (`DataPageLength`), and a stream that outgrows the page size is
@@ -409,6 +409,36 @@ them, was checked by hand (53 pages equal), and adding them to
 `lz77-corpus.json` is a follow-up. R2007 uses a different compression (§5.10) and is not
 covered.
 
+## Cross-runtime restore (R2004 walks)
+
+`tools/streaming/wasm_resume.rs` is a `#![no_std]` WebAssembly module built
+from the identical grammar files (`rustc --target wasm32-unknown-unknown`,
+no allocator). A host copies the source bytes, a checkpoint and the caller's
+cursors into its scratch memory, calls an export and reads back the JSON
+lines the native examples print: `resume_maps` restores a `DWGM`
+checkpoint and finishes the page map and section map walk, `resume_section`
+restores a `DWGS` checkpoint (given the section's rows of the caller's page
+index and the saved cursors) and finishes that section, and `run_maps` walks
+for a number of steps and leaves a `DWGM` checkpoint for the native build.
+`tools/streaming/wasm_resume.mjs` drives it under node, a fresh instance per
+job, and `tools/streaming/verify_wasm.py` is the acceptance run.
+
+On the canonical R2018 fixture and `line_2004.dwg`, `line_2010.dwg` and
+`line_2013.dwg` (a file the verifier builds for the section walk): every
+native map-walk checkpoint (every step of the fixture, about 40 sampled of
+each real file) restored in the kernel finishes with exactly the lines the
+native resume prints, with the kernel reading at 1, 7, 64 or 256 bytes at a
+time; the kernel's own checkpoint at the same step is byte-identical to the
+native one in all of them, and the native build resumes it to the
+uninterrupted run's output. About 90 native data-page checkpoints of each
+file, around every page, hole and section end, restored in the kernel finish
+their section with the lines the native resume prints, and the section's
+CRC-32 equals the independent assembly of `verify_sections.py`. A bit flip
+anywhere sampled in a native checkpoint of either walk, and a wrong
+identity, are refused by the kernel as by the native build. The kernel runs
+under node (V8), not in a browser, and the section walk crosses runtimes in
+one direction only.
+
 ## Checkpoint contract
 
 A checkpoint contains the source identity and length, phase, byte position,
@@ -469,6 +499,7 @@ python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
 python3 tools/streaming/verify_r2004.py target/debug/examples/stream_r2004 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_maps.py target/debug/examples/stream_r2004_maps target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_sections.py target/debug/examples/stream_r2004_sections target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_wasm.py target/debug/examples/stream_r2004_maps target/debug/examples/stream_r2004_sections
 ```
 
 Run these on the project's build host. The workflow uploads
@@ -481,8 +512,9 @@ resume positions, actual source-read continuity, pending delivery, corrupt
 and inconsistent checkpoints, source mismatch and failure-state restore.
 The real-file manifest records header fields, not object counts. No real R13
 file, multi-gigabyte model or independent object-count oracle has passed
-this reader. The kernel WASM compile does not establish browser runtime or
-cross-runtime checkpoint acceptance.
+this reader. The kernel WASM compile does not establish browser runtime;
+cross-runtime checkpoint acceptance is established only for the R2004 walks
+(below).
 
 ## Current evidence
 
