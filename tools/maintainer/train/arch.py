@@ -36,17 +36,38 @@ def suffix(n):
 def renumber(mb, main):
     heading = re.compile(r'^## 7([a-z]+)\..*$', re.M)
     on_main = {m.group(0): m.group(1) for m in heading.finditer(git('show', f'{main}:ARCHITECTURE.md'))}
-    added = {}
+    added, removed = {}, {}
     current = None
     for line in git('diff', '-U0', mb, 'HEAD').splitlines():
-        if line.startswith('+++ '):
-            current = line[6:] if line.startswith('+++ b/') else None
+        if line.startswith('+++ ') or line.startswith('--- '):
+            if line.startswith('+++ '):
+                current = line[6:] if line.startswith('+++ b/') else None
         elif line.startswith('+') and current:
             added.setdefault(current, set()).add(line[1:])
+        elif line.startswith('-') and current:
+            removed.setdefault(current, set()).add(line[1:])
     # The PR's own sections are the headings it adds that main does not already have, compared by
     # their whole text: a suffix alone cannot tell the PR's 7n from another section's 7n on main.
-    mine = sorted({m.group(1) for m in heading.finditer('\n'.join(added.get('ARCHITECTURE.md', ())))
-                   if m.group(0) not in on_main}, key=ordinal)
+    # A heading the PR rewrites (it removes one with the same suffix or the same title) is an edit
+    # of an existing section, not a new one, and keeps its place.
+    def title(h):
+        return h.split('. ', 1)[1] if '. ' in h else h
+    gone = [(m.group(1), title(m.group(0))) for m in heading.finditer('\n'.join(removed.get('ARCHITECTURE.md', ())))]
+    new_heads = [(m.group(1), m.group(0)) for m in heading.finditer(open('ARCHITECTURE.md', encoding='utf-8').read())
+                 if m.group(0) in added.get('ARCHITECTURE.md', ()) and m.group(0) not in on_main]
+    # Each removed heading accounts for at most one added one: a moved section (same title) first,
+    # then a retitled one (same suffix), in document order; what is left over is new.
+    for match in (lambda h, g, t: title(h) == t, lambda h, g, t: h.split('. ', 1)[0][4:] == g):
+        kept = []
+        for suffix_, h in new_heads:
+            hit = next((i for i, (g, t) in enumerate(gone) if match(h, g, t)), None)
+            if hit is None:
+                kept.append((suffix_, h))
+            else:
+                gone.pop(hit)
+        new_heads = kept
+    mine = sorted({suffix_ for suffix_, _ in new_heads}, key=ordinal)
+    new_lines = {h for _, h in new_heads}
     if not mine:
         return
     last = max((ordinal(v) for v in on_main.values()), default=0)
@@ -55,7 +76,9 @@ def renumber(mb, main):
         return
     pattern = re.compile(r'(§7|^## 7)(' + '|'.join(sorted(mapping, key=len, reverse=True)) + r')(?![a-z])')
     for path, lines in added.items():
-        hits = {l for l in lines if pattern.search(l)}
+        # A heading line moves only if it is one of the PR's new sections; an edited heading keeps
+        # its suffix even when it shares it with a new one.
+        hits = {l for l in lines if pattern.search(l) and (not heading.match(l) or l in new_lines)}
         if not hits:
             continue
         with open(path, encoding='utf-8') as fh:
