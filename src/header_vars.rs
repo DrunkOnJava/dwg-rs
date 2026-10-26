@@ -741,8 +741,8 @@ impl HeaderVars {
         // whole byte left over by the R13 rows is where the two differ, so
         // such a header is read with the R14 rows and may carry that byte.
         // This is a tolerance for that writer's R13 variant, confined to
-        // AC1012: its files are not AutoCAD's (AutoCAD's R14 pads with ones
-        // and sizes the section ceil(bits / 8)).
+        // AC1012: AutoCAD-written R13 headers have neither the four shorts
+        // nor the extra byte (ARCHITECTURE.md §7aj).
         if version == Version::R13 && rows.done && total - rows.end_bit >= 8 {
             let with_shorts = read_rows(&body, header_table::R14);
             if with_shorts.done {
