@@ -637,11 +637,13 @@ output of the two processes concatenate to the uninterrupted run's, the bytes wr
 equal the section, all six stages were checkpointed, both passes of the page map,
 the section map and a data page, a page scan, and nine of the decoder's
 fourteen modes. Bit flips at every byte and every truncation of a 395-byte
-checkpoint, 100 sampled of each for a walking one, a wrong identity, 129
+checkpoint, 100 sampled of each for a walking one, a wrong identity, 133
 resealed unreachable states (a stage that does not follow, an odd name length, an
-encrypted section, codewords read past the page, bytes produced past it, a
-corrupted header) are rejected, and 180 resealed single-byte mutations of the
-stage checkpoints never panic. On `arc_2007.dwg` and `sample_AC1021.dwg` 41
+encrypted section, a section index of `u32::MAX`, codewords read past the page,
+bytes produced past it, a corrupted header) are rejected, and neither 180
+resealed single-byte mutations of the stage checkpoints nor 330 with one numeric
+field (a cursor, a reader's or a decoder's counter) at its largest value panic in
+a build that checks overflow. On `arc_2007.dwg` and `sample_AC1021.dwg` 41
 corruptions end in their named error with exactly the walk before them printed
 (a flipped byte in each of the header's codewords, check data, the page map, the
 section map and in a page's message, parity and padding; a bare page's stored
