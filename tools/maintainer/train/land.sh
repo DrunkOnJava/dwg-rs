@@ -62,12 +62,14 @@ if moved && ! still_valid; then echo "#$P main moved under it since the refresh"
 gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not enable auto-merge"; exit 5; }
 echo "#$P Corpus green, 0 threads, auto-merge on"
 while :; do
-  [ "$(date +%s)" -gt $((deadline + 3600)) ] && { echo "#$P TIMEOUT waiting for merge"; exit 3; }
+  [ "$(date +%s)" -gt $((deadline + 3600)) ] && { gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P TIMEOUT waiting for merge; auto-merge off"; exit 3; }
   s=$(gh pr view "$P" -R "$R" --json state,mergeStateStatus --jq '"\(.state) \(.mergeStateStatus)"' 2>/dev/null)
   case $s in
     MERGED*) echo "#$P MERGED as $(gh pr view "$P" -R "$R" --json mergeCommit --jq '.mergeCommit.oid[0:9]')"; exit 0 ;;
     CLOSED*) echo "#$P CLOSED without merge"; exit 6 ;;
     *DIRTY) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P went DIRTY before merging"; exit 7 ;;
+    # With strict up-to-date on, a branch behind main never merges; only a real refresh pushes main in.
+    *BEHIND) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P is behind main; auto-merge off"; exit 8 ;;
   esac
   if moved; then
     [ "$(gh pr view "$P" -R "$R" --json state --jq .state 2>/dev/null)" = MERGED ] && continue
@@ -79,7 +81,7 @@ while :; do
     echo "#$P main moved under it while waiting; auto-merge off"; exit 8
   fi
   f=$(gh pr checks "$P" -R "$R" --json name,state --jq '[.[]|select(.state=="FAILURE")|.name]|join(", ")' 2>/dev/null)
-  [ -n "$f" ] && { echo "#$P failing: $f"; exit 1; }
+  [ -n "$f" ] && { gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P failing: $f; auto-merge off"; exit 1; }
   # A reviewer can open a thread after auto-merge went on; the ruleset then holds the PR until
   # the deadline, so hand it back instead of stalling the train.
   case $(unresolved) in
