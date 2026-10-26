@@ -4,12 +4,15 @@
 //! An INSERT places one instance of a BLOCK (external or internal)
 //! at a specific insertion point with optional scale and rotation.
 //!
-//! # Stream shape (R2000+)
+//! # Stream shape
 //!
 //! ```text
 //! 3BD  insertion_point       10
-//! BB   data_flags                -- how the scale is stored, below
-//! ...  scale data
+//! R13-R14:
+//!   BD   x, y, z scale       41, 42, 43
+//! R2000+:
+//!   BB   data_flags              -- how the scale is stored, below
+//!   ...  scale data
 //! BD   rotation              50
 //! 3BD  extrusion             210
 //! B    has_attribs           66
@@ -26,6 +29,10 @@
 //! | `01`  | x is `1.0`; y and z are `DD`s defaulting to `1.0` |
 //! | `10`  | x is an `RD`; y and z equal x |
 //! | `00`  | x is an `RD`; y and z are `DD`s defaulting to x |
+//!
+//! R14 writes the three scales as plain `BD`s (§20.4.9 "R13-R14
+//! Only"); reading them through the data flags failed all 12 R14
+//! INSERTs of the public corpus (ARCHITECTURE.md §7r, #227).
 //!
 //! The previous reading of this entity used `BD` scale components, a
 //! `BE` extrusion and no owned-object count. On `sample_AC1032.dwg`
@@ -71,33 +78,15 @@ pub struct Insert {
     pub owned_object_count: u32,
 }
 
-/// Decodes the `Insert` payload that follows the common entity header.
+/// Decodes the §20.4.9 INSERT payload that follows the common entity
+/// data.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
     let insertion_point = read_bd3(c)?;
-    let data_flags = c.read_bb()?;
-    let scale = match data_flags {
-        0b11 => Point3D {
-            x: 1.0,
-            y: 1.0,
-            z: 1.0,
-        },
-        0b01 => Point3D {
-            x: 1.0,
-            y: c.read_dd(1.0)?,
-            z: c.read_dd(1.0)?,
-        },
-        0b10 => {
-            let x = c.read_rd()?;
-            Point3D { x, y: x, z: x }
-        }
-        _ => {
-            let x = c.read_rd()?;
-            Point3D {
-                x,
-                y: c.read_dd(x)?,
-                z: c.read_dd(x)?,
-            }
-        }
+    let scale = if version == Version::R14 {
+        // §20.4.9: R13-R14 write the three scales as plain `BD`s.
+        read_bd3(c)?
+    } else {
+        read_r2000_scale(c)?
     };
     let rotation = c.read_bd()?;
     let extrusion = read_bd3(c)?;
@@ -120,6 +109,36 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
         extrusion,
         has_attribs,
         owned_object_count,
+    })
+}
+
+/// The R2000+ scale (§20.4.9): `BB` data flags selecting which of the
+/// three factors are stored, as `RD` / `DD`.
+fn read_r2000_scale(c: &mut BitCursor<'_>) -> Result<Point3D> {
+    let data_flags = c.read_bb()?;
+    Ok(match data_flags {
+        0b11 => Point3D {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+        0b01 => Point3D {
+            x: 1.0,
+            y: c.read_dd(1.0)?,
+            z: c.read_dd(1.0)?,
+        },
+        0b10 => {
+            let x = c.read_rd()?;
+            Point3D { x, y: x, z: x }
+        }
+        _ => {
+            let x = c.read_rd()?;
+            Point3D {
+                x,
+                y: c.read_dd(x)?,
+                z: c.read_dd(x)?,
+            }
+        }
     })
 }
 

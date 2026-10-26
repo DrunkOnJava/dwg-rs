@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 65 `closes`, 6 `decoder`, 33 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 46 `closes`, 6 `decoder`, 30 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 75 `closes`, 6 `decoder`, 23 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 56 `closes`, 6 `decoder`, 20 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -59,7 +59,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.6 | BLOCK (4) | 111 | `closes` | src/entities/block.rs | #141 |  |
 | §20.4.7 | ENDBLK (5) | 111 | `closes` | src/entities/endblk.rs | #141 |  |
 | §20.4.8 | SEQEND (6) | 112 | `closes` | src/entities/seqend.rs | #141 |  |
-| §20.4.9 | INSERT (7) | 112 | `partial` | src/entities/insert.rs | #141 | All 12 R14 records error (#227). |
+| §20.4.9 | INSERT (7) | 112 | `closes` | src/entities/insert.rs | #141 | R14 included: the 12 R14 records close once the three scales are read as the R13-R14 BDs §20.4.9 prints, and equal the R2000 save of the same drawing (#227, ARCHITECTURE.md §7r). |
 | §20.4.10 | MINSERT (8) | 113 | `decoder` | src/entities/insert.rs | #141 | No MINSERT in the corpus. |
 | §20.4.11 | VERTEX (2D) (10) | 114 | `closes` | src/entities/vertex.rs | #142 |  |
 | §20.4.12 | VERTEX (3D) (11) | 115 | `closes` | src/entities/vertex.rs | #142 |  |
@@ -72,17 +72,17 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.19 | ARC_DIMENSION | 119 | `missing` |  | #144 |  |
 | §20.4.20 | CIRCLE (18) | 119 | `closes` | src/entities/circle.rs | #143 |  |
 | §20.4.21 | LINE (19) | 120 | `closes` | src/entities/line.rs | #143 |  |
-| §20.4.22 | Common dimension data | 121 | `partial` | src/entities/dimension.rs | #144 | Every R14 dimension record errors, in all seven types (#227). |
-| §20.4.23 | DIMENSION (ORDINATE) (20) | 122 | `partial` | src/entities/dimension_ordinate.rs | #144 | Both R14 records error (#227). |
-| §20.4.24 | DIMENSION (LINEAR) (21) | 123 | `partial` | src/entities/dimension_linear.rs | #144 | All 3 R14 records error (#227). |
-| §20.4.25 | DIMENSION (ALIGNED) (22) | 123 | `partial` | src/entities/dimension_aligned.rs | #144 | Both R14 records error (#227). |
-| §20.4.26 | DIMENSION (ANGULAR, 3-PT) (23) | 124 | `partial` | src/entities/dimension_angular_3p.rs | #144 | The R14 record errors (#227). |
-| §20.4.27 | DIMENSION (ANGULAR, 2-LINE) (24) | 125 | `partial` | src/entities/dimension_angular_2l.rs | #144 | The R14 record errors (#227). |
-| §20.4.28 | DIMENSION (RADIUS) (25) | 126 | `partial` | src/entities/dimension_radial.rs | #144 | The R14 record errors (#227). |
-| §20.4.29 | DIMENSION (DIAMETER) (26) | 126 | `partial` | src/entities/dimension_diameter.rs | #144 | The R14 record errors (#227). |
+| §20.4.22 | Common dimension data | 121 | `closes` | src/entities/dimension.rs | #144 | Attachment, line spacing and actual measurement are R2000+ as printed; with that, every R14 dimension record closes and equals the R2000 save in every other field (#227, ARCHITECTURE.md §7r). |
+| §20.4.23 | DIMENSION (ORDINATE) (20) | 122 | `closes` | src/entities/dimension_ordinate.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
+| §20.4.24 | DIMENSION (LINEAR) (21) | 123 | `closes` | src/entities/dimension_linear.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
+| §20.4.25 | DIMENSION (ALIGNED) (22) | 123 | `closes` | src/entities/dimension_aligned.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
+| §20.4.26 | DIMENSION (ANGULAR, 3-PT) (23) | 124 | `closes` | src/entities/dimension_angular_3p.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
+| §20.4.27 | DIMENSION (ANGULAR, 2-LINE) (24) | 125 | `closes` | src/entities/dimension_angular_2l.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
+| §20.4.28 | DIMENSION (RADIUS) (25) | 126 | `closes` | src/entities/dimension_radial.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
+| §20.4.29 | DIMENSION (DIAMETER) (26) | 126 | `closes` | src/entities/dimension_diameter.rs | #144 | R14 included: closes on every record of the public corpus once the common dimension data reads its R2000+ fields only from R2000 (#227, ARCHITECTURE.md §7r). |
 | §20.4.30 | LARGE_RADIAL_DIMENSION | 127 | `missing` |  | #144 |  |
 | §20.4.31 | POINT (27) | 128 | `closes` | src/entities/point.rs | #143 |  |
-| §20.4.32 | 3DFACE (28) | 128 | `partial` | src/entities/three_d_face.rs | #145 | The R14 record errors (#227). |
+| §20.4.32 | 3DFACE (28) | 128 | `closes` | src/entities/three_d_face.rs | #145 | R14 included: the R13-R14 branch (four 3BD corners and the invisible-edge BS) closes the R14 record, which equals the R2000 save (#227, ARCHITECTURE.md §7r). |
 | §20.4.33 | POLYLINE (PFACE) (29) | 129 | `closes` | src/entities/polyface_mesh.rs | #142 |  |
 | §20.4.34 | POLYLINE (MESH) (30) | 130 | `closes` | src/entities/polygon_mesh.rs | #142 |  |
 | §20.4.35 | SOLID (31) | 131 | `closes` | src/entities/solid.rs | #145 |  |

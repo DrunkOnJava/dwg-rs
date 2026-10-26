@@ -1237,7 +1237,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
         OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
-        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c)?),
+        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
         // bit: when it is set the SAB stream lives in the data-storage
