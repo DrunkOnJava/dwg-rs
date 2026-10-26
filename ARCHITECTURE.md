@@ -1985,6 +1985,43 @@ on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
 all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
 spec's R14 dump and in all eight R14 files, 64 from R2000.
 
+### dwg-to-dxf writes it back
+
+`src/dxf_header.rs` turns the decoded header into the `$VARIABLE` groups
+AutoCAD's own export writes for the same drawing, and nothing more: a variable
+the export omits is omitted (`$PELLIPSE`, `$FACETRES`, the unknown slots, the
+control-object handles), and so is one the DWG cannot give. The group codes and
+the first release of each variable are measured on the 50 AutoCAD exports of
+the corpus, which agree with each other (`$XCLIPFRAME` alone changes code, 290
+before R2010 and 280 after, and before R2010 a 2 is written false).
+`examples/probe_dxf_header.rs` converts each drawing that has an export, reads
+`dwg-to-dxf`'s output back with `dxf_reader` and compares every variable; the
+Corpus job runs it.
+
+| Release | Files | Written | Agree | Relation | Disagree | Extra | Omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 | 8 | 1,568 | 1,535 | 33 | 0 | 0 | 24 |
+| AC1018 | 8 | 1,663 | 1,630 | 33 | 0 | 0 | 25 |
+| AC1021 | 8 | 1,983 | 1,951 | 32 | 0 | 0 | 25 |
+| AC1024 | 8 | 1,991 | 1,958 | 33 | 0 | 0 | 25 |
+| AC1027 | 8 | 1,985 | 1,952 | 33 | 0 | 0 | 39 |
+| AC1032 | 2 | 497 | 488 | 9 | 0 | 0 | 9 |
+
+*Relation* is the later-save rule above for `$TDUUPDATE`, `$TDINDWG`,
+`$TDUSRTIMER`, `$HANDSEED` and `$VERSIONGUID`. *Extra* is a variable written that
+the export omits: none. Every *omitted* variable has a stated reason: the local
+`$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
+file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
+329), a true-colour `$CECOLOR`, and `$INTERFEREOBJVS` and `$INTERFEREVPVS` where
+the DWG holds the null handle. Three variables live elsewhere in the DWG and are
+read from there: `$MEASUREMENT` (`AcDb:Template`, §22; from R2007 the description
+length counts UTF-16 units, AutoCAD writes a length of 1 and two bytes, where §22
+counts bytes), `$DWGCODEPAGE` (the file header's code page, 29 and 30 measured)
+and `$LASTSAVEDBY` (`AcDb:SummaryInfo`). A handle DXF writes as a name goes
+through the decoded symbol-table record; `$CMLSTYLE` takes the case of its
+`ACAD_MLINESTYLE` dictionary key and an arrowhead block `_BoxBlank` is
+`$DIMBLK` `BoxBlank`. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
+export of either exists to measure the set against.
 ## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line

@@ -499,6 +499,8 @@ fn groups(
         Value::Point3(p) => vec![real(0, p[0])?, real(1, p[1])?, real(2, p[2])?],
         Value::Point2(p) => vec![real(0, p[0])?, real(1, p[1])?],
         Value::Text(t) => vec![HeaderGroup::Text(code(0)?, t.clone())],
+        // Text in the drawing's code page, which the crate does not apply.
+        Value::RawText(_) => return None,
         Value::Color(c) => vec![HeaderGroup::Int(code(0)?, i64::from(c.aci()?))],
         Value::Date { .. } => vec![real(0, value.as_julian()?)?],
         Value::Handle(h) => {
