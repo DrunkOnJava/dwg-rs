@@ -76,11 +76,15 @@ issues from the forms arrive with `needs-triage`.
 
 ## Pull requests
 
-`main` is squash-merge only, with linear history and signed commits, and is
-up to date with `main` before merging. The required checks are Rustfmt,
-Clippy, Test, Documentation, cargo-deny and the PII guard. One issue or
-finding per pull request, with the spec section cited and the
-source-provenance declaration from [`CLEANROOM.md`](../CLEANROOM.md).
+`main` is governed by one ruleset, `main-protection`, kept as code in
+`.github/rulesets/`: squash-merge only, linear history, signed commits,
+resolved review threads, and up to date with `main` before merging. The
+required checks are Rustfmt, Clippy, Test on Linux, macOS and Windows (stable),
+Verify MSRV (1.85), Documentation, cargo-deny, the PII guard and Streaming E2E.
+Nobody can bypass it, the maintainer included; an emergency change goes through
+a pull request like any other. One issue or finding per pull request, with the
+spec section cited and the source-provenance declaration from
+[`CLEANROOM.md`](../CLEANROOM.md).
 
 ## Housekeeping
 
