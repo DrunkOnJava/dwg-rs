@@ -1660,7 +1660,7 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
-## 7y. The class table is not a census; AutoCAD's export agrees with the walk (2026-10-26, #230)
+## 7z. The class table is not a census; AutoCAD's export agrees with the walk (2026-10-26, #230)
 
 `AcDb:Classes` gives every class an instance count (DXF group 91), and
 `examples/probe_class_census` compares it with the walk. #56 and #76
