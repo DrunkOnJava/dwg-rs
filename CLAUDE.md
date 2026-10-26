@@ -6,7 +6,7 @@ dwg-rs is an Apache-2.0 Rust reader (and early writer) for Autodesk DWG, R13 to 
 
 ## Commands
 
-`main` requires ten checks (the `main-protection` ruleset, kept in `.github/rulesets/`): Rustfmt, Clippy, Test on Linux, macOS and Windows (stable), Verify MSRV (1.85), Documentation, cargo-deny, PII guard and Streaming E2E. It is strict: a PR must be up to date with `main`, so every merge restarts the full matrix on the PRs behind it. Locally:
+`main` requires twelve checks (the `main-protection` ruleset, kept in `.github/rulesets/`): Rustfmt, Clippy, Test on Linux, macOS and Windows (stable), Verify MSRV (1.85), Documentation, cargo-deny, PII guard, Streaming E2E, Corpus (public DWG) and Spec coverage, so a corpus count change without its regenerated baseline, or a coverage page out of step with its data, blocks the merge. It is strict: a PR must be up to date with `main`, so every merge restarts the full matrix on the PRs behind it. Locally:
 
 ```sh
 cargo fmt --all -- --check

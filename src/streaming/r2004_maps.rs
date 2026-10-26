@@ -130,6 +130,10 @@ pub struct R2004MapWalker {
     pub(super) section_page: u32,
     pub(super) last_start: u64,
     pub(super) first_ref: bool,
+    /// Walk only the page map: after its last entry the walk is finished,
+    /// without entering the section map. Set by the whole-file walker for
+    /// its second pass; never part of a map checkpoint.
+    pub(super) pages_only: bool,
     pub(super) failure: Option<StreamError>,
 }
 
@@ -173,8 +177,20 @@ impl R2004MapWalker {
             section_page: 0,
             last_start: 0,
             first_ref: true,
+            pages_only: false,
             failure: None,
         }
+    }
+
+    /// A walker at this one's page map again, with this one's verified
+    /// header, reading its entries only. Fixed size, no source bytes.
+    pub(super) fn pages(&self) -> Result<Self, StreamError> {
+        let top = self.top()?;
+        let mut walker = Self::new(self.source());
+        walker.header = self.header.clone();
+        walker.pages_only = true;
+        walker.enter_page(SystemKind::PageMap, top.page_map_address, 0);
+        Ok(walker)
     }
 
     /// Source identity is part of the state and checkpoint contract.
@@ -611,6 +627,10 @@ impl R2004MapWalker {
             SystemKind::PageMap => {
                 if !self.self_seen {
                     return Err(StreamError::PageMapSelf);
+                }
+                if self.pages_only {
+                    self.stage = Stage::Done;
+                    return Ok(MapStep::Finished);
                 }
                 if self.section_map_size == 0 {
                     return Err(StreamError::SectionMapMissing);

@@ -69,9 +69,11 @@
 //!    finite decimal, an integer outside its width, a boolean other than 0 or
 //!    1, a handle that is not 1 to 16 hexadecimal digits, a binary chunk of
 //!    odd length or with a non-hexadecimal digit: refused.
-//! 7. Text that is not 7-bit ASCII in a file before AC1021 (whose bytes
-//!    would need the `$DWGCODEPAGE` code page), or not UTF-8 from AC1021 on:
-//!    refused rather than decoded through an assumed code page.
+//! 7. Text that is not UTF-8 from AC1021 on: refused. Before AC1021, text
+//!    whose bytes leave 7-bit ASCII is in the `$DWGCODEPAGE` code page (or
+//!    one the file does not declare, as in R12): it is kept as its bytes
+//!    ([`DxfValue::CodePageText`]) rather than decoded through an assumed
+//!    code page.
 //! 8. Structure: a group outside any section, `SECTION` not followed by
 //!    `2 <name>`, a section opened inside another or never closed, `ENDSEC`,
 //!    `ENDTAB` or `ENDBLK` with nothing open, a `TABLE` or `BLOCK` left open
@@ -167,6 +169,9 @@ fn malformed(line: usize, reason: impl Into<String>) -> DxfError {
 pub enum DxfValue {
     /// Text, decoded from ASCII or (AC1021 and later) UTF-8, line ending removed.
     Text(String),
+    /// Text before AC1021 with bytes outside 7-bit ASCII, kept undecoded: its
+    /// code page is `$DWGCODEPAGE`, or undeclared.
+    CodePageText(Vec<u8>),
     /// A real, with the number of significant digits the file printed.
     Real {
         /// The parsed value.
@@ -229,6 +234,7 @@ impl fmt::Display for DxfValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Text(s) => write!(f, "{s:?}"),
+            Self::CodePageText(b) => write!(f, "<{} bytes of code-page text>", b.len()),
             Self::Real { value, .. } => write!(f, "{value:?}"),
             Self::Int16(v) => write!(f, "{v}"),
             Self::Int32(v) => write!(f, "{v}"),
@@ -350,6 +356,7 @@ pub struct DxfDocument {
     header_index: BTreeMap<String, usize>,
     handle_index: BTreeMap<u64, usize>,
     real_digits: u8,
+    real_decimals: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -406,6 +413,18 @@ fn value_type(code: u16) -> Option<ValueType> {
 
 /// Significant digits in a printed real: mantissa digits with leading and
 /// trailing zeros removed (`50.0` has 1, `0.4242640687119287` has 16).
+/// Digits after the decimal point of a real printed without an exponent;
+/// 0 for one printed with an exponent.
+fn decimal_places(raw: &[u8]) -> u8 {
+    if raw.iter().any(|b| matches!(b, b'e' | b'E')) {
+        return 0;
+    }
+    let after = raw.iter().position(|&b| b == b'.').map_or(0, |dot| {
+        raw[dot + 1..].iter().filter(|b| b.is_ascii_digit()).count()
+    });
+    u8::try_from(after).unwrap_or(u8::MAX)
+}
+
 fn significant_digits(text: &str) -> u8 {
     let mantissa = text.split(['e', 'E']).next().unwrap_or("");
     let digits: Vec<u8> = mantissa.bytes().filter(u8::is_ascii_digit).collect();
@@ -463,19 +482,17 @@ fn parse_int<T: std::str::FromStr>(text: &str, line: usize, what: &str) -> Resul
         .map_err(|_| malformed(line, format!("not a {what}: {t:?}")))
 }
 
-fn decode_text(raw: &[u8], utf8: bool, line: usize) -> Result<String, DxfError> {
+fn decode_text(raw: &[u8], utf8: bool, line: usize) -> Result<DxfValue, DxfError> {
     if raw.is_ascii() {
         // ASCII is valid UTF-8; the conversion cannot fail.
-        return Ok(String::from_utf8_lossy(raw).into_owned());
+        return Ok(DxfValue::Text(String::from_utf8_lossy(raw).into_owned()));
     }
     if utf8 {
         return String::from_utf8(raw.to_vec())
+            .map(DxfValue::Text)
             .map_err(|_| malformed(line, "text is not valid UTF-8"));
     }
-    Err(malformed(
-        line,
-        "non-ASCII text before AC1021 needs the $DWGCODEPAGE code page, which this reader does not decode",
-    ))
+    Ok(DxfValue::CodePageText(raw.to_vec()))
 }
 
 fn parse_value(
@@ -498,7 +515,7 @@ fn parse_value(
     };
     // Every non-text value is ASCII by construction; anything else is malformed.
     let text = match ty {
-        ValueType::Text => return decode_text(raw, utf8, line).map(DxfValue::Text),
+        ValueType::Text => return decode_text(raw, utf8, line),
         _ if !raw.is_ascii() => {
             return Err(malformed(line, format!("group {code} value is not ASCII")));
         }
@@ -506,7 +523,7 @@ fn parse_value(
     };
     let text = text.as_ref();
     match ty {
-        ValueType::Text => decode_text(raw, utf8, line).map(DxfValue::Text),
+        ValueType::Text => decode_text(raw, utf8, line),
         ValueType::Handle => parse_hex(text, line, "handle").map(DxfValue::Handle),
         ValueType::Real => parse_real(text, line),
         ValueType::Int16 => parse_int::<i16>(text, line, "16-bit integer").map(DxfValue::Int16),
@@ -667,6 +684,7 @@ impl DxfDocument {
             header_index: BTreeMap::new(),
             handle_index: BTreeMap::new(),
             real_digits: 0,
+            real_decimals: 0,
         };
         let mut current: Option<usize> = None;
         let mut open = Open::default();
@@ -682,6 +700,7 @@ impl DxfDocument {
             let value = parse_value(p.code, p.value, utf8, p.line, in_dimstyle)?;
             if let DxfValue::Real { digits, .. } = value {
                 doc.real_digits = doc.real_digits.max(digits);
+                doc.real_decimals = doc.real_decimals.max(decimal_places(p.value));
             }
             if p.code == 0 {
                 if let Some(r) = record.take() {
@@ -695,7 +714,10 @@ impl DxfDocument {
                         }
                         // `999` comments may sit between SECTION and its name.
                         let name = match iter.by_ref().find(|n| n.code != 999) {
-                            Some(n) if n.code == 2 => decode_text(n.value, utf8, n.line)?,
+                            Some(n) if n.code == 2 => match decode_text(n.value, utf8, n.line)? {
+                                DxfValue::Text(t) => t,
+                                _ => return Err(malformed(n.line, "section name is not ASCII")),
+                            },
                             _ => return Err(malformed(p.line, "SECTION not followed by 2 <name>")),
                         };
                         doc.sections.push(DxfSection {
@@ -912,5 +934,13 @@ impl DxfDocument {
     /// the precision AutoCAD wrote the file at (16 for its 2000+ exports).
     pub fn real_precision(&self) -> u8 {
         self.real_digits
+    }
+
+    /// The most digits after the decimal point any real printed without an
+    /// exponent carries: AutoCAD's exports round to 16 significant digits
+    /// but to no more than 16 decimal places (`0.0001000435253656` has 13
+    /// significant digits, and `1.2e-20` prints as `0.0`).
+    pub fn real_decimals(&self) -> u8 {
+        self.real_decimals
     }
 }
