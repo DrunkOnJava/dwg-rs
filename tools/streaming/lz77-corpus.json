@@ -1,0 +1,175 @@
+{
+  "source": "https://github.com/nextgis/dwg_samples",
+  "commit": "ff05d5a89ce123da511ed93c5fe5e6df85e02ab8",
+  "note": "Every R2004, R2010 and R2013 DWG at this commit, fetched by hash at acceptance time and never committed (the repository declares no licence). Page counts include the section page map and section map system pages; produced is the total decompressed bytes of every LZ77 page, measured on October 26, 2026 and re-checked by every acceptance run.",
+  "files": [
+    {
+      "name": "arc_2004.dwg",
+      "bytes": 37537,
+      "sha256": "296f98919bee96915c69025e559cd295ac0ff4a89e3959ebb909572ca475d24f",
+      "magic": "AC1018",
+      "pages": 13,
+      "produced": 328420
+    },
+    {
+      "name": "arc_2010.dwg",
+      "bytes": 51549,
+      "sha256": "fd87187b435062cb15e0f6a88c2b23546768162f54ffae83a3f51788503ec262",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "arc_2013.dwg",
+      "bytes": 16107,
+      "sha256": "ce9ab4b7fbb481185346e9caaeb08c5ae8186455d2db4f9f94f1beec697dd61e",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    },
+    {
+      "name": "circle_2004.dwg",
+      "bytes": 37598,
+      "sha256": "79722b1ff889823d1e7644ff5fd27a7ad363d75746ccc4cb14a95caec6d591b8",
+      "magic": "AC1018",
+      "pages": 13,
+      "produced": 328420
+    },
+    {
+      "name": "circle_2010.dwg",
+      "bytes": 51805,
+      "sha256": "4244fd138b749584003a071b085a879848e0ab6f71fbc6ab4fc14193a37f9900",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "circle_2013.dwg",
+      "bytes": 16395,
+      "sha256": "c3a7f48c6353fcc529e85741180d8630e89fbc4beb988c782d74bd20d7bf6a75",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    },
+    {
+      "name": "ellipse_2004.dwg",
+      "bytes": 39945,
+      "sha256": "88fdb97bdfa4c4440c115f54a82d101b40585788af46e928d6696860af875c92",
+      "magic": "AC1018",
+      "pages": 14,
+      "produced": 358140
+    },
+    {
+      "name": "ellipse_2010.dwg",
+      "bytes": 51773,
+      "sha256": "bc2c3c79a77a95f65e53051836e403b3c70bfac8efcd5b2fd6bfa8b3e43d3fb1",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "ellipse_2013.dwg",
+      "bytes": 16331,
+      "sha256": "0ea9e0c10fd454ced41387af85a71eba87d74873f1039037c6c55ff03ce57155",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    },
+    {
+      "name": "line_2004.dwg",
+      "bytes": 37281,
+      "sha256": "0bef05be25e45491ee4ddcc31fb0acf7fe8f90194e7a13014619b69d991b4759",
+      "magic": "AC1018",
+      "pages": 13,
+      "produced": 328420
+    },
+    {
+      "name": "line_2010.dwg",
+      "bytes": 51741,
+      "sha256": "60e06849a90e6724a495e3a05d867a8621f19a876ec3bcdb8af4c731cba6f214",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "line_2013.dwg",
+      "bytes": 16331,
+      "sha256": "3815af3bfe9a0d45c1ce764a37871104eff791dd95cd095b338cc24863baa66f",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    },
+    {
+      "name": "point2d_2004.dwg",
+      "bytes": 37565,
+      "sha256": "c5610bf26ae7983713d264a70e97d664cec8dfb4aaa0f44ce078f974d47a2dae",
+      "magic": "AC1018",
+      "pages": 13,
+      "produced": 328420
+    },
+    {
+      "name": "point2d_2010.dwg",
+      "bytes": 51482,
+      "sha256": "31415ccca677798b89815904174edbd70ff5e8f778ffee07c11e6f28ba5363c1",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "point2d_2013.dwg",
+      "bytes": 16202,
+      "sha256": "8dd0c76439207c4c92d4642a79532d7b704c2757e261f0c75bd803d270632a55",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    },
+    {
+      "name": "point3d_2004.dwg",
+      "bytes": 37533,
+      "sha256": "ba256436ee4bb1e777296699654d9ad872c5c27fcda0e9b535868c584f4cfde5",
+      "magic": "AC1018",
+      "pages": 13,
+      "produced": 328420
+    },
+    {
+      "name": "point3d_2010.dwg",
+      "bytes": 51834,
+      "sha256": "9819e04c3ae5e75fb4aa0c6265e77421faa833acec0ebbb60feb34f019259b19",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "point3d_2013.dwg",
+      "bytes": 16331,
+      "sha256": "839297daa100c318d5afbfa128145d2c4782300650c86b2ab58b34cf6fe1aba4",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    },
+    {
+      "name": "polyline2d_line_2004.dwg",
+      "bytes": 37505,
+      "sha256": "7aa356c08c3628858e88faad150df55f7596e2e04b3eb1498c80c02286f9977d",
+      "magic": "AC1018",
+      "pages": 13,
+      "produced": 328420
+    },
+    {
+      "name": "polyline2d_line_2010.dwg",
+      "bytes": 51773,
+      "sha256": "0438fa332d881996b79cc58e3d9e2008e1326cda9881051251c49cf9855eca84",
+      "magic": "AC1024",
+      "pages": 12,
+      "produced": 298700
+    },
+    {
+      "name": "polyline2d_line_2013.dwg",
+      "bytes": 16299,
+      "sha256": "045a3a627af55d2a2d432d470c06e7bc9d81d47c1a1b45e7ffaab9ef249cab8b",
+      "magic": "AC1027",
+      "pages": 10,
+      "produced": 239260
+    }
+  ]
+}
