@@ -205,7 +205,8 @@ header's section map id; the section map header `(count, 2, 0x7400, 0,
 …)`; each description's compression flag (1 or 2), encryption flag (0 to
 2), page size and printable name; each section's page start offsets
 rising multiples of its page size; and both pages decoding to exactly
-their declared size and ending between records. Not checked, because real
+their declared size and ending between records (a section count that
+understates the records is caught as soon as the last record is read). Not checked, because real
 files do not follow them: sequential page numbers, the "unknown" longs,
 and page extents inside the file (real last pages run past its end). The
 walker holds no map: page numbers, addresses and the section list are the
@@ -232,10 +233,11 @@ it. A fresh process resumes at every step of the canonical R2018 fixture
 two processes concatenate to the uninterrupted run's. Bit flips at every
 byte, every truncation and a wrong identity are rejected for a mid-walk
 checkpoint, as are ten resealed unreachable states. On the canonical R2004
-fixture and one file per release band, eight corruptions end in their
+fixture and one file per release band, ten corruptions end in their
 named error: both page checksums, the page map type, a page size off
 0x20, a page map moved off its own entry, a section map header constant,
-a section description field, and a file cut inside the page map. The
+a section count one short and zero, a section description field, and a
+file cut inside the page map. The
 record corruptions get past the checksum by rewriting a literal byte of
 the LZ77 stream and resealing the page. The local R2018 file (#96) was
 checked by hand. The fixtures pass only since #265 made the writer emit

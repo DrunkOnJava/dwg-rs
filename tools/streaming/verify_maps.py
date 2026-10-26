@@ -191,7 +191,7 @@ def main():
         def run(data, *args, name='input.dwg'):
             path = tmp / name
             path.write_bytes(data)
-            result = subprocess.run([binary, str(path), *map(str, args)], capture_output=True, timeout=600)
+            result = subprocess.run([binary, str(path), *map(str, args)], capture_output=True, timeout=120)
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
         corpus = [(f'synthetic_{v}.dwg', Path(f'tests/fixtures/canonical/synthetic_{v}.dwg').read_bytes())
@@ -352,6 +352,10 @@ def main():
                 ('page size off 0x20', patch(data, pm, size_byte, raw_pm[size_byte] | 0x01), f'PageEntry({size_byte // 8})'),
                 ('page map not at its own entry', patch(data, pm, earlier, (raw_pm[earlier] + 1) & 0xff), 'PageMapSelf'),
                 ('section map header', patch(data, sm, constant, raw_sm[constant] ^ 0x01), 'SectionMapHeader'),
+                # A count that understates the records leaves decoded output
+                # with no record to hold it (found by review on #276).
+                ('section count understated', patch(data, sm, literal_at(src_sm, [0]), raw_sm[0] - 1), f'MapLength({sm})'),
+                ('section count zero', patch(data, sm, literal_at(src_sm, [0]), 0), f'MapLength({sm})'),
                 ('section description', patch(data, sm, flags, poison), f'SectionEntry({described})'),
                 # Real files keep their second header after the page map, so
                 # the cut also fails the §4.1 range check on it.
@@ -364,9 +368,10 @@ def main():
                 assert result[0] != 0 and any(e in result[2] for e in errors) and 'panicked' not in result[2], (name, label, error, result[2])
                 printed = result[1].splitlines()
                 # Moving the page map shifts the address of every page after
-                # the patched size, and those pages are committed before the
-                # self-entry check; every other case must print a prefix.
-                if label != 'page map not at its own entry':
+                # the patched size, and a patched count is itself a committed
+                # line, before the check that fails; every other case must
+                # print a prefix of the real output.
+                if label not in ('page map not at its own entry', 'section count understated', 'section count zero'):
                     assert printed == expected[:len(printed)], (name, label, 'output is not a valid prefix')
                 labels.append(label)
             receipts.append({'file': name, 'corruptions_rejected': labels})

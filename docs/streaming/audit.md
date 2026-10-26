@@ -180,6 +180,7 @@ seeded 0xC0C1 over the `MS` bytes and data.
   a zero page size or a non-printable name; page start offsets that do
   not rise or are not whole pages.
 - Either page decoding to more or less than declared, or ending inside a
+  record; a section count that leaves decoded output after the last
   record.
 - Every chunk schedule produces the same steps; a checkpoint at every
   step resumes in a fresh process with reads and output concatenating to

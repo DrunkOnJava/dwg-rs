@@ -436,6 +436,12 @@ impl R2004MapWalker {
     fn decode(&mut self) -> Result<MapStep, StreamError> {
         let need = usize::from(self.record_need);
         let have = usize::from(self.record_len);
+        // With every record read, the page must already have produced its
+        // declared size; output still to come (a count that understates the
+        // records) has nowhere to go and would never drain.
+        if need == 0 && self.decoder.produced() != u64::from(self.decompressed()) {
+            return Err(StreamError::MapLength(self.page_at));
+        }
         if have < need || need == 0 {
             // With no record open the output slice is empty: the decoder may
             // only read on to its terminator, and any further output is an
