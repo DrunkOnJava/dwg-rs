@@ -49,7 +49,7 @@ if ! git merge --no-edit -q origin/main > "$OUT/merge.log" 2>&1; then
   conflicted=1
   for f in $(git diff --name-only --diff-filter=U); do
     case $f in
-      tools/corpus/baseline.tsv|docs/spec-coverage.md) git show "origin/main:$f" > "$f" ;;
+      tools/corpus/baseline.tsv|tools/oracle/baseline.tsv|docs/spec-coverage.md) git show "origin/main:$f" > "$f" ;;
       ARCHITECTURE.md)
         python3 -I "$TRAIN_HERE/arch.py" resolve "$f" > "$OUT/arch.log" 2>&1 || { say "REFUSED: real conflict in $f: $(cat "$OUT/arch.log")"; git merge --abort; exit 4; }
         say "appended $f sections after main's" ;;
@@ -106,15 +106,24 @@ if [ -d examples/dxf_oracle ] && [ -f tools/oracle/spec_notes.py ]; then
   grep -q '^== Summary by spec section' "$OUT/oracle.txt" || { say "dxf_oracle produced no summary ($OUT/oracle.err)"; exit 1; }
   python3 -I tools/oracle/spec_notes.py "$OUT/oracle.txt" docs/data/spec-coverage.tsv > "$OUT/oracle-notes.log" 2>&1 || { say "spec_notes FAILED"; exit 1; }
 fi
+if [ -f tools/oracle/baseline.tsv ] && grep -q -- '--baseline' examples/dxf_oracle/main.rs 2>/dev/null; then
+  git show origin/main:tools/oracle/baseline.tsv > "$OUT/main-oracle.tsv" 2>/dev/null || cp tools/oracle/baseline.tsv "$OUT/main-oracle.tsv"
+  if ! "$CARGO_TARGET_DIR/release/examples/dxf_oracle" "$C" --tsv "$OUT/oracle.tsv" --baseline "$OUT/main-oracle.tsv" > "$OUT/oracle-ratchet.log" 2>&1; then
+    say "REFUSED: DXF oracle agreement fell against main's: $(grep -E 'agreeing in the baseline|absent from this run' "$OUT/oracle-ratchet.log" | head -3 | tr '\n' ' ')"
+    git merge --abort > /dev/null 2>&1
+    exit 6
+  fi
+  cp "$OUT/oracle.tsv" tools/oracle/baseline.tsv
+fi
 python3 -I tools/ci/spec_coverage.py --write > "$OUT/spec.log" 2>&1 || { say "spec_coverage FAILED"; exit 1; }
 python3 -I tools/ci/spec_coverage.py --check >> "$OUT/spec.log" 2>&1 || { say "spec_coverage --check FAILED"; exit 1; }
 if [ -n "${DRY:-}" ]; then
-  if git diff --quiet HEAD -- tools/corpus/baseline.tsv docs/spec-coverage.md docs/data/spec-coverage.tsv tests/fixtures/spec-examples; then
+  if git diff --quiet HEAD -- tools/corpus/baseline.tsv tools/oracle/baseline.tsv docs/spec-coverage.md docs/data/spec-coverage.tsv tests/fixtures/spec-examples; then
     say "DRY: generated files unchanged on current main"; exit 0
   fi
   say "DRY: generated files differ on current main"; exit 9
 fi
-git add tools/corpus/baseline.tsv docs/spec-coverage.md docs/data/spec-coverage.tsv
+git add tools/corpus/baseline.tsv docs/spec-coverage.md docs/data/spec-coverage.tsv; [ -f tools/oracle/baseline.tsv ] && git add tools/oracle/baseline.tsv
 
 if [ $conflicted = 1 ]; then
   git commit -q --no-edit || exit 1
