@@ -496,18 +496,20 @@ nextgis saves and ACadSharp's `sample_AC1021.dwg`; the local subset at
 from the spec's text, with shapes the corpus lacks (a page of 70,912 bytes and
 273 codewords, holes, a zero-length page, a page past its section, a section
 short of its size, a page map out of file order with free pages, a non-zero CRC
-seed, system pages and header stored, repeat factor 1, a compressed bare page).
+seed, system pages and header stored, repeat factor 1, a compressed bare page, a
+126-byte section name that straddles a codeword, so a checkpoint holds 107
+bytes of a name that `restore` must accept).
 `tools/streaming/r2007_ref.py` is an independent reader and writer written from
 the spec's text and sharing no code with the crate (its Reed-Solomon encoder
 reproduces AutoCAD's parity on every codeword it is given, and its compressor
 emits every instruction class).
 
-Measured, by `verify_r2007.py` (11 files, 113 sections, 152 pages, 4,966 data
+Measured, by `verify_r2007.py` (11 files, 114 sections, 152 pages, 4,966 data
 codewords, 3,067,696 section bytes): on each of them every output line and every
 assembled byte equals the independent Python parse and the legacy reader's, three
 to six fixed chunk schedules (down to one byte at a time on files under 400 KB,
 with `Pending` polls) and 128 proptest schedules on two files (`arc_2007.dwg`,
-`constructed_a.dwg`) reproduce it. A fresh process resumes at 729 stops (every
+`constructed_a.dwg`) reproduce it. A fresh process resumes at 778 stops (every
 step of the tiny built file at 256-byte reads and every thirteenth at 3-byte
 reads; about 60 stops of each other file at 256 and at 7-byte reads, around
 every section, page, hole and the end of the walk): the source reads and output
@@ -515,7 +517,7 @@ of the two processes concatenate to the uninterrupted run's, the bytes written
 equal the section, all six stages were checkpointed, both passes of the page map,
 the section map and a data page, a page scan, and nine of the decoder's
 fourteen modes. Bit flips at every byte and every truncation of a 395-byte
-checkpoint, 100 sampled of each for a walking one, a wrong identity, 123
+checkpoint, 100 sampled of each for a walking one, a wrong identity, 129
 resealed unreachable states (a stage that does not follow, an odd name length, an
 encrypted section, codewords read past the page, bytes produced past it, a
 corrupted header) are rejected, and 180 resealed single-byte mutations of the
@@ -680,14 +682,14 @@ restores one given the saved page CRC-32, page length, section index and page id
 and finishes the whole walk, printing the lines `stream_r2007` prints. The
 grammar compiles unchanged to `wasm32-unknown-unknown` with no allocator; the
 kernel reads a gather one byte at a time from its copy of the file.
-`tools/streaming/verify_wasm_r2007.py` is its acceptance run: on `tiny.dwg` (a
-file `r2007_ref.build` writes), `arc_2007.dwg`, `constructed_a.dwg` and
-`sample_AC1021.dwg`, 247 native `DWGR` checkpoints (every thirteenth step of the
+`tools/streaming/verify_wasm_r2007.py` is its acceptance run: on `tiny.dwg`, `constructed_a.dwg` and
+`constructed_b.dwg` (files `r2007_ref.build` writes), `arc_2007.dwg` and
+`sample_AC1021.dwg`, 341 native `DWGR` checkpoints (every thirteenth step of the
 smallest, and about 30 steps of each of the others, around every section, page,
 hole and the end of the walk, covering all six stages) restored in the kernel
 finish with exactly the lines the native resume prints, at kernel read sizes of
 1, 7, 64 and 256 bytes; the kernel's own checkpoint at the same step is
-byte-identical to the native one in all 247 and the native build resumes it to
+byte-identical to the native one in all 341 and the native build resumes it to
 the uninterrupted run's output; and the kernel refuses 80 sampled bit flips of a
 native checkpoint, its first and last byte and a wrong identity (83 refusals), as
 the native build does.

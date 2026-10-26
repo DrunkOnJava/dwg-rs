@@ -143,12 +143,13 @@ def constructed():
                 'pages of 70,912 and 66,688 bytes and 273 codewords, holes, a zero-length page, a page past its '
                 'section, a section short of its size, free pages, a nonzero CRC seed, pages out of order'))
     b = {'seed': 4, 'crc_seed': 0x2AA, 'factors': (1, 1), 'compress_maps': False, 'compress_header': False, 'sections': [
-        {'name': 'AcDb:Raw', 'data': sample(30000, 31), 'encoding': 4, 'pages': [{'start': 0, 'len': 30000, 'compress': False}]},
+        {'name': 'A', 'data': b'', 'encoding': 4, 'size': 0, 'pages': []},
+        {'name': 'AcDb:' + 'L' * 57, 'data': sample(30000, 31), 'encoding': 4, 'pages': [{'start': 0, 'len': 30000, 'compress': False}]},
         {'name': 'AcDb:Bare', 'data': sample(20000, 32), 'encoding': 1, 'pages': [{'start': 0, 'len': 20000, 'compress': True}]},
         {'name': 'AcDb:Two', 'data': sample(5000, 33), 'encoding': 1,
          'pages': [{'start': 0, 'len': 2500, 'compress': False}, {'start': 2500, 'len': 2500, 'compress': True}]},
     ]}
-    out.append(('constructed_b.dwg', ref.build(b), 'system pages and header stored, repeat factor 1, a compressed bare page'))
+    out.append(('constructed_b.dwg', ref.build(b), 'system pages and header stored, repeat factor 1, a compressed bare page, a 126-byte section name that straddles a codeword'))
     return out
 
 
@@ -293,7 +294,7 @@ def main():
                     around = {s for s in around if 0 <= s <= steps}
                     early = set(range(0, events[0] + 1, max(1, events[0] // 16)))
                     around |= early
-                    pick = random.Random(f'{name}{chunk}').sample(sorted(around), min(len(around), 24)) + sorted(early)
+                    pick = sorted(around) if len(around) <= 90 else random.Random(f'{name}{chunk}').sample(sorted(around), 24) + sorted(early)
                     stops = sorted(set(pick) | {0, steps} | set(random.Random(f'{name}{chunk}x').sample(range(steps), 24)))
                 for stop in stops:
                     out = fresh()
@@ -371,6 +372,7 @@ def main():
                 (f'{label}: facts flags', state, [(FLAGS, b'\x07')]),
                 (f'{label}: entry bytes held past 16', state, [(ENTRY_HAVE, b'\x11')]),
                 (f'{label}: record bytes held past 64', state, [(REC_HAVE, b'\x41')]),
+                (f'{label}: name bytes held past 128', state, [(REC_HAVE, b'\x81'), (REC_KIND, b'\x01')]),
                 (f'{label}: a stage that does not follow', state, [(STAGE, bytes([(stage + 2) % 6]))]),
             ]
         for stage in (1, 2, 3, 4, 5):

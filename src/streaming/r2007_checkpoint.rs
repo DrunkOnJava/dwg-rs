@@ -480,7 +480,12 @@ impl R2007Walker {
             }
             w.hdr = check_plain_header(&plain, length).map_err(|_| bad)?;
         }
-        if w.entry_have > 16 || w.rec_have > 64 {
+        let held = if rec_kind == Rec::Name {
+            super::r2007::MAX_NAME
+        } else {
+            64
+        };
+        if w.entry_have > 16 || w.rec_have > held {
             return Err(bad);
         }
         w.entry[..w.entry_have].copy_from_slice(rd.take(w.entry_have)?);

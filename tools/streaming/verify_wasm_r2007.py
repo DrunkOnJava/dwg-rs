@@ -17,7 +17,7 @@ import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import verify_r2007 as v7  # noqa: E402
 
-FILES = ('tiny.dwg', 'arc_2007.dwg', 'constructed_a.dwg', 'sample_AC1021.dwg')
+FILES = ('tiny.dwg', 'arc_2007.dwg', 'constructed_a.dwg', 'constructed_b.dwg', 'sample_AC1021.dwg')
 NATIVE_CHUNK = 7
 KERNEL_CHUNKS = (1, 7, 64, 256)
 
@@ -74,6 +74,9 @@ def main():
             stops = sorted({0, 1, steps - 1, steps} | set(rng.sample(range(steps), count)) | set(rng.sample(sorted(around), min(count, len(around)))))
             if name == 'tiny.dwg':
                 stops = sorted(set(stops) | set(range(0, steps + 1, 13)))
+            if name == 'constructed_b.dwg':
+                # A 126-byte section name straddles a codeword: a checkpoint holds 107 bytes of it.
+                stops = sorted(set(stops) | around | {e - 2 for e in around if e >= 2})
             full_lines = full[1].splitlines()
             jobs, resumed_lines, paused_lines, native_ckpts, cursors = [], {}, {}, {}, {}
             for stop in stops:
