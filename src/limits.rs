@@ -38,6 +38,7 @@
 //! | `max_image_clip_verts`         |        100_000 | IMAGE clip-boundary vertices                  |
 //! | `max_leader_points`            |        100_000 | LEADER polyline points                        |
 //! | `max_spline_count`             |        100_000 | SPLINE knots / control points / fit points    |
+//! | `max_header_bytes`             |      1_048_576 | Largest `AcDb:Header` section decoded         |
 //!
 //! The `paranoid` profile lowers every count by 10×; the `permissive`
 //! profile raises every count by 10×. See the per-field docstrings.
@@ -81,6 +82,9 @@ pub struct ParseLimits {
     /// Maximum SPLINE knots / control points / fit points (per
     /// individual collection, not combined).
     pub max_spline_count: usize,
+    /// Largest decompressed `AcDb:Header` section
+    /// ([`crate::header_vars::HeaderVars::decode`]) accepted, in bytes.
+    pub max_header_bytes: usize,
 }
 
 impl Default for ParseLimits {
@@ -103,6 +107,7 @@ impl ParseLimits {
             max_image_clip_verts: 100_000,
             max_leader_points: 100_000,
             max_spline_count: 100_000,
+            max_header_bytes: 1 << 20,
         }
     }
 
@@ -120,6 +125,7 @@ impl ParseLimits {
             max_image_clip_verts: 10_000,
             max_leader_points: 10_000,
             max_spline_count: 10_000,
+            max_header_bytes: 1 << 16,
         }
     }
 
@@ -136,6 +142,7 @@ impl ParseLimits {
             max_image_clip_verts: 1_000_000,
             max_leader_points: 1_000_000,
             max_spline_count: 1_000_000,
+            max_header_bytes: 1 << 24,
         }
     }
 }
@@ -199,6 +206,13 @@ pub struct WalkerLimits {
     /// practical limit is ~32; this cap defaults higher with room for
     /// hand-authored weirdness.
     pub max_block_nesting: usize,
+    /// Maximum unanswered references a lossy walk keeps in
+    /// [`crate::object::ObjectWalkSummary::unanswered_references`].
+    /// Past it the walk still counts them, in
+    /// `unanswered_references_suppressed`, but stores none, so a crafted
+    /// handle stream (every byte a one-byte relative reference) cannot
+    /// grow the summary without bound (#81).
+    pub max_retained_references: usize,
 }
 
 impl Default for WalkerLimits {
@@ -215,6 +229,7 @@ impl WalkerLimits {
             max_handles: 1_000_000,
             max_scan_bytes: 512 * 1024 * 1024,
             max_block_nesting: 128,
+            max_retained_references: 100_000,
         }
     }
 
@@ -224,6 +239,7 @@ impl WalkerLimits {
             max_handles: 100_000,
             max_scan_bytes: 64 * 1024 * 1024,
             max_block_nesting: 32,
+            max_retained_references: 10_000,
         }
     }
 
@@ -233,6 +249,7 @@ impl WalkerLimits {
             max_handles: 10_000_000,
             max_scan_bytes: 4 * 1024 * 1024 * 1024,
             max_block_nesting: 512,
+            max_retained_references: 1_000_000,
         }
     }
 }
