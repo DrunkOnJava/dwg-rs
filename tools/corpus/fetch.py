@@ -35,9 +35,14 @@ match its pin, its pinned commit no longer serves it, or a cross-checked
 manifest disagrees (fail closed); 69 the host was unreachable after every
 retry (the caller reports NOT MEASURED).
 
+An outage must end in 69 inside the calling job's time limit, not run into
+it: every request's timeout and back-off is cut to an overall --deadline
+(900 s by default), and once OUTAGE_AFTER files in a row are unreachable the
+rest are reported unreachable without being requested.
+
 Usage:
 
-    python3 -I tools/corpus/fetch.py --dest DIR [--legacy-samples DIR] [--cross-check FILE...]
+    python3 -I tools/corpus/fetch.py --dest DIR [--legacy-samples DIR] [--cross-check FILE...] [--deadline SECONDS]
 """
 
 import argparse
@@ -55,6 +60,7 @@ from pathlib import Path
 PINS = Path(__file__).resolve().with_name('pins.tsv')
 UNREACHABLE = 69
 ATTEMPTS = 3
+OUTAGE_AFTER = 3
 
 
 def read_pins(path=PINS):
@@ -107,14 +113,17 @@ class Unreachable(Exception):
     pass
 
 
-def download(row):
+def download(row, deadline):
     failures = []
     gone = 0
     for url, headers, encoded in routes(row):
         for attempt in range(ATTEMPTS):
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise Unreachable('; '.join(failures[-2:] + ['fetch deadline reached']))
             request = urllib.request.Request(url, headers={'User-Agent': 'dwg-rs-corpus-fetch', **headers})
             try:
-                with urllib.request.urlopen(request, timeout=60) as response:
+                with urllib.request.urlopen(request, timeout=min(60, max(1, left))) as response:
                     body = response.read()
                 return base64.b64decode(json.loads(body)['content']) if encoded else body
             except urllib.error.HTTPError as e:
@@ -126,7 +135,7 @@ def download(row):
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, ValueError, KeyError) as e:
                 failures.append(f'{url}: {e!r}')
             if attempt + 1 < ATTEMPTS:
-                time.sleep(2 ** (attempt + 1))
+                time.sleep(max(0, min(2 ** (attempt + 1), deadline - time.monotonic())))
     if gone == len(routes(row)):
         raise Gone('; '.join(failures))
     raise Unreachable('; '.join(failures[-2:]))
@@ -153,7 +162,9 @@ def main():
     parser.add_argument('--dest', required=True, type=Path)
     parser.add_argument('--legacy-samples', type=Path)
     parser.add_argument('--cross-check', type=Path, nargs='*', default=[])
+    parser.add_argument('--deadline', type=float, default=900)
     args = parser.parse_args()
+    deadline = time.monotonic() + args.deadline
 
     rows = read_pins()
     conflicts = disagreements(rows, args.cross_check)
@@ -163,7 +174,7 @@ def main():
         return 1
     if args.cross_check:
         print(f'{len(args.cross_check)} other manifest(s) agree with {PINS.name}', flush=True)
-    mismatched, unreachable, fetched = [], [], 0
+    mismatched, unreachable, fetched, in_a_row = [], [], 0, 0
     for row in rows:
         target = args.dest / local_name(row)
         problem = verify(target, row)
@@ -171,15 +182,20 @@ def main():
             continue
         if problem != 'missing':
             print(f'::warning::{local_name(row)}: cached copy is {problem}; fetching it again', flush=True)
+        if in_a_row >= OUTAGE_AFTER:
+            unreachable.append(f'{row["path"]}: not requested, {OUTAGE_AFTER} files in a row were unreachable')
+            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         try:
-            data = download(row)
+            data = download(row, deadline)
         except Gone as e:
             mismatched.append(f'{row["repo"]}@{row["commit"][:12]} no longer serves {row["path"]} ({e})')
             continue
         except Unreachable as e:
             unreachable.append(f'{row["path"]}: {e}')
+            in_a_row += 1
             continue
+        in_a_row = 0
         partial = target.with_name(target.name + '.partial')
         partial.write_bytes(data)
         problem = verify(partial, row)
