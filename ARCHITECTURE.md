@@ -2791,8 +2791,9 @@ the map ending on its locator. All six pass on all 22 files. No three-locator
 (R13 C2) drawing is among the 22, so that layout, and the PRE-R13C3 image
 position, are untested here. Autodesk's own R13 drawings use three locators
 (older discs) or four (the C4 era, with a §26 tail ending `18 78 01 04`) and
-pass the same framing checks (#345); the US Forest Service set, pinned next,
-brings the three-locator layout into the corpus.
+pass the same framing checks (#345). The US Forest Service set, pinned next,
+has four locators in all 122 drawings, so the three-locator layout reaches the
+corpus only with Autodesk's disc files.
 
 The §9 header variables decode strictly on all 22, to the stated size. The
 R13 rows of the table close `Cabin.dwg` as they are (195 slots, the R14
