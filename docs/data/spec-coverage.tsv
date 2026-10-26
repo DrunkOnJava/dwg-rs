@@ -58,7 +58,7 @@
 20.4.31	POINT (27)	128	closes	src/entities/point.rs	#143	The spec's own example (§20.4.31.1) closes on the record's boundary (#107).
 20.4.32	3DFACE (28)	128	partial	src/entities/three_d_face.rs	#145	The R14 record errors (#227). The spec's own example (§20.4.32.1) errors; §20.4.32's own field list closes on it (#227).
 20.4.33	POLYLINE (PFACE) (29)	129	closes	src/entities/polyface_mesh.rs	#142	The spec's own example (§20.4.33.1) closes on the record's boundary (#107).
-20.4.34	POLYLINE (MESH) (30)	130	closes	src/entities/polygon_mesh.rs	#142	The spec's own example (§20.4.34.1) errors; §20.4.34's own field list closes on it (#273).
+20.4.34	POLYLINE (MESH) (30)	130	closes	src/entities/polygon_mesh.rs	#142	The spec's own example (§20.4.34.1) closes on the record's boundary (#107).
 20.4.35	SOLID (31)	131	closes	src/entities/solid.rs	#145	The spec's own example (§20.4.35.1) closes on the record's boundary (#107).
 20.4.36	TRACE (32)	131	closes	src/entities/trace.rs	#145	The spec's own example (§20.4.36.1) closes on the record's boundary (#107).
 20.4.37	SHAPE (33)	132	missing		#140	The spec's own example (§20.4.37.1) has no decoder to run (#107).
