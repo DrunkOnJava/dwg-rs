@@ -7,15 +7,23 @@ name: Perf
 # baseline on `main`".
 #
 # How it works:
-#   - push to `main` saves a criterion baseline named `main` to a
-#     GitHub Actions cache keyed on the workflow file's SHA so that
-#     changes to the benchmark set invalidate stale baselines.
-#   - pull_request runs the same benches and compares against the
-#     cached `main` baseline by reading criterion's own
-#     `estimates.json` files. The comparison table is printed on every
-#     run. If no baseline is cached yet (first run, or cache miss) the
-#     comparison is skipped with a warning — we never want first-time
-#     contributors to hit a red X because the cache is cold.
+#   - pull_request checks out the merge commit and its merge-base with
+#     `main`, then benches BOTH in the same job: the merge-base as
+#     criterion baseline `main`, the merge commit as `pr`. The gate
+#     reads criterion's own `estimates.json` files and prints the
+#     comparison table on every run.
+#   - push to `main` just runs the benches, so a bench that stops
+#     building or running on `main` turns the run red.
+#
+# Why the baseline is measured in the same job (2026-10-25): it used
+# to be cached from the last push to `main`. Hosted runners do not all
+# have the same CPU, so a baseline from one host and a PR run on
+# another differ by a constant factor that the re-run below cannot
+# clear. PR #215, which touched no benchmarked code, failed with
+# lz77_decompress and stage1_build_section 1.35-1.78x "slower" on both
+# passes, and dependabot PRs that only bumped action versions failed
+# the same way on 2026-10-21. Measuring both sides on one host removes
+# that offset; the ratio and floor below then judge only the code.
 #
 # ---------------------------------------------------------------------
 # Failure rule (issue #17) — ratio AND absolute delta AND a re-run
@@ -103,8 +111,13 @@ jobs:
   bench:
     name: Criterion benches vs `main` baseline
     runs-on: ubuntu-latest
+    # Two bench builds and up to three bench passes on a PR.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          # The merge-base with `main` is benched as the baseline.
+          fetch-depth: 0
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
@@ -125,33 +138,28 @@ jobs:
       # gives the gate the absolute nanosecond delta it needs for the
       # noise floor described at the top of this file.
 
-      # --------------------------------------------------------------
-      # Baseline caching: keyed on this workflow file + Cargo.lock +
-      # the bench source files. Any change to them invalidates the
-      # stored `main` baseline so we never compare apples to oranges.
-      # --------------------------------------------------------------
-      - name: Restore cached `main` baseline
-        id: baseline-restore
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
-        with:
-          path: target/criterion
-          key: criterion-baseline-${{ hashFiles('.github/workflows/perf.yml', 'Cargo.lock', 'benches/**/*.rs') }}
-
       - name: Run benches
         run: |
           set -euo pipefail
           # All six `[[bench]]` targets: lz77, section_map, object_walk,
           # metadata_parse, libredwg_compare, write_path.
           #
-          # On push-to-main we record this run as the new baseline.
-          # On PRs we record it as "pr" so the gate script can diff
-          # against the cached "main".
-          BASELINE_NAME="pr"
-          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
-            BASELINE_NAME="main"
+          # rust-cache restores `target/`, which may hold criterion
+          # output from another job on another host. Only numbers this
+          # job measures may be compared.
+          rm -rf target/criterion
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
+            .github/scripts/run-benches.sh main
+            exit 0
           fi
-          echo "Recording baseline: ${BASELINE_NAME}"
-          .github/scripts/run-benches.sh "${BASELINE_NAME}"
+          BASE=$(git merge-base origin/main HEAD)
+          echo "Baseline: merge-base ${BASE}; candidate: $(git rev-parse HEAD)"
+          git worktree add --detach "${RUNNER_TEMP}/base" "${BASE}"
+          # The PR's script runs in the base tree and writes into this
+          # tree's target directory, so both baselines land side by side.
+          (cd "${RUNNER_TEMP}/base" && CARGO_TARGET_DIR="${GITHUB_WORKSPACE}/target" \
+            "${GITHUB_WORKSPACE}/.github/scripts/run-benches.sh" main)
+          .github/scripts/run-benches.sh pr
 
       - name: Compare PR vs baseline
         if: github.event_name == 'pull_request'
@@ -172,9 +180,9 @@ jobs:
             exit 0
           fi
 
-          # Pass 1. Exit 2 means the cached `main` baseline is absent
-          # (cold cache, first PR ever) — a warning, never a red X,
-          # because the PR author cannot fix a cold cache.
+          # Pass 1. Exit 2 means nothing comparable: no bench exists on
+          # both sides (a PR that adds the first cell of a group). A
+          # warning, never a red X.
           .github/scripts/criterion-gate.sh main pr /tmp/tripped-1.txt
           STATUS=$?
           if [ "$STATUS" -eq 0 ]; then
@@ -182,7 +190,7 @@ jobs:
             exit 0
           fi
           if [ "$STATUS" -eq 2 ]; then
-            echo "::warning::no cached 'main' baseline to compare against — likely first run"
+            echo "::warning::no bench present on both the merge-base and the PR"
             exit 0
           fi
           if [ "$STATUS" -ne 1 ]; then
@@ -217,15 +225,3 @@ jobs:
             echo "::error::${NAME} regressed >=${RATIO_THRESHOLD}x AND >=${ABS_FLOOR_NS}ns vs main on two consecutive runs"
           done
           exit 1
-
-      # --------------------------------------------------------------
-      # Cache the new `main` baseline on push-to-main ONLY. PR runs
-      # never write the cache — otherwise a PR that regresses perf
-      # would poison future PRs' baselines.
-      # --------------------------------------------------------------
-      - name: Save `main` baseline cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
-        with:
-          path: target/criterion
-          key: criterion-baseline-${{ hashFiles('.github/workflows/perf.yml', 'Cargo.lock', 'benches/**/*.rs') }}
