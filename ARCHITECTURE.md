@@ -405,18 +405,20 @@ every split-stream decoder can check itself: `tables::modern::SplitStream::finis
 rejects the record unless the data cursor lands on the string-stream
 start bit. That converts a mis-read field layout from *silently wrong
 values* into an error naming the bit offset and the deviation — which
-is how the R2007+ VIEW ambient-colour form, the VPORT flag block, the
-DIMSTYLE `AcDs`-binary-data byte and TEXT's `RD` height were each
-found.
+is how the R2007+ VIEW ambient-colour form, the VPORT flag block and
+TEXT's `RD` height were each found. It also produced one false finding,
+a DIMSTYLE "`AcDs`-binary-data byte", which §7v shows was the table
+prefix's `BL num_reactors` read two bits late: a boundary check proves a
+field list's width, not which field holds which bits.
 
 ### Other findings that fell out of the same work
 
 | Finding | Evidence |
 |---|---|
-| Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard` |
+| ~~Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B`~~ Superseded by §7v: the prefix holds a `BL num_reactors` this reading skipped, and after it two bits remain, read as `B 64-flag, B Xdep` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard`. The `10` was the 64-flag and Xdep bits |
 | VIEW / VPORT / LAYER / DIMSTYLE colours use a full `CMC`: `BS` index + `BL` true colour + `RC` byte, unconditionally | VIEW `view_custom` ambient reads index 0 with no flags yet is followed by `BL = 0xC2333333`; LAYER `0` reads `0xC3000007` |
 | `BL` top byte selects the colour form: `0xC3` = ACI index in the low byte, `0xC2` = literal RGB | `Layer_color_80` reads ACI 80; `Layer_true_color` reads `0xC2…` |
-| The R2013+ "has AcDs binary data" bit is followed by an `RC` | The two DIMSTYLE records in `sample_AC1032.dwg` with the bit set need exactly 8 more prefix bits than the four with it clear |
+| ~~The R2013+ "has AcDs binary data" bit is followed by an `RC`~~ Superseded by §7v: no bits follow the flag; the `RC` was the reactor count | The two DIMSTYLE records in `sample_AC1032.dwg` "with the bit set" need exactly 8 more prefix bits than the four with it clear. They are the two with reactors (8 and 2), whose `BL` is the code `01` and a byte |
 | TEXT `height` is a raw `RD`, not a `BD` | With `DataFlags 0xFF`, object #236's remaining 66 bits are `BE` + `BT` + a 64-bit `1.0` at bit 220 |
 | LAYER `values` bits: `0x01` frozen, `0x02` off, `0x04` frozen-in-new, `0x08` locked, `0x10` plot, bits 5-9 lineweight index | `sample_AC1032.dwg` names its layers after their state and every one matches |
 
@@ -518,19 +520,18 @@ that, so each decoder writes its field list exactly once.
 EED chain
 BL   num_reactors
 B    no_xdictionary_handle   -- R2004+
-B    has_ds_binary_data      -- R2013+ (an RC follows when set)
+B    has_ds_binary_data      -- R2013+ (no further bits, §7h)
 ```
 
 Measured three independent ways: DICTIONARY's `BL numitems` decodes to
 the number of strings its string stream actually holds only with the
 `BL` consumed; ACDB_PLACEHOLDER, whose body is provably empty, closes
 exactly; and the nine one-field `*_CONTROL` records close on their
-`BL numentries`. Note that `tables/modern.rs` deliberately does *not*
-read this `BL` and compensates with a different flag order — the two
-readings sum to the same total for an APPID record, so both satisfy the
-boundary check, and which one assigns the right values to the right
-fields is not determinable from the 16 bits an APPID record spends
-there.
+`BL numentries`. `tables/modern.rs` used to skip this `BL` and
+compensate with a different flag order; both readings summed to the
+same total for an APPID record, so both satisfied the boundary check.
+§7v settles it against AutoCAD's DXF: the symbol-table prefix holds the
+`BL` too.
 
 **Every object decoder is self-validating.** `ObjectStream::finish`
 requires the data fields to end exactly on the record's data-stream
@@ -1227,9 +1228,9 @@ So the flag is a flag. The 16 bits LAYOUT needs are LAYOUT's own, and
 they moved to `src/objects/acad_layout.rs` as a two-byte data-store
 block at the head of its §20.4.84 list, still conditional on the flag
 and still closing all 31 corpus LAYOUT records. `tables/modern.rs`
-keeps its `RC` for now: that path also omits the `BL num_reactors`
-`objects/modern.rs` reads, so its bit accounting has a second unresolved
-variable and is out of scope here. Three record types needing three
+kept its `RC` at the time: that path also omitted the `BL num_reactors`
+`objects/modern.rs` reads, so its bit accounting had a second unresolved
+variable. §7v resolved both: the `RC` was that `BL`. Three record types needing three
 different widths is itself the argument that the width belongs to the
 record, not to the flag.
 
@@ -1659,6 +1660,84 @@ The Corpus job runs it on every pinned R2007 drawing. Re-encoding is the
 strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
+
+## 7v. The symbol-table prefix holds the reactor count (2026-10-26, #40 / #35)
+
+§20.4.x prints the same common data for every table entry, R2000 on:
+the EED chain, `BL Numreactors`, `B XDic Missing Flag` (R2004+), and the
+`B` §20.1 adds for AcDs binary data (R2013+). Then `TV name, B 64-flag,
+BS xrefindex+1, B Xdep`. The inline path (`tables::read_table_entry_header`,
+R2000 and R2004) reads that. The R2007+ split-stream path
+(`tables::modern`) skipped the `BL`, read the flags as `B, B, BS` in a
+release-dependent order, and on R2013+ read an `RC` after a set
+binary-data bit (§7a's table). Both closed on every entry that had no
+reactors, because the `BL` of 0 is the code `10` and the shifted reads
+consumed the same bits:
+
+| Release | Bits after the EED | Old reading | Measured |
+|---|---|---|---|
+| R2007, R2010 | `1 0` | `B` xdictionary-missing, `B` Xdep | `BL` 0 |
+| | next | `B` 64-flag | `B` xdictionary-missing |
+| | `1 0` | `BS xrefindex+1` 0 | `B` 64-flag, `B` Xdep |
+| R2013, R2018 | `1 0` | `B` xdictionary-missing, `B` binary data | `BL` 0 |
+| | next two | `B` 64-flag, `B` Xdep | `B` xdictionary-missing, `B` binary data |
+| | `1 0` | `BS xrefindex+1` 0 | `B` 64-flag, `B` Xdep |
+
+So the old 64-flag was the xdictionary-missing bit (clear on every entry
+that has an xdictionary), and on R2013+ the old Xdep was the binary-data
+bit. The "release-dependent order" was this shift, not the format. A
+reactor count above 0 is the code `01` and a byte. On R2013+ the old
+reading took the `01` for its two flags and the byte for its `RC`. On
+R2007 and R2010 nothing absorbed it, and DIMSTYLE `ISO-25` (`0x39A`, 8
+reactors), `custom_dim_style` (`0x994`, 2) and `custom_style_ltypes`
+(`0xC88`, 1) errored in ACadSharp's saves of both releases (#228).
+
+`tables::modern::skip_object_prefix` now reads the `BL`, the prefix
+`objects::modern` reads for every other non-entity object (§7d), and
+nothing after the binary-data bit. Two bits then remain on every R2007+
+table entry, read as `B 64-flag, B Xdep` with no `xrefindex+1`.
+
+### Measured against AutoCAD's DXF
+
+`examples/probe_table_prefix.rs` reads the prefix and the flags of every
+table entry and compares them, by handle, with AutoCAD's DXF export of
+the same drawing. Over the 32 R2000-R2018 drawings of the public corpus
+(#225) that have a twin, 1,078 table entries, 1,020 with a twin record:
+
+| Compared | Agree | Differ |
+|---|---:|---:|
+| `BL num_reactors` = the `330`s in `{ACAD_REACTORS` (18 non-zero) | 1,020 | 0 |
+| R2004+ xdictionary-missing = no `{ACAD_XDICTIONARY` (53 present) | 840 | 0 |
+| Xdep = bit 16 of group 70 (BLOCK_RECORD's 70 is its insertion units) | 786 | 0 |
+| R2000/R2004 inline name = group 2 | 360 | 0 |
+
+Three twins carry an xdictionary the drawing lacks: LTYPE `GAS_LINE`
+(`0x6B2`) in the R2004, R2007 and R2010 exports points at dictionary
+`0x1455` (`ACAD_XREC_ROUNDTRIP` holding an `ACAD_ROUNDTRIP_2011_LINETYPE`
+xrecord), which is not an object of those DWGs and is absent from the
+R2013 export. The export adds round-trip data when it writes an older
+release. The DWG bit says "missing" on all three, so the probe counts
+them apart rather than as differences.
+
+Every R2007-R2018 entry (676) reads the two flag bits `1, 0`, and every
+R2000/R2004 entry (402) reads 64-flag set, `xrefindex+1` 0 and Xdep
+clear. That also answers #35's labelling question for the inline path:
+the first inline bit cannot be Xdep, since it is set on all 402 entries
+and group 70 bit 16 is clear on all of them. For R2007+ the export rules
+out the swapped order for the same reason, but a lone `BS xrefindex+1`
+of 0 is the same two bits `1 0`. No drawing in either corpus has an
+xref-dependent table entry to tell them apart (#290).
+
+The six DIMSTYLE records decode to identical values on R2004, R2007,
+R2010, R2013 and R2018, in all fifteen fields `DimStyleEntry` surfaces. `ISO-25`'s ten non-default groups in the R2007
+export (`41` 2.5, `42` 0.625, `44` 1.25, `73` 0, `74` 0, `77` 1, `140`
+2.5, `141` 2.5, `143` 0.03937007874016, `283` 0) equal the decoded
+values, and the records the export writes no overrides for decode to
+the defaults.
+
+Coverage of the public corpus moves only on those six records:
+`sample_AC1021.dwg` 834/76/15 → 837/76/12 and `sample_AC1024.dwg`
+851/57/15 → 854/57/12 (decoded/skipped/errored).
 
 ## 8. Write pipeline (current scope)
 
