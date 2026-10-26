@@ -740,6 +740,9 @@ impl HeaderVars {
         // the byte that holds the last slot; Cabin.dwg writes neither. A
         // whole byte left over by the R13 rows is where the two differ, so
         // such a header is read with the R14 rows and may carry that byte.
+        // This is a tolerance for that writer's R13 variant, confined to
+        // AC1012: its files are not AutoCAD's (AutoCAD's R14 pads with ones
+        // and sizes the section ceil(bits / 8)).
         if version == Version::R13 && rows.done && total - rows.end_bit >= 8 {
             let with_shorts = read_rows(&body, header_table::R14);
             if with_shorts.done {
