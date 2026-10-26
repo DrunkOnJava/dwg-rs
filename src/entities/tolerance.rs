@@ -1,5 +1,5 @@
-//! TOLERANCE entity (§19.4.44) — geometric dimensioning and tolerance
-//! feature control frame.
+//! TOLERANCE entity (§20.4.49, type 46) — geometric dimensioning and
+//! tolerance feature control frame.
 //!
 //! TOLERANCE places a GD&T feature control frame (e.g.
 //! `⌖ |⌀0.1|A|B|C|`) at a location in a drawing. Under the hood it's
@@ -7,25 +7,35 @@
 //! content is in the `text_string` field, which carries `%%`-escaped
 //! tolerance symbols that the renderer unpacks into glyphs.
 //!
-//! Fixed object type code `0x2E` per ODA spec §5 Table 4.
-//!
-//! # Stream shape
+//! # Stream shape (§20.4.49)
 //!
 //! ```text
-//! (R2007+) BS  unknown_short
-//! BD   height
-//! BD   dimgap
-//! BD3  insertion_point
-//! BD3  x_axis_direction
-//! BD3  extrusion
-//! TV   text_string
-//! H    dimstyle_handle    -- parsed but not dereferenced
+//! R13-R14:
+//!   BS   unknown_short
+//!   BD   height
+//!   BD   dimgap        -- DIMGAP x DIMSCALE at creation
+//! BD3  insertion_point                        10
+//! BD3  x_axis_direction                       11
+//! BD3  extrusion                             210
+//! TV   text_string                             1
 //! ```
 //!
-//! The `dimstyle_handle` points at a DIMSTYLE table entry whose
-//! properties (font, color, arrowhead) drive the feature frame's
-//! appearance. That lookup is deferred to a later pass over the
-//! resolved handle map.
+//! The DIMSTYLE handle follows in the handle stream (and, before R2007,
+//! after the data-stream boundary); it is not read, so
+//! [`Tolerance::dimstyle_handle`] is always zero.
+//!
+//! # Measured (2026-10-26, #226)
+//!
+//! The inline reader that serves R13 to R2004 had the version branch
+//! upside down: it read the unknown short only on R2007+, the height and
+//! dimgap on every release, and then a handle inline, past the
+//! data-stream boundary. §20.4.49 makes the three leading fields R13-R14
+//! only, which the R2007+ split-stream reader below had already measured.
+//! As printed, the list closes on all 21 TOLERANCE records of the public
+//! corpus, R14 to R2018. On R2000 to R2018 the insertion point and text
+//! equal AutoCAD's DXF export of the same drawing (ARCHITECTURE.md §7m,
+//! `examples/probe_tolerance.rs`). On R14 the three leading fields are
+//! the zero code on all three records, so only their widths are measured.
 
 use crate::bitcursor::{BitCursor, Handle};
 use crate::entities::{Point3D, Vec3D, read_bd3};
@@ -37,35 +47,36 @@ use crate::version::Version;
 /// Decoded TOLERANCE payload.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tolerance {
-    /// Spec-reserved short, R2007+ only. Observed to be zero in real
-    /// drawings; preserved verbatim to round-trip.
+    /// `BS` unknown short; R13-R14 only (0 on later releases). Zero on
+    /// every corpus record.
     pub unknown_short: i16,
+    /// `BD` height; R13-R14 only (0 on later releases).
     pub height: f64,
+    /// `BD` DIMGAP x DIMSCALE at creation; R13-R14 only (0 on later
+    /// releases).
     pub dimgap: f64,
     pub insertion_point: Point3D,
     pub x_axis_direction: Vec3D,
     pub extrusion: Vec3D,
     pub text_string: String,
-    /// Handle to the governing DIMSTYLE table entry. Not dereferenced
-    /// at decode time.
+    /// Handle to the governing DIMSTYLE table entry. It follows the
+    /// data fields and is not read by this decoder, so it is always zero.
     pub dimstyle_handle: Handle,
 }
 
 /// Decode a TOLERANCE payload. The cursor must already be positioned
 /// past the common entity preamble.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Tolerance> {
-    let unknown_short = if version.is_r2007_plus() {
-        c.read_bs()?
+    // §20.4.49: the unknown short, height and dimgap are R13-R14 only.
+    let (unknown_short, height, dimgap) = if version == Version::R14 {
+        (c.read_bs()?, c.read_bd()?, c.read_bd()?)
     } else {
-        0
+        (0, 0.0, 0.0)
     };
-    let height = c.read_bd()?;
-    let dimgap = c.read_bd()?;
     let insertion_point = read_bd3(c)?;
     let x_axis_direction = read_bd3(c)?;
     let extrusion = read_bd3(c)?;
     let text_string = read_tv(c, version)?;
-    let dimstyle_handle = c.read_handle()?;
     Ok(Tolerance {
         unknown_short,
         height,
@@ -74,7 +85,14 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Tolerance> {
         x_axis_direction,
         extrusion,
         text_string,
-        dimstyle_handle,
+        // The DIMSTYLE handle follows the data fields, in the handle
+        // stream on R2007+ and after the data-stream boundary before
+        // that; it is not read here.
+        dimstyle_handle: Handle {
+            code: 0,
+            counter: 0,
+            value: 0,
+        },
     })
 }
 
@@ -185,7 +203,8 @@ mod tests {
     #[test]
     fn roundtrip_tolerance_r2000() {
         let mut w = BitWriter::new();
-        // No unknown_short on pre-R2007.
+        // §20.4.49: the unknown short, height and dimgap are R13-R14.
+        w.write_bs(0); // unknown short
         w.write_bd(2.5); // height
         w.write_bd(0.09); // dimgap
         // insertion_point
@@ -206,12 +225,10 @@ mod tests {
         for b in text {
             w.write_rc(*b);
         }
-        // dimstyle handle — soft-pointer (code 5), value 0x1A
-        w.write_handle(5, 0x1A);
 
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let t = decode(&mut c, Version::R2000).unwrap();
+        let t = decode(&mut c, Version::R14).unwrap();
         assert_eq!(t.unknown_short, 0);
         assert_eq!(t.height, 2.5);
         assert!((t.dimgap - 0.09).abs() < 1e-12);
@@ -224,35 +241,5 @@ mod tests {
             }
         );
         assert_eq!(t.text_string, "TOL_1");
-        assert_eq!(t.dimstyle_handle.code, 5);
-        assert_eq!(t.dimstyle_handle.value, 0x1A);
-    }
-
-    #[test]
-    fn roundtrip_tolerance_r2010_includes_unknown_short() {
-        let mut w = BitWriter::new();
-        w.write_bs(0); // unknown short on R2007+
-        w.write_bd(5.0);
-        w.write_bd(0.125);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        // Empty text — TV length 0, no body bytes.
-        w.write_bs_u(0);
-        w.write_handle(5, 0);
-
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let t = decode(&mut c, Version::R2010).unwrap();
-        assert_eq!(t.height, 5.0);
-        assert_eq!(t.dimgap, 0.125);
-        assert_eq!(t.text_string, "");
-        assert_eq!(t.dimstyle_handle.counter, 0);
     }
 }
