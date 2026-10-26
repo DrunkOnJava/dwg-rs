@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 83 `closes`, 6 `decoder`, 16 `partial`, 33 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 63 `closes`, 6 `decoder`, 13 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 84 `closes`, 6 `decoder`, 15 `partial`, 33 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 64 `closes`, 6 `decoder`, 12 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -128,7 +128,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.75 | HATCH | 188 | `partial` | src/entities/hatch.rs | #147 | Gradient block unconditional (ARCHITECTURE §7g); a spline edge with no fit points stores no tangents (§7y, #228). The 8 R14 records are never routed (#229). The spec's own example (§20.4.75.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.76 | FIELD | 192 | `missing` |  | #149 |  |
 | §20.4.77 | FIELDLIST | 193 | `missing` |  | #149 |  |
-| §20.4.78 | GEODATA | 194 | `partial` | src/entities/geodata.rs | #150 | geoloc.dwg's one GEODATA record carries a class number and is never routed to the decoder, which dispatch keys on a fixed code (#229). |
+| §20.4.78 | GEODATA | 194 | `closes` | src/entities/geodata.rs | #150 | Routed by class name; geoloc.dwg's record (object version 3) closes and all 77 values equal its DXF twin. The north direction is a 2RD, not 3RD (ARCHITECTURE §7aa). Object version 1 and the R2007-and-earlier civil block are unmeasured. |
 | §20.4.79 | IDBUFFER | 196 | `missing` |  | #149 | The spec's own example (§20.4.79.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.80 | IMAGE | 197 | `decoder` | src/entities/image.rs | #150 | The spec's own example (§20.4.80.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.81 | IMAGEDEF | 199 | `decoder` | src/entities/imagedef.rs | #150 | The spec's own example (§20.4.81.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
