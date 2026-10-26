@@ -1856,6 +1856,40 @@ A version-2 envelope that is not `ACIS BinaryFile` (a text SAT file) is
 refused with `Unsupported` rather than scanned for an end the spec says
 needs a parser.
 
+## 7q. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
+
+§20.4.85 types LWPLINE `(varies)` and §20.4.75 types HATCH `(varies)`:
+both entered AutoCAD with R14 as classes and got the fixed codes `0x4D`
+and `0x4E` from R2000. On R14 their type code is a class number from
+AcDb:Classes, and dispatch routed only the fixed codes, so all 24 R14
+LWPOLYLINE records of the public corpus (23 in ACadSharp's
+`sample_AC1014.dwg`, 1 in nextgis `polyline2d_line_R14.dwg`) and the 8
+R14 HATCH records were counted as skipped. Routing the class names to
+the existing decoders measures them.
+
+HATCH closes as it stands. LWPOLYLINE needs one more branch from
+§20.4.85: R13-R14 write every vertex as a `2RD`, where R2000+ write the
+first as `2RD` and the rest as `2DD` against the previous vertex. With
+it, all 24 records close.
+
+R14 has no DXF export in the corpus, but AutoCAD keeps handles when it
+saves a drawing as another release, so the R14 records can be compared
+with the R2000 save of the same drawing. `examples/probe_cross_release.rs`
+does that, comparing the two decoded values handle by handle:
+
+| Drawings | Type | Records | Equal values |
+|---|---|---:|---:|
+| `sample_AC1014.dwg` / `sample_AC1015.dwg` | LWPOLYLINE | 23 | 23 |
+| `sample_AC1014.dwg` / `sample_AC1015.dwg` | HATCH | 8 | 8 |
+| `polyline2d_line_R14.dwg` / `polyline2d_line_2000.dwg` | LWPOLYLINE | 1 | 1 |
+
+The vertices are equal as doubles, bit for bit, so the R14 `2RD` reading
+and the R2000 `2DD` reading recover the same coordinates.
+
+```sh
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg LWPOLYLINE
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

@@ -467,6 +467,15 @@ pub fn decode_from_raw_with_class_map(
                 wipeout::decode(c, v).map(DecodedEntity::Wipeout)
             })
         }
+        // LWPOLYLINE and HATCH entered R14 as classes and got the fixed
+        // codes 0x4D / 0x4E from R2000; on R14 they carry a class
+        // number from AcDb:Classes and are the same records (#229).
+        "LWPOLYLINE" => checked_inline(raw, body_start, version, "LWPOLYLINE", |c, v, _, _| {
+            lwpolyline::decode(c, v).map(DecodedEntity::LwPolyline)
+        }),
+        "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
+            hatch::decode(c, v).map(DecodedEntity::Hatch)
+        }),
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.

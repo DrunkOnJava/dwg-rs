@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 80 `closes`, 6 `decoder`, 18 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 61 `closes`, 6 `decoder`, 15 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 81 `closes`, 6 `decoder`, 17 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 62 `closes`, 6 `decoder`, 14 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -125,7 +125,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.72 | GROUP (72) | 184 | `closes` | src/objects/acad_group.rs | #149 | The spec's own example (§20.4.72.1) closes on the record's boundary (#107). |
 | §20.4.73 | MLINESTYLE (73) | 185 | `closes` | src/objects/acad_mlinestyle.rs | #147 | All 10 corpus records, four release bands (ARCHITECTURE §7d.3). DXF oracle (examples/dxf_oracle): 42 records R2000-R2018, every decoded value equals AutoCAD's (462 equal, 0 by the DXF default, 84 with no DXF group); 168 DXF groups not decoded. The spec's own example (§20.4.73.1) closes on the record's boundary (#107). |
 | §20.4.74 | DICTIONARYVAR | 187 | `closes` | src/objects/dictionary_var.rs | #149 | #76. DXF oracle (examples/dxf_oracle): 258 records R2000-R2018, every decoded value equals AutoCAD's (516 equal, 0 by the DXF default, 0 with no DXF group); 516 DXF groups not decoded. The spec's own example (§20.4.74.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
-| §20.4.75 | HATCH | 188 | `partial` | src/entities/hatch.rs | #147 | Gradient block unconditional (ARCHITECTURE §7g). 1 record of export_sample.dwg (R2018) errors (#228); the 8 R14 records are never routed (#229). The spec's own example (§20.4.75.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
+| §20.4.75 | HATCH | 188 | `partial` | src/entities/hatch.rs | #147 | Gradient block unconditional (ARCHITECTURE §7g). 1 record of export_sample.dwg (R2018) errors (#228). The 8 R14 records carry a class number and are routed by class name; they close and decode to the same values as the R2000 save (#229, ARCHITECTURE.md §7q). The spec's own example (§20.4.75.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.76 | FIELD | 192 | `missing` |  | #149 |  |
 | §20.4.77 | FIELDLIST | 193 | `missing` |  | #149 |  |
 | §20.4.78 | GEODATA | 194 | `partial` | src/entities/geodata.rs | #150 | geoloc.dwg's one GEODATA record carries a class number and is never routed to the decoder, which dispatch keys on a fixed code (#229). |
@@ -135,7 +135,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.82 | IMAGEDEFREACTOR | 200 | `missing` |  | #150 | The spec's own example (§20.4.82.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.83 | LAYER_INDEX | 201 | `missing` |  | #149 | The spec's own example (§20.4.83.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.84 | LAYOUT | 202 | `closes` | src/objects/acad_layout.rs, src/objects/acad_plot_settings.rs | #146 | Closes on every LAYOUT of the public corpus, R14 to R2018 (no R13 file): the R13-R2000 plot view name and the R2004+ shade-plot fields and viewport count as printed, routed by class name on R14 and R2000. Every R14, R2000 and R2007 record equals the R2004 save of the same drawing (#229, ARCHITECTURE.md §7o). DXF oracle (examples/dxf_oracle): 132 records R2000-R2018, every decoded value equals AutoCAD's (7317 equal, 0 by the DXF default, 207 with no DXF group); 727 DXF groups not decoded. |
-| §20.4.85 | LWPLINE | 204 | `partial` | src/entities/lwpolyline.rs | #142 | The 24 R14 records are never routed: R14 gives LWPOLYLINE a class number (#229). DXF oracle (examples/dxf_oracle): 143 records R2000-R2018, every decoded value equals AutoCAD's (1875 equal, 757 by the DXF default, 143 with no DXF group); 340 DXF groups not decoded. The spec's own example (§20.4.85.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
+| §20.4.85 | LWPLINE | 204 | `closes` | src/entities/lwpolyline.rs | #142 | Closes on every LWPOLYLINE of the public corpus, R14 to R2018 (no R13 file). R14 gives LWPOLYLINE a class number and is routed by class name; its vertices are the R13-R14 2RD branch as printed. The 24 R14 records decode to the same values as the R2000 saves of the same drawings (#229, ARCHITECTURE.md §7q). DXF oracle (examples/dxf_oracle): 143 records R2000-R2018, every decoded value equals AutoCAD's (1875 equal, 757 by the DXF default, 143 with no DXF group); 340 DXF groups not decoded. The spec's own example (§20.4.85.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107). |
 | §20.4.86 | MLeaderAnnotContext | 206 | `closes` | src/entities/mleader.rs | #147 |  |
 | §20.4.87 | MLEADERSTYLE | 209 | `closes` | src/objects/acad_mleader_style.rs | #147 |  |
 | §20.4.88 | OLE2FRAME | 211 | `decoder` | src/entities/ole2_frame.rs | #150 |  |
