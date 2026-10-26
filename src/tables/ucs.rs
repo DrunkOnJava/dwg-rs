@@ -101,7 +101,8 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<UcsEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) =
+        modern::read_entry_flags(&mut split.data, version)?;
     let origin = read_bd3(&mut split.data)?;
     let x_axis = read_bd3(&mut split.data)?;
     let y_axis = read_bd3(&mut split.data)?;
@@ -117,9 +118,9 @@ pub(crate) fn decode_modern_split_stream(
     Ok(UcsEntry {
         header: TableEntryHeader {
             name,
-            is_xref_dependent,
+            flag_64: flag64,
             xref_index_plus_1,
-            is_xref_resolved: flag64,
+            is_xref_dependent,
         },
         origin,
         x_axis,
