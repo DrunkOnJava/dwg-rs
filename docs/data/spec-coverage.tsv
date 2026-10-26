@@ -84,7 +84,7 @@
 20.4.57	LINETYPE CONTROL (56)	164	closes	src/objects/control.rs	#148	The spec's own example (§20.4.57.1) closes on the record's boundary (#107).
 20.4.58	LTYPE (57)	165	partial	src/tables/ltype.rs	#148	#34: R2004 description reads garbage; complex linetypes are not checked.
 20.4.59	VIEW CONTROL (60)	167	closes	src/objects/control.rs	#148	The spec's own example (§20.4.59.1) closes on the record's boundary (#107).
-20.4.60	VIEW (61)	167	partial	src/tables/view.rs	#148	1 record each on ACadSharp's R14, R2000 and R2004 saves errors (#228). The spec's own example (§20.4.60.1) errors; §20.4.60's own field list closes on it (#256).
+20.4.60	VIEW (61)	167	partial	src/tables/view.rs	#148	1 record each on ACadSharp's R14, R2000 and R2004 saves errors (#228). The spec's own example (§20.4.60.1) closes on the record's boundary (#107).
 20.4.61	UCS CONTROL (62)	169	closes	src/objects/control.rs	#148	The spec's own example (§20.4.61.1) closes on the record's boundary (#107).
 20.4.62	UCS (63)	170	closes	src/tables/ucs.rs	#148	The spec's own example (§20.4.62.1) errors; §20.4.62's own field list closes on it (#274).
 20.4.63	TABLE (VPORT) (64)	172	closes	src/objects/control.rs	#148	The spec's own example (§20.4.63.1) closes on the record's boundary (#107).

@@ -1552,7 +1552,7 @@ cargo run --release --example spec_examples
 | §4.7 | two literal lengths, two long compression offsets | `lz77::decompress` and `streaming::Lz77Decoder` | 4 / 4, both decoders |
 | §5.10.1 | the 32-row literal copy table | `r21_lz::decompress` | 32 / 32 under the recursive reading of §7j |
 | §9 | "a dump of a complete R14 header", 0x245 bytes | `R13R15Header`, `crc8`, `streaming::FlatWalker`, `HeaderVars` | locator CRC `5C2D` (XOR `0x3CC4`), section CRC `275B` (seed `0xC0C1`), both sentinels; its first four `BD`s are §9's printed defaults |
-| §20.4.N.1 | 78 R13/R14 object records in 77 sections | `ObjectWalker`, `decode_from_raw` | 78 / 78 type, length, handle and CRC; 43 close on their own §20.4.1 `RL`, 18 error, 4 have no decoder, 13 are class-numbered |
+| §20.4.N.1 | 78 R13/R14 object records in 77 sections | `ObjectWalker`, `decode_from_raw` | 78 / 78 type, length, handle and CRC; when this section was written, 44 close on their own §20.4.1 `RL`, 17 error, 4 have no decoder and 13 are class-numbered |
 
 The spec prints no decoded values for the §20.4 dumps, only each
 record's type, length, handle and CRC, so "close" there is the crate's
@@ -1580,7 +1580,12 @@ read from the example's own bytes.
 
 For every record below, §20.4's own R13-R14 field list closes exactly
 on the example (with the two corrections above for RADIUS and
-TOLERANCE); the crate's decoder does not.
+TOLERANCE); the crate's decoder did not when this section was written.
+The example's output, and `r14-objects.tsv`'s `expect` column, are the
+current state: a decoder fix moves its rows with
+`cargo run --release --example spec_examples -- --update`. VIEW
+(§20.4.60, #256) was the eighteenth, and closed with #263 before this
+landed.
 
 | Example | The crate | Issue |
 |---|---|---|
@@ -1593,7 +1598,6 @@ TOLERANCE); the crate's decoder does not.
 | VERTEX (2D) (§20.4.11) | reads the tangent only when `flag & 0x02`; §20.4.11 makes it unconditional | #272 |
 | POLYLINE (MESH) (§20.4.34) | five `BS`, without the curve type, in another order | #273 |
 | LEADER (§20.4.47) | stops after the offset to the block insertion point | #71 |
-| VIEW (§20.4.60) | reads the four-bit view mode as a `BS` | #256 |
 | UCS (§20.4.62) | reads the R2000+ elevation and ortho fields on R14 | #274 |
 
 MINSERT, SHAPE, VIEWPORT ENTITY HEADER and the R13/R14 DIMSTYLE (#74)
