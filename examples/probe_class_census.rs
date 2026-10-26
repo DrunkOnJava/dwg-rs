@@ -28,14 +28,22 @@
 //!
 //! `--twin` takes AutoCAD's DXF export of the same drawing and adds three
 //! columns: how many records of each class the export holds, how many of
-//! those have a handle that is no object of the drawing (`export-only`),
+//! those have a handle the drawing's handle map does not list (`export-only`),
 //! and the instance count the export's own CLASSES section gives the
 //! class (group 91).
 //!
 //! The export is an independent census of what the drawing contains, so
 //! with a twin an allowlisted shortfall is excused only when the export
 //! holds no more records of the class than the walk reached, not counting
-//! export-only ones, and a missing or unreadable twin fails the run.
+//! export-only ones, and a missing, unreadable or malformed twin fails the run.
+//! The handle map, not the walk, says what the drawing holds, so a record the
+//! walker skipped cannot pass for export-only data and hide its own shortfall.
+//! A malformed twin is one whose lines are not whole group pairs, whose group
+//! codes are not numbers, whose sections do not open and close in order, that
+//! lacks an ENTITIES or an OBJECTS section or its closing `0 EOF`, or that has
+//! data after the EOF; an empty or truncated export would otherwise census
+//! every class at zero. The crate's `dxf_reader` parses and validates the
+//! grammar but sits behind a feature the CI builds of this probe do not enable.
 //! Export-only records are data the export adds: on the nextgis R2010
 //! saves it gives the TABLESTYLE (`0x65`) an xdictionary `0xD2` holding a
 //! round-trip CELLSTYLEMAP `0xD3`. Neither handle is an object of the
@@ -53,7 +61,7 @@
 
 use dwg::error::Result;
 use dwg::{DwgFile, ObjectType};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::process::ExitCode;
 
@@ -156,23 +164,71 @@ struct Twin {
     class_counts: BTreeMap<String, usize>,
 }
 
-fn read_twin(path: &str) -> std::io::Result<Twin> {
-    let bytes = std::fs::read(path)?;
+fn read_twin(path: &str) -> Result<Twin, String> {
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     let text = String::from_utf8_lossy(&bytes);
     let lines: Vec<&str> = text.lines().collect();
+    if lines.len() % 2 == 1 {
+        return Err(format!(
+            "{} lines are not whole group pairs; the file is truncated",
+            lines.len()
+        ));
+    }
     let mut twin = Twin::default();
     let mut class_name: Option<String> = None;
     let mut in_class = false;
     let mut current: Option<String> = None;
-    for pair in lines.chunks_exact(2) {
+    let mut open_section: Option<Option<String>> = None;
+    let mut sections = BTreeSet::new();
+    let mut saw_eof = false;
+    for (n, pair) in lines.chunks_exact(2).enumerate() {
+        let line = 2 * n + 1;
         let (code, value) = (pair[0].trim(), pair[1].trim());
-        if code == "0" {
+        let numeric: i64 = code
+            .parse()
+            .map_err(|_| format!("line {line}: group code {code:?} is not a number"))?;
+        if saw_eof {
+            return Err(format!("line {line}: data after EOF"));
+        }
+        if numeric == 999 {
+            continue;
+        }
+        if numeric != 0 {
+            match &mut open_section {
+                Some(name @ None) if numeric == 2 => {
+                    sections.insert(normalize(value));
+                    *name = Some(normalize(value));
+                }
+                Some(None) => return Err(format!("line {line}: SECTION is not followed by 2")),
+                None => return Err(format!("line {line}: group {numeric} outside any section")),
+                Some(Some(_)) => {}
+            }
+        } else {
+            match (value, &open_section) {
+                ("SECTION", None) => open_section = Some(None),
+                ("SECTION", Some(_)) => {
+                    return Err(format!("line {line}: SECTION inside a section"));
+                }
+                (_, Some(None)) => {
+                    return Err(format!("line {line}: SECTION is not followed by 2"));
+                }
+                ("ENDSEC", Some(Some(_))) => open_section = None,
+                ("ENDSEC", None) => {
+                    return Err(format!("line {line}: ENDSEC with no open section"));
+                }
+                ("EOF", None) => saw_eof = true,
+                ("EOF", Some(_)) => return Err(format!("line {line}: EOF inside a section")),
+                (_, Some(Some(_))) => {}
+                (_, None) => return Err(format!("line {line}: {value} outside any section")),
+            }
             in_class = value == "CLASS";
             class_name = None;
             let name = normalize(value);
             twin.records.entry(name.clone()).or_default().push(None);
             current = Some(name);
-        } else if code == "5" || code == "105" {
+            continue;
+        }
+        if code == "5" || code == "105" {
             // The record's own handle is its first `5` (`105` on DIMSTYLE).
             if let Some(slot) = current
                 .as_ref()
@@ -188,6 +244,14 @@ fn read_twin(path: &str) -> std::io::Result<Twin> {
             if let (Some(name), Ok(n)) = (class_name.as_ref(), value.parse()) {
                 twin.class_counts.insert(name.clone(), n);
             }
+        }
+    }
+    if !saw_eof {
+        return Err("no closing EOF; the file is empty or truncated".to_string());
+    }
+    for needed in ["ENTITIES", "OBJECTS"] {
+        if !sections.contains(needed) {
+            return Err(format!("no {needed} section"));
         }
     }
     Ok(twin)
@@ -344,8 +408,11 @@ fn run(path: &str, strict: bool, twin: Option<&Twin>) -> Result<bool> {
     } else {
         String::new()
     };
-    let in_drawing: std::collections::HashSet<u64> =
-        objects.iter().map(|o| o.handle.value).collect();
+    let Some(handle_map) = file.handle_map().transpose()? else {
+        println!("no handle map to tell the export's records from the drawing's");
+        return Ok(false);
+    };
+    let in_drawing: std::collections::HashSet<u64> = handle_map.iter().map(|e| e.handle).collect();
     println!(
         "{:<38} {:>6} {:>9} {:>7} {:>7} {:>7}{twin_header}",
         "class", "code", "declared", "walked", "fixed", "delta"
@@ -367,7 +434,7 @@ fn run(path: &str, strict: bool, twin: Option<&Twin>) -> Result<bool> {
         let delta = (seen + fixed) as i64 - declared as i64;
         let key = normalize(&def.dxf_class_name);
         // The export's records of this class, and how many of them have a
-        // handle that is no object of the drawing: data the export writes
+        // handle the drawing's handle map does not list: data the export writes
         // and the DWG does not hold, such as the round-trip objects AutoCAD
         // adds when it writes an older release.
         let twin_records = twin.map(|t| {
