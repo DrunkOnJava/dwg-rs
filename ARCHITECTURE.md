@@ -2075,8 +2075,12 @@ whole byte more (`00` in 19 files, `52` and `7F` in the others): the Sovol
 section size is `ceil(bits / 8) + 1` (403 to 404 bytes, 395 to 396), where
 AutoCAD's is `ceil(bits / 8)`. The decoder reads an AC1012 header with the R14
 rows when the R13 rows leave a whole byte or more, and lets that header end
-one byte before its data does; `Cabin.dwg` is untouched by either rule, and
-the byte-after-the-last-slot rule for every other release is unchanged.
+one byte before its data does. That early end is a tolerance for this
+writer's R13 variant, confined to AC1012: the Sovol drawings are not
+AutoCAD-written (AutoCAD's R14 pads with `1111` and sizes the section
+`ceil(bits / 8)`), so it is not AutoCAD's format and no other release gets it.
+`Cabin.dwg` is untouched by either rule, and the end-inside-the-last-byte rule
+for every other release is unchanged.
 
 The §26 second header's head is verified on all 22 (its sentinel sits where
 locator 3 ends; the self-address and `AC1012` read as printed). Its body
