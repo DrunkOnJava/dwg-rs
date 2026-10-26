@@ -64,7 +64,23 @@ use crate::limits::WalkerLimits;
 use crate::object_type::ObjectType;
 use crate::version::Version;
 
-/// A single undecoded object extracted from the R2004+ object stream.
+/// A single undecoded object extracted from the object stream.
+///
+/// # Framing
+///
+/// A record on disk is
+///
+/// ```text
+/// MS size | MC handle-stream size (R2010+) | data, string and handle streams | CRC (2 bytes)
+/// ```
+///
+/// [`raw`](Self::raw) holds everything between the `MS` and the CRC, so
+/// on R2010+ it starts with the `MC`. [`size_bytes`](Self::size_bytes)
+/// is the `MS` value verbatim, which does **not** count that `MC`
+/// (#77): on R2010+ `raw.len() == size_bytes + mc_width`, before R2010
+/// they are equal. Use [`byte_len`](Self::byte_len) for the record's
+/// length and [`mc_width`](Self::mc_width) for the difference, not
+/// `size_bytes` (#83).
 #[derive(Debug, Clone)]
 pub struct RawObject {
     /// Byte offset into the decompressed section where this object begins.
@@ -102,6 +118,20 @@ pub struct RawObject {
 }
 
 impl RawObject {
+    /// Length in bytes of [`raw`](Self::raw): the whole record between
+    /// its `MS` and its CRC, including the R2010+ leading `MC` that
+    /// [`size_bytes`](Self::size_bytes) does not count.
+    pub fn byte_len(&self) -> usize {
+        self.raw.len()
+    }
+
+    /// Width in bytes of the R2010+ leading `MC` handle-stream-size
+    /// field (an `MC`, §2.6; #77): `byte_len() - size_bytes`, so `0` before
+    /// R2010.
+    pub fn mc_width(&self) -> usize {
+        self.raw.len().saturating_sub(self.size_bytes as usize)
+    }
+
     /// Whether this object is an entity (drawable) or a non-entity
     /// (control, table, dictionary, ...).
     pub fn is_entity(&self) -> bool {
