@@ -2,7 +2,7 @@
 
 Last measured 2026-10-21, on `main` at `b268e884`.
 
-One row for every section of the *Open Design Specification for .dwg files* v5.4.1 (Open Design Alliance), the specification dwg-rs is built from, with its state on `main`, the code that implements it and the issue that tracks what is left. The data is in [`data/spec-coverage.tsv`](data/spec-coverage.tsv); this page is generated from it.
+One row for every section of the *Open Design Specification for .dwg files* v5.4.1 (Open Design Alliance), the specification dwg-rs is built from, with its state on `main`, the code that implements it and the issue that tracks what is left. The data is in [`data/spec-coverage.tsv`](data/spec-coverage.tsv). The summary and the section table below are generated from it by `tools/ci/spec_coverage.py --write`, and CI fails when they differ or when a section of the spec has no row.
 
 | State | Meaning |
 |---|---|
@@ -13,6 +13,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | `complete` | Closes on every release band, R13 to R2018, and every value equals AutoCAD's DXF export of the same drawing. |
 
 `closes` comes from the boundary checks on a local 19-file corpus (STATUS.md, 2026-08-30) and is re-measured in CI by the 0.2.0 measurement work; no row is `complete` until the DXF oracle exists. A state changes only in the pull request that brings its evidence ([`maintaining.md`](maintaining.md)).
+
+<!-- spec-coverage:begin -->
 
 ## Summary
 
@@ -162,6 +164,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §27 | AcDb:AuxHeader | 259 | `missing` |  | #132 |  |
 | §28 | Extended Entity Data (EED) | 261 | `closes` | src/objects/xdata.rs | #139 |  |
 | §29 | Proxy entity graphics | 262 | `partial` | src/objects/proxy_entity.rs | #139 | Carried as opaque bytes; not interpreted. |
+
+<!-- spec-coverage:end -->
 
 ## Classes the spec does not prescribe
 

@@ -31,6 +31,11 @@ header is valid in that sense: the header-variable block is still 64
 placeholder zero bytes, locator 1 points at no class section, and no
 AutoCAD build has opened the file.
 
+In every fixture the object-map sections and object records carry the
+§23.1 and §20.1 CRCs real files carry (#216): the map's big-endian CRC
+over each section's size and entries, its size-2 terminator section,
+and each record's CRC over its `MS` bytes and data.
+
 ## Licence and provenance
 
 **Apache-2.0, same as the rest of this repository.** These files are

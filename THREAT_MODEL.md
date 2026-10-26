@@ -27,7 +27,7 @@ write to arbitrary locations).
 ### 1. Memory safety
 
 **Mitigation:** the entire library is safe Rust —
-`#![deny(unsafe_code)]` is set at the crate root in `src/lib.rs`.
+`#![forbid(unsafe_code)]` is set at the crate root in `src/lib.rs`.
 No `unsafe` blocks, no raw-pointer dereferencing, no transmutes.
 All integer arithmetic that could realistically overflow uses
 either explicit `checked_*` / `saturating_*` / `wrapping_*` or
