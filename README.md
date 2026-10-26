@@ -115,9 +115,9 @@ the whole R2000..R2007 band, and skipping it put every AC1018 record 32
 bits out of phase; that `RL` is now also the boundary AC1018 entities are
 held to.
 
-Two gaps remain. The *skipped* list is the larger one: XRECORD on R14
-(1154 records), MATERIAL (203) and TABLESTYLE have no field list matched
-against real bytes, and LAYOUT, MULTILEADER, LWPOLYLINE and HATCH have
+Two gaps remain. The *skipped* list is the larger one: MATERIAL (203) and
+TABLESTYLE have no field list matched against real bytes (XRECORD on R14,
+1154 records, was the largest until #149 routed it), and LAYOUT, MULTILEADER, LWPOLYLINE and HATCH have
 decoders that are never reached on R14 to R2007 because those releases give
 them a class number dispatch does not route (#229). The *errored* list is
 above.
@@ -387,9 +387,9 @@ never estimated; `tools/corpus/baseline.tsv` holds every drawing's row.
 The project needs help, in rough order of impact:
 
 1. **The pre-R2007 field lists the public corpus fails** — TEXT, MTEXT, ATTDEF, ATTRIB and TOLERANCE on R14 to R2004 (#226), INSERT and every DIMENSION on R14 (#227), and the decoders never routed on R14 to R2007 (#229). Every save but R14 has AutoCAD's DXF of the same drawing, so most expected values exist.
-2. **XRECORD on R14** — 1154 records across the eight R14 drawings, the
-   largest skipped class; its `(group code, value)` chain has no self-
-   validating field list there yet.
+2. **XRECORD bodies** — every XRECORD now closes on its boundary,
+   R14 included (#149), but its `(group code, value)` chain is still
+   carried as bytes rather than typed pairs.
 3. **R14 DIMSTYLE** — §20.4.68 gives R13/R14 their own field order,
    unmeasured.
 4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.
