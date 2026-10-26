@@ -619,17 +619,17 @@ the spec's text and sharing no code with the crate (its Reed-Solomon encoder
 reproduces AutoCAD's parity on every codeword it is given, and its compressor
 emits every instruction class).
 
-Measured, by `verify_r2007.py` (11 files, 114 sections, 152 pages, 4,966 data
+Measured, by `verify_r2007.py` (11 files, 115 sections, 153 pages, 4,966 data
 codewords, 3,067,696 section bytes): on each of them every output line and every
 assembled byte equals the independent Python parse and the legacy reader's, four
 to seven fixed chunk schedules (down to one byte at a time on files under 400 KB,
 with `Pending` polls, and one through a reader under `FileSource` that fails every
 other read with `WouldBlock` and returns at most 512 bytes) and 128 proptest
-schedules on two files (`arc_2007.dwg`,
-`constructed_a.dwg`) reproduce it. A fresh process resumes at 778 stops (every
-step of the tiny built file at 256-byte reads and every thirteenth at 3-byte
-reads; about 60 stops of each other file at 256 and at 7-byte reads, around
-every section, page, hole and the end of the walk): the source reads and output
+schedules on two files (`arc_2007.dwg`, `constructed_a.dwg`) reproduce it. A
+fresh process resumes at 794 stops (every step of the tiny built file at 256-byte
+reads and every thirteenth at 3-byte reads; 60 to 100 stops of each other file at
+256 and at 7-byte reads, around every section, page, hole and the end of the
+walk): the source reads and output
 of the two processes concatenate to the uninterrupted run's, the bytes written
 equal the section, all six stages were checkpointed, both passes of the page map,
 the section map and a data page, a page scan, and nine of the decoder's
@@ -800,12 +800,12 @@ grammar compiles unchanged to `wasm32-unknown-unknown` with no allocator; the
 kernel reads a gather one byte at a time from its copy of the file.
 `tools/streaming/verify_wasm_r2007.py` is its acceptance run: on `tiny.dwg`, `constructed_a.dwg` and
 `constructed_b.dwg` (files `r2007_ref.build` writes), `arc_2007.dwg` and
-`sample_AC1021.dwg`, 341 native `DWGR` checkpoints (every thirteenth step of the
-smallest, and about 30 steps of each of the others, around every section, page,
+`sample_AC1021.dwg`, 349 native `DWGR` checkpoints (every thirteenth step of the
+smallest, and 32 to 102 steps of each of the others, around every section, page,
 hole and the end of the walk, covering all six stages) restored in the kernel
 finish with exactly the lines the native resume prints, at kernel read sizes of
 1, 7, 64 and 256 bytes; the kernel's own checkpoint at the same step is
-byte-identical to the native one in all 341 and the native build resumes it to
+byte-identical to the native one in all 349 and the native build resumes it to
 the uninterrupted run's output; and the kernel refuses 80 sampled bit flips of a
 native checkpoint, its first and last byte and a wrong identity (83 refusals), as
 the native build does.
