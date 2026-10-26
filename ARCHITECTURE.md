@@ -56,8 +56,8 @@ src/
 ├── bitwriter.rs        — Inverse of bitcursor, round-trip tested
 ├── cipher.rs           — 108-byte magic sequence + Sec_Mask XOR
 ├── crc.rs              — CRC-8 (16-bit output) + CRC-32 (IEEE)
-├── reed_solomon.rs     — (255,239) FEC over GF(256), defensive recovery
-├── reed_solomon_encode.rs — Writer-side RS encoder
+├── reed_solomon.rs     — §5.13's two R2007 codes: check and correct, plain or interleaved
+├── reed_solomon_encode.rs — §5.13 encoder; reproduces AutoCAD's parity bytes
 │
 ├── lz77.rs             — Decompressor (the main read-path hot loop)
 ├── lz77_encode.rs      — Encoder (literal-only, correctness-first)
