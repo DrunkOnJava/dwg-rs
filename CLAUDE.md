@@ -6,7 +6,7 @@ dwg-rs is an Apache-2.0 Rust reader (and early writer) for Autodesk DWG, R13 to 
 
 ## Commands
 
-The required CI gate (Rustfmt, Clippy, Test, Documentation, cargo-deny, PII guard):
+`main` requires ten checks (the `main-protection` ruleset, kept in `.github/rulesets/`): Rustfmt, Clippy, Test on Linux, macOS and Windows (stable), Verify MSRV (1.85), Documentation, cargo-deny, PII guard and Streaming E2E. It is strict: a PR must be up to date with `main`, so every merge restarts the full matrix on the PRs behind it. Locally:
 
 ```sh
 cargo fmt --all -- --check
@@ -15,6 +15,7 @@ cargo test --release --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo deny check advisories bans licenses sources        # CI pins cargo-deny 0.19.4
 CARGO_TARGET_DIR=target-msrv cargo +1.85 check --all-features   # MSRV without evicting the stable cache
+python3 tools/ci/spec_coverage.py --check                # docs/spec-coverage.md agrees with its data
 ```
 
 CI also builds with `RUSTFLAGS="-D warnings"`, so a warning anywhere fails the Test job.
@@ -84,7 +85,7 @@ Invariants across the crate: `#![forbid(unsafe_code)]`; malformed input returns 
 ## Rules for changes
 
 - **Clean-room** (`CLEANROOM.md`): never consult or import LibreDWG, the ODA/Teigha SDK, Autodesk SDKs or any GPL DWG source. Algorithm-description comments in MIT, Apache or BSD projects may resolve a spec ambiguity only with a dated disclosure added to `CLEANROOM.md`. Every PR body carries the source-provenance declaration from the PR template.
-- **Cite the spec by v5.4.1 number.** Objects are §20.4.x; older code still says §19.4.x (#106). `docs/spec-coverage.md` gives every section a state (`missing`, `decoder`, `partial`, `closes`, `complete`) and says it is generated from `docs/data/spec-coverage.tsv`, but no generator is on `main`: update both together. A state changes only in the PR that brings its evidence.
+- **Cite the spec by v5.4.1 number.** Objects are §20.4.x; older code still says §19.4.x (#106). `docs/spec-coverage.md` gives every section a state (`missing`, `decoder`, `partial`, `closes`, `complete`) and is generated: edit `docs/data/spec-coverage.tsv`, then run `python3 tools/ci/spec_coverage.py --write`. CI's Spec coverage job fails when a section has no row or the page and its data disagree. A state changes only in the PR that brings its evidence.
 - **Evidence is real-file, not unit tests.** The PR template asks for the corpus records a change was measured on and the reproducing command, with no new unit tests; existing suites stay and must pass. A new format finding gets a probe under `examples/` (module doc saying what it proves and how to verify it) and a dated section in `ARCHITECTURE.md` with its evidence table.
 - **New decoders** follow `docs/EXTENDING_DECODERS.md`. For a fixed-code entity: a type-code constant, a `DecodedEntity` variant, a `fixed_entity_label` entry and a `decode_fixed_entity_body` arm in `entities/dispatch.rs`. The label list and the body arms must match (`fixed_entity_label_covers_every_body_arm` checks it), and `checked_inline` applies the boundary check for you. Custom classes dispatch on their DXF class name instead. `templates/entity-decoder` is a cargo-generate skeleton.
 - Every `pub fn` in `src/` gets a `///` line naming its bit code, flag mask or spec section; the docs-rs workflow fails below 80% and the tree is at 100%.
