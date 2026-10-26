@@ -552,13 +552,15 @@ pub fn decode_legacy(
     for _ in 0..rows {
         row_heights.push(c.read_bd()?);
     }
-    let total = columns * rows;
-    if total > c.remaining_bits() {
-        return Err(Error::SectionMap(format!(
-            "ACAD_TABLE claims {total} cells in {} remaining bits",
-            c.remaining_bits()
-        )));
-    }
+    let total = columns
+        .checked_mul(rows)
+        .filter(|&total| total <= c.remaining_bits())
+        .ok_or_else(|| {
+            Error::SectionMap(format!(
+                "ACAD_TABLE claims {columns} columns by {rows} rows in {} remaining bits",
+                c.remaining_bits()
+            ))
+        })?;
     let mut cells = Vec::with_capacity(total);
     for _ in 0..total {
         cells.push(read_legacy_cell(c, strings, version)?);
