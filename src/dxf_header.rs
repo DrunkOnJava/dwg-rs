@@ -479,8 +479,11 @@ fn groups(
     names: &Names,
     target: Rel,
 ) -> Option<Vec<HeaderGroup>> {
-    let code = |i: usize| i32::from(codes[i]);
-    let real = |i: usize, v: f64| v.is_finite().then(|| HeaderGroup::Real(code(i), v));
+    let code = |i: usize| codes.get(i).map(|c| i32::from(*c));
+    let real = |i: usize, v: f64| match code(i) {
+        Some(c) if v.is_finite() => Some(HeaderGroup::Real(c, v)),
+        _ => None,
+    };
     Some(match value {
         Value::Bool(_) | Value::Byte(_) | Value::Short(_) | Value::Long(_) | Value::LongLong(_) => {
             let v = value.as_i64()?;
@@ -489,23 +492,23 @@ fn groups(
             } else if name == "$XCLIPFRAME" {
                 vec![HeaderGroup::Int(280, v)]
             } else {
-                vec![HeaderGroup::Int(code(0), v)]
+                vec![HeaderGroup::Int(code(0)?, v)]
             }
         }
         Value::Double(v) => vec![real(0, *v)?],
         Value::Point3(p) => vec![real(0, p[0])?, real(1, p[1])?, real(2, p[2])?],
         Value::Point2(p) => vec![real(0, p[0])?, real(1, p[1])?],
-        Value::Text(t) => vec![HeaderGroup::Text(code(0), t.clone())],
-        Value::Color(c) => vec![HeaderGroup::Int(code(0), i64::from(c.aci()?))],
+        Value::Text(t) => vec![HeaderGroup::Text(code(0)?, t.clone())],
+        Value::Color(c) => vec![HeaderGroup::Int(code(0)?, i64::from(c.aci()?))],
         Value::Date { .. } => vec![real(0, value.as_julian()?)?],
         Value::Handle(h) => {
-            if is_handle_group(codes[0]) {
+            if is_handle_group(*codes.first()?) {
                 if h.value == 0 {
                     return None;
                 }
-                vec![HeaderGroup::Handle(code(0), h.value)]
+                vec![HeaderGroup::Handle(code(0)?, h.value)]
             } else {
-                vec![HeaderGroup::Text(code(0), names.resolve(name, h.value)?)]
+                vec![HeaderGroup::Text(code(0)?, names.resolve(name, h.value)?)]
             }
         }
     })
