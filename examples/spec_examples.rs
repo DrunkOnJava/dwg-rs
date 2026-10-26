@@ -46,6 +46,19 @@
 //! ```
 //!
 //! Exit status 0 means every example matched its fixture.
+//!
+//! # When a decoder change moves an example
+//!
+//! ```sh
+//! cargo run --release --example spec_examples -- --update
+//! ```
+//!
+//! rewrites every `expect` cell whose outcome changed, the matching
+//! sentence of each §20.4 row in `docs/data/spec-coverage.tsv`, and
+//! `docs/spec-coverage.md` (through `tools/ci/spec_coverage.py --write`),
+//! then lists what moved. A record that newly errors is written as
+//! `error #?` and fails until the issue that tracks it is filled in, so a
+//! regression cannot be recorded silently.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -593,8 +606,19 @@ fn classify(raw: &dwg::RawObject) -> (String, String) {
     }
 }
 
-fn r14_objects(r: &mut Report) {
+/// Whether an `expect` cell names the issue that tracks its error.
+fn names_issue(expect: &str) -> bool {
+    expect
+        .strip_prefix("error #")
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// Run every §20.4 dump and return each row's `expect` cell as it should
+/// now read: unchanged where the outcome still matches it, otherwise the
+/// new outcome (`error #?` when a record newly errors).
+fn r14_objects(r: &mut Report, update: bool) -> HashMap<(String, String), String> {
     let rows = rows("r14-objects.tsv");
+    let mut cells = HashMap::new();
     let mut tally: HashMap<String, usize> = HashMap::new();
     let mut walked = 0;
     println!("§20.4.N.1 R14 objects:");
@@ -627,11 +651,32 @@ fn r14_objects(r: &mut Report) {
             walked += 1;
         }
         let (result, message) = classify(&raw);
-        let expect = &row["expect"];
-        let matches = expect.split(' ').next() == Some(result.as_str());
-        r.check(&id, matches, || {
-            format!("expected {expect}, got {result} {message}")
-        });
+        let expect = row["expect"].as_str();
+        let same = expect.split(' ').next() == Some(result.as_str());
+        let cell = if same {
+            expect.to_string()
+        } else if result == "error" {
+            "error #?".to_string()
+        } else {
+            result.clone()
+        };
+        let numbered = result != "error" || names_issue(&cell);
+        let matches = same && numbered;
+        if update {
+            r.check(&id, numbered, || {
+                format!(
+                    "newly errors ({message}); write the issue that tracks it into its expect cell"
+                )
+            });
+        } else {
+            r.check(&id, matches, || {
+                format!(
+                    "expected {expect}, got {result} {message}; \
+                     `cargo run --release --example spec_examples -- --update` records the new outcome"
+                )
+            });
+        }
+        cells.insert((row["section"].clone(), row["handle"].clone()), cell);
         *tally.entry(result.clone()).or_default() += 1;
         println!(
             "  §{:<9} p{:<8} {:<18} type {:>5} len {:>4} handle {:>4}  {:<10} {}{}",
@@ -658,9 +703,113 @@ fn r14_objects(r: &mut Report) {
         tally.get("error").copied().unwrap_or(0),
         tally.get("walk-only").copied().unwrap_or(0),
     );
+    cells
+}
+
+// ---------------------------------------------------------------- --update
+
+fn repo_path(parts: &[&str]) -> PathBuf {
+    std::iter::once(env!("CARGO_MANIFEST_DIR"))
+        .chain(parts.iter().copied())
+        .collect()
+}
+
+/// The sentence `docs/data/spec-coverage.tsv` ends a §20.4 row's note with,
+/// given the `expect` cells of that section's examples.
+fn coverage_sentence(section: &str, expects: &[String]) -> String {
+    let n = format!("§{section}.1");
+    if expects.iter().all(|e| e == "closes") {
+        return if expects.len() > 1 {
+            format!("The spec's own examples ({n}) close on the record's boundary (#107).")
+        } else {
+            format!("The spec's own example ({n}) closes on the record's boundary (#107).")
+        };
+    }
+    let first = expects[0].as_str();
+    match first.split(' ').next() {
+        Some("unhandled") => format!("The spec's own example ({n}) has no decoder to run (#107)."),
+        Some("walk-only") => format!(
+            "The spec's own example ({n}) is a class-numbered record with no class table printed, \
+             so only its walk and CRC are checked (#107)."
+        ),
+        _ => {
+            let issue = first.split(' ').nth(1).unwrap_or("#?");
+            let why = match section {
+                "20.4.28" => "it closes only with the BD leader length §20.4.28 omits (ARCHITECTURE §7k)".to_string(),
+                "20.4.49" => "it closes only with a TV text and one more leading BD than §20.4.49 lists (ARCHITECTURE §7k)".to_string(),
+                _ => format!("§{section}'s own field list closes on it"),
+            };
+            format!("The spec's own example ({n}) errors; {why} ({issue}).")
+        }
+    }
+}
+
+/// Write the new `expect` cells into `r14-objects.tsv`, rewrite the
+/// matching sentence of each §20.4 row in `docs/data/spec-coverage.tsv`,
+/// and regenerate `docs/spec-coverage.md` from it.
+fn update_fixtures(cells: &HashMap<(String, String), String>) -> Result<Vec<String>, String> {
+    let objects = repo_path(&["tests", "fixtures", "spec-examples", "r14-objects.tsv"]);
+    let text = std::fs::read_to_string(&objects).map_err(|e| e.to_string())?;
+    let mut changed = Vec::new();
+    let mut by_section: HashMap<String, Vec<String>> = HashMap::new();
+    let mut out = String::new();
+    for line in text.lines() {
+        let mut cols: Vec<String> = line.split('\t').map(str::to_string).collect();
+        if !line.starts_with('#') && !line.starts_with("section\t") && cols.len() > 7 {
+            let key = (cols[0].clone(), cols[5].clone());
+            if let Some(cell) = cells.get(&key) {
+                if *cell != cols[7] {
+                    changed.push(format!("§{} {}: {} -> {}", cols[0], cols[2], cols[7], cell));
+                    cols[7] = cell.clone();
+                }
+            }
+            by_section
+                .entry(cols[0].clone())
+                .or_default()
+                .push(cols[7].clone());
+        }
+        out.push_str(&cols.join("\t"));
+        out.push('\n');
+    }
+    std::fs::write(&objects, out).map_err(|e| e.to_string())?;
+
+    let coverage = repo_path(&["docs", "data", "spec-coverage.tsv"]);
+    let text = std::fs::read_to_string(&coverage).map_err(|e| e.to_string())?;
+    let mut out = String::new();
+    for line in text.lines() {
+        let mut cols: Vec<String> = line.split('\t').map(str::to_string).collect();
+        if let Some(expects) = by_section.get(&cols[0]).filter(|_| cols.len() == 7) {
+            let kept = cols[6]
+                .find("The spec's own example")
+                .map_or(cols[6].as_str(), |at| &cols[6][..at])
+                .trim_end()
+                .to_string();
+            let sentence = coverage_sentence(&cols[0], expects);
+            cols[6] = if kept.is_empty() {
+                sentence
+            } else {
+                format!("{kept} {sentence}")
+            };
+        }
+        out.push_str(&cols.join("\t"));
+        out.push('\n');
+    }
+    std::fs::write(&coverage, out).map_err(|e| e.to_string())?;
+    let status = std::process::Command::new("python3")
+        .arg(repo_path(&["tools", "ci", "spec_coverage.py"]))
+        .arg("--write")
+        .status()
+        .map_err(|e| format!("python3 tools/ci/spec_coverage.py --write: {e}"))?;
+    if !status.success() {
+        return Err(format!(
+            "python3 tools/ci/spec_coverage.py --write: {status}"
+        ));
+    }
+    Ok(changed)
 }
 
 fn main() -> ExitCode {
+    let update = std::env::args().any(|a| a == "--update");
     let mut r = Report::default();
     println!("ODA spec v5.4.1 worked examples through dwg's public API (#107)");
     bit_codes(&mut r);
@@ -668,7 +817,22 @@ fn main() -> ExitCode {
     lz77_examples(&mut r);
     r2007_copy_blocks(&mut r);
     r14_header(&mut r);
-    r14_objects(&mut r);
+    let cells = r14_objects(&mut r, update);
+    if update {
+        match update_fixtures(&cells) {
+            Ok(changed) if changed.is_empty() => println!("--update: no expect cell changed"),
+            Ok(changed) => {
+                println!(
+                    "--update: {} expect cell(s) changed; r14-objects.tsv and docs/spec-coverage.* rewritten:",
+                    changed.len()
+                );
+                for c in &changed {
+                    println!("  {c}");
+                }
+            }
+            Err(e) => r.failures.push(format!("--update: {e}")),
+        }
+    }
     if r.failures.is_empty() {
         println!("OK: {} checks, every result matches its fixture", r.checks);
         ExitCode::SUCCESS
