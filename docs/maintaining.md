@@ -83,11 +83,28 @@ issues from the forms arrive with `needs-triage`.
 `.github/rulesets/`: squash-merge only, linear history, signed commits,
 resolved review threads, and up to date with `main` before merging. The
 required checks are Rustfmt, Clippy, Test on Linux, macOS and Windows (stable),
-Verify MSRV (1.85), Documentation, cargo-deny, the PII guard and Streaming E2E.
+Verify MSRV (1.85), Documentation, cargo-deny, the PII guard, Streaming E2E,
+Corpus (public DWG) and Spec coverage.
 Nobody can bypass it, the maintainer included; an emergency change goes through
 a pull request like any other. One issue or finding per pull request, with the
 spec section cited and the source-provenance declaration from
 [`CLEANROOM.md`](../CLEANROOM.md).
+
+When several decoder PRs are open at once, each merge leaves the others stale
+on the generated files: `tools/corpus/baseline.tsv`, `docs/spec-coverage.md`,
+the notes in `docs/data/spec-coverage.tsv`, the spec-example fixtures and the
+`## 7x.` letters of new ARCHITECTURE.md sections. `tools/maintainer/train/`
+lands such a queue one PR at a time:
+`tools/maintainer/train/train.sh <pr>...` merges `main` into each branch (no
+force push), renumbers its ARCHITECTURE.md section after main's, merges the
+coverage table cell by cell, regenerates every generated file from a real run
+of the public corpus, refuses any count that is worse than main's baseline,
+pushes, and turns squash auto-merge on only once the Corpus job is green and no
+review thread is open. A coverage note both sides rewrote keeps the pull
+request's text, and main's dropped text is posted on the PR for review; a
+conflict in a section's state, or in any file outside that set, stops the train
+for that PR. The queue, log and per-PR evidence live in `.git/train/` of the
+clone it runs from; `common.sh` lists the environment variables that move them.
 
 ## Housekeeping
 
