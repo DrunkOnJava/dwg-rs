@@ -320,7 +320,7 @@ testing are needed.
 
 ## Safety
 
-The whole crate is `#![deny(unsafe_code)]`. Reed-Solomon, LZ77, GF(256), bit-cursor,
+The whole crate is `#![forbid(unsafe_code)]`. Reed-Solomon, LZ77, GF(256), bit-cursor,
 and bit-writer are all safe Rust. Every parser returns `Result<T, Error>`. Defensive
 caps bound runaway allocations (1 M dictionary entries, 16 MB XRECORDs, 1 M spline
 control points). See [`SECURITY.md`](./SECURITY.md) for threat model + private
