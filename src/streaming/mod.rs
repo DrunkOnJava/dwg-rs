@@ -12,12 +12,18 @@ mod checkpoint;
 mod flat;
 mod lz77;
 mod r2004;
-pub use checkpoint::{Checkpoint, Lz77Checkpoint, R2004Checkpoint, WalkCheckpoint};
+mod r2004_maps;
+pub use checkpoint::{
+    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, WalkCheckpoint,
+};
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
 };
 pub use lz77::{Lz77Decoder, Progress, WINDOW};
 pub use r2004::{R2004_HEADER_BYTES, R2004Header, R2004HeaderParser};
+pub use r2004_maps::{
+    MapDemand, MapStep, PageEntry, R2004MapWalker, SectionEntry, SectionPage, SystemKind,
+};
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -131,6 +137,32 @@ pub enum StreamError {
         expected: u32,
         actual: u32,
     },
+    /// §4.3: the system page at this address has the wrong type or
+    /// compression, an empty size, or lies outside the source or its page.
+    SystemPage(u64),
+    /// §4.3: the system page's checksum.
+    SystemPageChecksum {
+        address: u64,
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.4: page map entry `n` has number 0 or a size that is zero, not a
+    /// multiple of 0x20, or overflows the address.
+    PageEntry(u32),
+    /// §4.4: the page map does not list itself at the header's address, or
+    /// its own entry is smaller than the page.
+    PageMapSelf,
+    /// §4.4: the page map has no entry for the header's section map id.
+    SectionMapMissing,
+    /// §4.5: the section map header is not (count, 2, 0x7400, 0, ...).
+    SectionMapHeader,
+    /// §4.5: section description `n` or one of its page references is
+    /// malformed (compression or encryption flag, page size, name, or a
+    /// start offset that is not a rising multiple of the page size).
+    SectionEntry(u32),
+    /// A system page decoded to a size other than declared, or ended
+    /// inside a record.
+    MapLength(u64),
 }
 
 impl fmt::Display for StreamError {

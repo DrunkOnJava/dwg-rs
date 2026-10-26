@@ -167,3 +167,21 @@ seeded 0xC0C1 over the `MS` bytes and data.
   byte resumes in a fresh process reading each byte once; corrupt,
   truncated and wrong-identity checkpoints are rejected; a failure
   snapshot restores the same failure.
+
+## R2004 page map and section map failure cases (§4.3–§4.5, written before the walker)
+
+- System page: wrong type tag, compression type not 2, zero sizes, data
+  past the source, the section map larger than its page; checksum wrong.
+- Page map: entry number 0, size zero or off 0x20, address overflow, no
+  entry of its own at the header's address or one too small for it, no
+  entry for the section map id, a gap entry cut short.
+- Section map: header constants other than (2, 0x7400, 0); a description
+  with a compression flag other than 1 or 2, an encryption flag above 2,
+  a zero page size or a non-printable name; page start offsets that do
+  not rise or are not whole pages.
+- Either page decoding to more or less than declared, or ending inside a
+  record.
+- Every chunk schedule produces the same steps; a checkpoint at every
+  step resumes in a fresh process with reads and output concatenating to
+  the uninterrupted run's; corrupt, truncated, wrong-identity and resealed
+  unreachable checkpoints are rejected.
