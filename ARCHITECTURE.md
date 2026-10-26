@@ -2599,6 +2599,38 @@ cargo run --release --example probe_rastervariables -- ../dwg-corpus
 | R2013 | 1 / 1 | 1 / 1 | 5 | 0 |
 | R2018 | 1 / 1 | 1 / 1 | 5 | 0 |
 
+## 7af. ACDBPLACEHOLDER by class number on R14 and R2000 (2026-10-26)
+
+§5 lists ACDBPLACEHOLDER with the fixed object types (`0x50`) and
+prints no field list for it: the record is the common object data and
+nothing else (`src/objects/placeholder.rs`, §7a). R2004 and later write it
+under `0x50` and have decoded since §7d. R14 and R2000 do not: their
+drawings give it a class number from `AcDb:Classes`, as they do XRECORD, and
+the class-name dispatch did not route it, so the 16 placeholders of the
+corpus's R14 and R2000 drawings (one per drawing) were skipped. They are
+the same record, and each closes on its data-stream boundary: the `RL` inside
+the common object data on R14, the prologue's `RL` on R2000.
+
+All 52 placeholders of the corpus close, by either route. Against AutoCAD's
+DXF export (R2000 to R2018, matched by handle) the one value the record
+holds, its `BL` reactor count, equals the number of reactors in the
+object's `{ACAD_REACTORS` bracket on all 42 records that have a twin; R14
+and three ACadSharp R2018 drawings have none.
+
+```sh
+cargo run --release --example probe_placeholder -- ../dwg-corpus
+```
+
+| Release | Records | Close | Reactor counts compared | Differ |
+|---|---|---|---|---|
+| R14 | 8 | 8 | no twin | |
+| R2000 | 8 | 8 | 8 | 0 |
+| R2004 | 8 | 8 | 8 | 0 |
+| R2007 | 8 | 8 | 8 | 0 |
+| R2010 | 8 | 8 | 8 | 0 |
+| R2013 | 8 | 8 | 8 | 0 |
+| R2018 | 4 | 4 | 2 | 0 |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
