@@ -4,9 +4,10 @@ Two hand-written pure state machines are implemented for R13, R14 and
 R2000 (AC1012/AC1014/AC1015), ODA v5.4.1: the complete **file header**
 (§3.2), and the **container walk** that continues from it through the
 header-variable and class sections, the object map and every mapped
-record's framing, type and handle (below). Neither decodes object bodies,
-and the R2004+ containers and decompression are not covered; those remain
-open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
+record's framing, type and handle (below). Neither decodes object bodies.
+For the R2004 family there is a bounded, resumable **LZ77 decoder** (§4.7,
+below); the R2004+ container walk that would drive it is not implemented.
+Those remain open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
 compiler is an upgrade after the hand-written baseline, tracked in
 [#208](https://github.com/DrunkOnJava/dwg-rs/issues/208).
 
@@ -104,6 +105,82 @@ Not measured: a real R13 file, files larger than about 160 KB, and any
 throughput. The companion DXFs in the sample repository renumber handles
 on save, so they are not used as a handle oracle.
 
+## LZ77 decoder (R2004 family, §4.7)
+
+`streaming::Lz77Decoder` decodes one compressed page. `decode(input, out)`
+takes any prefix of the remaining compressed bytes and an output slice of
+any length, and returns how many of each it used; it stops when the input
+is used up, the output is full or the `0x11` terminator is read, so it can
+pause between any two bytes of input or output. `end_of_input()` turns a
+stream that ends before the terminator into `Lz77Truncated`. The declared
+decompressed size is a hard ceiling: a literal run or copy that would pass
+it is `Lz77Overrun`, before anything is written. A reserved opcode
+(`0x00`–`0x0F`) is `Lz77Opcode` and a back-reference before the first output
+byte is `Lz77Offset`, each with its input position. Errors are terminal.
+
+Opcode semantics are the crate's own `lz77::decompress`, measured against
+AutoCAD-written files: distances are one more than §4.7's text gives, and
+bit 3 of an `0x12`–`0x1F` opcode is bit 14 of the distance. The largest
+distance is `0xBFFF`, so the decoder keeps a fixed `0xC000`-byte window of
+recent output and nothing else of the page. Its state is that window plus
+80 bytes on aarch64 (49,232 bytes; the checkpoint holder is 49,224), and
+both are compile-time bounded at `WINDOW + 128` in the `no_std` kernel
+build. Neither grows with the page or the stream.
+
+`Lz77Checkpoint` serializes the decoder between calls: the opcode cursor,
+the pending copy or literal run, the totals, the limit and the retained
+window (the last `min(produced, 0xC000)` output bytes, oldest first),
+under a CRC-32. It is `54 + kept + 4` bytes, so at most 49,210 bytes, and
+29,754 for a full `0x7400` page. Restore checks length, version and CRC
+before copying anything, then requires a state `decode` can reach: fields
+a mode does not use are zero, runs fit the limit, a pending copy points
+inside the window. `produced` can never pass the limit, since every
+pending run is bounded by `limit - produced`; `consumed` has no bound a
+checkpoint can prove, so it is accumulated with a check, and a forged
+count at the top of its range ends in `CounterOverflow`, never a panic or
+a wrapped position. Where the compressed bytes come from, how many the
+caller has read but not yet fed, and the output already handed out are
+the caller's state; `stream_lz77` saves them beside the checkpoint.
+
+`examples/stream_lz77.rs` decodes every compressed page of an R2004-family
+file: the §4.3 section page map and section map, then every page of every
+LZ77 section (§4.5). The page list comes from the legacy section map;
+only the decoding is under test. `--legacy` decodes the same pages with
+`lz77::decompress`. `tools/streaming/verify_lz77.py` runs it on the four
+canonical R2004-family fixtures and every R2004, R2010 and R2013 file in
+the pinned `nextgis/dwg_samples` commit (`lz77-corpus.json`, fetched by
+hash with bounded retry, never committed): 25 files, 266 pages, 6,097,392
+decompressed bytes. For every page the output length, CRC-32 and the bytes
+consumed through the terminator equal an independent Python §4.7 parse,
+and the output equals `lz77::decompress`. Four fixed input/output
+schedules (down to one byte in and one byte out, with Pending polls)
+reproduce every file's output, and 128 proptest input schedules run on
+three files. Fresh-process resume inside the largest data page is checked
+at every call of the canonical page and 45 or 46 sampled calls of three
+real pages: the two processes' source reads and output concatenate to the
+uninterrupted run's. Checkpoints were taken in seven of the ten modes; bit
+flips at every byte, every truncation and nine resealed forgeries are
+rejected. A CRC-valid checkpoint with `consumed = 2^64 - 1`, in a literal
+run and at an opcode, fed directly to the restored decoder
+(`--decode-checkpoint`), ends in `CounterOverflow`; a literal run ending
+exactly at a limit of `2^64 - 1` decodes. A reserved opcode, a distance before the first byte, an output
+past the declared size and a stream cut before the terminator each end in
+their named error.
+
+Measured on that corpus: every AutoCAD-written page decompresses to exactly
+its declared size (the section's page size for data pages, which includes
+the final page's padding), and every compressed stream ends `11 00 00`, two
+bytes after the terminator. The crate's writer does neither: its data
+pages decompress to their content length and its streams end at `11`. The
+decoder accepts both; the writer divergence is recorded on #163.
+
+Not measured: R2018 pages in this acceptance run, pages larger than
+`0x7400`, and throughput. #225 pins R2018 drawings from DomCR/ACadSharp
+in `tools/corpus/pins.tsv`; `sample_AC1032.dwg`, byte-identical to one of
+them, was checked by hand (53 pages equal), and adding them to
+`lz77-corpus.json` is a follow-up. R2007 uses a different compression (§5.10) and is not
+covered.
+
 ## Checkpoint contract
 
 A checkpoint contains the source identity and length, phase, byte position,
@@ -152,6 +229,14 @@ python3 tools/streaming/check_invariants.py
 mkdir -p streaming-build
 rustc --edition=2024 --crate-type rlib tools/streaming/no_std.rs --out-dir streaming-build
 rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/streaming/no_std.rs --out-dir streaming-build
+```
+
+The R13–R2000 walk and the LZ77 decoder have their own drivers:
+
+```sh
+cargo build --locked --example stream_walk --example stream_lz77 --example streaming_schedules
+python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 ```
 
 Run these on the project's build host. The workflow uploads
