@@ -28,8 +28,10 @@
 //! | *_CONTROL                | [`control`]               | §19.5.1..§19.5.10|
 //! | custom-dict entries      | [`custom_dict_entry`]     | §19.5.19 (L7-06) |
 //! | ACDB_PLACEHOLDER         | [`placeholder`]           | §19.5.x          |
+//! | RASTERVARIABLES          | [`image_raster_variables`]      | §20.4.91         |
 //! | DICTIONARY               | [`dictionary`]            | §19.5.19         |
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
+//! | IMAGEDEF_REACTOR         | [`image_def_reactor`]     | §20.4.82         |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
@@ -90,6 +92,8 @@ pub mod control;
 pub mod custom_dict_entry;
 pub mod dictionary;
 pub mod dictionary_var;
+pub mod image_def_reactor;
+pub mod image_raster_variables;
 pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;

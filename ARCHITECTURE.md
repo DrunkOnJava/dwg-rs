@@ -2563,6 +2563,42 @@ cargo run --release --example probe_tablestyle -- ../dwg-corpus
 
 The oracle (`examples/dxf_oracle`) does not score TABLESTYLE yet.
 
+## 7ae. IMAGEDEFREACTOR and RASTERVARIABLES (2026-10-26, #150)
+
+§20.4.82 and §20.4.91 print the two small objects an IMAGE entity drags
+along, both after the common object data and `BL` class version: the
+reactor an IMAGEDEF keeps for each IMAGE (`IMAGEDEF_REACTOR` in the DXF and
+the class table, `IMAGEDEFREACTOR` in the spec) holds nothing else, and
+RASTERVARIABLES adds three `BS`, the display frame, the display quality and
+the units. Their notes in §7d and the STATUS table counted them unreached;
+the dispatcher had no class-name arm for either.
+
+Each drawing of the corpus that holds an IMAGE holds one of each, the
+seven ACadSharp `sample_AC10xx` saves, and all 14 records close on their
+data-stream boundary from R14 to R2018: after the common object data the
+reactor has 10 bits, its `BL` class version, and RASTERVARIABLES 32, that
+`BL` and its three `BS`, on every release.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) all 30 values equal the groups that carry them: the 6 class versions
+(group 90), and for RASTERVARIABLES 4 values on each of 6 releases (groups 90,
+70, 71, 72). R14 has no twin.
+
+```sh
+cargo run --release --example probe_imagedef_reactor -- ../dwg-corpus
+cargo run --release --example probe_rastervariables -- ../dwg-corpus
+```
+
+| Release | IMAGEDEF_REACTOR close | RASTERVARIABLES close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 1 / 1 | 1 / 1 | no twin | |
+| R2000 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2004 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2007 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2010 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2013 | 1 / 1 | 1 / 1 | 5 | 0 |
+| R2018 | 1 / 1 | 1 / 1 | 5 | 0 |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
