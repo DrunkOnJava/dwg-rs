@@ -309,8 +309,8 @@ jobs:
       - name: Measure every pinned drawing and check the ratchet
         if: steps.fetch.outputs.measured == 'true'
         run: |
-          cargo +stable build --release --example coverage_report \
-            --example probe_class_census --example probe_reference_closure
+          cargo +stable build --release --features dxf-reader --example coverage_report \
+            --example probe_class_census --example probe_reference_closure --example dxf_oracle
           set +e
           python3 -I tools/corpus/measure.py run --corpus "$HOME/dwg-corpus" \
             --bin target/release/examples --out corpus-results.json --logs corpus-logs
@@ -356,12 +356,35 @@ jobs:
             echo "::error::no pinned R2004-family drawing reached the data page probe"
             exit 1
           fi
+      # The DXF value oracle (#99, #103): every DWG record paired by handle
+      # with AutoCAD's own DXF export of the same drawing, and every decoded
+      # field compared with its DXF group. tools/oracle/baseline.tsv holds
+      # the agreeing values per release, type, field and group; a count
+      # that falls, or a row that disappears, fails the job. A change that
+      # raises, adds or renames a row commits the regenerated TSV (uploaded
+      # below as oracle.tsv) in the same pull request.
+      - name: DXF value oracle and its ratchet
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          target/release/examples/dxf_oracle "$HOME/dwg-corpus" --tsv oracle.tsv \
+            --summary oracle-summary.md --baseline tools/oracle/baseline.tsv > oracle.log 2>&1
+          status=$?
+          set -e
+          if [ -f oracle-summary.md ]; then
+            cat oracle-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          sed -n '/== Pairing by handle/,/== Field agreement/p;/== Disagreements/,/== DXF groups/p;/== Ratchet/,$p' oracle.log
+          exit "$status"
       # Measurements and the baseline a change would need; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.fetch.outputs.measured == 'true'
         with:
           name: corpus-measurement
           path: |
+            oracle.tsv
+            oracle.log
+            oracle-summary.md
             corpus-results.json
             corpus-logs/
             corpus-tests.log
