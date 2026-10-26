@@ -459,3 +459,21 @@ does not close on its own example (§20.4.28 RADIUS, §20.4.49 TOLERANCE),
 the corrected readings recorded in ARCHITECTURE.md §7k come from that
 example's bytes alone, and the unnamed extra `BD` of TOLERANCE is left
 unnamed for that reason.
+
+## 2026-10-26 — DXF value oracle: pairing and field scorers
+
+The PR for #101 and #102 adds `examples/dxf_oracle`, which pairs every DWG
+record with the record of the same handle in AutoCAD's own DXF export and
+compares each decoded field with the DXF group that carries it. For the
+types ODA spec v5.4.1 prescribes, the group of each field is the one the
+spec prints in its DXF column (§20.4.x, cited on every scorer). For the
+rest (MTEXT's chunked text, the attribute subclass, LAYOUT's subclass
+split, the defaults AutoCAD omits, the `^J` control-character notation,
+the lineweight values), the group codes and conventions are those of
+Autodesk's public *DXF Reference*, recalled; it is published
+documentation, not SDK or product source. Every convention the scorers
+apply is also measured on the exports and documented in `scorers.rs`.
+The exports read are `nextgis/dwg_samples` (no licence stated) and the
+`samples/` directory of `DomCR/ACadSharp` (MIT), fetched by pinned commit
+and sha256 into a cache outside the repository; only those data files
+were read, not ACadSharp's code or comments.
