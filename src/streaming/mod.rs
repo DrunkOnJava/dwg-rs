@@ -9,7 +9,8 @@ pub use checkpoint::Checkpoint;
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
-const END_SENTINEL: [u8; 16] = [
+/// The 16 bytes that close an R13–R2000 file header (§3.2).
+pub const END_SENTINEL: [u8; 16] = [
     0x95, 0xa0, 0x4e, 0x28, 0x99, 0x82, 0x1a, 0xe5, 0x5e, 0x41, 0xe0, 0x5f, 0x9d, 0x3a, 0x4d, 0x00,
 ];
 
@@ -290,13 +291,8 @@ impl FlatHeaderParser {
             }
             Phase::Crc => {
                 let end = self.filled - 2;
-                let xor = match self.count {
-                    3 => 0xa598,
-                    4 => 0x8101,
-                    5 => 0x3cc4,
-                    6 => 0x8461,
-                    _ => return Err(StreamError::LocatorCount(u32::from(self.count))),
-                };
+                let xor = crate::crc::r13_locator_seed(usize::from(self.count))
+                    .ok_or(StreamError::LocatorCount(u32::from(self.count)))?;
                 let expected = crate::crc::crc8(0, &self.bytes[..end]) ^ xor;
                 let actual = u16::from_le_bytes([self.bytes[end], self.bytes[end + 1]]);
                 if actual != expected {
