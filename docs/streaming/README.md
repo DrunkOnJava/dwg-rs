@@ -86,7 +86,8 @@ rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/str
 
 Run these on the project's build host. The workflow uploads
 `streaming-evidence.json` and the generated schedule JSONL files. It checks
-12 synthetic version/count combinations, bytewise and short delivery,
+12 synthetic version/count combinations, the canonical R2000 fixture,
+bytewise and short delivery,
 truncation at every header byte, malformed input, two hash-pinned real
 R14/R2000 headers, 128 generated schedules per real file, 98 fresh-process
 resume positions, actual source-read continuity, pending delivery, corrupt
@@ -106,7 +107,9 @@ binary by SHA-256. The same commit also passed the existing three WASM
 wrapper build targets. Repository-wide checks are reported separately by the
 PR; these claims do not establish a complete model parse or release readiness.
 
-The strict reader rejects the old canonical R2000 fixture because its writer
-omits the file-header CRC and sentinel. That is [#214](https://github.com/DrunkOnJava/dwg-rs/issues/214),
-not an exception to integrity validation. The audit and complete ordered work
+The canonical R2000 fixture's writer used to omit the file-header CRC and
+sentinel, so the strict reader rejected it ([#214](https://github.com/DrunkOnJava/dwg-rs/issues/214)).
+The generator now writes both and the acceptance run checks that file
+under every chunk size from 1 to 32 bytes. Its other sections remain
+placeholders. The audit and complete ordered work
 are in [audit.md](audit.md) and [#204](https://github.com/DrunkOnJava/dwg-rs/issues/204).
