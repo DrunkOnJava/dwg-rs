@@ -2768,15 +2768,15 @@ runs it.
 
 | Table | Written | Paired | Groups written | Agree | Relation | Disagree | Extra | Groups omitted | Records omitted |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| VPORT | 42 | 42 | 2226 | 2224 | 2 | 0 | 0 | 110 | 0 |
+| VPORT | 42 | 42 | 2199 | 2197 | 2 | 0 | 0 | 137 | 0 |
 | LTYPE | 132 | 132 | 804 | 804 | 0 | 0 | 0 | 0 | 24 |
-| LAYER | 156 | 156 | 1092 | 1092 | 0 | 0 | 0 | 368 | 0 |
+| LAYER | 156 | 156 | 964 | 964 | 0 | 0 | 0 | 496 | 0 |
 | STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
 | UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
-| DIMSTYLE | 108 | 108 | 1437 | 1433 | 4 | 0 | 0 | 332 | 0 |
-| BLOCK_RECORD | 270 | 270 | 1117 | 1114 | 3 | 0 | 0 | 154 | 0 |
-| All | 1209 | 1209 | 8434 | 8425 | 9 | 0 | 0 | 1196 | 24 |
+| DIMSTYLE | 108 | 108 | 1431 | 1427 | 4 | 0 | 0 | 338 | 0 |
+| BLOCK_RECORD | 270 | 270 | 1092 | 1089 | 3 | 0 | 0 | 179 | 0 |
+| All | 1209 | 1209 | 8248 | 8239 | 9 | 0 | 0 | 1382 | 24 |
 
 Every group written has the export's code and value, over the 42 drawings of the
 public corpus that have an AutoCAD export of the same release (R2000 to R2018).
@@ -2842,13 +2842,19 @@ The table header carries `100 AcDbDimStyleTable`, a `71` and a `340` per handle
 the control object lists after its `numentries` dimstyles (non-NULL ones), and
 the probe checks that header against the export's on every drawing.
 
-A handle group is written only when the output defines the object it names: the
-OBJECTS section writes the dictionaries, layouts, plot styles, materials and
-visual styles, so 340, 347, 348, 390, 360 and the xdictionary bracket are written
-(a NULL as `0`), while the entities that react to a record or insert a block are
-not written with their handles yet, so a record whose reactors or inserts name one
-has no such bracket. The probe lists each of these as an omission with its
-reason.
+A handle group is written only when the output defines the object it names, under
+its own type: the OBJECTS section writes dictionaries and plot style placeholders,
+so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It writes a
+layout, a material or a visual style as an untyped record (they are class-numbered
+objects), so a block's 340 (when it names a layout), a layer's 347 and 348 and a
+viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
+and visual style names. An arrowhead block is left out
+the same way until BLOCKS writes block contents, which is only `*Model_Space` and
+`*Paper_Space` empty today (`dxf_tables::BLOCKS_EXPORTED`): `$DIMBLK` and its family
+are omitted, and so are a DIMSTYLE's 341 to 344. The entities that react to a record
+or insert a block are not written with their handles yet, so a record whose reactors
+or inserts name one has no such bracket. The probe lists each of these as an
+omission with its reason.
 
 ### What the exports do that is not the DWG's doing
 

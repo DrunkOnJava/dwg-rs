@@ -28,11 +28,13 @@
 //! - If a record's fields do not all decode (an R2007 `DIMSTYLE` with a custom
 //!   dimension variable), its name is still the first string of its string stream.
 //! - A name is kept only if the output defines the record
-//!   ([`crate::dxf_tables`] writes LAYER, STYLE, LTYPE and APPID): `$CLAYER` for a
-//!   written layer, `$TEXTSTYLE` and `$DIMTXSTY` for a written style, `$CELTYPE`
-//!   and the `$DIMLTYPE` family for a written linetype. An empty name (a null
-//!   handle) is always kept, and every other name (`$DIMSTYLE`, `$CMLSTYLE`, the
-//!   UCS names, the arrowhead blocks) is omitted until those records are written.
+//!   ([`crate::dxf_tables`] writes the symbol tables): `$CLAYER` for a written
+//!   layer, `$TEXTSTYLE` and `$DIMTXSTY` for a written style, `$CELTYPE` and the
+//!   `$DIMLTYPE` family for a written linetype, `$DIMSTYLE` for a written dimension
+//!   style. An empty name (a null handle) is always kept. An arrowhead block
+//!   (`$DIMBLK` and its family) is kept only for the two blocks BLOCKS writes
+//!   ([`crate::dxf_tables::BLOCKS_EXPORTED`]), and every other name (`$CMLSTYLE`,
+//!   the UCS names) is omitted until those records are written.
 //! - An angle is degrees in DXF group 50 (`$ANGBASE`), radians in the database.
 //!   Before R2007 text that is not ASCII is written as `\U+XXXX` escapes, since
 //!   those releases read bytes in `$DWGCODEPAGE`.
@@ -480,11 +482,11 @@ impl Names {
             "$DIMSTYLE" => &self.defined.dimstyles,
             "$TEXTSTYLE" | "$DIMTXSTY" => &self.defined.styles,
             "$CELTYPE" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2" => &self.defined.ltypes,
+            // Only the blocks BLOCKS writes are in `defined.blocks`
+            // (`dxf_tables::BLOCKS_EXPORTED`): an arrowhead block it does not write
+            // is left unnamed until it does.
             "$DIMBLK" | "$DIMBLK1" | "$DIMBLK2" | "$DIMLDRBLK" => {
-                let defined =
-                    self.defined.blocks.iter().any(|n| {
-                        n == &name || n.strip_prefix('_').is_some_and(|rest| rest == name)
-                    });
+                let defined = self.defined.blocks.iter().any(|n| n == &name);
                 return (name.is_empty() || defined).then_some(name);
             }
             _ => return name.is_empty().then_some(name),

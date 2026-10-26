@@ -219,7 +219,7 @@ fn group_reason(
         ("DIMSTYLE", 345..=347) if complex_ltype_handle(theirs, code, doc) => {
             Some("the linetype has a shape or text dash and is not written")
         }
-        ("VPORT", 348) => Some("the visual style object is not written to OBJECTS"),
+        ("VPORT", 348) => Some("the visual style object is written as an untyped record"),
         ("VPORT", 332 | 361 | 345 | 346) => Some("the object it names is not written"),
         ("VPORT", 63) if !values(theirs, 421).is_empty() => {
             Some("a true colour has no index in the DWG")
@@ -229,7 +229,10 @@ fn group_reason(
             Some("the layer's linetype has a shape or text dash and is not written")
         }
         ("LAYER", 390) => Some("the plot-style object is not written to OBJECTS"),
-        ("LAYER", 347) => Some("the material object is not written to OBJECTS"),
+        ("LAYER", 347 | 348) => {
+            Some("the material and visual style objects are written as untyped records")
+        }
+        ("DIMSTYLE", 341..=344) => Some("the block's contents are not written to BLOCKS yet"),
         ("LAYER", 420) => Some("a true colour: the decoder surfaces no RGB"),
         ("LAYER", 62) if !values(theirs, 420).is_empty() => {
             Some("a true colour has no index in the DWG")

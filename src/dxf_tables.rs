@@ -44,7 +44,9 @@
 //! Every record also carries, from its handle stream, its reactors and its
 //! extension dictionary (`102 {ACAD_REACTORS`, `102 {ACAD_XDICTIONARY`). A
 //! handle is written only when the output defines the object it names: the
-//! OBJECTS section writes the dictionaries and layouts, so those are named; the
+//! OBJECTS section writes dictionaries and plot style placeholders under their own
+//! type, so those are named (a layout, material or visual style is written as an
+//! untyped record and is not); the
 //! entities that react to a record or insert a block are not written with their
 //! handles yet, so a record whose reactors or insert handles name one has no
 //! such bracket.
@@ -113,6 +115,13 @@ pub struct Defined {
     pub blocks: Vec<String>,
 }
 
+/// The blocks the BLOCKS section writes: only the two it writes empty.
+///
+/// A name or handle that selects any other block (`$DIMBLK`, a DIMSTYLE's arrowhead
+/// blocks) points at a definition that never reaches the DXF, so it is not written.
+/// Lift this when BLOCKS writes each block's contents.
+pub const BLOCKS_EXPORTED: [&str; 2] = ["*Model_Space", "*Paper_Space"];
+
 /// The names `tables` define.
 pub fn defined(tables: &[Table]) -> Defined {
     let names = |t: &str| {
@@ -127,7 +136,10 @@ pub fn defined(tables: &[Table]) -> Defined {
         styles: names("STYLE"),
         ltypes: names("LTYPE"),
         dimstyles: names("DIMSTYLE"),
-        blocks: names("BLOCK_RECORD"),
+        blocks: names("BLOCK_RECORD")
+            .into_iter()
+            .filter(|n| BLOCKS_EXPORTED.contains(&n.as_str()))
+            .collect(),
     }
 }
 
@@ -594,6 +606,7 @@ fn dimstyle_groups(
     file_version: crate::version::Version,
     version: DxfVersion,
     defined: &HashSet<u64>,
+    exported_blocks: &HashSet<u64>,
 ) -> Option<Vec<HeaderGroup>> {
     use crate::tables::dimstyle::DimValue;
     let mut g = vec![
@@ -651,7 +664,8 @@ fn dimstyle_groups(
                 continue;
             }
             if let Some(h) = r.rest.get(i + 1).copied().filter(|h| *h != 0) {
-                if defined.contains(&h) {
+                let block = (341..=344).contains(code);
+                if defined.contains(&h) && (!block || exported_blocks.contains(&h)) {
                     g.push(HeaderGroup::Handle(*code, h));
                 }
             }
@@ -796,6 +810,11 @@ pub fn build(
             .filter(|r| r.kind.is_table_entry())
             .map(|r| r.handle.value),
     );
+    let exported_blocks: HashSet<u64> = block_names
+        .iter()
+        .filter(|(_, n)| BLOCKS_EXPORTED.contains(&n.as_str()))
+        .map(|(h, _)| *h)
+        .collect();
     let has_ucs = raws.iter().any(|r| r.kind == ObjectType::Ucs);
     // Linetype handle -> (name, whether the LTYPE table writes it).
     let mut ltypes: BTreeMap<u64, (String, bool)> = BTreeMap::new();
@@ -830,7 +849,15 @@ pub fn build(
             let Ok((e, vars)) = crate::tables::dimstyle::decode_with_vars(raw, file_version) else {
                 continue;
             };
-            let groups = dimstyle_groups(&e, &vars, refs.as_ref(), file_version, version, &defined);
+            let groups = dimstyle_groups(
+                &e,
+                &vars,
+                refs.as_ref(),
+                file_version,
+                version,
+                &defined,
+                &exported_blocks,
+            );
             ("DIMSTYLE", e.header.name.clone(), groups)
         } else {
             match crate::entities::decode_from_raw(raw, file_version) {

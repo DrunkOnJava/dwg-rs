@@ -205,12 +205,16 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     Ok(writer.take_output())
 }
 
-/// The handles of the objects [`collect_decoded_objects`] writes to OBJECTS.
+/// The handles of the objects [`collect_decoded_objects`] writes to OBJECTS under
+/// their own type. A class-numbered or unknown object is written as an untyped
+/// record (a MATERIAL or VISUALSTYLE among them), so a reference to one is not a
+/// reference to the typed object the DXF names and is left out here.
 fn written_object_handles(file: &DwgFile) -> std::collections::HashSet<u64> {
     match file.all_objects() {
         Some(Ok(raws)) => raws
             .iter()
             .filter(|r| raw_to_decoded_object(r).is_some())
+            .filter(|r| !matches!(r.kind, ObjectType::Custom(_) | ObjectType::Unknown(_)))
             .map(|r| r.handle.value)
             .collect(),
         _ => Default::default(),
