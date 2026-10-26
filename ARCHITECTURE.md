@@ -1304,7 +1304,7 @@ are fixed; three are not and are reported.
 | POLYLINE_PFACE | 1 (R2018) | +52 | five `BS` counts and two inline `H` handles, where the record holds `BS`, `BS`, `BL` in 30 bits | fixed — reads 5 vertices, 2 faces, 7 owned objects |
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
 | VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7u) |
-| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported |
+| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported; closed 2026-10-26 by the DXF twin (§7w) |
 | LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
 
 The three fixes each meet the same bar as #58: `delta 0` **plus** a
@@ -1366,7 +1366,7 @@ changed by this work; each waits on a second file.
 | MULTILEADER's 17 bits | §7g above, `entities/mleader.rs` | 17 bits between `B 293 is annotative` and the R2010+ `BS 271` that §20.4.48 does not list. Read as `MC` + `B`; `B` + `RS` and `B` + two `RC`s consume the same bits. The `MC` holds only `274`, `530`, `786` across 15 records and the `B` is `true` on all of them | one record whose value exceeds `RS` range, or whose `B` is false |
 | UNDERLAY clip-vertex encoding | `entities/underlay.rs` | whether a clip vertex is `2BD` or `2RD`. The single corpus record has a zero clip-vertex count, so no vertex is ever read | any UNDERLAY with a clip boundary |
 | LWPOLYLINE `0x200` | §7g table, `entities/lwpolyline.rs` | `0x200` is not one of §20.4.85's presence bits, and every record carrying it also carries no optional field, so it survives either reading. Treated as "closed" | a record with `0x200` set *and* an optional field present |
-| MESH's trailing `10` | `entities/mesh.rs` | `BS` 0, `BL` 0, `BD` 0.0 and "two spare bits" all encode identically | a MESH whose trailing value is non-zero |
+| ~~MESH's trailing `10`~~ | `entities/mesh.rs` | settled 2026-10-26 (§7w): the DXF twin writes a group `90` (`BL`) equal to 0 there | — |
 
 ### Measured effect
 
@@ -2130,6 +2130,52 @@ on the boundary only.
 
 ```sh
 cargo run --release --example probe_text -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
+## 7w. MESH: the DXF twin names the trailing bits, and MESH is on every release (2026-10-26, #71)
+
+§7i left MESH's last two bits, `10`, unread: the zero code of `BS`, `BL`
+and `BD` alike, on two records that both encode zero, so the bits alone
+could not say which field they were or whether they were a field at
+all. The public corpus (#225) holds the same two meshes in ACadSharp's
+saves of one drawing as R14, R2000, R2004, R2007, R2010, R2013 and
+R2018, with AutoCAD's DXF export of every save but R14.
+
+**The DXF says what the bits are.** Each `AcDbSubDMesh` group in the
+twins ends `95` (crease count), `140` once per crease, then one more
+`90` with the value `0`. AutoCAD writes every other `BL` of the record
+as a group 90 (the face-list entries and the edge endpoints), and in
+the same order the record holds them, so the two bits are a `BL`, and
+it is `0`. The decoder now reads it and refuses a non-zero value, whose
+contents nothing in the corpus shows.
+
+**MESH is not R2010-only.** AutoCAD 2025 writes the same record into
+its R14, R2000, R2004 and R2007 saves: same class name, same budget
+(93,941 bits for `0x343` on R2000, R2004 and R2010), not a proxy. The
+decoder refused every pre-R2010 MESH on the assumption that those
+releases never hold one. Without that gate:
+
+| Release | Records | Close (`delta 0`) | Values compared with the DXF twin | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 2 | 2 | no twin | |
+| R2000 | 2 | 2 | 926 + 904 | 0 |
+| R2004 | 2 | 2 | 926 + 904 | 0 |
+| R2007 | 2 | 2 | 926 + 904 | 0 |
+| R2010 | 2 | 2 | 926 + 904 | 0 |
+| R2013 | 2 | 2 | 926 + 904 | 0 |
+| R2018 | 2 | 2 | 926 + 904 | 0 |
+
+The comparison is complete, not sampled: version, blend crease,
+subdivision level, every vertex coordinate, every face-list entry, every
+edge endpoint, every crease and the trailing count, in DXF order (926
+values for the 62-vertex `0x343`, 904 for the 64-vertex `0x380`).
+
+Still undetermined: the `BS` widths of version, subdivision level and
+vertex count, since every value is below 256 and a `BS` and a `BL`
+spend the same bits there.
+
+```sh
+cargo run --release --example probe_mesh -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
 ## 8. Write pipeline (current scope)
