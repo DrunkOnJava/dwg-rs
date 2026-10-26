@@ -181,6 +181,71 @@ the same failure. The local R2018 file (#96) was checked by hand. The
 canonical fixtures pass only since #233 made the writer emit the fixed
 fields.
 
+## R2004-family page map and section map (§4.3–§4.5)
+
+`streaming::R2004MapWalker` continues from the §4.1 header into the two
+system pages: the section page map at the header's address, then the
+section map at the address its entry in the page map gives. Each system
+page is read twice, as the flat walk reads an object-map chunk twice: a
+pass that checks the §4.3 checksum (the §4.2 sum of the compressed bytes,
+seeded with the sum of the header with the field zeroed) and keeps
+nothing, then a pass that decodes it with the §4.7 decoder and hands each
+record to the caller as a committed step. Nothing is derived from a page
+before its checksum passes. `demand()` says whether the next step needs
+source bytes (`Read`, at most 64 ahead of the decoder) or only a `Pump`
+of output already decoded, so one compressed byte that expands to many
+records still yields one record per step; `poll_r2004_maps` drives both.
+
+Checked, because every real file and the canonical fixtures agree: the
+system page type and compression type 2, its extent inside the source
+(and the section map's inside its page); every page size a non-zero
+multiple of 0x20; the page map's own entry at exactly the header's page
+map address and large enough for the page; a page-map entry for the
+header's section map id; the section map header `(count, 2, 0x7400, 0,
+…)`; each description's compression flag (1 or 2), encryption flag (0 to
+2), page size and printable name; each section's page start offsets
+rising multiples of its page size; and both pages decoding to exactly
+their declared size and ending between records (a section count that
+understates the records is caught as soon as the last record is read). Not checked, because real
+files do not follow them: sequential page numbers, the "unknown" longs,
+and page extents inside the file (real last pages run past its end). The
+walker holds no map: page numbers, addresses and the section list are the
+caller's, so whether a section's pages exist in the page map is the
+caller's check.
+
+State is the header parser, the decoder and a few hundred bytes of
+cursors, bounded at `WINDOW + 1024` in the `no_std` kernel.
+`R2004MapCheckpoint` (`DWGM`) embeds the header checkpoint (replayed), the
+decoder checkpoint while a page is being decoded, and the cursors, which
+must form a state the walk can reach; at most about 50 KB.
+
+`examples/stream_r2004_maps.rs` is the entry point; `--legacy` prints the
+legacy `section_map` page map and section info in the same shape.
+`tools/streaming/verify_maps.py` runs it on the four canonical
+R2004-family fixtures and the 21 pinned nextgis R2004, R2010 and R2013
+files: 371 page entries, 306 section descriptions and 321 section page
+references, every line equal to an independent Python parse and every
+record equal to the legacy reader; five fixed schedules (one byte up,
+with Pending polls) and 128 proptest schedules on three files reproduce
+it. A fresh process resumes at every step of the canonical R2018 fixture
+(173) and of `line_2004.dwg` (316) and at sampled steps of
+`line_2010.dwg` and `line_2013.dwg`: the source reads and output of the
+two processes concatenate to the uninterrupted run's. Bit flips at every
+byte, every truncation and a wrong identity are rejected for a mid-walk
+checkpoint, as are ten resealed unreachable states. On the canonical R2004
+fixture and one file per release band, ten corruptions end in their
+named error: both page checksums, the page map type, a page size off
+0x20, a page map moved off its own entry, a section map header constant,
+a section count one short and zero, a section description field, and a
+file cut inside the page map. The
+record corruptions get past the checksum by rewriting a literal byte of
+the LZ77 stream and resealing the page. The local R2018 file (#96) was
+checked by hand. The fixtures pass only since #265 made the writer emit
+real page checksums.
+
+Not covered: data pages (§4.6) and sections assembled from them, R2007
+(§5), and throughput.
+
 ## LZ77 decoder (R2004 family, §4.7)
 
 `streaming::Lz77Decoder` decodes one compressed page. `decode(input, out)`
@@ -315,6 +380,7 @@ python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
 python3 tools/streaming/verify_r2004.py target/debug/examples/stream_r2004 target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_maps.py target/debug/examples/stream_r2004_maps target/debug/examples/streaming_schedules
 ```
 
 Run these on the project's build host. The workflow uploads
