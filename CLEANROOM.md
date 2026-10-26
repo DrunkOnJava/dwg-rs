@@ -572,3 +572,24 @@ leading `BS` of the R2004+ DBCOLOR (reads 0, group 62 says 42), and the width of
 every integer beyond the one value each holds. No vocabulary beyond the DXF
 group codes seen in the twins and the class names in `AcDb:Classes` was used, and
 no third-party DWG or DXF implementation was consulted.
+
+## 2026-10-26 — BLOCKGRIPLOCATIONCOMPONENT, BLOCKLINEARGRIP, BLOCKVISIBILITYGRIP, BLOCKLINEARPARAMETER, BLOCKVISIBILITYPARAMETER, BLOCKSCALEACTION: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never
+prints. The field lists in `src/objects/dynamic_block.rs` were derived from the
+data bits of ACadSharp's `sample_base` saves (AutoCAD 2025: R14, R2000, R2004,
+R2007, R2010, R2013, R2018; 6 grip location components, 2 linear grips, 1 each of
+the visibility grip, linear parameter, visibility parameter and scale action per
+release, 84 records) and AutoCAD's DXF export of the same handles (R2000 to
+R2018). Accepted: all 84 close on the data-stream boundary, from R2007 on a
+fully consumed string stream, and 1,158 values (groups 90, 98, 99, 70, 140, 300,
+1071, 91 to 96, 170 to 177, 280, 281, 301 to 306, 1010 to 1032, 94 and 95 per
+state) equal the decoded fields with 0 differences
+(`examples/probe_dynamic_blocks.rs`), plus one measured pairing: the unset
+expression value `f64::MAX / 10` is written `1.797693134862314E+99`. Unverified
+by value: the `BL -1` that opens every record, the scale action's trailing byte,
+the order of the visibility parameter's two zero `BS` (groups 170 and 171), the
+meaning of the value type -9999, and the implied length of the linear
+parameter's property list; handles are not decoded. No vocabulary beyond the DXF
+group codes and subclass markers in the twins was used, and no third-party DWG
+or DXF implementation was consulted.

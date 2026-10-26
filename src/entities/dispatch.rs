@@ -154,6 +154,8 @@ pub enum DecodedEntity {
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
     /// DBCOLOR (§7t).
     DbColor(crate::objects::small_classes::DbColor),
+    /// A dynamic-block evaluation object (§7u).
+    DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -272,6 +274,7 @@ impl DecodedEntity {
             | Self::BlockRepresentationData(_)
             | Self::PdfDefinition(_)
             | Self::DbColor(_)
+            | Self::DynamicBlock(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -777,6 +780,19 @@ fn dispatch_object_class(
             crate::objects::small_classes::decode_db_color(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DbColor)
         }
+        "BLOCKGRIPLOCATIONCOMPONENT"
+        | "BLOCKLINEARGRIP"
+        | "BLOCKVISIBILITYGRIP"
+        | "BLOCKLINEARPARAMETER"
+        | "BLOCKVISIBILITYPARAMETER"
+        | "BLOCKSCALEACTION" => crate::objects::dynamic_block::decode_object(
+            dxf_class_name,
+            payload,
+            body_start,
+            inline_end,
+            version,
+        )
+        .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ImageDef)

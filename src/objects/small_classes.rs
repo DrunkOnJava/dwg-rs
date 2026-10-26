@@ -35,13 +35,13 @@ use crate::objects::modern;
 use crate::string_stream::StringReader;
 use crate::version::Version;
 
-fn unsupported(what: &str) -> Error {
+pub(crate) fn unsupported(what: &str) -> Error {
     Error::Unsupported {
         feature: format!("{what} wider than the short BS forms"),
     }
 }
 
-fn read_small(c: &mut BitCursor<'_>, what: &str) -> Result<u8> {
+pub(crate) fn read_small(c: &mut BitCursor<'_>, what: &str) -> Result<u8> {
     match c.read_bb()? {
         0b10 => Ok(0),
         0b01 => c.read_rc(),
@@ -94,7 +94,7 @@ pub struct DbColor {
     pub book: Option<String>,
 }
 
-fn open_and_finish<T>(
+pub(crate) fn open_and_finish<T>(
     what: &str,
     payload: &[u8],
     body_start: usize,

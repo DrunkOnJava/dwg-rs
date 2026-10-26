@@ -2207,6 +2207,89 @@ for p in wipeout_variables purge_preventer block_representation pdf_definition d
 done
 ```
 
+## 7u. The dynamic-block evaluation objects, derived from AutoCAD's own output (2026-10-26)
+
+ODA spec v5.4.1 prints no layout for the objects AutoCAD hangs a dynamic block's
+parameters, grips and actions on. `src/objects/dynamic_block.rs` reads six of
+them from the layout below, derived by the CLEANROOM.md method of 2026-10-26: the
+data bits of every record in `sample_base` (ACadSharp, AutoCAD 2025, saved as
+R14, R2000, R2004, R2007, R2010, R2013 and R2018) against the object of the same
+handle in the DXF export. All 84 records close on every release, from R2007 on a
+string stream the list consumes entirely, and 1,158 values equal the DXF with 0
+differences.
+
+| Class | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| BLOCKGRIPLOCATIONCOMPONENT | 42 | 42 | 252 | 0 |
+| BLOCKLINEARGRIP | 14 | 14 | 204 | 0 |
+| BLOCKVISIBILITYGRIP | 7 | 7 | 84 | 0 |
+| BLOCKLINEARPARAMETER | 7 | 7 | 246 | 0 |
+| BLOCKVISIBILITYPARAMETER | 7 | 7 | 198 | 0 |
+| BLOCKSCALEACTION | 7 | 7 | 174 | 0 |
+| Total | 84 | 84 | 1,158 | 0 |
+
+R14 has no DXF twin, so its 12 records are held to their boundary alone.
+
+### The layout
+
+The classes are a chain of bases, written base first (the DXF subclass markers
+`AcDbEvalExpr`, `AcDbBlockElement`, `AcDbBlockGrip`, `AcDbBlockParameter`):
+
+```text
+AcDbEvalExpr       BL -1, BS 98, BL 99, BS value type, BD 140 if type 40, BS 90
+AcDbBlockElement   TV 300, BS 98, BL 99, BS 1071
+AcDbBlockGrip      BL 91, BL 92, BD x3 (1010), B 280, BL 93 (-1)
+AcDbBlockParameter B 280, B 281
+```
+
+with the expression component (BLOCKGRIPLOCATIONCOMPONENT) following the eval base
+with `BS 91, TV 300`, and each other class its own tail, listed on its struct in
+the module. What the bits and the twins settled:
+
+- **The two pairs of 98 and 99.** The record holds them twice, the eval base's
+  (33 and 329 on every release) and the element's (33 and 329 from R2007, 25 and
+  104 on R14 to R2004, as the R2000 and R2004 DXF twins write them). That is the
+  whole 24-bit difference between R2004 and R2018: `BL 329` is 34 bits, `BL 104`
+  is 10. Group 99 is a `BL` (329 in 34 bits in R2018); the value type is a `BS`
+  (`-9999` is a 16-bit long form).
+- **The value type.** 40 for a real, whose `BD` is DXF group 140; -9999 for none,
+  where the DXF writes no group 70. The expression components hold either
+  `0.0` or `f64::MAX / 10` (0x7FB9999999999999), which the DXF writes as
+  `1.797693134862314E+99`, a pairing measured on all 12 such records and checked by
+  the probe.
+- **Where the `TV`s sit.** Before R2007 each is inline at its field's place
+  (R2004: the element name right after the node id, each property name after its
+  two integers); from R2007 they are string-stream entries in the same order.
+  The R2004 inline positions of every string fix the order of the fields between
+  them.
+- **The linear parameter's 170.** The DXF writes 170 = 4 and four property
+  entries; the stream holds no count, so four is read and compared with group 170.
+  The visibility parameter's states carry their own count (group 92 = 4).
+- **Group 281 of the visibility parameter** is a bit between the three integers
+  that follow its position and the first of its two strings, which the R2004
+  positions place and the R2018 bits confirm.
+
+### Unverified by value
+
+- The `BL -1` that opens every record: no DXF group shows it.
+- The `RC` after the scale action's last string (0 in every record).
+- The two `BS` after the visibility parameter's position (both 0, so groups 170
+  and 171 cannot be told apart).
+- The meaning of the value type -9999 beyond its width (the DXF omits group 70
+  for it).
+- The implied length four of the linear parameter's property list, and every
+  value beyond the one the single record of each class holds: six of the
+  classes' records are one drawing saved on seven releases. The controlled
+  drawings should add a second linear parameter (a 4-point and a polar one), a
+  second visibility state set, a scale action with a different base point, and
+  grips at other node ids.
+- Handles (330 to 333) live in the handle stream and are not decoded.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_dynamic_blocks -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
