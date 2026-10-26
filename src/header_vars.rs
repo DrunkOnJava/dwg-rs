@@ -404,6 +404,7 @@ fn bit_at(bytes: &[u8], bit: usize) -> Option<bool> {
 struct Reader<'a> {
     data: BitCursor<'a>,
     split: bool,
+    strings_present: bool,
     strings: Option<crate::string_stream::StringReader<'a>>,
     handles: Option<BitCursor<'a>>,
 }
@@ -411,7 +412,13 @@ struct Reader<'a> {
 impl Reader<'_> {
     fn tv_value(&mut self) -> Result<Value> {
         if self.split {
+            let present = self.strings_present;
             return Ok(Value::Text(match self.strings.as_mut() {
+                Some(s) if present && s.is_exhausted() => {
+                    return Err(Error::SectionMap(
+                        "the string stream ends before every text slot has been read".into(),
+                    ));
+                }
                 Some(s) => s.read_tv()?,
                 None => String::new(),
             }));
@@ -659,6 +666,9 @@ impl HeaderVars {
         if !f.crc_ok {
             h.diagnostics.push("CRC differs".into());
         }
+        if f.sentinel != Self::SENTINEL {
+            h.diagnostics.push("beginning sentinel differs".into());
+        }
         if !f.end_sentinel_ok {
             h.diagnostics.push("ending sentinel differs".into());
         }
@@ -676,6 +686,7 @@ impl HeaderVars {
         let mut r = Reader {
             data: BitCursor::new(&body),
             split: false,
+            strings_present: false,
             strings: None,
             handles: None,
         };
@@ -757,6 +768,7 @@ impl HeaderVars {
         let mut r = Reader {
             data: BitCursor::new(&body),
             split: true,
+            strings_present: plan.strings.is_some(),
             strings: Some(strings),
             handles: Some(handles),
         };
