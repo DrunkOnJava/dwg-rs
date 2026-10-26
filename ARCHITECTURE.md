@@ -2863,9 +2863,9 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7ae. R13 through the decoders main added after the branch began (2026-10-26, #119)
+## 7aj. R13 through the decoders main added after the branch began (2026-10-26, #119)
 
-§7ad opened AC1012 and found, in a scratch tree, that the decoders main
+§7ai opened AC1012 and found, in a scratch tree, that the decoders main
 gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
 (#258), the R13/R14 DIMSTYLE block (#297) and LEADER (#249) each test the
 R13-R14 branch as `version == Version::R14` or
