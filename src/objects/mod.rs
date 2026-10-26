@@ -23,6 +23,7 @@
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
 //! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
 //! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
+//! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -94,6 +95,7 @@ pub mod control;
 pub mod custom_dict_entry;
 pub mod dictionary;
 pub mod dictionary_var;
+pub mod dim_assoc;
 pub mod dynamic_block;
 pub(crate) mod modern;
 pub mod placeholder;

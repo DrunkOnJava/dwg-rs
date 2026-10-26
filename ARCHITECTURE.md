@@ -2290,6 +2290,51 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_dynamic_blocks -- ../dwg-corpus
 ```
 
+## 7v. DIMASSOC, derived from AutoCAD's own output (2026-10-26)
+
+ODA spec v5.4.1 prints no layout for DIMASSOC, the record that ties a dimension
+to the points it measures. `src/objects/dim_assoc.rs` reads it from the layout
+below, derived by the CLEANROOM.md method of 2026-10-26: the data bits of the 21
+records in `sample_base` (ACadSharp, AutoCAD 2025, saved as R14, R2000, R2004,
+R2007, R2010, R2013 and R2018; three per release) against the `AcDbDimAssoc` of
+the same handle in the DXF export. All 21 close on every release, and 264 values
+equal the DXF with 0 differences (R14 has no twin: 3 records, boundary alone).
+
+```text
+BL flags (group 90), RC and B (groups 70, 71)
+for each bit set in the low nibble of the flags:
+  TV class name (group 1), RC osnap mode (72), BS, BS 73, BL 91, BD, BD 40,
+  BD 10, BD 20, BS 75, B
+```
+
+- **The reference count** is the number of bits set in the flags (2 gives one
+  reference, 3 gives two), checked against the number of group 72 the DXF holds
+  on all 21 records. Each reference starts with its class name, which is
+  `AcDbOsnapPointRef` in every record; another class, or flag bits above the low
+  nibble, are refused with `Error::Unsupported`.
+- **Osnap mode** is an `RC` of 8 bits (3, 13 and 1 in the corpus, equal to group
+  72 in order). Before R2007 the class name is inline (R2004: 19 bits into the
+  record), from R2007 a string-stream entry.
+- **The four `BD`.** The one reference with non-zero values reads
+  `0.0, 0.9999999999999998, 5.0, 5.0` against the DXF's `40 = 0.9999999999999998`,
+  `10 = 5.0`, `20 = 5.0`, `30 = 0.0`: the second is group 40, and the third and
+  fourth are groups 10 and 20 (equal, so their order is unverified). The first
+  `BD` reads 0.0 in every reference and is not shown by a DXF group.
+
+Unverified by value: the `BS` between groups 72 and 73 (1 in every reference; the
+DXF shows a handle, group 331, at its place), the first `BD`, the `B` after group
+75, the order of groups 70 and 71 (both 0, in 9 bits), and the order of groups 10
+and 20. The dimension and reference handles (330, 331) are in the handle stream
+and are not decoded. The corpus holds only osnap-point references of one
+dimension each, so the controlled drawings should vary the osnap mode, the
+number of references (an angular dimension has three), the point and the
+parameter.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_dim_assoc -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
