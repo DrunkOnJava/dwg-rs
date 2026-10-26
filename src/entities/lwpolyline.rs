@@ -6,8 +6,7 @@
 //! into a single entity. Widths, bulges (arc segments) and vertex IDs
 //! are optional, and the leading `BS` flag word says which are present.
 //!
-//! # Stream shape (R2000+)
-//!
+//! # Stream shape
 //! ```text
 //! BS   flag
 //! (flag & 0x004) BD  constant_width
@@ -18,12 +17,18 @@
 //! (flag & 0x010) BL  num_bulges
 //! (flag & 0x400) BL  num_vertex_ids    -- R2010+
 //! (flag & 0x020) BL  num_widths
-//! 2RD  vertex[0]
-//! 2DD  vertex[1..]                     -- previous vertex as default
+//! R13-R14: 2RD × num_points
+//! R2000+:  2RD vertex[0], then 2DD vertex[1..] with the previous
+//!          vertex as default
 //! BD × num_bulges
 //! BL × num_vertex_ids
 //! 2BD × num_widths
 //! ```
+//!
+//! On R14 LWPOLYLINE carries a class number from AcDb:Classes rather
+//! than the fixed code `0x4D`; dispatch routes it by class name, and its
+//! 24 corpus records decode to the same values as the R2000 saves of the
+//! same drawings (ARCHITECTURE.md §7q, #229).
 //!
 //! # Measured: the flag bits and the field order
 //!
@@ -174,7 +179,15 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LwPolyline> {
     }
 
     let mut vertices = Vec::with_capacity(num_points);
-    if num_points > 0 {
+    if version == Version::R14 {
+        // §20.4.85: R13-R14 write every vertex as a `2RD`.
+        for _ in 0..num_points {
+            vertices.push(Point2D {
+                x: c.read_rd()?,
+                y: c.read_rd()?,
+            });
+        }
+    } else if num_points > 0 {
         let mut previous = Point2D {
             x: c.read_rd()?,
             y: c.read_rd()?,

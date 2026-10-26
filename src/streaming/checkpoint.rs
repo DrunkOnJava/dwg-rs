@@ -7,6 +7,7 @@ use super::lz77::{Ext, Lz77Decoder, Mode, WINDOW};
 use super::r2004::{R2004_HEADER_BYTES, R2004HeaderParser};
 use super::r2004_maps::{CARRY, PageEntry, R2004MapWalker, RECORD, Stage as MapStage, SystemKind};
 use super::r2004_sections::{R2004SectionWalker, Stage as SectionStage};
+use super::r2004_walk::{MAX_SECTIONS, R2004Walker, Slot, Stage as WalkStage};
 use super::{CHUNK_BYTES, FlatHeaderParser, SourceIdentity, StreamError};
 
 const PREFIX: usize = 56;
@@ -853,6 +854,186 @@ impl R2004SectionWalker {
         }
         let decoding = walker.stage == SectionStage::Decode && walker.compressed == 2;
         if r.at != end || (lz_len > 0) != decoding || !walker.consistent() {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        Ok(walker)
+    }
+}
+
+const SLOT_BYTES: usize = 4 + 4 + 8 + 4 + 4 + 4 + 4 + 8 + 4 + 8;
+const FILE_FIXED: usize = 4 + 2 + 8 + 32 + 1 + MAX_SECTIONS * SLOT_BYTES + 16 + 1 + 32 + 4 + 4 + 4;
+const FILE_MAX: usize = FILE_FIXED + MAP_MAX + SEC_MAX + TRAILER;
+
+/// Serialized state of the whole R2004-family walk: the section table, the
+/// map walker's checkpoint (replayed and validated by its own restore), and,
+/// while a data page is being walked, the section walker's. At most about
+/// 100 KB, bounded by two decoder windows. Self-contained: no page index
+/// and no section list are the caller's, only the section bytes it has
+/// already been handed and the cursors it keeps over them.
+#[derive(Debug, Clone)]
+pub struct R2004WalkCheckpoint {
+    bytes: [u8; FILE_MAX],
+    len: usize,
+}
+
+impl R2004WalkCheckpoint {
+    /// The canonical wire bytes, ready for storage or cross-runtime transfer.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl R2004Walker {
+    /// Serialize the walk between steps. A failed walk is terminal and has
+    /// no checkpoint; its error is returned instead.
+    pub fn checkpoint(&self) -> Result<R2004WalkCheckpoint, StreamError> {
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        let live = !matches!(self.stage, WalkStage::Verify | WalkStage::Done);
+        // A finished map pass cannot be restored (it has nothing left to
+        // walk), but the verified header it holds is still the walk's: keep
+        // that alone, as the header checkpoint.
+        let maps = if live {
+            Some(self.maps.checkpoint()?)
+        } else {
+            None
+        };
+        let header = self.maps.header.checkpoint();
+        let page = if self.stage == WalkStage::Walk {
+            Some(self.page.checkpoint()?)
+        } else {
+            None
+        };
+        let mut result = R2004WalkCheckpoint {
+            bytes: [0; FILE_MAX],
+            len: 0,
+        };
+        let mut w = Writer {
+            bytes: &mut result.bytes,
+            at: 0,
+        };
+        w.put(b"DWGF");
+        w.put(&[1, self.stage as u8]);
+        w.put(&self.source.length.to_le_bytes());
+        w.put(&self.source.digest);
+        w.put(&[self.slot_count as u8]);
+        for slot in &self.slots[..self.slot_count] {
+            w.put(&slot.index.to_le_bytes());
+            w.put(&slot.id.to_le_bytes());
+            w.put(&slot.size.to_le_bytes());
+            for v in [slot.page_count, slot.max_page, slot.compressed, slot.refs] {
+                w.put(&v.to_le_bytes());
+            }
+            w.put(&slot.ref_digest.to_le_bytes());
+            w.put(&slot.seen.to_le_bytes());
+            w.put(&slot.seen_digest.to_le_bytes());
+        }
+        w.put(&self.entry.number.to_le_bytes());
+        w.put(&self.entry.size.to_le_bytes());
+        w.put(&self.entry.address.to_le_bytes());
+        w.put(&[self.peeked as u8]);
+        w.put(&self.peek);
+        w.put(&self.pages.to_le_bytes());
+        for part in [
+            Some(maps.as_ref().map_or(header.as_bytes(), |c| c.as_bytes())),
+            page.as_ref().map(|c| c.as_bytes()),
+        ] {
+            let bytes = part.unwrap_or(&[]);
+            w.put(&(bytes.len() as u32).to_le_bytes());
+            w.put(bytes);
+        }
+        let end = w.at;
+        let checksum = crate::crc::crc32(0, &result.bytes[..end]);
+        result.bytes[end..end + TRAILER].copy_from_slice(&checksum.to_le_bytes());
+        result.len = end + TRAILER;
+        Ok(result)
+    }
+
+    /// Restore against an independently supplied source identity. Both
+    /// embedded walkers are validated by their own restore, and the table
+    /// and cursors must form a state the walk can reach. No source bytes
+    /// are read or requested.
+    pub fn restore(input: &[u8], expected_source: SourceIdentity) -> Result<Self, StreamError> {
+        if input.len() < FILE_FIXED - MAX_SECTIONS * SLOT_BYTES + TRAILER || input.len() > FILE_MAX
+        {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let end = input.len() - TRAILER;
+        if &input[..4] != b"DWGF"
+            || input[4] != 1
+            || input[end..] != crate::crc::crc32(0, &input[..end]).to_le_bytes()
+        {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let mut r = Reader {
+            bytes: &input[..end],
+            at: 5,
+        };
+        let stage = match r.u8()? {
+            0 => WalkStage::Maps,
+            1 => WalkStage::Pages,
+            2 => WalkStage::Peek,
+            3 => WalkStage::Walk,
+            4 => WalkStage::Verify,
+            5 => WalkStage::Done,
+            _ => return Err(StreamError::InvalidCheckpoint),
+        };
+        let length = r.u64()?;
+        let mut digest = [0; 32];
+        digest.copy_from_slice(r.get(32)?);
+        let source = SourceIdentity { digest, length };
+        if source != expected_source {
+            return Err(StreamError::SourceMismatch);
+        }
+        let mut walker = Self::new(source);
+        walker.stage = stage;
+        let count = usize::from(r.u8()?);
+        if count > MAX_SECTIONS {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        walker.slot_count = count;
+        for slot in &mut walker.slots[..count] {
+            *slot = Slot {
+                index: r.u32()?,
+                id: r.u32()?,
+                size: r.u64()?,
+                page_count: r.u32()?,
+                max_page: r.u32()?,
+                compressed: r.u32()?,
+                refs: r.u32()?,
+                ref_digest: r.u64()?,
+                seen: r.u32()?,
+                seen_digest: r.u64()?,
+            };
+        }
+        walker.entry = PageEntry {
+            number: r.u32()? as i32,
+            size: r.u32()?,
+            address: r.u64()?,
+        };
+        walker.peeked = usize::from(r.u8()?);
+        walker.peek.copy_from_slice(r.get(32)?);
+        walker.pages = r.u32()?;
+        let maps_len = r.u32()? as usize;
+        let maps = r.get(maps_len)?;
+        let page_len = r.u32()? as usize;
+        let page = r.get(page_len)?;
+        let live = !matches!(stage, WalkStage::Verify | WalkStage::Done);
+        let walking = stage == WalkStage::Walk;
+        if r.at != end || maps_len == 0 || (page_len > 0) != walking || walker.peeked > 32 {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        if live {
+            walker.maps = R2004MapWalker::restore(maps, source)?;
+            walker.maps.pages_only = stage != WalkStage::Maps;
+        } else {
+            walker.maps.header = R2004HeaderParser::restore(maps, source)?;
+        }
+        if walking {
+            walker.page = R2004SectionWalker::restore(page, source)?;
+        }
+        if !walker.consistent() {
             return Err(StreamError::InvalidCheckpoint);
         }
         Ok(walker)

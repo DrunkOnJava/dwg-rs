@@ -20,3 +20,5 @@ const _: () = assert!(core::mem::size_of::<streaming::R2004MapWalker>() <= strea
 const _: () = assert!(core::mem::size_of::<streaming::R2004MapCheckpoint>() <= streaming::WINDOW + 1024);
 const _: () = assert!(core::mem::size_of::<streaming::R2004SectionWalker>() <= streaming::WINDOW + 1024);
 const _: () = assert!(core::mem::size_of::<streaming::R2004SectionCheckpoint>() <= streaming::WINDOW + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2004Walker>() <= 2 * streaming::WINDOW + 8192);
+const _: () = assert!(core::mem::size_of::<streaming::R2004WalkCheckpoint>() <= 2 * streaming::WINDOW + 8192);
