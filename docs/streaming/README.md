@@ -277,8 +277,8 @@ byte past the section's size is decoded and dropped.
 
 The header layout and both checksum rules are a measured finding
 ([ARCHITECTURE.md §7n](../../ARCHITECTURE.md)): `section_map::DataPageHeader`
-labels three of its fields wrongly, and its `page_size` is the page's size
-on disk, not the decompressed size. A compressed page decodes with a
+used to label three of its fields wrongly (now fixed), and its `page_size` is
+the page's size on disk, not the decompressed size. A compressed page decodes with a
 ceiling of the section's page size; it may end anywhere from
 `min(page size, bytes the section has left)` up to a whole page and no
 shorter (`DataPageLength`), and a stream that outgrows the page size is
