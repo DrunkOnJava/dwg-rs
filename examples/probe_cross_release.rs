@@ -120,10 +120,11 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let (mut same, mut differ, mut unmatched) = (0usize, 0usize, 0usize);
+    let (mut same, mut differ, mut only_left) = (0usize, 0usize, 0usize);
     for (handle, l) in &left {
         let Some(r) = right.get(handle) else {
-            unmatched += 1;
+            only_left += 1;
+            println!("0x{handle:X} only in {a}");
             continue;
         };
         let (ls, rs) = (
@@ -138,13 +139,17 @@ fn main() -> ExitCode {
             println!("0x{handle:X}\n  {a}: {ls}\n  {b}: {rs}");
         }
     }
+    let only_right = right.keys().filter(|h| !left.contains_key(h)).count();
+    for handle in right.keys().filter(|h| !left.contains_key(h)) {
+        println!("0x{handle:X} only in {b}");
+    }
     println!(
         "{kind}: {} in {a}, {} in {b}; {same} decode to equal values, {differ} differ, \
-         {unmatched} handles only in the first",
+         {only_left} handles only in the first, {only_right} only in the second",
         left.len(),
         right.len()
     );
-    if differ > 0 {
+    if differ > 0 || only_left > 0 || only_right > 0 || same == 0 {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
