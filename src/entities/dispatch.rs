@@ -1106,7 +1106,7 @@ fn dispatch_table_entry(
         }
         // R13/R14 lay the dimension variables out in their own order and
         // widths (§20.4.68's "R13 & R14 Only" block).
-        ObjectType::DimStyle if matches!(version, Version::R14) => {
+        ObjectType::DimStyle if version.is_r13_r14() => {
             crate::tables::dimstyle::decode_r13_r14(c, version)
                 .map(DecodedEntity::DimStyle)
                 .map_err(|e| e.to_string())
