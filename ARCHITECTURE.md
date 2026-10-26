@@ -1660,6 +1660,34 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
+## 7m. TOLERANCE before R2007: the version branch was upside down (2026-10-26, #226)
+
+§20.4.49 gives TOLERANCE three leading fields — an unknown short, the
+height and the dimgap — under "R13-R14 Only", then the insertion point,
+x direction, extrusion and text on every release. The R2007+
+split-stream reader had already measured that those three are absent
+from R2007 on. The inline reader for R13 to R2004 had it upside down:
+it read the short only on R2007+, the height and dimgap everywhere, and
+then the DIMSTYLE handle inline, past the data-stream boundary. All
+three TOLERANCE records of ACadSharp's R14, R2000 and R2004 saves (#225)
+errored.
+
+Read as printed, the list closes on all 21 TOLERANCE records of the
+public corpus, R14 to R2018. On R2000 and R2004 the 668, 196 and 236
+bits of the three records' budgets are exactly three `3BD`s and the
+`TV`; on R14 the R13-R14 fields take six more bits. Against the DXF
+twins (R2000 to R2018, matched by handle) the insertion point and the
+text agree on every record, 12 values per release with 0 differing. The
+twins omit 11 and 210 (the defaults the records hold).
+
+On R14 the three leading fields are `10 10 10`, the zero code of `BS`
+and `BD`, on all three records, and R14 has no twin. Their widths close
+the record; their values corroborate nothing.
+
+```sh
+cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
