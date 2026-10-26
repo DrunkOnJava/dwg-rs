@@ -191,9 +191,43 @@ pub struct ObjectWalkSummary {
     /// still yielded (with the map's handle, as before) — the
     /// disagreement is reported, not enforced.
     pub handle_mismatches: Vec<(u64, u64, u64)>,
+    /// Handle-driven mode only: how many references the walked records'
+    /// handle streams hold, resolved per §2.13 (see
+    /// [`handle_references`]).
+    pub references_decoded: usize,
+    /// Handle-driven mode only: every reference whose target the
+    /// `AcDb:Handles` map does not list, as `(from, to, code)`.
+    ///
+    /// §2.13 lets a soft pointer (codes 2 and 4) name an object that is
+    /// no longer in the drawing; a hard one (codes 3 and 5) may not, so
+    /// an unanswered hard reference means a record the drawing depends
+    /// on is missing. [`dangling_soft_pointers`](Self::dangling_soft_pointers)
+    /// and [`unanswered_hard_references`](Self::unanswered_hard_references)
+    /// split the list (#81).
+    pub unanswered_references: Vec<(u64, u64, u8)>,
+    /// Handle-driven mode only: records whose handle stream cannot be
+    /// located (R13/R14 state no boundary for it), so their references
+    /// go unchecked.
+    pub references_unchecked: usize,
 }
 
 impl ObjectWalkSummary {
+    /// The soft pointers (codes 2 and 4, §2.13) whose target is not in
+    /// the drawing, as `(from, to, code)` — allowed, and reported (#81).
+    pub fn dangling_soft_pointers(&self) -> impl Iterator<Item = &(u64, u64, u8)> {
+        self.unanswered_references
+            .iter()
+            .filter(|(_, _, code)| matches!(code, 2 | 4))
+    }
+
+    /// The hard references (codes 3 and 5, §2.13) whose target is not in
+    /// the drawing, as `(from, to, code)` — each one a missing record.
+    pub fn unanswered_hard_references(&self) -> impl Iterator<Item = &(u64, u64, u8)> {
+        self.unanswered_references
+            .iter()
+            .filter(|(_, _, code)| matches!(code, 3 | 5))
+    }
+
     /// Count of records the walker stepped over (read but could not
     /// parse into a [`RawObject`]).
     pub fn skipped_count(&self) -> usize {
@@ -377,6 +411,24 @@ impl<'a> ObjectWalker<'a> {
             }
         }
         summary.handle_mismatches = std::mem::take(&mut self.handle_mismatches);
+        if let Some(map) = self.handle_map {
+            let known: std::collections::HashSet<u64> =
+                map.entries.iter().map(|e| e.handle).collect();
+            for obj in &out {
+                let Some(references) = handle_references(obj, self.version) else {
+                    summary.references_unchecked += 1;
+                    continue;
+                };
+                for (target, code) in references {
+                    summary.references_decoded += 1;
+                    if !known.contains(&target) {
+                        summary
+                            .unanswered_references
+                            .push((obj.handle.value, target, code));
+                    }
+                }
+            }
+        }
         (out, summary)
     }
 }
@@ -681,6 +733,47 @@ pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
     raw.obj_size_bits.map(|b| b as usize)
 }
 
+/// The object references in a record's handle stream, each resolved to
+/// an absolute handle with its §2.13 code: codes 2 to 5 carry the
+/// handle outright, 6 and 8 are the record's own handle plus and minus
+/// one, and 0xA and 0xC add the encoded offset to it or subtract it.
+///
+/// The handle stream starts where the record's data (and, on R2007+,
+/// string) area ends: the §19.1 string-stream trailer on R2007+, the `RL`
+/// object-data size on R2000 and R2004. R13/R14 state no such boundary
+/// in a form this crate reads, so they return `None`.
+pub fn handle_references(obj: &RawObject, version: Version) -> Option<Vec<(u64, u8)>> {
+    let start = if version.is_r2007_plus() {
+        crate::string_stream::data_section_end(&obj.raw, version)?
+    } else {
+        obj.obj_size_bits? as usize
+    };
+    let total = obj.raw.len() * 8;
+    let mut out = Vec::new();
+    if start >= total {
+        return Some(out);
+    }
+    let mut c = BitCursor::new(&obj.raw);
+    if crate::string_stream::seek(&mut c, start).is_err() {
+        return Some(out);
+    }
+    while c.position_bits() + 8 <= total {
+        let Ok(h) = c.read_handle() else { break };
+        let target = match h.code {
+            2..=5 => h.value,
+            6 => obj.handle.value.wrapping_add(1),
+            8 => obj.handle.value.wrapping_sub(1),
+            0xA => obj.handle.value.wrapping_add(h.value),
+            0xC => obj.handle.value.wrapping_sub(h.value),
+            _ => continue,
+        };
+        if target != 0 {
+            out.push((target, h.code));
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -857,6 +950,7 @@ mod tests {
             errored_count: 0,
             unknown_types: Vec::new(),
             handle_mismatches: Vec::new(),
+            ..Default::default()
         };
         assert_eq!(s.confidence(), 1.0);
     }
@@ -877,6 +971,7 @@ mod tests {
             errored_count: 20,
             unknown_types: Vec::new(),
             handle_mismatches: Vec::new(),
+            ..Default::default()
         };
         assert_eq!(s.confidence(), 0.5);
     }

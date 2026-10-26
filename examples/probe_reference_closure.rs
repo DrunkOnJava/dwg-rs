@@ -62,12 +62,11 @@
 //! corpus resolves. This refines #56's "no reference the walk cannot
 //! answer", which was measured before the soft/hard split was drawn.
 
-use dwg::bitcursor::BitCursor;
 use dwg::entities::{DecodedEntity, decode_from_raw};
 use dwg::error::Result;
 use dwg::object::RawObject;
-use dwg::{DwgFile, ObjectType, Version};
-use std::collections::{BTreeMap, BTreeSet};
+use dwg::{DwgFile, ObjectType};
+use std::collections::BTreeMap;
 use std::env;
 use std::process::ExitCode;
 
@@ -99,14 +98,6 @@ fn run(path: &str) -> Result<bool> {
         println!("no handle-map-driven walk available for this file");
         return Ok(true);
     };
-    let map = match file.handle_map() {
-        Some(Ok(m)) => m,
-        _ => {
-            println!("no AcDb:Handles section");
-            return Ok(true);
-        }
-    };
-    let known: BTreeSet<u64> = map.entries.iter().map(|e| e.handle).collect();
     println!("records walked            : {}", objects.len());
     println!("walker skips              : {}", walk.skipped.len());
     println!(
@@ -152,23 +143,14 @@ fn run(path: &str) -> Result<bool> {
     }
 
     // ---- 2. reference closure ---------------------------------------
-    let mut refs = 0usize;
-    let mut no_boundary = 0usize;
+    // The lossy walk resolves every record's handle stream against the
+    // handle map itself (`ObjectWalkSummary::unanswered_references`,
+    // #81); this probe prints what it found.
+    let refs = walk.references_decoded;
+    let no_boundary = walk.references_unchecked;
     let mut unanswered: BTreeMap<u64, Vec<(u64, u8)>> = BTreeMap::new();
-    for obj in &objects {
-        let Some(start) = handle_stream_start(obj, version) else {
-            no_boundary += 1;
-            continue;
-        };
-        for (target, code) in handle_stream_targets(obj, start) {
-            refs += 1;
-            if !known.contains(&target) {
-                unanswered
-                    .entry(target)
-                    .or_default()
-                    .push((obj.handle.value, code));
-            }
-        }
+    for &(from, target, code) in &walk.unanswered_references {
+        unanswered.entry(target).or_default().push((from, code));
     }
     // §2.13 splits references into hard (codes 3 and 5), which the
     // owner cannot exist without, and soft (codes 2 and 4), which are
@@ -253,47 +235,4 @@ fn is_dictionary_var(file: &DwgFile, obj: &RawObject) -> bool {
         .classes
         .iter()
         .any(|c| c.class_number == obj.type_code && c.dxf_class_name == "DICTIONARYVAR")
-}
-
-/// First bit of a record's trailing handle stream: the end of its data
-/// (and, on R2007+, string) area.
-fn handle_stream_start(obj: &RawObject, version: Version) -> Option<usize> {
-    if version.is_r2007_plus() {
-        dwg::string_stream::data_section_end(&obj.raw, version)
-    } else {
-        obj.obj_size_bits.map(|b| b as usize)
-    }
-}
-
-/// Decode the handle references packed into `obj`'s handle stream and
-/// resolve each to an absolute handle. Codes 2..=5 carry the value
-/// outright; 6 / 8 are the owner's handle ±1 and 0xA / 0xC add or
-/// subtract the encoded offset (spec §2.13).
-fn handle_stream_targets(obj: &RawObject, start: usize) -> Vec<(u64, u8)> {
-    let total = obj.raw.len() * 8;
-    let mut out = Vec::new();
-    if start >= total {
-        return out;
-    }
-    let mut c = BitCursor::new(&obj.raw);
-    for _ in 0..start {
-        if c.read_b().is_err() {
-            return out;
-        }
-    }
-    while c.position_bits() + 8 <= total {
-        let Ok(h) = c.read_handle() else { break };
-        let target = match h.code {
-            2..=5 => h.value,
-            6 => obj.handle.value.wrapping_add(1),
-            8 => obj.handle.value.wrapping_sub(1),
-            0xA => obj.handle.value.wrapping_add(h.value),
-            0xC => obj.handle.value.wrapping_sub(h.value),
-            _ => continue,
-        };
-        if target != 0 {
-            out.push((target, h.code));
-        }
-    }
-    out
 }
