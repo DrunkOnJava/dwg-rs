@@ -1288,7 +1288,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_TOLERANCE => DecodedEntity::Tolerance(tolerance::decode(c, version)?),
         OBJECT_TYPE_OLE2FRAME => DecodedEntity::Ole2Frame(ole2_frame::decode(c)?),
         OBJECT_TYPE_HATCH => DecodedEntity::Hatch(hatch::decode(c, version)?),
-        OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c)?),
+        OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c, version, strings)?),
         OBJECT_TYPE_CAMERA => DecodedEntity::Camera(camera::decode(c, version)?),
         OBJECT_TYPE_SUN => DecodedEntity::Sun(sun::decode(c, version)?),
         OBJECT_TYPE_LIGHT => DecodedEntity::Light(light::decode(c, version)?),
