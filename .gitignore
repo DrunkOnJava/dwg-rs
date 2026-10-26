@@ -71,3 +71,6 @@ proptest-regressions/
 /wasm-evidence.json
 /file-evidence.json
 /file-schedules-*.jsonl
+/r2007-evidence.json
+/r2007-schedules-*.jsonl
+/wasm-r2007-evidence.json

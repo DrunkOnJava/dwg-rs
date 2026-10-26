@@ -36,7 +36,7 @@ jobs:
           rustc --edition=2024 --crate-type rlib tools/streaming/no_std.rs --out-dir streaming-build
           rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/streaming/no_std.rs --out-dir streaming-build
       - name: Build actual streaming entry point
-        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example streaming_schedules
+        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2007 --example streaming_schedules
       - name: End-to-end header boundary acceptance
         run: python3 tools/streaming/verify.py target/debug/examples/stream_header target/debug/examples/streaming_schedules
       - name: End-to-end R13-R2000 container walk acceptance
@@ -55,6 +55,10 @@ jobs:
         run: python3 tools/streaming/verify_file.py target/debug/examples/stream_r2004_file target/debug/examples/streaming_schedules
       - name: End-to-end cross-runtime checkpoint restore (native to wasm32 and back)
         run: python3 tools/streaming/verify_wasm.py target/debug/examples/stream_r2004_maps target/debug/examples/stream_r2004_sections target/debug/examples/stream_r2004_file
+      - name: End-to-end whole R2007 file walk acceptance
+        run: python3 tools/streaming/verify_r2007.py target/debug/examples/stream_r2007 target/debug/examples/streaming_schedules
+      - name: End-to-end R2007 checkpoint restore (native to wasm32 and back)
+        run: python3 tools/streaming/verify_wasm_r2007.py target/debug/examples/stream_r2007
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -76,4 +80,7 @@ jobs:
             file-evidence.json
             file-schedules-*.jsonl
             wasm-evidence.json
+            r2007-evidence.json
+            r2007-schedules-*.jsonl
+            wasm-r2007-evidence.json
           if-no-files-found: error
