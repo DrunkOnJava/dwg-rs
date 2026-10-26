@@ -2837,14 +2837,14 @@ runs it.
 | Table | Written | Paired | Groups written | Agree | Relation | Disagree | Extra | Groups omitted | Records omitted |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | VPORT | 42 | 42 | 2199 | 2197 | 2 | 0 | 0 | 137 | 0 |
-| LTYPE | 132 | 132 | 804 | 804 | 0 | 0 | 0 | 0 | 24 |
+| LTYPE | 156 | 156 | 1146 | 1146 | 0 | 0 | 0 | 4 | 0 |
 | LAYER | 156 | 156 | 964 | 964 | 0 | 0 | 0 | 496 | 0 |
 | STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
 | UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
-| DIMSTYLE | 108 | 108 | 1431 | 1427 | 4 | 0 | 0 | 338 | 0 |
+| DIMSTYLE | 108 | 108 | 1443 | 1439 | 4 | 0 | 0 | 326 | 0 |
 | BLOCK_RECORD | 270 | 270 | 1092 | 1089 | 3 | 0 | 0 | 179 | 0 |
-| All | 1209 | 1209 | 8248 | 8239 | 9 | 0 | 0 | 1382 | 24 |
+| All | 1233 | 1233 | 8602 | 8593 | 9 | 0 | 0 | 1374 | 0 |
 
 Every group written has the export's code and value, over the 42 drawings of the
 public corpus that have an AutoCAD export of the same release (R2000 to R2018).
@@ -2854,9 +2854,7 @@ a true-colour layer's 420 and the 62 beside it, a viewport's 63 beside its 421
 and a dimension colour (176 to 178), because the DWG stores no index for a true
 colour; a layer's colour name
 (430); a record the export registers again under another handle (an APPID, a
-layer, a block), which pairs by name; a LTYPE with a shape or text dash (four in
-the corpus, written by none), and the 6 of a layer, the 345 to 347 of a
-dimension style that use one; and the
+layer, a block), which pairs by name; and the
 `{BLKREFS` bracket of a block, because ENTITIES does not carry the INSERT handles
 it lists. `ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that
 application on all four drawings that hold it. VIEW is not written yet. UCS is written
@@ -2864,6 +2862,15 @@ as AutoCAD's empty table when the drawing has no UCS record, which is every
 drawing of the corpus; a drawing with UCS records gets no UCS table, because the
 decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
 that `tables::ucs` does not read).
+
+A LTYPE with a text or shape dash is written with its shape number (75), style
+handle (340), scale, rotation, offsets and text (44 to 46, 50, 9). The style is the
+handle after the xref block's, one per dash; the text is the NUL-terminated string at
+the dash's `shape_number` bytes into the linetype's text area (256 bytes to R2004,
+512 of UTF-16 from R2007), measured at offset 0 only. The DWG sets bit 8 of a text
+dash's flags on every release; AutoCAD's export writes it from R2013 and clears it
+before, so it is cleared for targets before R2013. All 156 LTYPE records pair, the
+four complex ones of each release included.
 
 ### The handle stream of a table entry
 
@@ -2939,6 +2946,86 @@ Three differences are relations the probe names, not disagreements:
   writes.
 
 The probe also prints the numbers per release.
+
+## 7ak. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
+
+`src/dxf_entities.rs` writes the entities of model space and of the active paper
+space, and their children (the ATTRIBs of an INSERT, the VERTEXes and SEQEND of a
+POLYLINE), from the decoded records: 17 kinds so far (LINE, POINT, CIRCLE, ARC,
+ELLIPSE, SOLID, RAY, XLINE, 3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT,
+POLYLINE in its 2D, 3D and polyface forms, VERTEX, SEQEND). Any other kind, and an
+entity whose fields do not all decode, is counted in a `999 skipped` comment.
+`examples/probe_dxf_entities.rs` converts each drawing that has an AutoCAD export,
+reads the output back and pairs every entity written with the export's record of the
+same handle; the Corpus job runs it.
+
+| Kind | Written | Paired | Groups written | Agree | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 3DFACE | 6 | 6 | 78 | 78 | 0 | 0 | 0 |
+| ARC | 11 | 11 | 77 | 77 | 0 | 0 | 0 |
+| ATTRIB | 23 | 23 | 223 | 223 | 0 | 0 | 16 |
+| CIRCLE | 53 | 53 | 271 | 271 | 0 | 0 | 38 |
+| ELLIPSE | 11 | 11 | 143 | 143 | 0 | 0 | 0 |
+| INSERT | 36 | 36 | 293 | 293 | 0 | 0 | 0 |
+| LINE | 161 | 161 | 1377 | 1377 | 0 | 0 | 6 |
+| LWPOLYLINE | 131 | 131 | 810 | 810 | 0 | 0 | 42 |
+| MTEXT | 25 | 25 | 295 | 295 | 0 | 0 | 89 |
+| POINT | 46 | 46 | 243 | 243 | 0 | 0 | 4 |
+| POLYLINE | 12 | 12 | 84 | 84 | 0 | 0 | 0 |
+| RAY | 6 | 6 | 42 | 42 | 0 | 0 | 0 |
+| SEQEND | 24 | 24 | 24 | 24 | 0 | 0 | 0 |
+| SOLID | 6 | 6 | 83 | 83 | 0 | 0 | 0 |
+| TEXT | 174 | 174 | 1140 | 1140 | 0 | 0 | 396 |
+| VERTEX | 72 | 72 | 402 | 402 | 0 | 0 | 0 |
+| XLINE | 6 | 6 | 42 | 42 | 0 | 0 | 0 |
+| All | 803 | 803 | 5627 | 5627 | 0 | 0 | 591 |
+
+Every group written has the export's code and value, over the 42 drawings that have
+an AutoCAD export of the same release (R2000 to R2018): 803 entities, 5,627 groups.
+The export holds 1,145 entities that are in the DWG: 336 are of the 16 kinds nothing
+writes yet (DIMENSION, HATCH, MULTILEADER, VIEWPORT, MLINE, TOLERANCE, SPLINE, MESH,
+ACAD_TABLE, 3DSOLID, REGION, SHAPE, WIPEOUT, LEADER, IMAGE, PDFUNDERLAY), which the
+probe counts by kind, and six are R2018 records with an embedded object (five MTEXT,
+one multi-line ATTRIB) that nothing writes yet. What an entity omits has a reason the probe checks:
+extended data (1000 to 1071); a colour book colour's 420 and 430, which are in its
+`AcDbColor` object; a material's 347, written as an untyped record; reactors that are
+entities not all written; an extension dictionary the export made itself (its handle is
+at or above the DWG's `$HANDSEED`).
+
+### The common data and handles of an entity
+
+`entity_refs` reads the handle stream the entity decoders leave: the owner (only when
+the entity mode is 0; mode 2 is model space and 1 paper space), the reactors, the
+extension dictionary, a colour book colour, the layer, the linetype, the material, the
+plot style and, from R2010, the visual styles, then the entity's own handles (a TEXT's
+style, an INSERT's block, ...). Measured against the export:
+
+- **R2000** has `Nolinks` clear on entities, which puts the previous and next entity
+  handles (two relative soft pointers) before the layer; the common decoder read the bit
+  and dropped it. From R2004 it is always set.
+- From **R2007** the flag pair the common data calls `plotstyle_flag` then
+  `material_flag` is read the other way round: the first names a MATERIAL (its handle,
+  group 347; `1` is the ByBlock material, `0` ByLayer, which is not written), the second
+  the plot style. Handle `0xDC0` of the R2007 sample is a class-505 MATERIAL object.
+- The colour `BS` keeps the index in its low nine bits (256 is ByLayer, not written); a
+  transparency (440) and a true colour (420) follow when the high bits announce them.
+- The lineweight `RC` maps through the lineweight table; 29 (ByLayer) is not written and
+  30 (ByBlock) is `-2`.
+
+Group rules the export shows, each checked on every record of its kind: the linetype is
+`ByBlock` or `Continuous` in mixed case, a LINE's thickness and an extrusion of `(0, 0,
+1)` are omitted but an ELLIPSE always writes its 210; a TEXT writes its style only when
+it is not `Standard`, and the vertical alignment (73) under its second `AcDbText`; an
+ATTRIB writes the lock position (280) from R2007 and a version 280 before it from R2010;
+an LWPOLYLINE writes the constant width (43) unless it has per-vertex widths; an MTEXT
+writes its rectangle height (46) only from R2007 and splits its text in 250-character
+`3` groups ahead of the `1`. An MTEXT of an R2018 target is not written: the export
+appends an embedded object (101) with the column data, which is not written yet.
+Text goes through the header's release-aware escaping (a newline is `^J`).
+
+A layer of the `ENTITIES` section is the entity's own decoded layer; the placeholder
+that put every entity on layer 0 (or on the first visible layer) is used only when the
+tables are not written.
 
 ## 8. Write pipeline (current scope)
 
