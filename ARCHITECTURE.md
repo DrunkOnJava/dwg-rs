@@ -3053,6 +3053,133 @@ for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"
 target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
 ```
 
+## 7al. R13: the record types the drawings hold, and the ones still unmeasured (2026-10-26, #119)
+
+#119 asks that every §20.4 decoder's R13 branch be exercised on a real R13
+drawing or listed as unmeasured. `examples/probe_r13_census.rs` walks the
+object map of each drawing it is given, sends every record through the same
+decoder `coverage_report` uses and counts, per record type (a custom class
+under its DXF class name), the records, the drawings that hold the type, and
+how many decoded, errored or had no decoder. It was run on three sets, with the
+decoders of §7ak (the R13-R14 branches read as `is_r13_r14()`):
+
+- **the 22 pinned drawings** (§7aj): SketchUp's `Cabin.dwg` and 21 Sovol3d
+  drawings, none written by AutoCAD;
+- **the US Forest Service R6 library**, 122 drawings, public domain, "created
+  in AutoCad Ver 13" by the agency's own note; pinned by a later PR and measured
+  here on lower-cased copies, because `coverage_report` skipped `.DWG` until #353;
+- **Autodesk's own R13 install discs**, 68 distinct drawings, local evidence
+  only (§7aj: never fetched by CI or committed).
+
+Records per type in each set:
+
+| Type | §20.4 | 22 pinned | Forest Service | Autodesk discs |
+|---|---|---:|---:|---:|
+| 3DFACE | 20.4.32 | 373 | 0 | 182 |
+| 3DSOLID | 20.4.41 | 0 | 0 | 103 |
+| APPID | 20.4.66 | 31 | 217 | 169 |
+| APPID_CONTROL | 20.4.65 | 22 | 122 | 68 |
+| ARC | 20.4.18 | 939 | 3,613 | 1,164 |
+| ATTDEF | 20.4.5 | 57 | 41 | 1,155 |
+| ATTRIB | 20.4.4 | 187 | 0 | 9,779 |
+| BLOCK | 20.4.6 | 1,080 | 3,338 | 822 |
+| BLOCK_CONTROL | 20.4.51 | 22 | 122 | 68 |
+| BLOCK_HEADER | 20.4.52 | 1,080 | 3,104 | 822 |
+| CIRCLE | 20.4.20 | 676 | 558 | 633 |
+| DICTIONARY | 20.4.44 | 88 | 366 | 214 |
+| DIMENSION_ALIGNED | 20.4.25 | 0 | 25 | 75 |
+| DIMENSION_ANG_2LN | 20.4.27 | 5 | 19 | 0 |
+| DIMENSION_DIAMETER | 20.4.29 | 34 | 0 | 0 |
+| DIMENSION_LINEAR | 20.4.24 | 306 | 362 | 0 |
+| DIMENSION_RADIUS | 20.4.28 | 15 | 2 | 0 |
+| DIMSTYLE | 20.4.68 | 161 | 126 | 91 |
+| DIMSTYLE_CONTROL | 20.4.67 | 22 | 122 | 68 |
+| ELLIPSE | 20.4.39 | 0 | 736 | 4 |
+| ENDBLK | 20.4.7 | 1,080 | 3,338 | 822 |
+| GROUP | 20.4.72 | 0 | 551 | 0 |
+| INSERT | 20.4.9 | 666 | 4,120 | 3,546 |
+| LAYER | 20.4.54 | 544 | 1,241 | 400 |
+| LAYER_CONTROL | 20.4.53 | 22 | 122 | 68 |
+| LEADER | 20.4.47 | 42 | 116 | 0 |
+| LINE | 20.4.21 | 8,174 | 181,644 | 22,288 |
+| LTYPE | 20.4.58 | 213 | 513 | 249 |
+| LTYPE_CONTROL | 20.4.57 | 22 | 122 | 68 |
+| MINSERT | 20.4.10 | 0 | 0 | 2 |
+| MLINESTYLE | 20.4.73 | 22 | 122 | 68 |
+| MTEXT | 20.4.46 | 3,968 | 1,990 | 75 |
+| OBJECT_PTR | none | 0 | 0 | 3 |
+| POINT | 20.4.31 | 11 | 2,474 | 2,730 |
+| POLYLINE_2D | 20.4.16 | 223 | 11,222 | 5,131 |
+| POLYLINE_3D | 20.4.17 | 0 | 86 | 0 |
+| POLYLINE_MESH | 20.4.34 | 4 | 0 | 85 |
+| POLYLINE_PFACE | 20.4.33 | 1 | 0 | 302 |
+| SEQEND | 20.4.8 | 239 | 11,496 | 6,257 |
+| SOLID | 20.4.35 | 681 | 2,964 | 1,080 |
+| SPLINE | 20.4.40 | 82 | 946 | 0 |
+| STYLE | 20.4.56 | 603 | 379 | 198 |
+| STYLE_CONTROL | 20.4.55 | 22 | 122 | 68 |
+| SUN | none | 21 | 0 | 0 |
+| TEXT | 20.4.3 | 0 | 7,066 | 2,166 |
+| TOLERANCE | 20.4.49 | 6 | 0 | 0 |
+| TRACE | 20.4.36 | 0 | 165 | 0 |
+| UCS | 20.4.62 | 0 | 0 | 6 |
+| UCS_CONTROL | 20.4.61 | 22 | 122 | 68 |
+| VERTEX_2D | 20.4.11 | 3,127 | 100,399 | 37,173 |
+| VERTEX_3D | 20.4.12 | 0 | 360 | 0 |
+| VERTEX_MESH | 20.4.13 | 248 | 0 | 5,316 |
+| VERTEX_PFACE | 20.4.14 | 896 | 0 | 3,774 |
+| VERTEX_PFACE_FACE | 20.4.15 | 1,568 | 0 | 3,036 |
+| VIEW | 20.4.60 | 0 | 39 | 24 |
+| VIEWPORT | 20.4.38 | 0 | 52 | 36 |
+| VIEW_CONTROL | 20.4.59 | 22 | 122 | 68 |
+| VPORT | 20.4.64 | 22 | 122 | 76 |
+| VPORT_CONTROL | 20.4.63 | 22 | 122 | 68 |
+| VP_ENT_HDR | 20.4.70 | 0 | 104 | 52 |
+| VP_ENT_HDR_CTRL | 20.4.69 | 22 | 122 | 68 |
+| XRECORD | 20.4.104 | 21 | 0 | 0 |
+
+Records in total: 27,714 (the 22), 345,236 (Forest Service) and 110,788 (discs).
+**None errors in any of the three.** The records no decoder claims are the 21
+`SUN` class records of the Sovol drawings; `VP_ENT_HDR` (0x47), 104 in the
+Forest Service set and 52 on the discs, which §20.4.70 prints but the crate has
+no decoder for; 3 records of a custom `OBJECT_PTR` class on the discs; and 2
+MINSERT on the discs, a type with a section (§20.4.10) and a `decoder` row in
+`docs/spec-coverage.md` but no dispatch arm, so the walk skips it. A type in
+the table has its R13 branch exercised on real bytes, to the record's own
+boundary and no further: no AutoCAD DXF of an R13 drawing exists, so no R13
+value is compared (§7aj). The two AutoCAD-written sets are what makes TEXT,
+VIEWPORT, TRACE, ELLIPSE, GROUP, UCS, VIEW, 3DSOLID and the 3D polyline and
+vertex types measured at all: the 22 hold none of them.
+
+**Unmeasured on R13**: the fixed-code types of §20.4's table, up to MLINESTYLE
+(0x49), that none of the three sets holds. Their decoders are measured on R14
+and later releases; their R13 branch, where §20.4 gives one, is not:
+
+| §20.4 | Type | Decoder state |
+|---|---|---|
+| 20.4.23 | DIMENSION (ORDINATE) (20) | closes |
+| 20.4.26 | DIMENSION (ANGULAR, 3-PT) (23) | closes |
+| 20.4.37 | SHAPE (33) | missing: no decoder |
+| 20.4.41 | REGION (37) and BODY (39); 3DSOLID (38) is measured | closes |
+| 20.4.42 | RAY (40) | closes |
+| 20.4.43 | XLINE (41) | closes |
+| 20.4.50 | MLINE (47) | closes |
+
+OLEFRAME (0x2B) has no §20.4 section and none of the sets holds one either.
+Types that are not fixed-code, or that §20.4 gives to later releases (HATCH,
+LWPOLYLINE, LAYOUT, the proxy classes, and the R2000+ objects) are not listed:
+no R13 branch is claimed for them. Reading a type's absence as "R13 cannot hold
+it" would claim more than three sets show, and reading it as "its R13 branch is
+right" would claim more than they measure.
+
+Reproduce:
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo build --release --features dxf-reader --example probe_r13_census
+target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
