@@ -891,11 +891,15 @@ impl R2004Walker {
             return Err(error);
         }
         let live = !matches!(self.stage, WalkStage::Verify | WalkStage::Done);
+        // A finished map pass cannot be restored (it has nothing left to
+        // walk), but the verified header it holds is still the walk's: keep
+        // that alone, as the header checkpoint.
         let maps = if live {
             Some(self.maps.checkpoint()?)
         } else {
             None
         };
+        let header = self.maps.header.checkpoint();
         let page = if self.stage == WalkStage::Walk {
             Some(self.page.checkpoint()?)
         } else {
@@ -932,7 +936,7 @@ impl R2004Walker {
         w.put(&self.peek);
         w.put(&self.pages.to_le_bytes());
         for part in [
-            maps.as_ref().map(|c| c.as_bytes()),
+            Some(maps.as_ref().map_or(header.as_bytes(), |c| c.as_bytes())),
             page.as_ref().map(|c| c.as_bytes()),
         ] {
             let bytes = part.unwrap_or(&[]);
@@ -1017,13 +1021,14 @@ impl R2004Walker {
         let page = r.get(page_len)?;
         let live = !matches!(stage, WalkStage::Verify | WalkStage::Done);
         let walking = stage == WalkStage::Walk;
-        if r.at != end || (maps_len > 0) != live || (page_len > 0) != walking || walker.peeked > 32
-        {
+        if r.at != end || maps_len == 0 || (page_len > 0) != walking || walker.peeked > 32 {
             return Err(StreamError::InvalidCheckpoint);
         }
         if live {
             walker.maps = R2004MapWalker::restore(maps, source)?;
             walker.maps.pages_only = stage != WalkStage::Maps;
+        } else {
+            walker.maps.header = R2004HeaderParser::restore(maps, source)?;
         }
         if walking {
             walker.page = R2004SectionWalker::restore(page, source)?;

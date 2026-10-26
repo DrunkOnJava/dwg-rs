@@ -162,11 +162,12 @@ def main():
                 continue
             expected, blobs, _ = expectations[name]
             identity = hashlib.sha256(data).hexdigest()
-            full = run(data, 7, '--trace', full_trace, '--report-steps', '--out', fresh(), name=name)
+            full = run(data, 7, '--trace', full_trace, '--report-steps', '--report-header', '--out', fresh(), name=name)
             reads = full_trace.read_text().splitlines()
             report = [json.loads(l) for l in full[2].splitlines()]
-            steps = report[-1]['steps']
-            events = [r['step'] for r in report[:-1]]
+            header = next(r for r in report if 'header' in r)
+            steps = next(r['steps'] for r in report if 'steps' in r)
+            events = [r['step'] for r in report if 'event' in r]
             if name == 'synthetic_2018.dwg':
                 stops = list(range(steps + 1))
             else:
@@ -178,13 +179,20 @@ def main():
                 stops = sorted(set(pick) | {0, steps} | set(random.Random(name + 'x').sample(range(steps), 12)))
             for stop in stops:
                 out = fresh()
+                # Stale output from an earlier run sits where each section's
+                # file will be: a section described after the resume must
+                # start empty, so no stale byte survives in a hole.
+                for i in range(len(blobs)):
+                    (out / f'{i}.bin').write_bytes(b'X' * 70000)
                 paused = run(data, 7, '--identity', identity, '--checkpoint-out', checkpoint, '--stop-after', stop,
                              '--trace', first, '--out', out, name=name)
                 assert paused[0] == 0 and paused[1].splitlines()[-1] == line({'checkpoint': True, 'steps': stop}), (name, stop, paused)
                 state = checkpoint.read_bytes()
                 saved.setdefault((name, state[STAGE]), (stop, state, Path(str(checkpoint) + '.caller').read_text()))
-                resumed = run(data, 7, '--identity', identity, '--resume', checkpoint, '--trace', second, '--out', out, name=name)
+                resumed = run(data, 7, '--identity', identity, '--resume', checkpoint, '--trace', second, '--out', out,
+                              '--report-header', name=name)
                 assert resumed[0] == 0, (name, stop, resumed[2])
+                assert json.loads(resumed[2].splitlines()[-1]) == header, (name, stop, 'the verified header is lost across the checkpoint')
                 assert paused[1].splitlines()[:-1] + resumed[1].splitlines() == full[1].splitlines(), \
                     (name, stop, 'output not exactly once')
                 assert first.read_text().splitlines() + second.read_text().splitlines() == reads, (name, stop, 'source re-read')

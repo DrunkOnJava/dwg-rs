@@ -236,7 +236,7 @@ def constructed_sections(encrypted=0):
     mx = 0x400
     return [
         # holes before both pages: [0, mx) and [2 mx, 3 mx)
-        {'name': 'AcDb:Sparse', 'id': 1, 'compressed': 2, 'mx': mx, 'size': 3 * mx + 600, 'encrypted': 0,
+        {'name': 'AcDb:Sp"ar\\se', 'id': 1, 'compressed': 2, 'mx': mx, 'size': 3 * mx + 600, 'encrypted': 0,
          'pages': [(mx, lcg(1, mx)), (3 * mx, lcg(2, 600))]},
         # a zero page past the end, and the hole before it
         {'name': 'AcDb:Stored', 'id': 2, 'compressed': 1, 'mx': 256, 'size': 1000, 'encrypted': 0,

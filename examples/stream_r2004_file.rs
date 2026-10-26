@@ -5,7 +5,9 @@
 //! on how the source was chunked, and with `--out` a `section_done` line per
 //! section (its size and CRC-32, read back from the assembled file).
 //! `stream_r2004_file file.dwg [chunk-bytes] [--chunks 1,7,3] [--pending]
-//! [--trace <path>] [--out <dir>] [--report-steps]`. `--out` writes each
+//! [--trace <path>] [--out <dir>] [--report-steps] [--report-header]`.
+//! `--report-header` prints the verified file header to stderr when the walk
+//! ends, resumed or not. `--out` writes each
 //! assembled section to `<dir>/<index>.bin` (sparse: holes are whatever no
 //! page wrote). `--legacy` assembles the sections with the legacy reader and
 //! prints the same `section_done` lines. `--identity <sha256>
@@ -56,9 +58,16 @@ fn name(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
+/// A name as the body of a JSON string. The map walker admits only printable
+/// ASCII, so the quote and the backslash are all that need escaping.
+fn esc(name: &str) -> String {
+    name.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 fn done_line(index: u32, name: &str, size: u64, pages: u32, crc: u32) -> String {
     format!(
-        "{{\"section_done\":{{\"index\":{index},\"name\":\"{name}\",\"size\":{size},\"pages\":{pages},\"crc32\":{crc}}}}}"
+        "{{\"section_done\":{{\"index\":{index},\"name\":\"{}\",\"size\":{size},\"pages\":{pages},\"crc32\":{crc}}}}}",
+        esc(name)
     )
 }
 
@@ -117,7 +126,7 @@ fn main() -> Result<()> {
         .ok_or("usage: stream_r2004_file file.dwg [chunk-bytes] [options]")?;
     let mut chunks = vec![CHUNK_BYTES];
     let (mut trace, mut inject_pending, mut out_dir, mut as_legacy) = (None, false, None, false);
-    let mut report_steps = false;
+    let (mut report_steps, mut report_header) = (false, false);
     let (mut digest, mut checkpoint_out, mut stop_after, mut resume) = (None, None, None, None);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -126,6 +135,7 @@ fn main() -> Result<()> {
             "--trace" => trace = Some(args.next().ok_or("missing trace path")?),
             "--pending" => inject_pending = true,
             "--report-steps" => report_steps = true,
+            "--report-header" => report_header = true,
             "--checkpoint-out" => checkpoint_out = Some(args.next().ok_or("missing path")?),
             "--stop-after" => {
                 stop_after = Some(args.next().ok_or("missing steps")?.parse::<u64>()?)
@@ -179,7 +189,6 @@ fn main() -> Result<()> {
         inject_pending,
         pending: false,
     };
-    let fresh = resume.is_none();
     let (mut walker, mut cursor, mut sections) = match &resume {
         Some(path) => {
             let saved = fs::read_to_string(format!("{path}.caller"))?;
@@ -273,11 +282,17 @@ fn main() -> Result<()> {
                     WalkStep::Section(s) => {
                         let label = name(&s.name);
                         println!(
-                            "{{\"section\":{{\"index\":{},\"name\":\"{label}\",\"size\":{},\"pages\":{},\"id\":{}}}}}",
-                            s.index, s.size, s.page_count, s.section_id
+                            "{{\"section\":{{\"index\":{},\"name\":\"{}\",\"size\":{},\"pages\":{},\"id\":{}}}}}",
+                            s.index,
+                            esc(&label),
+                            s.size,
+                            s.page_count,
+                            s.section_id
                         );
+                        // A section described by this process is new: its
+                        // file starts empty, whether or not the walk was resumed.
                         if let Some(dir) = &out_dir {
-                            files.insert(s.section_id, open(dir, s.index, fresh)?);
+                            files.insert(s.section_id, open(dir, s.index, true)?);
                         }
                         sections.push(Section {
                             index: s.index,
@@ -347,6 +362,18 @@ fn main() -> Result<()> {
     }
     if report_steps {
         eprintln!("{{\"steps\":{}}}", cursor.steps);
+    }
+    if report_header {
+        let h = walker
+            .header()
+            .ok_or("the walk ended without a verified header")?;
+        eprintln!(
+            "{{\"header\":\"{}\",\"page_map_id\":{},\"page_map_address\":{},\"section_map_id\":{}}}",
+            String::from_utf8_lossy(&h.magic),
+            h.page_map_id,
+            h.page_map_address,
+            h.section_map_id
+        );
     }
     if let Some(dir) = &out_dir {
         for s in &sections {

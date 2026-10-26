@@ -116,6 +116,23 @@ fn identity(file_len: usize, digest: &[u8]) -> SourceIdentity {
     }
 }
 
+/// A name as the body of a JSON string: the map walker admits only printable
+/// ASCII, so the quote and the backslash are all that need escaping.
+struct Json<'a>(&'a str);
+
+impl core::fmt::Display for Json<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for c in self.0.chars() {
+            match c {
+                '"' => f.write_str("\\\"")?,
+                '\\' => f.write_str("\\\\")?,
+                c => f.write_char(c)?,
+            }
+        }
+        Ok(())
+    }
+}
+
 fn name(bytes: &[u8]) -> &str {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     core::str::from_utf8(&bytes[..end]).unwrap_or("")
@@ -171,7 +188,7 @@ fn map_line(out: &mut Lines<'_>, step: MapStep) -> core::fmt::Result {
             out,
             "{{\"section\":{},\"name\":\"{}\",\"size\":{},\"page_count\":{},\"max_page_size\":{},\"compressed\":{},\"section_id\":{},\"encrypted\":{}}}",
             s.index,
-            name(&s.name),
+            Json(name(&s.name)),
             s.size,
             s.page_count,
             s.max_page_size,
@@ -381,8 +398,9 @@ pub extern "C" fn resume_section(
             }
             SectionStep::Finished { size, pages } => writeln!(
                 out,
-                "{{\"section_done\":{{\"index\":{},\"name\":\"{label}\",\"size\":{size},\"pages\":{pages},\"crc32\":{section_crc}}}}}",
-                walker.section_index()
+                "{{\"section_done\":{{\"index\":{},\"name\":\"{}\",\"size\":{size},\"pages\":{pages},\"crc32\":{section_crc}}}}}",
+                walker.section_index(),
+                Json(label)
             ),
         };
         if wrote.is_err() {
@@ -427,7 +445,7 @@ fn walk_file(
                 out,
                 "{{\"section\":{{\"index\":{},\"name\":\"{}\",\"size\":{},\"pages\":{},\"id\":{}}}}}",
                 s.index,
-                name(&s.name),
+                Json(name(&s.name)),
                 s.size,
                 s.page_count,
                 s.section_id

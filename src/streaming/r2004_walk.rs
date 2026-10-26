@@ -580,10 +580,11 @@ impl R2004Walker {
                             && self.page.page == self.entry
                     })
             }
-            Stage::Verify => complete && blank,
+            Stage::Verify => complete && blank && self.maps.header().is_some(),
             Stage::Done => {
                 complete
                     && blank
+                    && self.maps.header().is_some()
                     && table
                         .iter()
                         .all(|slot| slot.seen == slot.refs && slot.seen_digest == slot.ref_digest)
