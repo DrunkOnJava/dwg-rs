@@ -30,41 +30,61 @@ MEASURED**; no claim of superiority to another DWG reader is made.
 
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
-Empirical entity + object decode coverage as measured on 2026-08-30 by
-[`examples/coverage_report.rs`](./examples/coverage_report.rs) against the
-local `samples/` set:
+Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
+job on every push to `main` ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)) with
+[`examples/coverage_report.rs`](./examples/coverage_report.rs), on 52 public
+drawings fetched by pinned sha256
+([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
 
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
-| R14 (AC1014)        | 3 | 498 | 378 | 0 | **56.8 %** |
-| R2000 (AC1015)      | 3 | 606 | 27 | 0 | **95.7 %** |
-| R2004 (AC1018)      | 3 | 582 | 15 | 0 | **97.5 %** |
-| R2007 (AC1021)      | 3 | 534 | 24 | 0 | **95.7 %** |
-| R2010 (AC1024)      | 3 | 531 | 12 | 0 | **97.8 %** |
-| R2013 (AC1027)      | 3 | 384 | 12 | 0 | **97.0 %** |
-| R2018 (AC1032)      | 1 | 776 | 57 | 9 | **92.2 %** |
-| **Aggregate** | **19** | **3911** | **525** | **9** | **88.0 %** |
+| R14 (AC1014)        | 8 | 1841 | 1351 | 105 | **55.8 %** |
+| R2000 (AC1015)      | 8 | 2337 | 145 | 51 | **92.3 %** |
+| R2004 (AC1018)      | 8 | 2218 | 109 | 90 | **91.8 %** |
+| R2007 (AC1021)      | 8 | 2090 | 132 | 15 | **93.4 %** |
+| R2010 (AC1024)      | 8 | 2088 | 85 | 15 | **95.4 %** |
+| R2013 (AC1027)      | 8 | 1693 | 85 | 9 | **94.7 %** |
+| R2018 (AC1032)      | 4 | 1514 | 78 | 23 | **93.7 %** |
+| **Aggregate** | **52** | **13781** | **1985** | **308** | **85.7 %** |
 
-**The aggregate fell from 95.6 % because it now covers nine more
-files.** Until #104/#110 the R14, R2000 and R2007 rows read `n/a` —
-those nine files had no object walk at all, so *none* of their records
-counted toward either column, and the 95.6 % was an average over the
-ten files that did. The three new bands contribute 1638 decoded records
-and zero errors; they also contribute 429 skipped ones, because
-XRECORD and MATERIAL are as unmatched there as everywhere else.
-Comparing 88.0 % against 95.6 % compares two different corpora; the
-per-version rows are the numbers that mean something.
+The drawings come from [nextgis/dwg_samples](https://github.com/nextgis/dwg_samples)
+(seven drawings, each saved by AutoCAD 2016 as R14 to R2013; no licence is
+stated, so they are fetched for the run and never shared) and from the
+MIT-licensed `samples/` of [DomCR/ACadSharp](https://github.com/DomCR/ACadSharp)
+(one drawing saved by AutoCAD 2025 as R14 to R2018, and three more R2018
+drawings). Every save of those drawings except R14 has AutoCAD's own DXF
+export of the same drawing beside it; of the three extra R2018 drawings only
+`geoloc.dwg` has one. [`CLEANROOM.md`](./CLEANROOM.md) records the provenance.
 
-**Every entity record in the corpus is now checked against its own
-data-stream boundary, and nine of them fail it.** That is an
-improvement, not a regression: until #63 the POLYLINE family, MESH,
-IMAGE, VIEWPORT, LEADER, MLINE, the surfaces, RAY / XLINE / POINT /
-CIRCLE / ARC / LINE / ELLIPSE / SOLID / TRACE / BLOCK / ENDBLK and the
-whole R2000-R2004 band decoded with **no boundary check at all**, so
-their zero error count was a property of the code rather than of the
-bytes. Nine errors that each name a specific unfinished field list are
-worth more than a zero that means nothing — see
-[`STATUS.md`](./STATUS.md) for which types they are.
+**The 9 errors this README used to report were a property of the old
+corpus.** The 19 local files every earlier number came from are a subset of
+this one, and the same run still measures them at 3911 / 525 / 9 / 88.0 %.
+The 33 drawings CI added are nextgis's other 24, which decode with no error,
+and nine from ACadSharp. Six of those are the R14 to R2013 saves of the
+drawing whose R2018 save is `sample_AC1032.dwg`; they hold record types the
+old corpus never had on those releases and error on 285 records. Another
+R2018 drawing, `export_sample.dwg`, errors on 14 more. Every errored type is
+tracked:
+
+- TEXT, MTEXT, ATTDEF, ATTRIB and TOLERANCE on R14 to R2004, 199 records (#226);
+- every INSERT and DIMENSION on R14, and a 3DFACE, 24 records (#227);
+- VIEW, DIMSTYLE, 3DSOLID, REGION and HATCH on some releases, 19 records (#228);
+- VIEWPORT (45 records), MESH (14) and LEADER (7) on every release (#71).
+
+[`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
+drawing's decoded, skipped and errored counts, its class-census shortfalls
+and its reference closure. The job fails on any difference, in either
+direction, so a regression is red and an improvement is recorded in the
+pull request that makes it.
+
+**Every entity record in the corpus is checked against its own data-stream
+boundary; the 308 errors are the records that fail it.** Until #63 the
+POLYLINE family, MESH, IMAGE, VIEWPORT, LEADER, MLINE, the surfaces, RAY /
+XLINE / POINT / CIRCLE / ARC / LINE / ELLIPSE / SOLID / TRACE / BLOCK /
+ENDBLK and the whole R2000-R2004 band decoded with **no boundary check at
+all**, so a zero error count was a property of the code rather than of the
+bytes. An error that names an unfinished field list is worth more than a
+zero that means nothing.
 
 Every decoder in this crate is *self-validating*: its data fields must
 end exactly on the first bit of the record's string stream, on the bit
@@ -95,11 +115,12 @@ the whole R2000..R2007 band, and skipping it put every AC1018 record 32
 bits out of phase; that `RL` is now also the boundary AC1018 entities are
 held to.
 
-Two gaps remain. The *unhandled* list is the larger one: MATERIAL and
-TABLESTYLE have no field list matched against real bytes yet. The
-*errored* list is the new one, and it is short and named — VIEWPORT
-(6 records, a decoder that reads 266 of 1125 bits), MESH (2 records, two
-unidentified trailing bits) and LEADER (1 record, twelve bits short).
+Two gaps remain. The *skipped* list is the larger one: XRECORD on R14
+(1154 records), MATERIAL (203) and TABLESTYLE have no field list matched
+against real bytes, and LAYOUT, MULTILEADER, LWPOLYLINE and HATCH have
+decoders that are never reached on R14 to R2007 because those releases give
+them a class number dispatch does not route (#229). The *errored* list is
+above.
 Closing both is the 0.2.0 milestone.
 
 ## Roadmap
@@ -129,7 +150,7 @@ passed.
 | Header variables | ✓ shipped | Strict + lossy variants |
 | Object-stream walker | ✓ shipped | All eight releases — R13-R15 flat locator, R2004-family page map, R2007 §5 container |
 | R2007 (AC1021) container | ✓ shipped | Reed-Solomon de-interleave, §5.10 LZ, page map, section map (#110) |
-| Per-entity field decoders | ⚠ alpha | Broad synthetic coverage; real-file aggregate currently 95.6 %, every entity boundary-checked, 9 named errors (#63, #103) |
+| Per-entity field decoders | ⚠ alpha | 85.7 % of 16,074 records on 52 public drawings, measured in CI; every entity boundary-checked; 308 errors in named types (#226, #227, #228, #71) |
 | Entity graph (owner / reactors / blocks / layers) | ⚠ partial | Resolver APIs exist; trailing-handle/block traversal gaps remain |
 | Symbol tables (LAYER / LTYPE / STYLE / DIMSTYLE / …) | ⚠ partial | R2007+ BLOCK_HEADER and simple LTYPE names decode; broader content fields pending |
 | SVG / PDF export | ⚠ alpha | SVG writer + paged-SVG PDF path; output quality depends on decoded geometry |
@@ -312,15 +333,15 @@ $ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features   # clean
 $ cargo deny check                                                # no advisories, no disallowed licenses
 ```
 
-Tests exercise the container layer end-to-end across all 19 corpus files and verify
-bit-level round-trip properties for every primitive. They do **not** verify that every
-entity decoder succeeds on every real-world drawing — that's what the 90.3 %
-aggregate / 85.9 % AC1032 coverage numbers above measure. Both classes of
-testing are needed.
+The real-file suites (`samples`, `class_census`, `block_names`, `corpus_roundtrip`,
+`r2013_entity_values`) run in CI on the 19 drawings they are written against, and
+verify bit-level round-trip properties for every primitive. They do **not** verify
+that every entity decoder succeeds on every real-world drawing; the coverage table
+above measures that, on all 52.
 
 ## Safety
 
-The whole crate is `#![deny(unsafe_code)]`. Reed-Solomon, LZ77, GF(256), bit-cursor,
+The whole crate is `#![forbid(unsafe_code)]`. Reed-Solomon, LZ77, GF(256), bit-cursor,
 and bit-writer are all safe Rust. Every parser returns `Result<T, Error>`. Defensive
 caps bound runaway allocations (1 M dictionary entries, 16 MB XRECORDs, 1 M spline
 control points). See [`SECURITY.md`](./SECURITY.md) for threat model + private
@@ -360,15 +381,15 @@ New here? [`CONTRIBUTING.md`](./CONTRIBUTING.md) opens with a ten-minute
 quickstart — clone, run the exact gate CI runs, pick a
 [`good first issue`](https://github.com/DrunkOnJava/dwg-rs/labels/good%20first%20issue)
 (each names the spec section, the file, and the test that proves it), PR.
-Coverage numbers in this README are measured with
-`examples/coverage_report.rs`, never estimated.
+Coverage numbers in this README come from the `Corpus (public DWG)` CI job,
+never estimated; `tools/corpus/baseline.tsv` holds every drawing's row.
 
 The project needs help, in rough order of impact:
 
-1. **Per-version entity preamble fixes** — figuring out why HATCH boundary paths, INSERT and MLEADER still fail on R2018 real files. This is the single biggest gap between the current measured decode rate and a shippable reader.
-2. **XRECORD** — 345 records across the corpus, the largest remaining
-   unhandled class; its `(group code, value)` chain has no self-
-   validating field list yet.
+1. **The pre-R2007 field lists the public corpus fails** — TEXT, MTEXT, ATTDEF, ATTRIB and TOLERANCE on R14 to R2004 (#226), INSERT and every DIMENSION on R14 (#227), and the decoders never routed on R14 to R2007 (#229). Every save but R14 has AutoCAD's DXF of the same drawing, so most expected values exist.
+2. **XRECORD on R14** — 1154 records across the eight R14 drawings, the
+   largest skipped class; its `(group code, value)` chain has no self-
+   validating field list there yet.
 3. **R14 DIMSTYLE** — §20.4.68 gives R13/R14 their own field order,
    unmeasured.
 4. **Fuzz-testing targets** — cargo-fuzz harnesses for LZ77 decompress, bit-cursor, and object walker.
