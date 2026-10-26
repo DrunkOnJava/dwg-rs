@@ -1688,6 +1688,101 @@ the record; their values corroborate nothing.
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
+## 7n. AcDb:Header: the variables, in three streams (2026-10-26, #126)
+
+`src/header_table.rs` holds §9 as one table, a row per slot in stream order
+with its bit code and the first and last release that carry it;
+`src/header_vars.rs` walks the rows of the file's release and nothing else.
+Names starting with `$` are AutoCAD's (spelled as DXF's `HEADER` spells them,
+so §9's `MENUNAME` is `$MENU` and its `(PSPACE)` group is `$PINSBASE`,
+`$PEXTMIN`, ...), a name without it is a slot that is not a variable (control
+objects, dictionaries), and `UNKNOWN_<code>_<n>` is a slot §9 itself calls
+unknown. `examples/probe_header_vars.rs` decodes every pinned drawing and holds
+it to the frame, the boundary of every stream and AutoCAD's DXF export of the
+same drawing; the Corpus job runs it.
+
+### The frame
+
+```
+R14, R2000, R2004   sentinel(16) RL size            data ... RS crc  sentinel(16)
+R2007               sentinel(16) RL size RL bits    data ... RS crc  sentinel(16)
+R2010, 2013, 2018   sentinel(16) RL size RL 0 RL bits  data ... RS crc  sentinel(16)
+```
+
+`size` counts from byte 20 (R2010 and later: byte 24, the zero `RL` being the
+high word of a 64-bit size, as in `AcDb:Classes`) to the end of the data; the CRC
+is seed `0xC0C1` over every byte after the first sentinel up to itself. All 52
+corpus sections satisfy `20 (24) + size + 2 + 16 = length`, so the length decides
+whether R2010 and R2013 carry the zero word (§9 says "if the maintenance version
+is greater than 3"; both header bytes are above 3 on every file, so that
+condition is not separable here). §9 lists the size in bits as "R2007 Only"; it
+is present on R2010, R2013 and R2018 as well.
+
+### R2007 and later: the same split as an object
+
+The size in bits counts from 32 bits before the data. It ends at the first
+handle bit, and the string stream is found backwards from there exactly as in an
+object (§19.1): the bit before is *strings present*, the 16 (or 32) before that
+the size. Three boundaries close on all 36 R2007 to R2018 sections: the data
+stream ends where the string stream starts, the strings end where the stream
+does, and the handles end inside the last byte. `HANDSEED` is the one handle in
+the data stream, as §9 says.
+
+### Where §9 differs from the files
+
+| §9 says | The files |
+|---|---|
+| `MENUNAME` is `R13-R18` | present in the string stream on R2007 to R2018 as well (read as `$MENU`) |
+| four `BS` "unknown short (type 5/6 only)", "do not seem to be required" | present on every release from R14, always the last four slots, a fresh random value in each file; from R2007 they sit after the last handle, in the handle stream |
+| nothing after them | R2004 and later: five more bits, always `10101` (five `B` slots), then padding |
+| padding "random bits" | all ones on all 52 corpus files; the spec's own 1998 R14 dump differs, so the probe counts it and does not require it |
+| `TDCREATE`, `TDUPDATE` | R2000 and later hold universal time: they equal DXF's `$TDUCREATE` and `$TDUUPDATE` to the millisecond, and DXF's `$TDCREATE` is that plus the exporting machine's offset, which the DWG does not store. R14 holds local time (its `$TDCREATE` equals the AC1015 export's) |
+| `CMC`: `BS` index, `BL` RGB, `RC` | from R2004 the `BS` is 0 and the colour is the top byte of the `BL`: `0xC0` BYLAYER, `0xC1` BYBLOCK, `0xC3` an index in the low byte, `0xC2` a true colour (DXF writes an approximate index, so only its kind is checkable) |
+| unknown `B` before `INTERFERECOLOR`, last unknown `BD` | `$REALWORLDSCALE` and `$SHADOWPLANELOCATION`, from the order DXF writes them and agreement on all 26 R2007+ files that have a twin |
+| first unknown `BL` "default 24L", first unknown `TV` default `""` | the TV is `"m"` on every file including the spec's dump; the BL is 0 on all 52 corpus files and 70 in the spec's own R14 dump |
+| `CELWEIGHT`: 5 bits of the flags word | index 29 is -1 (BYLAYER) on every R2000 and later file; 0 to 23 map to the published lineweight set and 30, 31 to -2, -3 are not measured |
+
+### Against AutoCAD's DXF (`probe_header_vars`)
+
+| Release | Files | Closed | DXF twins | Slots | Agree | Relation | Disagree | DWG-only | DXF-only |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AC1014 | 8 | 8 | 8 (AC1015) | 1,592 | 1,279 | 57 | 0 | 264 | 392 |
+| AC1015 | 8 | 8 | 8 | 1,888 | 1,670 | 42 | 0 | 184 | 40 |
+| AC1018 | 8 | 8 | 8 | 2,072 | 1,765 | 51 | 0 | 264 | 48 |
+| AC1021 | 8 | 8 | 8 | 2,432 | 2,093 | 51 | 0 | 296 | 48 |
+| AC1024 | 8 | 8 | 8 | 2,472 | 2,109 | 43 | 0 | 328 | 48 |
+| AC1027 | 8 | 8 | 8 | 2,488 | 2,103 | 57 | 0 | 336 | 48 |
+| AC1032 | 4 | 4 | 2 | 1,244 | 525 | 15 | 0 | 84 | 12 |
+
+*Agree*: equal values, reals to the precision DXF printed, a handle whose DXF
+form is a name through the DXF record with that handle (exact name), the control
+objects and dictionaries through the DXF `TABLE` records and root dictionary.
+*Relation*: a rule between the two files rather than equality. Symbol names are
+case-insensitive (`$CMLSTYLE` is `Standard`, the MLINESTYLE record holds
+`STANDARD`; R14 writes its names in capitals) and an arrowhead block is named
+with a leading underscore (`$DIMBLK` `BoxBlank`, block `_BoxBlank`). The twin is
+a different save, so `$TDUUPDATE`, `$TDINDWG` and `$TDUSRTIMER` may
+not be earlier in it (the last two by equal amounts) and `$HANDSEED` not lower;
+`$VERSIONGUID` is a new GUID on every save while `$FINGERPRINTGUID` agrees
+everywhere; before R2010 DXF writes `$XCLIPFRAME` 2 as false; DXF fills the
+default visual style into `$INTERFEREOBJVS` and `$INTERFEREVPVS` where the
+R2013 and R2018 files hold the null handle (the R2010 file of the same drawing
+holds it, and no bit of the R2013 section matches); a true colour (a top byte of `0xC2`)
+is an approximate index with no group 420 beside it, so its RGB is not
+checkable in DXF's `HEADER`. *DWG-only*: slots DXF's `HEADER` does not write, the unknown
+slots and `FLAGS`. *DXF-only*: for AC1014 the 392 are variables of later releases, the twin being
+an AC1015 export; otherwise `$ACADVER` is the version magic (checked),
+`$DWGCODEPAGE` is in the file header, `$MEASUREMENT` is in `AcDb:Template`
+(§22), local `$TDCREATE` and `$TDUPDATE` are not stored, and `$ACADMAINTVER`
+and `$LASTSAVEDBY` are not in this section.
+
+AC1014 has no DXF export in the corpus. It is held to the frame, the boundary
+and the spec's own R14 dump (`examples/spec_examples.rs` decodes all 199 slots of
+it), and compared against the AC1015 export of the same drawing, which agrees
+on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
+all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
+spec's R14 dump and in all eight R14 files, 64 from R2000.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

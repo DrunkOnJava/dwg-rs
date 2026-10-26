@@ -124,6 +124,7 @@ pub mod graph;
 pub mod handle_allocator;
 pub mod handle_map;
 pub mod header;
+pub mod header_table;
 pub mod header_vars;
 pub mod limits;
 pub mod lz77;

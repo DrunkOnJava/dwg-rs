@@ -38,6 +38,7 @@
 //! | `max_image_clip_verts`         |        100_000 | IMAGE clip-boundary vertices                  |
 //! | `max_leader_points`            |        100_000 | LEADER polyline points                        |
 //! | `max_spline_count`             |        100_000 | SPLINE knots / control points / fit points    |
+//! | `max_header_bytes`             |      1_048_576 | Largest `AcDb:Header` section decoded         |
 //!
 //! The `paranoid` profile lowers every count by 10×; the `permissive`
 //! profile raises every count by 10×. See the per-field docstrings.
@@ -81,6 +82,9 @@ pub struct ParseLimits {
     /// Maximum SPLINE knots / control points / fit points (per
     /// individual collection, not combined).
     pub max_spline_count: usize,
+    /// Largest decompressed `AcDb:Header` section
+    /// ([`crate::header_vars::HeaderVars::decode`]) accepted, in bytes.
+    pub max_header_bytes: usize,
 }
 
 impl Default for ParseLimits {
@@ -103,6 +107,7 @@ impl ParseLimits {
             max_image_clip_verts: 100_000,
             max_leader_points: 100_000,
             max_spline_count: 100_000,
+            max_header_bytes: 1 << 20,
         }
     }
 
@@ -120,6 +125,7 @@ impl ParseLimits {
             max_image_clip_verts: 10_000,
             max_leader_points: 10_000,
             max_spline_count: 10_000,
+            max_header_bytes: 1 << 16,
         }
     }
 
@@ -136,6 +142,7 @@ impl ParseLimits {
             max_image_clip_verts: 1_000_000,
             max_leader_points: 1_000_000,
             max_spline_count: 1_000_000,
+            max_header_bytes: 1 << 24,
         }
     }
 }

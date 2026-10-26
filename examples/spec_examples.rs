@@ -533,7 +533,9 @@ fn r14_header(r: &mut Report) {
         crc::crc8(0xC0C1, &dump[start + 16..data_end]) == section_crc,
         || format!("stored {section_crc:04X}"),
     );
-    let bds = HeaderVars::parse_strict(&dump[start..], Version::R14)
+    let vars = HeaderVars::parse_strict(&dump[start..], Version::R14);
+    let bds = vars
+        .as_ref()
         .map(|v| v.read_first_n_bds(4))
         .unwrap_or_default();
     r.check(
@@ -541,6 +543,51 @@ fn r14_header(r: &mut Report) {
         bds == [412_148_564_080.0, 1.0, 1.0, 1.0],
         || format!("first four BDs {bds:?}, §9 prints the defaults 412148564080.0, 1.0, 1.0, 1.0"),
     );
+    r.check(
+        &format!("{id} §9 decode"),
+        vars.as_ref().is_ok_and(|v| {
+            v.closed
+                && v.entries.len() == dwg::header_table::rows_for(dwg::header_table::R14).count()
+        }),
+        || {
+            format!(
+                "every slot of the R14 table must read and the data end on the last byte: {:?}",
+                vars.as_ref()
+                    .map(|v| (v.entries.len(), v.closed, &v.diagnostics))
+            )
+        },
+    );
+    if let Ok(v) = &vars {
+        for (name, want) in [
+            ("$LUNITS", 2),
+            ("$LUPREC", 4),
+            ("$TREEDEPTH", 3020),
+            ("$SPLINESEGS", 8),
+            ("$SURFU", 6),
+            ("$ISOLINES", 4),
+            ("$TEXTQLTY", 50),
+        ] {
+            r.check(
+                &format!("{id} §9 {name}"),
+                v.get_i64(name) == Some(want),
+                || format!("{name} is {:?}, want {want}", v.get(name)),
+            );
+        }
+        let unknown: Vec<String> = v
+            .unknowns()
+            .filter(|e| !e.var.name.starts_with("UNKNOWN_BS_"))
+            .map(|e| format!("{} {:?}", e.var.name, e.value))
+            .collect();
+        println!(
+            "§9 R14 header values    {} slots decoded, data ends on its last byte: {}",
+            v.entries.len(),
+            verdict(r.failures.iter().all(|f| !f.contains("§9")))
+        );
+        println!(
+            "                        unknown slots: {}",
+            unknown.join(", ")
+        );
+    }
 
     // The streaming grammar verifies the same CRCs and sentinels itself.
     // The dump does not give the file's length; the image seeker is the
