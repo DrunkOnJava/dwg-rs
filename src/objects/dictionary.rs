@@ -96,15 +96,18 @@ fn read_body(
         )));
     }
     // §20.4.44 splits the two bytes after `Numitems` by release: R14
-    // writes one `RC` glossed "Unknown R14 byte, has always been 0";
+    // alone writes one `RC` glossed "Unknown R14 byte, has always been 0"
+    // (R13 writes nothing there, measured on 22 R13 drawings);
     // R2000+ write `BS Cloning flag` (DXF 281) + `RC Hard Owner flag`
     // (DXF 280). Reading the R2000+ pair on R14 overshoots by the width
     // of the `BS` — 18 bits on the R14 corpus, whose cloning value would
     // have to take the `00` tag — and every one of the 73 DICTIONARY
     // records per R14 file missed its data-stream boundary by exactly
     // that.
-    let (cloning_flag, hard_owner_flag) = if matches!(version, Version::R14) {
-        let _unknown_r14 = c.read_rc()?;
+    let (cloning_flag, hard_owner_flag) = if version.is_r13_r14() {
+        if version == Version::R14 {
+            let _unknown_r14 = c.read_rc()?;
+        }
         (0i16, 0u8)
     } else {
         let cloning = c.read_bs()?;
@@ -175,7 +178,7 @@ pub(crate) fn decode_object_with_default(
         body_start,
         inline_data_end,
         version,
-        matches!(version, Version::R14),
+        version.is_r13_r14(),
     )
 }
 
@@ -193,8 +196,10 @@ fn decode_object_inner(
             "DICTIONARY claims {num_items} items (>{MAX_DICTIONARY_ITEMS} sanity cap)"
         )));
     }
-    let (cloning_flag, hard_owner_flag) = if matches!(version, Version::R14) {
-        let _unknown_r14 = split.data.read_rc()?;
+    let (cloning_flag, hard_owner_flag) = if version.is_r13_r14() {
+        if version == Version::R14 {
+            let _unknown_r14 = split.data.read_rc()?;
+        }
         (0i16, 0u8)
     } else {
         let cloning = split.data.read_bs()?;
