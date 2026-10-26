@@ -330,13 +330,12 @@ const OBJECT_TYPE_TOLERANCE: u16 = 0x2E; // 46
 const OBJECT_TYPE_OLE2FRAME: u16 = 0x4A; // 74
 const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
 const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
-// CAMERA / SUN / LIGHT / GEODATA are visual/scene entities introduced
-// in R2007+ (GEODATA in R2010+). Per the spec they appear in the
-// AcDb:Classes table per-file, but every observed modern drawing uses
-// the codes below when present outside the dynamic range, so they are
-// wired as fixed codes here. If a file assigns a different class
-// index, custom-class dispatch via decode_from_raw_with_class_map
-// is the correct path.
+// CAMERA / SUN / LIGHT are visual/scene entities introduced in R2007+,
+// and GEODATA (§20.4.78) is a non-entity object. Per the spec all four
+// take a class number from AcDb:Classes per file (geoloc.dwg's GEODATA
+// does), and such a record is routed by its DXF class name through
+// decode_from_raw_with_class_map. The fixed codes below are kept for
+// records that carry them; GEODATA's goes to the object path.
 /// `AcDb:Classes` item class id that marks a class as a non-entity
 /// object (§5.7). `0x1F2` is its entity counterpart.
 const PROXY_OBJECT_ITEM_CLASS_ID: u16 = 0x1F3;
@@ -469,6 +468,15 @@ pub fn decode_from_raw_with_class_map(
                 wipeout::decode(c, v).map(DecodedEntity::Wipeout)
             })
         }
+        // LWPOLYLINE and HATCH entered R14 as classes and got the fixed
+        // codes 0x4D / 0x4E from R2000; on R14 they carry a class
+        // number from AcDb:Classes and are the same records (#229).
+        "LWPOLYLINE" => checked_inline(raw, body_start, version, "LWPOLYLINE", |c, v, _, _| {
+            lwpolyline::decode(c, v).map(DecodedEntity::LwPolyline)
+        }),
+        "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
+            hatch::decode(c, v).map(DecodedEntity::Hatch)
+        }),
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -585,6 +593,7 @@ fn dispatch_object(
             | ObjectType::Group
             | ObjectType::Layout
             | ObjectType::MLineStyle
+            | ObjectType::GeoData
     ) || kind.is_control();
     if !has_decoder {
         return DecodedEntity::Unhandled { type_code, kind };
@@ -639,6 +648,9 @@ fn dispatch_object(
                 .map(DecodedEntity::MLineStyle)
                 .map_err(|e| e.to_string())
         }
+        ObjectType::GeoData => geodata::decode_object(payload, body_start, inline_end, version)
+            .map(DecodedEntity::GeoData)
+            .map_err(|e| e.to_string()),
         k if k.is_control() => control::decode_object(payload, body_start, inline_end, version, k)
             .map(|control| DecodedEntity::Control { kind: k, control })
             .map_err(|e| e.to_string()),
@@ -679,6 +691,13 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::VisualStyle),
+        // §20.4.84 types LAYOUT `(varies)`: R14 and R2000 give it a
+        // class number from AcDb:Classes rather than the fixed code
+        // 0x52, and it is the same record (#229).
+        "LAYOUT" => {
+            crate::objects::acad_layout::decode_object(payload, body_start, inline_end, version)
+                .map(|layout| DecodedEntity::Layout(Box::new(layout)))
+        }
         // A standalone PLOTSETTINGS record carries exactly the block
         // §20.4.84 embeds in LAYOUT; the two share one field list.
         "PLOTSETTINGS" | "ACDBPLOTSETTINGS" => crate::objects::acad_plot_settings::decode_object(
@@ -719,6 +738,11 @@ fn dispatch_object_class(
                 payload, body_start, inline_end, version,
             )
             .map(DecodedEntity::Dictionary)
+        }
+        // §20.4.78: a non-entity object with a class number.
+        "GEODATA" | "ACDBGEODATA" => {
+            geodata::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::GeoData)
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
@@ -950,10 +974,6 @@ fn dispatch_split_stream_entity(
             light::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Light)
         }
-        OBJECT_TYPE_GEODATA => {
-            geodata::decode_modern_split_stream(&raw.raw, object_body_start, version)
-                .map(DecodedEntity::GeoData)
-        }
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind = dimension::DimensionKind::from_object_type_code(type_code)?;
             dimension::decode_modern_split_stream(&raw.raw, object_body_start, version, kind)
@@ -1090,13 +1110,12 @@ fn dispatch_table_entry(
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string())
         }
-        // R13/R14 lay the dimension variables out in a different order
-        // and with different widths from R2000+ (§20.4.68 gives them
-        // their own block), and that order has not been matched against
-        // bytes; the record is reported unhandled rather than decoded
-        // from a list that cannot close.
+        // R13/R14 lay the dimension variables out in their own order and
+        // widths (§20.4.68's "R13 & R14 Only" block).
         ObjectType::DimStyle if matches!(version, Version::R14) => {
-            return DecodedEntity::Unhandled { type_code, kind };
+            crate::tables::dimstyle::decode_r13_r14(c, version)
+                .map(DecodedEntity::DimStyle)
+                .map_err(|e| e.to_string())
         }
         ObjectType::DimStyle => crate::tables::dimstyle::decode_r2000_inline(c, version)
             .map(DecodedEntity::DimStyle)
@@ -1250,7 +1269,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
         OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
-        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c)?),
+        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
         // bit: when it is set the SAB stream lives in the data-storage
@@ -1290,15 +1309,14 @@ fn decode_fixed_entity_body(
             DecodedEntity::PolyfaceMesh(polyface_mesh::decode_record(c, version)?)
         }
         OBJECT_TYPE_POLYLINE_MESH => DecodedEntity::PolygonMesh(polygon_mesh::decode(c, version)?),
-        OBJECT_TYPE_LEADER => DecodedEntity::Leader(leader::decode(c)?),
+        OBJECT_TYPE_LEADER => DecodedEntity::Leader(leader::decode(c, version)?),
         OBJECT_TYPE_TOLERANCE => DecodedEntity::Tolerance(tolerance::decode(c, version)?),
         OBJECT_TYPE_OLE2FRAME => DecodedEntity::Ole2Frame(ole2_frame::decode(c)?),
         OBJECT_TYPE_HATCH => DecodedEntity::Hatch(hatch::decode(c, version)?),
-        OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c)?),
+        OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c, version, strings)?),
         OBJECT_TYPE_CAMERA => DecodedEntity::Camera(camera::decode(c, version)?),
         OBJECT_TYPE_SUN => DecodedEntity::Sun(sun::decode(c, version)?),
         OBJECT_TYPE_LIGHT => DecodedEntity::Light(light::decode(c, version)?),
-        OBJECT_TYPE_GEODATA => DecodedEntity::GeoData(geodata::decode(c, version)?),
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind =
                 dimension::DimensionKind::from_object_type_code(type_code).ok_or_else(|| {
@@ -1445,28 +1463,6 @@ mod tests {
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Error { .. }));
         assert!(!decoded.is_decoded());
-    }
-
-    /// A release band whose LAYOUT layout is not determined comes back
-    /// `Unhandled`, never `Error` — "not determined" is not a broken
-    /// record.
-    #[test]
-    fn undetermined_layout_release_is_unhandled_not_error() {
-        let raw = RawObject {
-            stream_offset: 0,
-            size_bytes: 0,
-            type_code: 0x52,
-            kind: ObjectType::Layout,
-            handle: crate::bitcursor::Handle {
-                code: 0,
-                counter: 0,
-                value: 0,
-            },
-            raw: vec![0u8; 32],
-            obj_size_bits: None,
-        };
-        let decoded = decode_from_raw(&raw, Version::R2000);
-        assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
     }
 
     /// A DICTIONARY with no bytes reaches the object decoder and fails

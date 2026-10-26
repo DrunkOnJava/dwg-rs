@@ -53,6 +53,7 @@ fn page_line(number: i32, size: u32, address: u64) -> String {
 /// encrypted, in §4.5 order.
 fn section_line(index: u32, name: &str, fields: [u64; 6]) -> String {
     let [size, pages, max, compressed, id, encrypted] = fields;
+    let name = name.replace('\\', "\\\\").replace('"', "\\\"");
     format!(
         "{{\"section\":{index},\"name\":\"{name}\",\"size\":{size},\"page_count\":{pages},\"max_page_size\":{max},\"compressed\":{compressed},\"section_id\":{id},\"encrypted\":{encrypted}}}"
     )

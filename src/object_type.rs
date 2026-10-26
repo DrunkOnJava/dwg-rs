@@ -117,7 +117,8 @@ pub enum ObjectType {
     Sun,
     /// 0x4FA — LIGHT (R2007+). See [`Self::Camera`].
     Light,
-    /// 0x4FB — GEODATA (R2010+). See [`Self::Camera`].
+    /// 0x4FB — GEODATA. See [`Self::Camera`] on the fixed code. GEODATA
+    /// is a non-entity object (§20.4.78), routed to the object path.
     GeoData,
     /// Dynamic class — type code ≥ 500 (other than the fixed
     /// visual/scene codes above). Resolve via `AcDb:Classes`:
@@ -283,7 +284,6 @@ impl ObjectType {
                 | Self::Camera
                 | Self::Sun
                 | Self::Light
-                | Self::GeoData
         )
     }
 

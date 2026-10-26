@@ -18,3 +18,9 @@ const _: () = assert!(core::mem::size_of::<streaming::R2004HeaderParser>() <= 51
 const _: () = assert!(core::mem::size_of::<streaming::R2004Checkpoint>() <= 336);
 const _: () = assert!(core::mem::size_of::<streaming::R2004MapWalker>() <= streaming::WINDOW + 1024);
 const _: () = assert!(core::mem::size_of::<streaming::R2004MapCheckpoint>() <= streaming::WINDOW + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2004SectionWalker>() <= streaming::WINDOW + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2004SectionCheckpoint>() <= streaming::WINDOW + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2004Walker>() <= 2 * streaming::WINDOW + 8192);
+const _: () = assert!(core::mem::size_of::<streaming::R2004WalkCheckpoint>() <= 2 * streaming::WINDOW + 8192);
+const _: () = assert!(core::mem::size_of::<streaming::R2004ObjectWalker>() <= 2 * streaming::WINDOW + 8192 + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2004ObjectCheckpoint>() <= 2 * streaming::WINDOW + 8192 + 1024);
