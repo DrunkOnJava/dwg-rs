@@ -83,7 +83,8 @@ while :; do
   # A reviewer can open a thread after auto-merge went on; the ruleset then holds the PR until
   # the deadline, so hand it back instead of stalling the train.
   case $(unresolved) in
-    [1-9]|[1-9][0-9]) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1
+    ''|*[!0-9]*|0) ;;
+    *) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1
        echo "#$P review thread opened after auto-merge went on; auto-merge off"; exit 2 ;;
   esac
   sleep 60
