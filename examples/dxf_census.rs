@@ -6,8 +6,10 @@
 //! What it proves: the reader takes AutoCAD's own exports without loss (every
 //! file parses, every record from R13 on carries a unique handle) and refuses
 //! malformed input instead of guessing. With `--mutations`, each file is
-//! also given a `999` comment in three legal places, each copy of which
-//! must read exactly as the original, and damaged twelve ways in memory
+//! also given a `999` comment in three legal places and, when it has an
+//! XRECORD, an unclosed `102 {` among that XRECORD's data, each copy of
+//! which must read exactly as the original, in the file's own line ending,
+//! and damaged twelve ways in memory
 //! (truncated, a code line made non-numeric, an unknown group code, a real
 //! made unparsable, a handle duplicated, a `102` bracket left open, mixed
 //! line endings, `EOF` removed, data after `EOF`, a handle removed, a handle
@@ -110,8 +112,8 @@ fn main() -> ExitCode {
                     Err(e) => println!("  refused {label:<24} {}", short(&e)),
                 }
             }
-            // `999` comments are legal anywhere: each commented copy must
-            // read exactly as the original does.
+            // Each copy with a legal but easily misread group must read
+            // exactly as the original does.
             let shape = |d: &DxfDocument| {
                 (
                     d.acad_version().map(str::to_string),
@@ -121,7 +123,7 @@ fn main() -> ExitCode {
                 )
             };
             let want = shape(&doc);
-            for (label, commented) in comment(&bytes) {
+            for (label, commented) in legal(&bytes) {
                 match DxfDocument::parse(&commented) {
                     Ok(d) if shape(&d) == want => println!("  same    {label:<24} as the original"),
                     Ok(d) => {
@@ -129,7 +131,7 @@ fn main() -> ExitCode {
                         failed = true;
                     }
                     Err(e) => {
-                        println!("  REFUSED commented copy ({label}): {}", short(&e));
+                        println!("  REFUSED legal copy ({label}): {}", short(&e));
                         failed = true;
                     }
                 }
@@ -166,8 +168,9 @@ fn short(e: &DxfError) -> String {
 /// Line-level edits that each break one rule of the grammar.
 fn mutate(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     let text = String::from_utf8_lossy(bytes).into_owned();
-    let lines: Vec<&str> = text.split('\n').collect();
-    let join = |ls: &[&str]| ls.join("\n").into_bytes();
+    let eol = line_ending(&text);
+    let lines: Vec<&str> = text.split(eol).collect();
+    let join = |ls: &[&str]| ls.join(eol).into_bytes();
     let mut out = Vec::new();
 
     // Truncated: drop the final value line (`EOF`), leaving a code with no value.
@@ -221,16 +224,10 @@ fn mutate(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
         out.push(("open 102 bracket", join(&l)));
     }
 
-    // Mixed line endings: one CRLF in an LF file (or the reverse).
-    let mut l: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
-    if let Some(first) = l.first_mut() {
-        if first.ends_with('\r') {
-            first.pop();
-        } else {
-            first.push('\r');
-        }
-    }
-    out.push(("mixed line endings", l.join("\n").into_bytes()));
+    // Mixed line endings: the first line ends with the other ending.
+    let other = if eol == "\n" { "\r\n" } else { "\n" };
+    let mixed = format!("{}{other}{}", lines[0], lines[1..].join(eol));
+    out.push(("mixed line endings", mixed.into_bytes()));
 
     // EOF removed.
     if let Some(i) = find_pair(&lines, "  0", "EOF") {
@@ -239,7 +236,7 @@ fn mutate(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
 
     // Data after EOF.
     let mut after = bytes.to_vec();
-    after.extend_from_slice(b"  0\nLINE\n");
+    after.extend_from_slice(format!("  0{eol}LINE{eol}").as_bytes());
     out.push(("data after EOF", after));
 
     // A comment between `9 $ACADVER` and its value must not stand in for
@@ -272,13 +269,15 @@ fn mutate(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     out
 }
 
-/// Copies with a `999` comment where one is legal but easy to misread: right
-/// after `9 $ACADVER`, between `0 SECTION` and `2 HEADER`, and inside the
-/// first record of TABLES.
-fn comment(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
+/// Copies with a group where one is legal but easy to misread: a `999`
+/// comment right after `9 $ACADVER`, between `0 SECTION` and `2 HEADER`, and
+/// inside the first record of TABLES, and an unclosed `102 {` among the first
+/// XRECORD's data, where it is the application's value, not a bracket.
+fn legal(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     let text = String::from_utf8_lossy(bytes).into_owned();
-    let lines: Vec<&str> = text.split('\n').collect();
-    let join = |ls: &[&str]| ls.join("\n").into_bytes();
+    let eol = line_ending(&text);
+    let lines: Vec<&str> = text.split(eol).collect();
+    let join = |ls: &[&str]| ls.join(eol).into_bytes();
     let note = ["999", "a comment"];
     let mut out = Vec::new();
     if let Some(v) = find_pair(&lines, "  9", "$ACADVER") {
@@ -296,7 +295,23 @@ fn comment(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
         l.splice(t + 4..t + 4, note);
         out.push(("999 inside a record", join(&l)));
     }
+    if let Some(m) = find_pair(&lines, "100", "AcDbXrecord") {
+        let flag = lines.get(m + 2).is_some_and(|c| c.trim() == "280");
+        let at = if flag { m + 4 } else { m + 2 };
+        let mut l = lines.clone();
+        l.splice(at..at, ["102", "{data"]);
+        out.push(("102 { in XRECORD data", join(&l)));
+    }
     out
+}
+
+/// `\r\n` when the file's first line ends with one, else `\n`; a file that
+/// mixes the two is refused by the reader before any copy is made.
+fn line_ending(text: &str) -> &'static str {
+    match text.split_once('\n') {
+        Some((first, _)) if first.ends_with('\r') => "\r\n",
+        _ => "\n",
+    }
 }
 
 /// Index of the code line of the first `code` / `value` pair.

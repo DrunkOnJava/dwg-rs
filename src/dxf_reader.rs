@@ -21,6 +21,10 @@
 //! `0`. A record's handle is its group 5, or group 105 on a DIMSTYLE; its
 //! owner is the first group 330 outside the `102 {...}` / `102 }` brackets,
 //! whose 330 and 360 groups are reactors and the extension dictionary.
+//! An XRECORD's groups after its `100 AcDbXrecord` marker are the
+//! application's data: the Reference's XRECORD page gives codes 1 to 369
+//! (but 5 and 105) to the application "in any way", so a `102` there is a
+//! value, not a bracket.
 //!
 //! Two readings are measured on AutoCAD's own exports rather than taken from
 //! the Reference's tables:
@@ -75,7 +79,7 @@
 //! 9. HEADER: a value group before the first `9 $NAME`, a `9` value that is
 //!    not a `$` name, or a variable named twice: refused.
 //! 10. A `102 {` with no closing `102` before the record ends, or a closing
-//!     `102` with no open bracket: refused.
+//!     `102` with no open bracket, outside an XRECORD's data: refused.
 //! 11. From AC1012 on, a record in TABLES, BLOCKS, ENTITIES or OBJECTS with no
 //!     handle (other than the `ENDTAB` marker), a handle of 0, or two records
 //!     with one handle: refused. Before AC1012 handles are optional (R12 has
@@ -282,20 +286,37 @@ impl DxfRecord {
     }
 
     /// The groups outside the `102 {...}` / `102 }` brackets, the brackets
-    /// themselves excluded.
+    /// themselves excluded, then all of an XRECORD's data groups.
     pub fn top_level(&self) -> impl Iterator<Item = &DxfGroup> + '_ {
+        let data = self.data_start();
         let mut depth = 0usize;
-        self.groups.iter().filter(move |g| {
+        self.groups.iter().enumerate().filter_map(move |(i, g)| {
+            if i >= data {
+                return Some(g);
+            }
             if g.code == 102 {
                 match g.value.as_str() {
                     Some(s) if s.starts_with('{') => depth += 1,
                     Some(s) if s.ends_with('}') => depth = depth.saturating_sub(1),
                     _ => {}
                 }
-                return false;
+                return None;
             }
-            depth == 0
+            (depth == 0).then_some(g)
         })
+    }
+
+    /// Index of an XRECORD's first data group, the one after `100
+    /// AcDbXrecord`; `groups.len()` on every other record.
+    fn data_start(&self) -> usize {
+        let len = self.groups.len();
+        if self.kind != "XRECORD" {
+            return len;
+        }
+        self.groups
+            .iter()
+            .position(|g| g.code == 100 && g.value.as_str() == Some("AcDbXrecord"))
+            .map_or(len, |i| i + 1)
     }
 }
 
@@ -807,7 +828,7 @@ impl DxfDocument {
     fn finish_record(&mut self, mut r: DxfRecord, need_handles: bool) -> Result<(), DxfError> {
         let mut depth = 0usize;
         let handle_code = if r.kind == "DIMSTYLE" { 105 } else { 5 };
-        for g in &r.groups {
+        for g in &r.groups[..r.data_start()] {
             if g.code == 102 {
                 match g.value.as_str() {
                     Some(s) if s.starts_with('{') => depth += 1,
