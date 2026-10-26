@@ -328,13 +328,12 @@ const OBJECT_TYPE_TOLERANCE: u16 = 0x2E; // 46
 const OBJECT_TYPE_OLE2FRAME: u16 = 0x4A; // 74
 const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
 const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
-// CAMERA / SUN / LIGHT / GEODATA are visual/scene entities introduced
-// in R2007+ (GEODATA in R2010+). Per the spec they appear in the
-// AcDb:Classes table per-file, but every observed modern drawing uses
-// the codes below when present outside the dynamic range, so they are
-// wired as fixed codes here. If a file assigns a different class
-// index, custom-class dispatch via decode_from_raw_with_class_map
-// is the correct path.
+// CAMERA / SUN / LIGHT are visual/scene entities introduced in R2007+,
+// and GEODATA (§20.4.78) is a non-entity object. Per the spec all four
+// take a class number from AcDb:Classes per file (geoloc.dwg's GEODATA
+// does), and such a record is routed by its DXF class name through
+// decode_from_raw_with_class_map. The fixed codes below are kept for
+// records that carry them; GEODATA's goes to the object path.
 /// `AcDb:Classes` item class id that marks a class as a non-entity
 /// object (§5.7). `0x1F2` is its entity counterpart.
 const PROXY_OBJECT_ITEM_CLASS_ID: u16 = 0x1F3;
@@ -592,6 +591,7 @@ fn dispatch_object(
             | ObjectType::Group
             | ObjectType::Layout
             | ObjectType::MLineStyle
+            | ObjectType::GeoData
     ) || kind.is_control();
     if !has_decoder {
         return DecodedEntity::Unhandled { type_code, kind };
@@ -646,6 +646,9 @@ fn dispatch_object(
                 .map(DecodedEntity::MLineStyle)
                 .map_err(|e| e.to_string())
         }
+        ObjectType::GeoData => geodata::decode_object(payload, body_start, inline_end, version)
+            .map(DecodedEntity::GeoData)
+            .map_err(|e| e.to_string()),
         k if k.is_control() => control::decode_object(payload, body_start, inline_end, version, k)
             .map(|control| DecodedEntity::Control { kind: k, control })
             .map_err(|e| e.to_string()),
@@ -729,6 +732,11 @@ fn dispatch_object_class(
                 payload, body_start, inline_end, version,
             )
             .map(DecodedEntity::Dictionary)
+        }
+        // §20.4.78: a non-entity object with a class number.
+        "GEODATA" | "ACDBGEODATA" => {
+            geodata::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::GeoData)
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
@@ -960,10 +968,6 @@ fn dispatch_split_stream_entity(
             light::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(DecodedEntity::Light)
         }
-        OBJECT_TYPE_GEODATA => {
-            geodata::decode_modern_split_stream(&raw.raw, object_body_start, version)
-                .map(DecodedEntity::GeoData)
-        }
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind = dimension::DimensionKind::from_object_type_code(type_code)?;
             dimension::decode_modern_split_stream(&raw.raw, object_body_start, version, kind)
@@ -1100,13 +1104,12 @@ fn dispatch_table_entry(
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string())
         }
-        // R13/R14 lay the dimension variables out in a different order
-        // and with different widths from R2000+ (§20.4.68 gives them
-        // their own block), and that order has not been matched against
-        // bytes; the record is reported unhandled rather than decoded
-        // from a list that cannot close.
+        // R13/R14 lay the dimension variables out in their own order and
+        // widths (§20.4.68's "R13 & R14 Only" block).
         ObjectType::DimStyle if matches!(version, Version::R14) => {
-            return DecodedEntity::Unhandled { type_code, kind };
+            crate::tables::dimstyle::decode_r13_r14(c, version)
+                .map(DecodedEntity::DimStyle)
+                .map_err(|e| e.to_string())
         }
         ObjectType::DimStyle => crate::tables::dimstyle::decode_r2000_inline(c, version)
             .map(DecodedEntity::DimStyle)
@@ -1308,7 +1311,6 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_CAMERA => DecodedEntity::Camera(camera::decode(c, version)?),
         OBJECT_TYPE_SUN => DecodedEntity::Sun(sun::decode(c, version)?),
         OBJECT_TYPE_LIGHT => DecodedEntity::Light(light::decode(c, version)?),
-        OBJECT_TYPE_GEODATA => DecodedEntity::GeoData(geodata::decode(c, version)?),
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind =
                 dimension::DimensionKind::from_object_type_code(type_code).ok_or_else(|| {

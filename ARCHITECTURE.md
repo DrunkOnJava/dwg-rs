@@ -2294,6 +2294,65 @@ cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
 ```
 
+## 7z. The R13/R14 DIMSTYLE block (2026-10-26, #74)
+
+§20.4.68 gives R13 and R14 their own DIMSTYLE layout. It starts with the
+flags, several of them `RC` where R2000 has `BS`. Then come the reals,
+five `T` strings (`DIMPOST`, `DIMAPOST` and the three arrow-block names,
+which R2000 moves to handles) and three `BS` colours. The dispatcher
+reported every R14 DIMSTYLE as unhandled, since the order had never been
+measured. `tables::dimstyle::decode_r13_r14` now reads the block as
+printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
+
+| Check | Result |
+|---|---|
+| `RL` boundary of the common object data | all 20 R14 records close: 6 in `sample_AC1014.dwg`, 2 in each of the 7 nextgis R14 drawings |
+| Without the trailing `B` | the records fail the check; `0x27` of `sample_AC1014.dwg` ends one bit short (delta −1) |
+| The 15 surfaced fields against the R2000 save, handle for handle | 20 / 20 equal. Only the names differ: R14 stores `STANDARD` where R2000 has `Standard` |
+| The spec's own example, §20.4.68.1 | closes; `r14-objects.tsv` moves from `unhandled` to `closes` |
+
+`DIMALTRND` has no slot in the R13/R14 block, so it reads 0 there.
+`examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
+`probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
+
+## 7aa. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
+
+GEODATA attaches a geographic coordinate system to the model-space
+block. §20.4.78 lists it among the objects: a class number from
+`AcDb:Classes` and the common object data of §20.1. The crate decoded it
+as an entity with an invented field list (an origin, two axis vectors,
+two scales, five strings) keyed on a fixed code, 0x4FB. The corpus's one
+record, handle `0x241` of ACadSharp's `geoloc.dwg` (R2018), carries a
+class number, so it never reached that decoder.
+
+`entities::geodata` now reads §20.4.78's field list after the common
+object data. The dispatcher routes the class name `GEODATA` to it, and
+the fixed code to the object path. Read that way, the record closes on
+its string stream with every string consumed, and all 77 values
+`examples/probe_geodata.rs` compares equal AutoCAD's DXF export of the
+drawing: object version 3, design coordinate type 1, the design and
+reference points, both unit scales and units (0.0254, inches), the up
+and north directions, the scale estimation, the sea-level fields, the
+projection radius 6,362,228.65, the 3,195-character MapGuide coordinate
+system definition, the GeoRSS tag, the three empty observation tags,
+and all 12 mesh points. There are 0 mesh faces.
+
+### Errata in the specification
+
+| Where | What the spec prints | What the record says |
+|---|---|---|
+| §20.4.78, p194 | `North direction 3RD` (object version 2 and later) | a `2RD`. At bit 566, `0x241`'s two `RD`s read (2.4e-16, 1.0), DXF `12`/`22`. The next 64 bits read as a third `RD` give −3.1e-151. They are the scale estimation `BL` (1, DXF `95`), the user scale factor `BD` (1.0, `141`), the sea-level `B` (0, `294`) and `BD` (0.0, `142`), and the first bits of the projection radius. Read as a `3RD`, the radius becomes −288,169,236 for DXF's 6,362,228.65, the mesh-point count 50 for DXF's 12, and the record overruns its 3,859-bit boundary. Read as a `2RD`, it ends exactly on it |
+
+The object version 1 (AutoCAD 2009) layout and the civil block §20.4.78
+adds to R2007 and earlier files are read as printed. The corpus has
+neither, so both are unmeasured. A record they do not fit fails the
+boundary check rather than decoding to invented values.
+
+```sh
+cargo run --release --example probe_geodata -- ../dwg-corpus/acadsharp/geoloc.dwg ../dwg-corpus/acadsharp/geoloc.dxf
+cargo run --release --example probe_field_list -- ../dwg-corpus/acadsharp/geoloc.dwg 577 BL,BS,3*BD,3*BD,BD,BL,BD,BL,3*BD,2*RD,BL,BD,B,BD,BD,TV,TV,TV,TV,TV,BL,48*RD,BL   # delta 0
+```
+
 ## 7ab. LEADER: one `3BD` missed, and no text box from R2010 (2026-10-26, #71)
 
 §7i reported LEADER's twelve missing bits on its one R2018 record and
