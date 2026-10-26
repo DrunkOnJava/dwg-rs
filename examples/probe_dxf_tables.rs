@@ -19,8 +19,7 @@
 //! - a group of the export that the record lacks is **omitted**, and needs a
 //!   stated reason: extended data (1000 to 1071); a true colour's 420, its
 //!   layer's 62 and a viewport's 63, which the DWG stores no index for; a
-//!   layer's linetype (6) when it is one with a shape or text dash; a handle
-//!   group naming an object the OBJECTS section does not write (the layout, the
+//!   handle group naming an object the OBJECTS section does not write (the layout, the
 //!   plot style, the material, the visual style) and the bracket of entities
 //!   that react to a record or insert a block (ENTITIES carries no handles
 //!   yet);
@@ -31,7 +30,7 @@
 //!   `*U` block;
 //! - a record of the export with no record written is **omitted**: one created
 //!   by the export itself (a handle at or above the DWG's `$HANDSEED`: it is not
-//!   in the DWG), or a linetype with a shape or text dash. Any other is a failure,
+//!   in the DWG). Any other is a failure,
 //!   as is a record written that the export does not have, or a table header
 //!   whose handle or owner differs.
 //!
@@ -177,34 +176,6 @@ fn brackets(r: &DxfRecord) -> BTreeMap<String, Vec<(u16, DxfValue)>> {
     out
 }
 
-/// Whether the linetype named in `layer`'s group 6 is one the export gives a
-/// shape or text dash.
-fn complex_ltype(layer: &DxfRecord, doc: &DxfDocument) -> bool {
-    let Some(name) = layer.first(6).and_then(DxfValue::as_str) else {
-        return false;
-    };
-    doc.records.iter().any(|r| {
-        r.kind == "LTYPE"
-            && r.first(2)
-                .and_then(DxfValue::as_str)
-                .is_some_and(|n| n.eq_ignore_ascii_case(name))
-            && r.all(74).any(|v| v.as_i64().is_some_and(|f| f != 0))
-    })
-}
-
-/// Whether group `code` of `record` is the handle of a linetype the export
-/// gives a shape or text dash.
-fn complex_ltype_handle(record: &DxfRecord, code: u16, doc: &DxfDocument) -> bool {
-    let Some(h) = record.first(code).and_then(DxfValue::as_handle) else {
-        return false;
-    };
-    doc.records.iter().any(|r| {
-        r.kind == "LTYPE"
-            && r.handle == Some(h)
-            && r.all(74).any(|v| v.as_i64().is_some_and(|f| f != 0))
-    })
-}
-
 /// Why the converter may omit group `code` of a `table` record the export writes.
 fn group_reason(
     table: &str,
@@ -216,18 +187,12 @@ fn group_reason(
         (_, 1000..=1071) => Some("extended data is not decoded for table records"),
         ("BLOCK_RECORD", 340) => Some("the layout object is not written to OBJECTS"),
         ("DIMSTYLE", 176..=178) => Some("a true colour has no index in the DWG"),
-        ("DIMSTYLE", 345..=347) if complex_ltype_handle(theirs, code, doc) => {
-            Some("the linetype has a shape or text dash and is not written")
-        }
         ("VPORT", 348) => Some("the visual style object is written as an untyped record"),
         ("VPORT", 332 | 361 | 345 | 346) => Some("the object it names is not written"),
         ("VPORT", 63) if !values(theirs, 421).is_empty() => {
             Some("a true colour has no index in the DWG")
         }
         ("LAYER", 430) => Some("the layer's R2007 colour name is not decoded"),
-        ("LAYER", 6) if complex_ltype(theirs, doc) => {
-            Some("the layer's linetype has a shape or text dash and is not written")
-        }
         ("LAYER", 390) => Some("the plot-style object is not written to OBJECTS"),
         ("LAYER", 347 | 348) => {
             Some("the material and visual style objects are written as untyped records")
@@ -526,16 +491,9 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                 continue;
             }
             t.omitted_records += 1;
-            let complex = table == "LTYPE" && r.all(74).any(|v| v.as_i64().is_some_and(|f| f != 0));
-            if complex {
-                *o.reasons
-                    .entry("LTYPE record (a shape or text dash is not written)".into())
-                    .or_default() += 1;
-            } else {
-                o.failures.push(format!(
-                    "{name} {table} {h:X}: in the export, not written, no stated reason"
-                ));
-            }
+            o.failures.push(format!(
+                "{name} {table} {h:X}: in the export, not written, no stated reason"
+            ));
         }
     }
     println!(

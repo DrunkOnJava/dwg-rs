@@ -1017,6 +1017,7 @@ mod tests {
             pattern_length: 0.625,
             alignment: b'A',
             dashes,
+            text_area: Vec::new(),
         };
         let pattern: Vec<f64> = lt.dashes.iter().map(|d| d.length).collect();
         assert_eq!(pattern, vec![0.5, -0.125, 0.0]);
