@@ -30,8 +30,8 @@
 //! | DICTIONARY               | [`dictionary`]            | §19.5.19         |
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
+//! | VP_ENT_HDR               | [`control_vp_ent_hdr`]            | §20.4.70         |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
-//! | VP_ENT_HDR               | [`vp_ent_hdr`]            | §20.4.70         |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
 //!
@@ -91,6 +91,7 @@ pub mod acad_visual_style;
 pub mod class_map_extension;
 pub mod color;
 pub mod control;
+pub mod control_vp_ent_hdr;
 pub mod custom_dict_entry;
 pub mod dictionary;
 pub mod dictionary_var;
@@ -98,6 +99,5 @@ pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
-pub mod vp_ent_hdr;
 pub mod xdata;
 pub mod xrecord;

@@ -132,7 +132,7 @@ pub enum DecodedEntity {
     XRecord(crate::objects::xrecord::XRecord),
     Placeholder(crate::objects::placeholder::Placeholder),
     Group(crate::objects::acad_group::AcadGroup),
-    VpEntHdr(crate::objects::vp_ent_hdr::VpEntHdr),
+    VpEntHdr(crate::objects::control_vp_ent_hdr::VpEntHdr),
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
@@ -623,11 +623,11 @@ fn dispatch_object(
                 .map(DecodedEntity::Group)
                 .map_err(|e| e.to_string())
         }
-        ObjectType::VpEntHdr => {
-            crate::objects::vp_ent_hdr::decode_object(payload, body_start, inline_end, version)
-                .map(DecodedEntity::VpEntHdr)
-                .map_err(|e| e.to_string())
-        }
+        ObjectType::VpEntHdr => crate::objects::control_vp_ent_hdr::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::VpEntHdr)
+        .map_err(|e| e.to_string()),
         ObjectType::Layout => {
             match crate::objects::acad_layout::decode_object(
                 payload, body_start, inline_end, version,
