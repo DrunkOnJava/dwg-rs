@@ -46,9 +46,24 @@ use std::process::ExitCode;
 /// second.
 type DxfEntity = Vec<(String, usize, u16, String)>;
 
+/// AC1021 (R2007) and later DXF is UTF-8, as `src/dxf_reader.rs` reads
+/// it; earlier releases are read a byte per character.
+fn dxf_text(bytes: &[u8]) -> String {
+    let lines: Vec<&[u8]> = bytes.split(|&b| b == b'\n').take(64).collect();
+    let utf8 = lines
+        .iter()
+        .position(|l| l.trim_ascii() == b"$ACADVER")
+        .and_then(|i| lines.get(i + 2))
+        .is_some_and(|v| v.trim_ascii() >= b"AC1021".as_slice());
+    if utf8 {
+        String::from_utf8_lossy(bytes).into_owned()
+    } else {
+        bytes.iter().map(|&b| b as char).collect()
+    }
+}
+
 fn dxf_entities(path: &str) -> std::io::Result<HashMap<u64, DxfEntity>> {
-    let bytes = std::fs::read(path)?;
-    let text: String = bytes.iter().map(|&b| b as char).collect();
+    let text = dxf_text(&std::fs::read(path)?);
     let lines: Vec<&str> = text.lines().collect();
     let mut out = HashMap::new();
     let mut i = 0;
