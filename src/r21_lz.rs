@@ -326,6 +326,9 @@ pub fn decompress(src: &[u8], expected: usize, limits: DecompressLimits) -> Resu
                 });
             }
             let back = usize::try_from(offset).map_err(|_| Error::Lz77InvalidOffset)?;
+            if back == 0 {
+                return Err(Error::Lz77InvalidOffset);
+            }
             let start = out
                 .len()
                 .checked_sub(back)
