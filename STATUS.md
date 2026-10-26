@@ -166,8 +166,9 @@ scrolling the changelog.
   ACDBDETAILVIEWSTYLE and ACDBSECTIONVIEWSTYLE from the joint-boundary
   search — 33 further records, all four release bands, delta 0 on every
   one (ARCHITECTURE.md §7d.3, §7d.4).
-  ACAD_MATERIAL reads only its strings and its measured bit budget —
-  its data-field layout is not determined.
+  ACAD_MATERIAL closes on all 212 corpus records of R14 to R2018, its
+  layout derived from AutoCAD's own DWG and DXF output (ARCHITECTURE.md
+  §7s).
 
 ### Graph + geometry (Phase 5 + 8)
 - `resolve_entity` / `owner_chain` / `reactor_chain`.
@@ -331,8 +332,8 @@ These have genuine open scope requiring focused work, not stubs.
   MLEADERSTYLE (11), ACDBDETAILVIEWSTYLE (11) and
   ACDBSECTIONVIEWSTYLE (11) dispatch on all of theirs. Still
   unreached, in descending record count on the corpus (counts as of
-  the 2026-08-30 run): MATERIAL (38), TABLESTYLE (10). MATERIAL and PROPERTYSET_DATA decode
-  only a documented prefix of their fields, so they cannot satisfy the
+  the 2026-08-30 run): TABLESTYLE (10). PROPERTYSET_DATA decodes
+  only a documented prefix of its fields, so it cannot satisfy the
   boundary check; TABLESTYLE's block structure is measured
   (ARCHITECTURE.md §7d.4) but a single record per corpus file cannot
   pin the token sequence inside its cell-style blocks.

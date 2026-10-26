@@ -513,3 +513,43 @@ print is learned from AutoCAD's own output, by this method and no other:
 - **Record of derivation.** Each class gets its own dated entry below this one,
   naming the drawings and the record counts per release it was derived from,
   and the fields left unverified by value.
+
+## 2026-10-26 — MATERIAL (`AcDbMaterial`): derived from AutoCAD's own output (#49, #152)
+
+The PR that decodes MATERIAL is the first to use the method of the entry
+above. ODA spec v5.4.1 prints no layout for it. The field list in
+`src/objects/acad_material.rs` was derived from the data bits of the 212
+MATERIAL records of the pinned corpus (32 on each of R14, R2000, R2004,
+R2007, R2010 and R2013, 20 on R2018) and from the `AcDbMaterial` objects
+AutoCAD exported to DXF for the same handles: the 21 default materials per
+release of the seven `nextgis/dwg_samples` drawings (AutoCAD 2016, R14 to
+R2013); the 11 materials per release of ACadSharp's `sample_base` saves
+(AutoCAD 2025, R14 to R2018), whose DXF twins cover R2000 to R2018; and the
+three defaults each of `empty.dwg`, `export_sample.dwg` and `geoloc.dwg`
+(R2018, with a twin for `geoloc.dwg` only). R14 has no twin in either
+source, so its records are held to their data-stream boundary alone.
+
+Accepted: every record closes on the data-stream boundary on every release,
+and, from R2007, on a string stream the field list consumes entirely; the
+DXF groups 1, 2, 3, 8, 70, 71, 76, 90, 91, 92, 72, 77, 171, 175, 179, 43,
+47, 49, 142, 144, 147, 44, 140, 143, 145, 148, 468, 93 and 94 equal the
+decoded fields in 13,058 comparisons with 0 differences
+(`examples/probe_material.rs`). Left unverified by value, because no DXF
+group in the corpus shows them or shows them with distinct values: the three
+colour factors, the blends of five of the six maps, the three bytes after
+every blend, the two 2-bit tail slots, the refraction map's source, every
+map's file name but the diffuse and the bump, which of ambient, diffuse and
+specular owns which colour group, and which of four maps owns which of
+groups 47, 49, 142 and 147 where their matrices coincide. Colour methods and
+map sources other than 0 and 1, and a non-zero tail slot, are refused as
+unsupported.
+
+The group codes are observed in the twins. The names of the fields (ambient,
+diffuse, specular, gloss, opacity, reflection, bump, refraction, blend,
+source) follow the `AcDbMaterial` vocabulary of Autodesk's public *DXF
+Reference* as recalled, which is published documentation and not SDK or
+product source; it contributed names only, and the roles it suggests for
+groups 72, 77, 171, 175 and 179 (map sources) and 94 (a bit per map with a
+file) were checked against the records by the probe, not taken from it. No
+other source was consulted: no third-party DWG or DXF implementation, and
+none of the ObjectARX or Teigha documentation.

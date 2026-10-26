@@ -174,7 +174,7 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | Class | State | Code | Note |
 |---|---|---|---|
 | VISUALSTYLE | `closes` | src/objects/acad_visual_style.rs | 456 of 456 corpus records on every release (ARCHITECTURE §7d.1). |
-| MATERIAL | `partial` | src/objects/acad_material.rs | Strings and bit budget only (#49). |
+| MATERIAL | `closes` | src/objects/acad_material.rs | 212 of 212 corpus records on every release R14 to R2018; layout derived from AutoCAD's DWG and DXF output, 13,058 values equal the DXF twin by handle, fields no DXF group shows are named unknown_* (ARCHITECTURE §7s, #49, #152). |
 | PROPERTYSET_DATA | `partial` | src/objects/acad_property_set_data.rs | Prefix only; no record in the corpus. |
 | PLOTSETTINGS | `closes` | src/objects/acad_plot_settings.rs | Read with LAYOUT. |
 | ACDBDETAILVIEWSTYLE / ACDBSECTIONVIEWSTYLE | `closes` | src/objects/acad_detail_view_style.rs, src/objects/acad_section_view_style.rs | Joint-boundary search, delta 0 (ARCHITECTURE §7d.4). |

@@ -115,8 +115,8 @@ the whole R2000..R2007 band, and skipping it put every AC1018 record 32
 bits out of phase; that `RL` is now also the boundary AC1018 entities are
 held to.
 
-Two gaps remain. The *skipped* list is the larger one: MATERIAL (203) and
-TABLESTYLE have no field list matched against real bytes (XRECORD on R14,
+Two gaps remain. The *skipped* list is the larger one: TABLESTYLE and the
+other classes the spec never prints have no field list matched against real bytes (XRECORD on R14,
 1154 records, was the largest until #149 routed it), and LAYOUT, MULTILEADER, LWPOLYLINE and HATCH have
 decoders that are never reached on R14 to R2007 because those releases give
 them a class number dispatch does not route (#229). The *errored* list is

@@ -141,6 +141,9 @@ pub enum DecodedEntity {
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
+    /// MATERIAL, a custom class with no spec section: derived from
+    /// AutoCAD's own output (ARCHITECTURE.md §7s).
+    Material(Box<crate::objects::acad_material::Material>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -253,6 +256,7 @@ impl DecodedEntity {
             Self::DictionaryVar(_)
             | Self::Scale(_)
             | Self::ImageDef(_)
+            | Self::Material(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -729,6 +733,10 @@ fn dispatch_object_class(
                 payload, body_start, inline_end, version,
             )
             .map(DecodedEntity::Dictionary)
+        }
+        "MATERIAL" => {
+            crate::objects::acad_material::decode_object(payload, body_start, inline_end, version)
+                .map(|material| DecodedEntity::Material(Box::new(material)))
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)

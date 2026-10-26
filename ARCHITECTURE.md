@@ -2021,6 +2021,134 @@ does not hold.
 cargo run --release --example probe_mtext -- sample_AC1018.dwg sample_AC1018_ascii.dxf
 ```
 
+## 7s. MATERIAL, derived from AutoCAD's own output (2026-10-26, #49, #152)
+
+ODA spec v5.4.1 lists MATERIAL in §20.3 and prints no layout for it (§20.4
+has no entry), and the 65 records measured in §7d fixed only the budgets a
+field list had to fill. The layout in `src/objects/acad_material.rs` is
+derived by the method of CLEANROOM.md (2026-10-26): the data bits of every
+MATERIAL record in the pinned public corpus, read against the `AcDbMaterial`
+AutoCAD exported to DXF for the same handle. All 212 records close, on all
+seven releases.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 32 | 32 | none, no DXF twin | |
+| R2000 | 32 | 32 | 2,509 | 0 |
+| R2004 | 32 | 32 | 2,509 | 0 |
+| R2007 | 32 | 32 | 2,528 | 0 |
+| R2010 | 32 | 32 | 2,528 | 0 |
+| R2013 | 32 | 32 | 2,528 | 0 |
+| R2018 | 20 | 20 | 456 | 0 |
+| Total | 212 | 212 | 13,058 | 0 |
+
+The records are the three defaults (`ByLayer`, `ByBlock`, `Global`) of 7
+nextgis drawings saved by AutoCAD 2016 (R14 to R2013, 21 per release) and
+`sample_base`'s 11 per release saved by AutoCAD 2025 (R14 to R2018): the three
+defaults and eight library materials (`Beech`, `Bamboo`, `Aluminum Cast`,
+`Exposed Aggregate`, `1.5in Square - Medium Blue`, `Asphalt - Wet`, `Ashlar -
+Patterned`, `Blue`). The R2018 band also holds the three defaults of
+`empty.dwg`, `export_sample.dwg` and `geoloc.dwg` (9 records, three with a
+twin).
+
+### The field list
+
+```text
+TV name, TV description
+colour group x3 (ambient, diffuse, specular):  RC method, BD factor, BL colour if method is 1
+map block x6:  BD blend, RC x3, BD x16 matrix, RC source, TV file if source is 1
+```
+
+in the order ambient, diffuse, diffuse map, specular, specular map, `BD` gloss,
+reflection map, `BD` opacity, opacity map, bump map, `BD` refraction index,
+refraction map; and from R2007 only, `BD`, a 2-bit zero, `BD`, `BS`, `BS`, a
+2-bit zero. R14, R2000 and R2004 have no tail. Before R2007 the `TV`s are
+inline (the name and description first, each file name right after its
+source), from R2007 they are in the string stream in the same order.
+
+How it was found, so that it can be checked:
+
+- **Anchors.** Each DXF value was searched in the record's bits as a full `BD`
+  or `BL`. `Blue`'s colour `0xC24C4CFA` sits at bits 12, 56 and 166, the
+  first two behind the same ten bits (`RC 1`, `BD 1.0`) and a `BL` code; the
+  bump blend 0.515 at 464, the refraction index 1.5 at 594. The gaps between
+  anchors are whole blocks of 66 bits: `BD 1.0` (2), three `RC` of 2, 1 and 1
+  (24), an identity matrix (32) and an `RC` (8).
+- **Why 516 and 1,284.** The same release, R2013, holds a default MATERIAL of
+  1,284 bits (nextgis, AutoCAD 2016) and of 516 (`sample_base`, AutoCAD
+  2025). AutoCAD 2016 writes each of the six matrices with its diagonal at
+  1/48 (two 66-bit `BD` against two 2-bit ones), 6 x 2 x 64 = 768 bits, and
+  the difference is 768.
+- **The source flag.** The five map sources equal DXF groups 72, 77, 171,
+  175 and 179 wherever the DXF writes them (always 0, in 111 to 153 records
+  each),
+  and the DWG holds 1 in all 183 cases where the DXF omits the group. The
+  refraction source is 0 in every record and has no DXF group.
+- **The block order.** The DXF writes a matrix group only when the matrix is
+  not the identity (320 of 320 omissions). `Global` in `sample_base` writes
+  groups 43, 49, 142 and 144, and its non-identity blocks are the first,
+  third, fourth and fifth; the library materials write 43 and 144, and their
+  blocks one and five.
+- **The strings.** From R2010 a `TV` costs no data-stream bit, so the boundary
+  cannot see the `source` conditional; the decoder requires the string stream
+  to be exhausted instead (2 plus one entry per map with source 1, on all
+  116 R2007+ records), and the inline releases confirm the placement: R2004's
+  `ByLayer` is 582 bits, which is R2007's 516 less its 20-bit tail plus 86
+  inline string bits (name 74, description 2, five empty file names of 2
+  each after the five sources of 1).
+- **The tail.** Group 94, the bit set of maps with a file, is 17 (diffuse and
+  bump) on the library materials, 1 on `Aluminum Cast`, 0 on `Blue`, 63 on
+  the 2025 defaults and 127 on the 2016 ones. It is the second `BS` of
+  the tail in 47 compared records.
+
+### Values compared with the DXF (`probe_material`)
+
+| Field | Group | Compared | Differ |
+|---|---|---:|---:|
+| name | 1 | 174 | 0 |
+| description | 2 | 48 | 0 |
+| diffuse file, bump file | 3, 8 | 36, 30 | 0 |
+| ambient, diffuse, specular method | 70, 71, 76 | 48 each | 0 |
+| ambient, diffuse, specular colour | 90, 91, 92 | 48 each | 0 |
+| map sources | 72, 77, 171, 175, 179 | 111, 153, 153, 153, 117 | 0 |
+| matrices (16 values each) | 43, 47, 49, 142, 144, 147 | 2,368, 1,680, 1,792, 1,792, 2,272, 1,680 | 0 |
+| gloss, opacity | 44, 140 | 48, 6 | 0 |
+| bump blend, refraction index | 143, 145 | 42, 36 | 0 |
+| tail | 148, 468, 93, 94 | 8, 20, 4, 47 | 0 |
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_material -- ../dwg-corpus
+```
+
+### Unverified by value
+
+Their width is claimed, nothing more, and they are named `unknown_*` or
+documented so in the module. Every value is the one shown; the controlled
+drawings should vary each.
+
+- The three colour factors: `BD 1.0` in every record, written by no DXF group.
+- The blend of the diffuse, specular, reflection, opacity and refraction maps
+  (1.0 everywhere; only the bump blend is checked, against group 143).
+- The three `RC` after every blend: 2, 1, 1 in all 1,272 blocks. No DXF
+  group shows them, and the split of the 24 bits into three bytes is itself
+  unverified.
+- The two 2-bit tail slots (always the zero code) and the refraction map's
+  source (always 0). A tail slot that is not the zero code, a colour method
+  or a map source other than 0 and 1, and a group 93 or 94 wider than the
+  `RC` form are refused with `Error::Unsupported`, never read on a guess.
+- Which of ambient, diffuse and specular owns which of groups 70/71/76 and
+  90/91/92: the three carry one value in every record.
+- Which of the specular, reflection, opacity and refraction blocks owns
+  which of groups 47, 49, 142 and 147, where the DXF writes the same
+  matrix for several (the nextgis defaults write six equal ones).
+- Every map's file name but the diffuse and the bump, which no record
+  gives a non-empty name.
+
+The R2018 DXF writer in `dxf_sections.rs` still emits a MATERIAL as its name
+only; surfacing these fields there, and a MATERIAL scorer in the DXF value
+oracle, are separate changes.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
