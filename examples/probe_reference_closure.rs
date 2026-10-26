@@ -157,11 +157,16 @@ fn run(path: &str) -> Result<bool> {
     // explicitly allowed to point at an object that is no longer in the
     // drawing. Only an unanswered *hard* reference proves a record is
     // missing from the walk.
-    let hard: usize = unanswered
-        .values()
-        .flatten()
-        .filter(|(_, code)| matches!(code, 3 | 5))
-        .count();
+    // Counted by the walk itself, so it stays exact when the retained
+    // list is capped (`WalkerLimits::max_retained_references`).
+    let hard = walk.unanswered_hard_count;
+    if walk.unanswered_references_suppressed > 0 {
+        println!(
+            "retention cap             : {} unanswered reference(s) past the cap are not listed; \
+             the hard count below includes them",
+            walk.unanswered_references_suppressed
+        );
+    }
     println!(
         "reference closure         : {refs} references decoded, {} unanswered target(s), \
          {hard} of them hard ({no_boundary} record(s) expose no handle-stream boundary)",

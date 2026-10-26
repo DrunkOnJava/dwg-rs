@@ -244,6 +244,10 @@ pub struct ObjectWalkSummary {
     /// Unanswered references past
     /// [`WalkerLimits::max_retained_references`]: counted, not kept.
     pub unanswered_references_suppressed: usize,
+    /// Handle-driven mode only: every unanswered hard reference (codes 3
+    /// and 5, §2.13), counted whether or not it is retained, so a closure
+    /// check stays exact past the retention cap.
+    pub unanswered_hard_count: usize,
     /// Handle-driven mode only: records whose handle stream cannot be
     /// located (R13/R14 state no boundary for it), so their references
     /// go unchecked.
@@ -458,6 +462,9 @@ impl<'a> ObjectWalker<'a> {
                 let checked = for_each_handle_reference(obj, self.version, |target, code| {
                     summary.references_decoded += 1;
                     if !known.contains(&target) {
+                        if matches!(code, 3 | 5) {
+                            summary.unanswered_hard_count += 1;
+                        }
                         if summary.unanswered_references.len() < cap {
                             summary
                                 .unanswered_references

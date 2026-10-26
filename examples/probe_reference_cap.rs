@@ -37,9 +37,15 @@ use std::process::ExitCode;
 /// The `RL 0x0dca` every R2004-family object stream opens with.
 const OBJECTS_STREAM_PREFIX: [u8; 4] = [0xCA, 0x0D, 0x00, 0x00];
 
+/// Hard references (code 3, counter 1, handle 5: a record the map does
+/// not list) appended after the `0x60` bytes, so past the retention cap
+/// they are suppressed from the list yet must still be counted.
+const HARD_TAIL: usize = 10;
+
 /// One R2004 object record: `MS` size, then `BS` type, `RL` object-data
-/// size in bits, the record's handle, and `n` bytes of `0x60` as its
-/// handle stream; then a 2-byte CRC slot.
+/// size in bits, the record's handle, and `n` bytes of `0x60` then
+/// [`HARD_TAIL`] hard references as its handle stream; then a 2-byte CRC
+/// slot.
 fn crafted_record(n: usize) -> Vec<u8> {
     let mut head = BitWriter::new();
     head.write_bs(0x2A); // DICTIONARY; the walker does not decode it
@@ -54,6 +60,9 @@ fn crafted_record(n: usize) -> Vec<u8> {
     body.write_handle(0, 1);
     let mut payload = body.into_bytes();
     payload.extend(std::iter::repeat_n(0x60u8, n));
+    for _ in 0..HARD_TAIL {
+        payload.extend_from_slice(&[0x31, 0x05]);
+    }
     let mut record = BitWriter::new();
     record.write_ms(payload.len() as u64);
     let mut out = record.into_bytes();
@@ -129,19 +138,29 @@ fn main() -> ExitCode {
         "unanswered, suppressed      : {}",
         summary.unanswered_references_suppressed
     );
-    let all_decoded = summary.references_decoded == n;
+    println!(
+        "unanswered hard, counted    : {} ({} of them in the kept list)",
+        summary.unanswered_hard_count,
+        summary.unanswered_hard_references().count()
+    );
+    let total = n + HARD_TAIL;
+    let all_decoded = summary.references_decoded == total;
     let bounded = summary.unanswered_references.len() <= cap;
     let counted =
-        summary.unanswered_references.len() + summary.unanswered_references_suppressed == n;
+        summary.unanswered_references.len() + summary.unanswered_references_suppressed == total;
+    // The hard tail sits after n soft references: past the cap it is not
+    // in the kept list, and the count must still hold every one of them.
+    let hard_exact = summary.unanswered_hard_count == HARD_TAIL
+        && (n < cap || summary.unanswered_hard_references().count() == 0);
     println!(
         "RESULT: {}",
-        if all_decoded && bounded && counted {
-            "every reference decoded and counted, at most the cap retained"
+        if all_decoded && bounded && counted && hard_exact {
+            "every reference decoded and counted, at most the cap retained, every hard one counted"
         } else {
             "FAILED"
         }
     );
-    if all_decoded && bounded && counted {
+    if all_decoded && bounded && counted && hard_exact {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
