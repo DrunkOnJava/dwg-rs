@@ -1,5 +1,21 @@
 //! MULTILEADER entity (ODA Open Design Specification for .dwg files
-//! v5.4 §20.4.48 "MLEADER") — multileader, R2010+ in this crate.
+//! v5.4 §20.4.48 "MLEADER") — multileader.
+//!
+//! # Every release (2026-10-26, #229)
+//!
+//! §20.4.48 says MULTILEADER "was introduced in version 21" (R2007),
+//! but AutoCAD 2025 writes the record into R14, R2000 and R2004 saves
+//! too, as a class. The R2010+ field list below has three kinds of
+//! version branch, each read as §20.4.48 and §20.4.86 print them: the
+//! R2010+ `BS 270` class version, the R2010+ style fields of each leader
+//! line, leader root and context (`BS 170`, `CMC 92`, `BL 171`, `BD 40`,
+//! `BL 93`; `BS 271`; `BS 273`, `BS 272`), and the `-R2007` tail after
+//! the annotative flag ([`MLeaderPreR2010`]). Before R2004 a `CMC` is a
+//! bare `BS` index (§2.11), and before R2007 the `TV`s are inline. With
+//! that, all 105 MULTILEADER records of the public corpus close, R14 to
+//! R2018, and on R2000 to R2018 every value compared equals AutoCAD's DXF
+//! export of the same drawing (ARCHITECTURE.md §7ai,
+//! `examples/probe_mleader.rs`).
 //!
 //! # Where the fields actually live
 //!
@@ -364,6 +380,69 @@ pub struct MLeader {
     pub bottom_attachment: i16,
     /// `B 295` leader extended to text. R2013+.
     pub leader_extended_to_text: bool,
+    /// The fields §20.4.48 writes only up to R2007, after the annotative
+    /// flag; `None` from R2010.
+    pub legacy: Option<MLeaderPreR2010>,
+}
+
+/// The `-R2007` tail of a MULTILEADER record (§20.4.48): arrow heads,
+/// block labels and four scalar fields.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MLeaderPreR2010 {
+    /// One `B` "is default" per arrow head (the handle is in the handle
+    /// stream).
+    pub arrow_heads_default: Vec<bool>,
+    /// One `(TV label text, BS UI index, BD width)` per block label (the
+    /// ATTDEF handle is in the handle stream).
+    pub block_labels: Vec<(String, i16, f64)>,
+    /// `B 294` text direction negative.
+    pub text_direction_negative: bool,
+    /// `BS 178` IPE align.
+    pub ipe_align: i16,
+    /// `BS 179` justification.
+    pub justification: i16,
+    /// `BD 45` scale factor.
+    pub scale_factor: f64,
+}
+
+fn read_pre_r2010_tail(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<MLeaderPreR2010> {
+    let num_arrows = c.read_bl_u()? as usize;
+    bounds_check(
+        num_arrows,
+        "arrow heads",
+        MAX_LEADER_LINES,
+        c.remaining_bits(),
+    )?;
+    let mut arrow_heads_default = Vec::with_capacity(num_arrows);
+    for _ in 0..num_arrows {
+        arrow_heads_default.push(c.read_b()?);
+    }
+    let num_labels = c.read_bl_u()? as usize;
+    bounds_check(
+        num_labels,
+        "block labels",
+        MAX_LEADER_LINES,
+        c.remaining_bits(),
+    )?;
+    let mut block_labels = Vec::with_capacity(num_labels);
+    for _ in 0..num_labels {
+        let text = s.tv(c)?;
+        let ui_index = c.read_bs()?;
+        let width = c.read_bd()?;
+        block_labels.push((text, ui_index, width));
+    }
+    let text_direction_negative = c.read_b()?;
+    let ipe_align = c.read_bs()?;
+    let justification = c.read_bs()?;
+    let scale_factor = c.read_bd()?;
+    Ok(MLeaderPreR2010 {
+        arrow_heads_default,
+        block_labels,
+        text_direction_negative,
+        ipe_align,
+        justification,
+        scale_factor,
+    })
 }
 
 /// A null handle — what an `H` slot yields on R2007+, where object
@@ -384,19 +463,42 @@ fn bounds_check(n: usize, field: &'static str, cap: usize, remaining_bits: usize
     }
 }
 
+/// Where a MULTILEADER's `TV` fields live, and which release's branches
+/// to read: the R2007+ string stream, or inline before R2007.
+pub(crate) struct Src<'a> {
+    strings: Option<StringReader<'a>>,
+    version: Version,
+}
+
+impl<'a> Src<'a> {
+    fn tv(&mut self, c: &mut BitCursor<'_>) -> Result<String> {
+        modern::read_tv_field(c, self.version, self.strings.as_mut())
+    }
+}
+
 /// Read a `CMC` colour (§2.11) — `BS` index, `BL` RGB, `RC` colour byte,
 /// then the optional colour / book names the colour byte flags.
-fn read_cmc(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<Cmc> {
+fn read_cmc(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<Cmc> {
+    // §2.11: before R2004 a CMC is the `BS` colour index alone.
+    if !s.version.is_r2004_plus() {
+        return Ok(Cmc {
+            index: c.read_bs()?,
+            rgb: 0,
+            color_byte: 0,
+            name: String::new(),
+            book_name: String::new(),
+        });
+    }
     let index = c.read_bs()?;
     let rgb = c.read_bl_u()?;
     let color_byte = c.read_rc()?;
     let name = if color_byte & 1 != 0 {
-        strings.read_tv()?
+        s.tv(c)?
     } else {
         String::new()
     };
     let book_name = if color_byte & 2 != 0 {
-        strings.read_tv()?
+        s.tv(c)?
     } else {
         String::new()
     };
@@ -409,7 +511,7 @@ fn read_cmc(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<Cmc
     })
 }
 
-fn read_leader_line(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<LeaderLine> {
+fn read_leader_line(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<LeaderLine> {
     let num_points = c.read_bl_u()? as usize;
     bounds_check(
         num_points,
@@ -445,13 +547,20 @@ fn read_leader_line(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
         }
     }
     let index = c.read_bl()?;
-    let leader_type = c.read_bs()?;
-    let color = read_cmc(c, strings)?;
     let line_type_handle = NULL_HANDLE;
-    let line_weight = c.read_bl()?;
-    let arrow_size = c.read_bd()?;
     let arrow_symbol_handle = NULL_HANDLE;
-    let override_flags = c.read_bl_u()?;
+    // §20.4.86: a leader line's own style fields are R2010+.
+    let (leader_type, color, line_weight, arrow_size, override_flags) = if s.version.is_r2010_plus()
+    {
+        let leader_type = c.read_bs()?;
+        let color = read_cmc(c, s)?;
+        let line_weight = c.read_bl()?;
+        let arrow_size = c.read_bd()?;
+        let override_flags = c.read_bl_u()?;
+        (leader_type, color, line_weight, arrow_size, override_flags)
+    } else {
+        (0, Cmc::default(), 0, 0.0, 0)
+    };
     Ok(LeaderLine {
         points,
         index,
@@ -465,7 +574,7 @@ fn read_leader_line(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
     })
 }
 
-fn read_leader_root(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<LeaderRoot> {
+fn read_leader_root(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<LeaderRoot> {
     let content_valid = c.read_b()?;
     let unknown_flag = c.read_b()?;
     let connection_point = read_bd3(c)?;
@@ -494,9 +603,14 @@ fn read_leader_root(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
     )?;
     let mut lines = Vec::with_capacity(num_lines);
     for _ in 0..num_lines {
-        lines.push(read_leader_line(c, strings)?);
+        lines.push(read_leader_line(c, s)?);
     }
-    let attachment_direction = c.read_bs()?;
+    // §20.4.86: R2010+.
+    let attachment_direction = if s.version.is_r2010_plus() {
+        c.read_bs()?
+    } else {
+        0
+    };
     Ok(LeaderRoot {
         content_valid,
         unknown_flag,
@@ -510,8 +624,8 @@ fn read_leader_root(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Re
     })
 }
 
-fn read_text_content(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<MLeaderText> {
-    let label = strings.read_tv()?;
+fn read_text_content(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<MLeaderText> {
+    let label = s.tv(c)?;
     let normal = read_bd3(c)?;
     let text_style_handle = NULL_HANDLE;
     let location = read_bd3(c)?;
@@ -521,10 +635,10 @@ fn read_text_content(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> R
     let boundary_height = c.read_bd()?;
     let line_spacing_factor = c.read_bd()?;
     let line_spacing_style = c.read_bs()?;
-    let color = read_cmc(c, strings)?;
+    let color = read_cmc(c, s)?;
     let alignment = c.read_bs()?;
     let flow_direction = c.read_bs()?;
-    let background_color = read_cmc(c, strings)?;
+    let background_color = read_cmc(c, s)?;
     let background_scale = c.read_bd()?;
     let background_transparency = c.read_bl()?;
     let background_fill_enabled = c.read_b()?;
@@ -577,16 +691,13 @@ fn read_text_content(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> R
     })
 }
 
-fn read_block_content(
-    c: &mut BitCursor<'_>,
-    strings: &mut StringReader<'_>,
-) -> Result<MLeaderBlock> {
+fn read_block_content(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<MLeaderBlock> {
     let block_handle = NULL_HANDLE;
     let normal = read_bd3(c)?;
     let location = read_bd3(c)?;
     let scale = read_bd3(c)?;
     let rotation = c.read_bd()?;
-    let color = read_cmc(c, strings)?;
+    let color = read_cmc(c, s)?;
     let mut transform = [0.0f64; 16];
     for slot in transform.iter_mut() {
         *slot = c.read_bd()?;
@@ -602,7 +713,7 @@ fn read_block_content(
     })
 }
 
-fn read_context(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result<MLeaderContext> {
+fn read_context(c: &mut BitCursor<'_>, s: &mut Src<'_>) -> Result<MLeaderContext> {
     let num_roots = c.read_bl_u()? as usize;
     bounds_check(
         num_roots,
@@ -612,7 +723,7 @@ fn read_context(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result
     )?;
     let mut leader_roots = Vec::with_capacity(num_roots);
     for _ in 0..num_roots {
-        leader_roots.push(read_leader_root(c, strings)?);
+        leader_roots.push(read_leader_root(c, s)?);
     }
     let overall_scale = c.read_bd()?;
     let content_base_point = read_bd3(c)?;
@@ -627,16 +738,20 @@ fn read_context(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result
     let mut text = None;
     let mut block = None;
     if has_text {
-        text = Some(read_text_content(c, strings)?);
+        text = Some(read_text_content(c, s)?);
     } else if c.read_b()? {
-        block = Some(read_block_content(c, strings)?);
+        block = Some(read_block_content(c, s)?);
     }
     let base_point = read_bd3(c)?;
     let base_direction = read_bd3(c)?;
     let base_vertical = read_bd3(c)?;
     let normal_reversed = c.read_b()?;
-    let top_attachment = c.read_bs()?;
-    let bottom_attachment = c.read_bs()?;
+    // §20.4.86: R2010+.
+    let (top_attachment, bottom_attachment) = if s.version.is_r2010_plus() {
+        (c.read_bs()?, c.read_bs()?)
+    } else {
+        (0, 0)
+    };
     Ok(MLeaderContext {
         leader_roots,
         overall_scale,
@@ -664,15 +779,20 @@ fn read_context(c: &mut BitCursor<'_>, strings: &mut StringReader<'_>) -> Result
 /// `strings`.
 pub(crate) fn read_body(
     c: &mut BitCursor<'_>,
-    strings: &mut StringReader<'_>,
+    s: &mut Src<'_>,
     version: Version,
 ) -> Result<MLeader> {
-    let class_version = c.read_bs()?;
-    let context = read_context(c, strings)?;
+    // §20.4.48: the class version is R2010+.
+    let class_version = if version.is_r2010_plus() {
+        c.read_bs()?
+    } else {
+        0
+    };
+    let context = read_context(c, s)?;
     let leader_style_handle = NULL_HANDLE;
     let override_flags = c.read_bl_u()?;
     let leader_type = c.read_bs()?;
-    let leader_color = read_cmc(c, strings)?;
+    let leader_color = read_cmc(c, s)?;
     let line_type_handle = NULL_HANDLE;
     let line_weight = c.read_bl()?;
     let landing_enabled = c.read_b()?;
@@ -686,19 +806,36 @@ pub(crate) fn read_body(
     let right_attachment = c.read_bs()?;
     let text_angle_type = c.read_bs()?;
     let unknown_175 = c.read_bs()?;
-    let text_color = read_cmc(c, strings)?;
+    let text_color = read_cmc(c, s)?;
     let text_frame_enabled = c.read_b()?;
     let block_handle = NULL_HANDLE;
-    let block_color = read_cmc(c, strings)?;
+    let block_color = read_cmc(c, s)?;
     let block_scale = read_bd3(c)?;
     let block_rotation = c.read_bd()?;
     let block_attachment_type = c.read_bs()?;
     let is_annotative = c.read_b()?;
-    let undocumented_mc = c.read_mc()?;
-    let undocumented_flag = c.read_b()?;
-    let attachment_direction = c.read_bs()?;
-    let top_attachment = c.read_bs()?;
-    let bottom_attachment = c.read_bs()?;
+    let mut legacy = None;
+    let (
+        undocumented_mc,
+        undocumented_flag,
+        attachment_direction,
+        top_attachment,
+        bottom_attachment,
+    );
+    if version.is_r2010_plus() {
+        undocumented_mc = c.read_mc()?;
+        undocumented_flag = c.read_b()?;
+        attachment_direction = c.read_bs()?;
+        top_attachment = c.read_bs()?;
+        bottom_attachment = c.read_bs()?;
+    } else {
+        legacy = Some(read_pre_r2010_tail(c, s)?);
+        undocumented_mc = 0;
+        undocumented_flag = false;
+        attachment_direction = 0;
+        top_attachment = 0;
+        bottom_attachment = 0;
+    }
     let leader_extended_to_text = if matches!(version, Version::R2013 | Version::R2018) {
         c.read_b()?
     } else {
@@ -738,6 +875,7 @@ pub(crate) fn read_body(
         top_attachment,
         bottom_attachment,
         leader_extended_to_text,
+        legacy,
     })
 }
 
@@ -753,21 +891,35 @@ pub fn decode_modern_split_stream(
     object_body_start: usize,
     version: Version,
 ) -> Result<MLeader> {
-    if !version.is_r2010_plus() {
+    if !version.is_r2007_plus() {
         return Err(Error::Unsupported {
-            feature: "MULTILEADER split-stream decode requires R2010+".into(),
+            feature: "MULTILEADER split-stream decode requires R2007+".into(),
         });
     }
-    let (mut strings, string_start) = modern::open_entity(payload, version)?;
+    let (strings, string_start) = modern::open_entity(payload, version)?;
+    let mut s = Src {
+        strings: Some(strings),
+        version,
+    };
     let mut c = BitCursor::new(payload);
     string_stream::seek(&mut c, object_body_start)?;
     crate::common_entity::read_common_entity_data(&mut c, version)?;
-    let mleader = read_body(&mut c, &mut strings, version)?;
+    let mleader = read_body(&mut c, &mut s, version)?;
     let at = c.position_bits();
     if at != string_start {
         return Err(modern::misaligned("MULTILEADER", at, string_start));
     }
     Ok(mleader)
+}
+
+/// Decode a MULTILEADER from a cursor past its common entity data, with
+/// its `TV` fields inline (R13 to R2004).
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<MLeader> {
+    let mut s = Src {
+        strings: None,
+        version,
+    };
+    read_body(c, &mut s, version)
 }
 
 #[cfg(test)]
@@ -1011,13 +1163,5 @@ mod tests {
             matches!(&err, Error::SectionMap(m) if m.contains("MULTILEADER data fields ended")),
             "err={err:?}"
         );
-    }
-
-    #[test]
-    fn pre_r2010_is_unsupported() {
-        let payload = build_payload(&[false; 8], &[]);
-        let err = decode_modern_split_stream(&payload, 8, Version::R2007)
-            .expect_err("pre-R2010 must error");
-        assert!(matches!(&err, Error::Unsupported { feature } if feature.contains("R2010")));
     }
 }
