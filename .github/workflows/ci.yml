@@ -49,9 +49,14 @@ jobs:
         run: |
           rustup update stable
           rustup component add clippy --toolchain stable
+          rustup target add wasm32-unknown-unknown --toolchain stable
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
       - name: cargo clippy --all-targets --all-features -- -D warnings
         run: cargo +stable clippy --all-targets --all-features -- -D warnings
+      # The wasm crate depends on this one by path, where a lint error in the
+      # dependency is only a warning; check the library itself on 32 bits.
+      - name: The library builds where usize is 32 bits
+        run: cargo +stable check --lib --target wasm32-unknown-unknown
 
   test:
     name: Test
