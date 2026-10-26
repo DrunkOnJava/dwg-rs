@@ -469,7 +469,12 @@ and length of the open record's payload so far. Restore requires a state the
 walk can reach: the framer's cursors against the record bytes it holds (its CRC
 is recomputed wherever those bytes are still held, and its `MC` is re-read from
 them), the section against the table, the unframed bytes against the section
-walker's cursor.
+walker's cursor. The file walker's table keeps no
+section names, so a checkpoint taken before the object section is described
+cannot be checked for a table that already holds it; a forged one restores and
+ends in `ObjectsMissing` or `SectionEntry` rather than `InvalidCheckpoint`. A forged
+CRC in a record whose payload is past the 32 bytes the framer holds ends in
+`RecordCrc` at the record's end for the same reason.
 
 `examples/stream_r2004_objects.rs` is the entry point. It prints one line per
 record (handle, section offset, `MS` size, type, payload length and the payload's
