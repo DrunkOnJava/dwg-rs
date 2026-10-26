@@ -131,7 +131,6 @@ So the `KNOWN_SHORTFALL` pins in `tests/class_census.rs` keep their
 counts — nothing was under-walked to recover — and are re-documented as
 files that over-declare rather than as an open walker gap. They still
 gate: a *drop* in any `walked` figure fails the ratchet.
-||||||| 6cc9b13
 ### Added — VISUALSTYLE on R14, R2000 and R2007: one field list, four releases (2026-08-30, closes #73)
 
 #72 made the R14 / R2000 / R2007 object walk work and their 216
