@@ -6,7 +6,9 @@
 //! depends on how the source was chunked, and with `--out` a `section_done`
 //! line per section (its size and CRC-32, read back from the assembled file).
 //! `stream_r2007 file.dwg [chunk-bytes] [--chunks 1,7,3] [--pending]
-//! [--trace <path>] [--out <dir>] [--report-steps]`. `--legacy` assembles the
+//! [--would-block] [--trace <path>] [--out <dir>] [--report-steps]`.
+//! `--would-block` puts a reader under `FileSource` that fails every other
+//! read with `WouldBlock` and returns at most 512 bytes. `--legacy` assembles the
 //! same sections with the legacy reader (`r2007::Container`) and prints the
 //! same lines. `--identity <sha256> --checkpoint-out <path> --stop-after
 //! <steps>` saves the walk after that many steps; a fresh invocation with
@@ -26,9 +28,38 @@ use std::path::{Path, PathBuf};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+/// A file that, when `flaky`, refuses every other read with `WouldBlock`
+/// and returns at most 512 bytes from the others.
+#[derive(Debug)]
+struct Flaky {
+    file: File,
+    flaky: bool,
+    blocked: bool,
+}
+
+impl Read for Flaky {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if !self.flaky {
+            return self.file.read(buf);
+        }
+        self.blocked = !self.blocked;
+        if self.blocked {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        let n = buf.len().min(512);
+        self.file.read(&mut buf[..n])
+    }
+}
+
+impl Seek for Flaky {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.file.seek(pos)
+    }
+}
+
 #[derive(Debug)]
 struct TracedSource {
-    file: FileSource<File>,
+    file: FileSource<Flaky>,
     trace: Option<File>,
     inject_pending: bool,
     pending: bool,
@@ -329,7 +360,7 @@ fn main() -> Result<()> {
         .ok_or("usage: stream_r2007 file.dwg [chunk-bytes] [options]")?;
     let mut chunks = vec![CHUNK_BYTES];
     let (mut trace, mut inject_pending, mut out_dir, mut as_legacy) = (None, false, None, false);
-    let mut report_steps = false;
+    let (mut report_steps, mut would_block) = (false, false);
     let (mut digest, mut checkpoint_out, mut stop_after, mut resume) = (None, None, None, None);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -337,6 +368,7 @@ fn main() -> Result<()> {
             "--out" => out_dir = Some(PathBuf::from(args.next().ok_or("missing directory")?)),
             "--trace" => trace = Some(args.next().ok_or("missing trace path")?),
             "--pending" => inject_pending = true,
+            "--would-block" => would_block = true,
             "--report-steps" => report_steps = true,
             "--checkpoint-out" => checkpoint_out = Some(args.next().ok_or("missing path")?),
             "--stop-after" => {
@@ -386,7 +418,11 @@ fn main() -> Result<()> {
         length: file.metadata()?.len(),
     };
     let mut source = TracedSource {
-        file: FileSource::new(file),
+        file: FileSource::new(Flaky {
+            file,
+            flaky: would_block,
+            blocked: false,
+        }),
         trace: trace.map(File::create).transpose()?,
         inject_pending,
         pending: false,

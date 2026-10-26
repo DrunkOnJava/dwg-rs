@@ -1,6 +1,7 @@
 //! Times the R2007 walk against the legacy reader on one drawing, in memory:
 //! the whole-file streaming walk (`R2007Walker` over a `SliceSource`, 256-byte
-//! scratch, every page verified and every section byte handed out) and
+//! scratch, every page verified and every section byte handed out, holes
+//! counted as the zeros they stand for) and
 //! `r2007::Container::parse` plus `read_section` for every section. Prints one
 //! JSON line with the best of `rounds` runs of each (default 5) and the
 //! throughput in MB/s (10^6 bytes) of the file and of the section bytes
@@ -26,11 +27,11 @@ fn streaming(bytes: &[u8]) -> Result<u64> {
         match poll_r2007_walk(&mut walker, &mut source, &mut scratch)? {
             R2007Poll::Complete => return Ok(produced),
             R2007Poll::Pending => unreachable!("a slice never pends"),
-            R2007Poll::Fed { step, .. } | R2007Poll::Pumped(step) => {
-                if let R2007Step::Data { len, .. } = step {
-                    produced += walker.data().len().min(len) as u64;
-                }
-            }
+            R2007Poll::Fed { step, .. } | R2007Poll::Pumped(step) => match step {
+                R2007Step::Data { len, .. } => produced += walker.data().len().min(len) as u64,
+                R2007Step::Hole { len, .. } => produced += len,
+                _ => (),
+            },
         }
     }
 }

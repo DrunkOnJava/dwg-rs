@@ -144,12 +144,14 @@ def constructed():
                 'section, a section short of its size, free pages, a nonzero CRC seed, pages out of order'))
     b = {'seed': 4, 'crc_seed': 0x2AA, 'factors': (1, 1), 'compress_maps': False, 'compress_header': False, 'sections': [
         {'name': 'A', 'data': b'', 'encoding': 4, 'size': 0, 'pages': []},
+        {'name': 'AcDb:Nil', 'data': b'', 'encoding': 1, 'size': 0, 'pages': [{'start': 0, 'len': 0, 'compress': False}]},
         {'name': 'AcDb:' + 'L' * 57, 'data': sample(30000, 31), 'encoding': 4, 'pages': [{'start': 0, 'len': 30000, 'compress': False}]},
         {'name': 'AcDb:Bare', 'data': sample(20000, 32), 'encoding': 1, 'pages': [{'start': 0, 'len': 20000, 'compress': True}]},
         {'name': 'AcDb:Two', 'data': sample(5000, 33), 'encoding': 1,
          'pages': [{'start': 0, 'len': 2500, 'compress': False}, {'start': 2500, 'len': 2500, 'compress': True}]},
     ]}
-    out.append(('constructed_b.dwg', ref.build(b), 'system pages and header stored, repeat factor 1, a compressed bare page, a 126-byte section name that straddles a codeword'))
+    out.append(('constructed_b.dwg', ref.build(b), 'system pages and header stored, repeat factor 1, a compressed bare page, a bare page of zero bytes in a '
+                'zero-sized page map slot, a 126-byte section name that straddles a codeword'))
     return out
 
 
@@ -240,7 +242,7 @@ def main():
             for i, blob in enumerate(blobs):
                 assert (legacy_out / f'{i}.bin').read_bytes() == blob, (name, i, 'legacy bytes differ')
             small = len(data) < BIG
-            fixed = ((64,), ('--chunks', '1,7,256,3', '--pending')) + (((7,), (1,), (3,)) if small else ())
+            fixed = ((64,), ('--chunks', '1,7,256,3', '--pending'), ('--would-block',)) + (((7,), (1,), (3,)) if small else ())
             for args in fixed:
                 assert run(data, *args) == plain, (name, args)
             pages = sum(len(s['pages']) for s in parsed['sections'])

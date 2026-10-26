@@ -553,8 +553,9 @@ Reed-Solomon codewords interleaved across the page (§5.13.2): byte `i` of
 codeword `j` of `n` is at `n * i + j`, so a codeword's 255 bytes are not
 adjacent. The walker demands one codeword at a time with a `Gather` (the offset
 of its first byte, the stride `n`, the bytes still owed; `byte_source` has a
-`poll_gather`, and `FileSource` serves it from a 1 MiB window); a short feed is
-kept like any other. Each codeword's syndromes are checked as it arrives and its
+`poll_gather`, and `FileSource` serves it from a 1 MiB window, which a read that
+would block keeps and the next gather continues); a short feed is kept like any
+other. Each codeword's syndromes are checked as it arrives and its
 message bytes feed the §5.10 decoder, `streaming::r2007_lz`, which pauses between any two
 bytes of input or output, copies literal runs in §5.10.1's permuted blocks of 32
 (one block of input and one of output are its only buffers) and keeps a 64 KiB
@@ -610,8 +611,9 @@ from the spec's text, with shapes the corpus lacks (a page of 70,912 bytes and
 273 codewords, holes, a zero-length page, a page past its section, a section
 short of its size, a page map out of file order with free pages, a non-zero CRC
 seed, system pages and header stored, repeat factor 1, a compressed bare page, a
-126-byte section name that straddles a codeword, so a checkpoint holds 107
-bytes of a name that `restore` must accept).
+bare page of zero bytes in a zero-sized page map slot, a 126-byte section name
+that straddles a codeword, so a checkpoint holds 107 bytes of a name that
+`restore` must accept).
 `tools/streaming/r2007_ref.py` is an independent reader and writer written from
 the spec's text and sharing no code with the crate (its Reed-Solomon encoder
 reproduces AutoCAD's parity on every codeword it is given, and its compressor
@@ -619,9 +621,11 @@ emits every instruction class).
 
 Measured, by `verify_r2007.py` (11 files, 114 sections, 152 pages, 4,966 data
 codewords, 3,067,696 section bytes): on each of them every output line and every
-assembled byte equals the independent Python parse and the legacy reader's, three
-to six fixed chunk schedules (down to one byte at a time on files under 400 KB,
-with `Pending` polls) and 128 proptest schedules on two files (`arc_2007.dwg`,
+assembled byte equals the independent Python parse and the legacy reader's, four
+to seven fixed chunk schedules (down to one byte at a time on files under 400 KB,
+with `Pending` polls, and one through a reader under `FileSource` that fails every
+other read with `WouldBlock` and returns at most 512 bytes) and 128 proptest
+schedules on two files (`arc_2007.dwg`,
 `constructed_a.dwg`) reproduce it. A fresh process resumes at 778 stops (every
 step of the tiny built file at 256-byte reads and every thirteenth at 3-byte
 reads; about 60 stops of each other file at 256 and at 7-byte reads, around

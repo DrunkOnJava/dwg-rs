@@ -560,7 +560,9 @@ pub struct FileSource<R> {
 
 /// Bytes a gathering [`FileSource`] reads at once and serves strided reads
 /// from: a page's whole span (the R2007 walk gathers one byte of each codeword
-/// from every row of it), not a byte at a time.
+/// from every row of it), not a byte at a time. A fill that would block keeps
+/// what it read, serves a gather it already covers, and the next gather that
+/// falls in the same window continues it rather than starting over.
 const GATHER_WINDOW: usize = 1 << 20;
 
 impl<R> FileSource<R> {
@@ -602,10 +604,18 @@ impl<R: Read + Seek> ByteSource for FileSource<R> {
         let covered =
             |s: &Self| offset >= s.window_at && last < s.window_at + s.window.len() as u64;
         if !covered(self) {
+            let extends = offset >= self.window_at
+                && offset <= self.window_at + self.window.len() as u64
+                && last - self.window_at < GATHER_WINDOW as u64;
+            if !extends {
+                self.window.clear();
+                self.window_at = offset;
+            }
+            let mut filled = self.window.len();
             self.window.resize(GATHER_WINDOW, 0);
-            self.window_at = offset;
-            let mut filled = 0;
-            let seek = self.inner.seek(SeekFrom::Start(offset));
+            let seek = self
+                .inner
+                .seek(SeekFrom::Start(self.window_at + filled as u64));
             let outcome = match seek {
                 Ok(_) => loop {
                     match self.inner.read(&mut self.window[filled..]) {
@@ -624,13 +634,17 @@ impl<R: Read + Seek> ByteSource for FileSource<R> {
             };
             self.window.truncate(filled);
             self.position = None;
-            if let Err(e) = outcome {
-                self.window.clear();
-                return if e.kind() == io::ErrorKind::WouldBlock {
-                    Ok(SourcePoll::Pending)
-                } else {
-                    Err(e)
-                };
+            match outcome {
+                Ok(()) => (),
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    if !covered(self) {
+                        return Ok(SourcePoll::Pending);
+                    }
+                }
+                Err(e) => {
+                    self.window.clear();
+                    return Err(e);
+                }
             }
         }
         if !covered(self) {

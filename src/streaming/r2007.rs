@@ -1824,7 +1824,6 @@ impl R2007Walker {
                     && self.section_ok()
                     && self.reference_ok()
                     && self.refd.address >= PAGE_BASE
-                    && self.refd.entry_size > 0
                     && self.entry_have == 0
                     && hole
                     && self.emitted <= a.produced
