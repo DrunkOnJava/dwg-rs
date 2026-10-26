@@ -25,6 +25,12 @@ object map addresses them by absolute file offset. That is what makes
 it a *different* gate rather than a fifth copy of the same one — it is
 the only fixture whose handle-map offsets are file offsets.
 
+Its file header closes with the §3.2 CRC and 16-byte end sentinel, and
+CI checks it with the strict streaming header reader (#214). Only the
+header is valid in that sense: the header-variable block is still 64
+placeholder zero bytes, locator 1 points at no class section, and no
+AutoCAD build has opened the file.
+
 ## Licence and provenance
 
 **Apache-2.0, same as the rest of this repository.** These files are
