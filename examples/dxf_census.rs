@@ -5,11 +5,14 @@
 //!
 //! What it proves: the reader takes AutoCAD's own exports without loss (every
 //! file parses, every record from R13 on carries a unique handle) and refuses
-//! malformed input instead of guessing. With `--mutations`, each file is also
-//! damaged eleven ways in memory (truncated, a code line made non-numeric, an
-//! unknown group code, a real made unparsable, a handle duplicated, a `102`
-//! bracket left open, mixed line endings, `EOF` removed, data after `EOF`, a
-//! handle removed, a binary-DXF sentinel) and every damaged copy must be
+//! malformed input instead of guessing. With `--mutations`, each file is
+//! also given a `999` comment in three legal places, each copy of which
+//! must read exactly as the original, and damaged twelve ways in memory
+//! (truncated, a code line made non-numeric, an unknown group code, a real
+//! made unparsable, a handle duplicated, a `102` bracket left open, mixed
+//! line endings, `EOF` removed, data after `EOF`, a handle removed, a handle
+//! removed behind a comment where the version is read, a binary-DXF
+//! sentinel), and every damaged copy must be
 //! refused; the example exits non-zero if one is accepted.
 //!
 //! How to verify:
@@ -105,6 +108,30 @@ fn main() -> ExitCode {
                         failed = true;
                     }
                     Err(e) => println!("  refused {label:<24} {}", short(&e)),
+                }
+            }
+            // `999` comments are legal anywhere: each commented copy must
+            // read exactly as the original does.
+            let shape = |d: &DxfDocument| {
+                (
+                    d.acad_version().map(str::to_string),
+                    d.header.len(),
+                    d.records.len(),
+                    d.handles().count(),
+                )
+            };
+            let want = shape(&doc);
+            for (label, commented) in comment(&bytes) {
+                match DxfDocument::parse(&commented) {
+                    Ok(d) if shape(&d) == want => println!("  same    {label:<24} as the original"),
+                    Ok(d) => {
+                        println!("  CHANGED {label:<24} {:?} vs {:?}", shape(&d), want);
+                        failed = true;
+                    }
+                    Err(e) => {
+                        println!("  REFUSED commented copy ({label}): {}", short(&e));
+                        failed = true;
+                    }
                 }
             }
         }
@@ -215,6 +242,20 @@ fn mutate(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     after.extend_from_slice(b"  0\nLINE\n");
     out.push(("data after EOF", after));
 
+    // A comment between `9 $ACADVER` and its value must not stand in for
+    // the version: with a handle removed as well, an R13+ file must still
+    // be refused for the missing handle.
+    if let (Some(v), Some(&h), false) = (
+        find_pair(&lines, "  9", "$ACADVER"),
+        fives.first(),
+        find_pair(&lines, "  1", "AC1009").is_some(),
+    ) {
+        let mut l: Vec<&str> = lines.clone();
+        l[h] = "  1";
+        l.splice(v + 2..v + 2, ["999", "a comment, not the version"]);
+        out.push(("comment as $ACADVER", join(&l)));
+    }
+
     // A handle removed from an R13+ record: the first `5` group in TABLES
     // becomes a `1`. R12 makes handles optional, so its files skip this one.
     let r12 = find_pair(&lines, "  1", "AC1009").is_some();
@@ -228,6 +269,33 @@ fn mutate(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
     let mut bin = b"AutoCAD Binary DXF\r\n\x1a\0".to_vec();
     bin.extend_from_slice(bytes);
     out.push(("binary sentinel", bin));
+    out
+}
+
+/// Copies with a `999` comment where one is legal but easy to misread: right
+/// after `9 $ACADVER`, between `0 SECTION` and `2 HEADER`, and inside the
+/// first record of TABLES.
+fn comment(bytes: &[u8]) -> Vec<(&'static str, Vec<u8>)> {
+    let text = String::from_utf8_lossy(bytes).into_owned();
+    let lines: Vec<&str> = text.split('\n').collect();
+    let join = |ls: &[&str]| ls.join("\n").into_bytes();
+    let note = ["999", "a comment"];
+    let mut out = Vec::new();
+    if let Some(v) = find_pair(&lines, "  9", "$ACADVER") {
+        let mut l = lines.clone();
+        l.splice(v + 2..v + 2, note);
+        out.push(("999 after $ACADVER", join(&l)));
+    }
+    if let Some(sec) = find_pair(&lines, "  0", "SECTION") {
+        let mut l = lines.clone();
+        l.splice(sec + 2..sec + 2, note);
+        out.push(("999 after SECTION", join(&l)));
+    }
+    if let Some(t) = find_pair(&lines, "  2", "TABLES") {
+        let mut l = lines.clone();
+        l.splice(t + 4..t + 4, note);
+        out.push(("999 inside a record", join(&l)));
+    }
     out
 }
 

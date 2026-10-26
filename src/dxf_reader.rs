@@ -82,7 +82,9 @@
 //!     `$HANDLING`) but still unique.
 //!
 //! What the reader accepts and records rather than refusing: `999` comments
-//! (kept as text groups; before the first section they are dropped), groups
+//! anywhere (kept as text groups inside a record; elsewhere skipped,
+//! including between `9 $NAME` and its value and between `SECTION` and its
+//! name, so they never stand in for a value), groups
 //! that sit directly after a section's name before its first record (the
 //! THUMBNAILIMAGE section is written that way; kept on the section), and
 //! sections other than the six named ones (kept, with their records).
@@ -586,11 +588,17 @@ fn split_pairs<'a>(bytes: &'a [u8], limits: &DxfLimits) -> Result<Vec<RawPair<'a
 }
 
 /// The value of HEADER variable `name` in the raw pairs, before typing.
+/// `999` comments may sit anywhere, between a `9 $NAME` and its value
+/// included, and are skipped as the HEADER parser skips them.
 fn raw_header_text<'a>(pairs: &[RawPair<'a>], name: &str) -> Option<&'a [u8]> {
     let i = pairs
         .iter()
         .position(|p| p.code == 9 && p.value == name.as_bytes())?;
-    pairs.get(i + 1).map(|p| p.value)
+    pairs
+        .get(i + 1..)?
+        .iter()
+        .find(|p| p.code != 999)
+        .map(|p| p.value)
 }
 
 /// AC1012 (R13) and later write a handle on every table entry, block,
@@ -664,7 +672,8 @@ impl DxfDocument {
                         if current.is_some() {
                             return Err(malformed(p.line, "SECTION inside an open section"));
                         }
-                        let name = match iter.next() {
+                        // `999` comments may sit between SECTION and its name.
+                        let name = match iter.by_ref().find(|n| n.code != 999) {
                             Some(n) if n.code == 2 => decode_text(n.value, utf8, n.line)?,
                             _ => return Err(malformed(p.line, "SECTION not followed by 2 <name>")),
                         };
