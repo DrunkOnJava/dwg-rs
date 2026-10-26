@@ -21,19 +21,23 @@
 //! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
 //! | ACAD_PROPERTYSET_DATA    | [`acad_property_set_data`]| §19.6.11 (L7-07) |
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
+//! | TABLESTYLE (until R2007) | [`acad_table_style`]      | §20.4.101.1      |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
 //! | *_CONTROL                | [`control`]               | §19.5.1..§19.5.10|
 //! | custom-dict entries      | [`custom_dict_entry`]     | §19.5.19 (L7-06) |
 //! | ACDB_PLACEHOLDER         | [`placeholder`]           | §19.5.x          |
+//! | RASTERVARIABLES          | [`image_raster_variables`]      | §20.4.91         |
 //! | DICTIONARY               | [`dictionary`]            | §19.5.19         |
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
+//! | IMAGEDEF_REACTOR         | [`image_def_reactor`]     | §20.4.82         |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
 //! | SPATIAL_FILTER           | [`clip_spatial_filter`]        | §20.4.94         |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
+//! | SORTENTSTABLE            | [`block_sortents_table`]        | §20.4.93         |
 //!
 //! # Reachability and the R2007+ split stream
 //!
@@ -54,22 +58,17 @@
 //! self-validate would inflate the coverage ratio without proving
 //! anything. They remain callable directly.
 //!
-//! Six of the table's "Spec" cells read *none — measured*: the ODA
-//! v5.4.1 object-prescription chapter §20.4 stops at XRECORD and
-//! carries no entry for VISUALSTYLE, MATERIAL, MLEADERSTYLE,
-//! ACDBDETAILVIEWSTYLE or ACDBSECTIONVIEWSTYLE. Each module documents
+//! Five of the table's "Spec" cells read *none — measured*: the ODA
+//! v5.4.1 object-prescription chapter §20.4 carries no entry for
+//! VISUALSTYLE, MATERIAL, MLEADERSTYLE, ACDBDETAILVIEWSTYLE or
+//! ACDBSECTIONVIEWSTYLE. Each module documents
 //! what its own byte measurements establish, and
 //! [`acad_material`] restricts itself to the strings and the budget
 //! precisely because its data-field layout is not among them.
 //!
-//! TABLESTYLE has no §20.4 prescription either and is **not** decoded:
-//! its R2010+ record is a 6,844-bit envelope around four repeated
-//! cell-style blocks of six border sub-records each, and a single
-//! record per corpus file is not enough evidence to pin the token
-//! sequence inside those blocks. `examples/probe_token_scan.rs`
-//! reproduces the block census; ARCHITECTURE.md records the measured
-//! budgets. The records stay in the Unhandled bucket rather than being
-//! decoded on a guess.
+//! TABLESTYLE is decoded from §20.4.101.1 on R14 to R2007 ([`acad_table_style`]);
+//! its R2010+ record is §20.4.101.2's different layout and stays
+//! `Unhandled`.
 //!
 //! PLOTSETTINGS has no §20.4 prescription of its own either, but it
 //! does not need one: §20.4.84 LAYOUT opens with the whole
@@ -87,7 +86,9 @@ pub mod acad_plot_settings;
 pub mod acad_property_set_data;
 pub mod acad_scale;
 pub mod acad_section_view_style;
+pub mod acad_table_style;
 pub mod acad_visual_style;
+pub mod block_sortents_table;
 pub mod class_map_extension;
 pub mod clip_spatial_filter;
 pub mod color;
@@ -95,6 +96,8 @@ pub mod control;
 pub mod custom_dict_entry;
 pub mod dictionary;
 pub mod dictionary_var;
+pub mod image_def_reactor;
+pub mod image_raster_variables;
 pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;

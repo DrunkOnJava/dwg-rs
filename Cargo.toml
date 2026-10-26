@@ -110,6 +110,14 @@ name = "dxf_oracle"
 path = "examples/dxf_oracle/main.rs"
 required-features = ["dxf-reader"]
 
+[[example]]
+name = "probe_dxf_header"
+required-features = ["dxf-reader"]
+
+[[example]]
+name = "probe_header_vars"
+required-features = ["dxf-reader"]
+
 [[bin]]
 name = "dwg-info"
 path = "src/bin/dwg_info.rs"

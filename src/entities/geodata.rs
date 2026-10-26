@@ -1,225 +1,252 @@
-//! GEODATA entity (§19.4.95) — R2010+.
+//! GEODATA object (§20.4.78, `AcDbGeoData`).
 //!
-//! GEODATA attaches a geographic coordinate reference system (CRS) to
-//! a model-space block. Combined with the design-to-reference
-//! transform, a viewer can map any WCS point to an absolute Earth
-//! coordinate (lat/lon or projected) for integration with GIS data.
+//! GEODATA attaches a geographic coordinate reference system to the
+//! model-space block: a design point in the drawing, the reference
+//! point it maps to in that system, units and scale, the north and up
+//! directions, the coordinate system definition itself, and a mesh of
+//! source and destination points. It is a non-entity object with a
+//! class number from `AcDb:Classes`, so the dispatcher routes it by its
+//! DXF class name.
 //!
-//! # Stream shape
+//! # Field list (§20.4.78)
+//!
+//! After the common object data (§20.1):
 //!
 //! ```text
-//! BL   version
-//! H    block_handle                 -- owning model-space block
-//!                                      (deferred — raw handle only)
-//! BD3  origin                        -- in WCS
-//! BD3  design_to_ref_x_axis          -- model-space basis vector
-//! BD3  design_to_ref_y_axis          -- model-space basis vector
-//! BD3  reference_point               -- in CRS
-//! BD3  reference_north_dir           -- CRS-space "north" vector
-//! BD   design_to_ref_x_scale
-//! BD   design_to_ref_y_scale
-//! TV   coordinate_system_def_string  -- ESRI WKT or PROJ string
-//! TV   geo_rss_tag                   -- optional RSS feed tag
-//! TV   observation_from_tag
-//! TV   observation_to_tag
-//! TV   observation_coverage_tag
+//! BL   object_version                -- 1 AutoCAD 2009, 2 AutoCAD 2010, 3 AutoCAD 2013
+//! H    host block                    -- soft pointer, in the handle stream
+//! BS   design coordinate type        -- 0 unknown, 1 local grid, 2 projected, 3 geographic
+//! (object_version >= 2)
+//!   3BD  design point
+//!   3BD  reference point
+//!   BD   horizontal unit scale
+//!   BL   horizontal units
+//!   BD   vertical unit scale
+//!   BL   vertical units
+//!   3BD  up direction
+//!   2RD  north direction             -- the spec prints 3RD; see below
+//!   BL   scale estimation method
+//!   BD   user scale factor
+//!   B    sea level correction
+//!   BD   sea level elevation
+//!   BD   coordinate projection radius
+//!   TV   coordinate system definition
+//!   TV   GeoRSS tag
+//! (object_version 1)
+//!   3BD  reference point
+//!   BL   horizontal units
+//!   3BD  design point
+//!   3BD  obsolete (0, 0, 0)
+//!   3BD  up direction
+//!   BD   north direction angle (radians, clockwise from (0, 1))
+//!   3BD  obsolete (1, 1, 1)
+//!   TV   coordinate system definition (WKT)
+//!   TV   GeoRSS tag
+//!   BD   horizontal unit scale
+//!   TV   obsolete datum name
+//!   TV   obsolete WKT
+//! TV   observation from tag
+//! TV   observation to tag
+//! TV   observation coverage tag
+//! BL   mesh point count, then per point: 2RD source, 2RD destination
+//! BL   mesh face count, then per face: BL, BL, BL
+//! (R2007 and earlier files) the civil block:
+//!   B    has civil data
+//!   B    (false)
+//!   RD   reference point Y, RD reference point X,
+//!   RD   reference point Y, RD reference point X
+//!   BL   0, BL 0
+//!   2RD  (0, 0), 2RD (0, 0)
+//!   B    (false)
+//!   BD   north direction angle (degrees)
+//!   BD   north direction angle (radians)
+//!   BL   scale estimation method
+//!   BD   user scale factor
+//!   B    sea level correction
+//!   BD   sea level elevation
+//!   BD   coordinate projection radius
 //! ```
 //!
-//! The block handle is captured but not resolved; callers that need
-//! the owning block join it against the full handle map.
+//! # Measured: the north direction is a `2RD`
+//!
+//! The corpus's one GEODATA record, handle `0x241` of ACadSharp's
+//! `geoloc.dwg` (R2018, object version 3), closes on its string stream
+//! with the north direction read as `2RD`. Read as the spec's `3RD`, the
+//! third value is a denormal and the record overruns. DXF writes the same
+//! direction as two groups, `12` and `22`. Every other value equals
+//! AutoCAD's DXF export of the drawing: the design point (`10`), the
+//! reference point (`11`), both unit scales and units (`40`, `91`, `41`,
+//! `92`), the up direction (`210`), the north direction (`12`), the
+//! scale estimation (`95`, `141`), the sea-level fields (`294`, `142`),
+//! the projection radius (`143`), the coordinate system definition
+//! (`303`/`301`), the GeoRSS tag (`302`), the three observation tags
+//! (`305`-`307`), all 12 mesh points (`13`/`23`, `14`/`24`) and the face
+//! count (`96`). `examples/probe_geodata.rs` makes that comparison.
+//!
+//! The object version 1 layout and the civil block of R2007 and earlier
+//! files are as §20.4.78 prints them. The corpus has neither, so both
+//! are unmeasured; the data-stream boundary check rejects a record they
+//! do not fit.
 
-use crate::bitcursor::{BitCursor, Handle};
-use crate::entities::{Point3D, Vec3D, read_bd3};
+use crate::bitcursor::BitCursor;
+use crate::entities::{Point2D, Point3D, Vec3D, read_bd3, read_rd2};
 use crate::error::{Error, Result};
-use crate::string_stream::{self, StringReader};
-use crate::tables::modern;
+use crate::objects::modern;
+use crate::string_stream::StringReader;
 use crate::version::Version;
 
-/// Decoded GEODATA entity.
-#[derive(Debug, Clone, PartialEq)]
+/// Mesh points and faces each cost at least this many bits, so a count
+/// larger than the remaining bits divided by it cannot be honest.
+const MIN_MESH_POINT_BITS: usize = 256;
+const MIN_MESH_FACE_BITS: usize = 6;
+
+/// A decoded GEODATA record.
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct GeoData {
-    pub version: u32,
-    /// Deferred — raw handle reference to the owning block record.
-    pub block_handle: Handle,
-    pub origin: Point3D,
-    pub design_to_ref_x_axis: Vec3D,
-    pub design_to_ref_y_axis: Vec3D,
+    /// 1 = AutoCAD 2009, 2 = AutoCAD 2010, 3 = AutoCAD 2013 (same layout as 2).
+    pub object_version: u32,
+    /// 0 unknown, 1 local grid, 2 projected grid, 3 geographic.
+    pub design_coordinate_type: i16,
+    pub design_point: Point3D,
     pub reference_point: Point3D,
-    pub reference_north_dir: Vec3D,
-    pub design_to_ref_x_scale: f64,
-    pub design_to_ref_y_scale: f64,
-    pub coordinate_system_def: String,
+    pub horizontal_unit_scale: f64,
+    /// The units enumeration of §20.4.78 (1 inches, 2 feet, ... 6 meters, ...).
+    pub horizontal_units: u32,
+    pub vertical_unit_scale: f64,
+    pub vertical_units: u32,
+    pub up_direction: Vec3D,
+    /// Object version 2 and later; zero on version 1.
+    pub north_direction: Point2D,
+    /// Object version 1 (and the civil block): radians, clockwise from (0, 1).
+    pub north_direction_angle: f64,
+    /// 1 none, 2 user specified, 3 grid scale at reference point, 4 prismoidal.
+    pub scale_estimation_method: u32,
+    pub user_scale_factor: f64,
+    pub sea_level_correction: bool,
+    pub sea_level_elevation: f64,
+    pub coordinate_projection_radius: f64,
+    pub coordinate_system_definition: String,
     pub geo_rss_tag: String,
     pub observation_from_tag: String,
     pub observation_to_tag: String,
     pub observation_coverage_tag: String,
+    /// `(source, destination)` pairs.
+    pub mesh_points: Vec<(Point2D, Point2D)>,
+    pub mesh_faces: Vec<[u32; 3]>,
+    /// R2007 and earlier files: whether the civil block says it holds data.
+    pub has_civil_data: Option<bool>,
 }
 
-/// Decode a GEODATA payload.
+/// Decodes the GEODATA payload that follows the common object data.
 ///
-/// The cursor must already be positioned past the common entity
-/// preamble. Returns [`Error::Unsupported`] for pre-R2010 versions.
-pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<GeoData> {
-    read_body(c, &mut None, version)
-}
-
-/// Decode a GEODATA from its raw payload, taking all five `TV` fields
-/// from the object's R2007+ string stream (§19.1) and checking the data
-/// fields end exactly where that stream begins.
-///
-/// GEODATA is R2010+ only, so this is the *only* correct path for it on
-/// a real file: all five strings — the coordinate-system definition
-/// (which is a full ESRI WKT or PROJ string, routinely hundreds of
-/// characters) and the four observation tags — live in the string
-/// stream, and reading them inline desynchronises the record at the
-/// first of them.
-pub fn decode_modern_split_stream(
-    payload: &[u8],
-    object_body_start: usize,
-    version: Version,
-) -> Result<GeoData> {
-    let (strings, string_start) = modern::open_entity(payload, version)?;
-    let mut strings = Some(strings);
-    let mut c = BitCursor::new(payload);
-    string_stream::seek(&mut c, object_body_start)?;
-    crate::common_entity::read_common_entity_data(&mut c, version)?;
-    let geodata = read_body(&mut c, &mut strings, version)?;
-    let at = c.position_bits();
-    if at != string_start {
-        return Err(modern::misaligned("GEODATA", at, string_start));
-    }
-    Ok(geodata)
-}
-
-/// Read the GEODATA field list from whichever streams hold it.
+/// `strings` is the R2007+ string stream; `None` reads `TV`s inline.
 fn read_body(
     c: &mut BitCursor<'_>,
     strings: &mut Option<StringReader<'_>>,
     version: Version,
 ) -> Result<GeoData> {
-    if !version.is_r2010_plus() {
-        return Err(Error::Unsupported {
-            feature: "GEODATA requires R2010+".into(),
-        });
+    let mut g = GeoData {
+        object_version: c.read_bl_u()?,
+        design_coordinate_type: c.read_bs()?,
+        ..GeoData::default()
+    };
+    if g.object_version >= 2 {
+        g.design_point = read_bd3(c)?;
+        g.reference_point = read_bd3(c)?;
+        g.horizontal_unit_scale = c.read_bd()?;
+        g.horizontal_units = c.read_bl_u()?;
+        g.vertical_unit_scale = c.read_bd()?;
+        g.vertical_units = c.read_bl_u()?;
+        g.up_direction = read_bd3(c)?;
+        g.north_direction = read_rd2(c)?;
+        g.scale_estimation_method = c.read_bl_u()?;
+        g.user_scale_factor = c.read_bd()?;
+        g.sea_level_correction = c.read_b()?;
+        g.sea_level_elevation = c.read_bd()?;
+        g.coordinate_projection_radius = c.read_bd()?;
+        g.coordinate_system_definition = modern::read_tv(c, strings, version)?;
+        g.geo_rss_tag = modern::read_tv(c, strings, version)?;
+    } else {
+        g.reference_point = read_bd3(c)?;
+        g.horizontal_units = c.read_bl_u()?;
+        g.design_point = read_bd3(c)?;
+        let _obsolete_zero = read_bd3(c)?;
+        g.up_direction = read_bd3(c)?;
+        g.north_direction_angle = c.read_bd()?;
+        let _obsolete_one = read_bd3(c)?;
+        g.coordinate_system_definition = modern::read_tv(c, strings, version)?;
+        g.geo_rss_tag = modern::read_tv(c, strings, version)?;
+        g.horizontal_unit_scale = c.read_bd()?;
+        let _obsolete_datum_name = modern::read_tv(c, strings, version)?;
+        let _obsolete_wkt = modern::read_tv(c, strings, version)?;
     }
-    let version_field = c.read_bl_u()?;
-    let block_handle = c.read_handle()?;
-    let origin = read_bd3(c)?;
-    let design_to_ref_x_axis = read_bd3(c)?;
-    let design_to_ref_y_axis = read_bd3(c)?;
-    let reference_point = read_bd3(c)?;
-    let reference_north_dir = read_bd3(c)?;
-    let design_to_ref_x_scale = c.read_bd()?;
-    let design_to_ref_y_scale = c.read_bd()?;
-    let coordinate_system_def = crate::objects::modern::read_tv(c, strings, version)?;
-    let geo_rss_tag = crate::objects::modern::read_tv(c, strings, version)?;
-    let observation_from_tag = crate::objects::modern::read_tv(c, strings, version)?;
-    let observation_to_tag = crate::objects::modern::read_tv(c, strings, version)?;
-    let observation_coverage_tag = crate::objects::modern::read_tv(c, strings, version)?;
-    Ok(GeoData {
-        version: version_field,
-        block_handle,
-        origin,
-        design_to_ref_x_axis,
-        design_to_ref_y_axis,
-        reference_point,
-        reference_north_dir,
-        design_to_ref_x_scale,
-        design_to_ref_y_scale,
-        coordinate_system_def,
-        geo_rss_tag,
-        observation_from_tag,
-        observation_to_tag,
-        observation_coverage_tag,
-    })
+    g.observation_from_tag = modern::read_tv(c, strings, version)?;
+    g.observation_to_tag = modern::read_tv(c, strings, version)?;
+    g.observation_coverage_tag = modern::read_tv(c, strings, version)?;
+
+    let num_points = c.read_bl_u()? as usize;
+    check_count(num_points, MIN_MESH_POINT_BITS, c, "GEODATA mesh points")?;
+    g.mesh_points.reserve(num_points);
+    for _ in 0..num_points {
+        g.mesh_points.push((read_rd2(c)?, read_rd2(c)?));
+    }
+    let num_faces = c.read_bl_u()? as usize;
+    check_count(num_faces, MIN_MESH_FACE_BITS, c, "GEODATA mesh faces")?;
+    g.mesh_faces.reserve(num_faces);
+    for _ in 0..num_faces {
+        g.mesh_faces
+            .push([c.read_bl_u()?, c.read_bl_u()?, c.read_bl_u()?]);
+    }
+
+    if !version.is_r2010_plus() {
+        g.has_civil_data = Some(c.read_b()?);
+        let _false = c.read_b()?;
+        for _ in 0..4 {
+            let _reference_coordinate = c.read_rd()?;
+        }
+        let _zero_1 = c.read_bl()?;
+        let _zero_2 = c.read_bl()?;
+        let _origin_1 = read_rd2(c)?;
+        let _origin_2 = read_rd2(c)?;
+        let _false_2 = c.read_b()?;
+        let _north_degrees = c.read_bd()?;
+        g.north_direction_angle = c.read_bd()?;
+        g.scale_estimation_method = c.read_bl_u()?;
+        g.user_scale_factor = c.read_bd()?;
+        g.sea_level_correction = c.read_b()?;
+        g.sea_level_elevation = c.read_bd()?;
+        g.coordinate_projection_radius = c.read_bd()?;
+    }
+    Ok(g)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bitwriter::BitWriter;
-
-    fn write_utf16_tv(w: &mut BitWriter, s: &str) {
-        let units: Vec<u16> = s.encode_utf16().collect();
-        let len = units.len() + 1;
-        w.write_bs_u(len as u16);
-        for u in &units {
-            w.write_rc((u & 0xFF) as u8);
-            w.write_rc((u >> 8) as u8);
-        }
-        w.write_rc(0);
-        w.write_rc(0);
+fn check_count(n: usize, min_bits: usize, c: &BitCursor<'_>, what: &str) -> Result<()> {
+    if n > c.remaining_bits() / min_bits {
+        return Err(Error::SectionMap(format!(
+            "{what}: count {n} cannot fit in the {} bits left",
+            c.remaining_bits()
+        )));
     }
+    Ok(())
+}
 
-    #[test]
-    fn roundtrip_geodata_wgs84() {
-        let mut w = BitWriter::new();
-        w.write_bl_u(1); // version
-        w.write_handle(5, 0x123); // block handle
-        // origin (0,0,0)
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        // x axis (1,0,0)
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        // y axis (0,1,0)
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        // reference_point (lon=-122.42, lat=37.77, 0)
-        w.write_bd(-122.42);
-        w.write_bd(37.77);
-        w.write_bd(0.0);
-        // reference_north (0, 1, 0)
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0); // x scale
-        w.write_bd(1.0); // y scale
-        write_utf16_tv(&mut w, "WGS84");
-        write_utf16_tv(&mut w, ""); // empty RSS tag
-        write_utf16_tv(&mut w, "OBS_FROM");
-        write_utf16_tv(&mut w, "OBS_TO");
-        write_utf16_tv(&mut w, "OBS_COV");
+/// Decodes the GEODATA payload that follows the common object data,
+/// reading every `TV` inline.
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<GeoData> {
+    read_body(c, &mut None, version)
+}
 
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let g = decode(&mut c, Version::R2018).unwrap();
-        assert_eq!(g.version, 1);
-        assert_eq!(g.block_handle.code, 5);
-        assert_eq!(g.block_handle.value, 0x123);
-        assert_eq!(
-            g.reference_point,
-            Point3D {
-                x: -122.42,
-                y: 37.77,
-                z: 0.0
-            }
-        );
-        assert_eq!(g.design_to_ref_x_scale, 1.0);
-        assert_eq!(g.coordinate_system_def, "WGS84");
-        assert_eq!(g.geo_rss_tag, "");
-        assert_eq!(g.observation_from_tag, "OBS_FROM");
-        assert_eq!(g.observation_to_tag, "OBS_TO");
-        assert_eq!(g.observation_coverage_tag, "OBS_COV");
-    }
-
-    #[test]
-    fn rejects_pre_r2010() {
-        let bytes = [0u8; 4];
-        let mut c = BitCursor::new(&bytes);
-        // R2007 is rejected — GEODATA arrived in R2010.
-        let err = decode(&mut c, Version::R2007).unwrap_err();
-        assert!(
-            matches!(&err, Error::Unsupported { feature } if feature.contains("GEODATA")),
-            "err={err:?}"
-        );
-        let err = decode(&mut c, Version::R2004).unwrap_err();
-        assert!(
-            matches!(&err, Error::Unsupported { feature } if feature.contains("GEODATA")),
-            "err={err:?}"
-        );
-    }
+/// Decode a GEODATA straight from its raw object payload, taking the
+/// `TV`s from the R2007+ string stream when the file has one and
+/// checking the data fields end exactly on the data-stream boundary.
+pub(crate) fn decode_object(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<GeoData> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let out = read_body(&mut split.data, &mut split.strings, version)?;
+    split.finish("GEODATA")?;
+    Ok(out)
 }

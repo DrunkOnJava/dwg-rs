@@ -4,8 +4,9 @@
 //! type and handle. For the R2004 family it verifies the §4.1 file header
 //! and has a bounded, resumable decoder for the
 //! R2004-family LZ77 dialect (§4.7); it walks the R2004 page map and
-//! section map and assembles sections from their data pages (§4.6). Object
-//! bodies and R2007 remain open; see issue #205.
+//! section map, assembles sections from their data pages (§4.6) and frames
+//! the object section into records (§20.1). R2007 and the decoding of an
+//! object's fields remain open; see issue #205.
 
 use core::fmt;
 
@@ -14,10 +15,13 @@ mod flat;
 mod lz77;
 mod r2004;
 mod r2004_maps;
+mod r2004_objects;
 mod r2004_sections;
+mod r2004_walk;
+mod records;
 pub use checkpoint::{
-    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004SectionCheckpoint,
-    WalkCheckpoint,
+    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004ObjectCheckpoint,
+    R2004SectionCheckpoint, R2004WalkCheckpoint, WalkCheckpoint,
 };
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
@@ -27,7 +31,10 @@ pub use r2004::{R2004_HEADER_BYTES, R2004Header, R2004HeaderParser};
 pub use r2004_maps::{
     MapDemand, MapStep, PageEntry, R2004MapWalker, SectionEntry, SectionPage, SystemKind,
 };
+pub use r2004_objects::{OBJECTS_SECTION, ObjectDemand, ObjectStep, R2004ObjectWalker};
 pub use r2004_sections::{DataPage, R2004SectionWalker, STAGE, SectionDemand, SectionStep};
+pub use r2004_walk::{MAX_SECTIONS, R2004Walker, WalkDemand, WalkStep};
+pub use records::RecordFormat;
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -195,6 +202,46 @@ pub enum StreamError {
     /// §4.5: the section with this id is encrypted, so its stored bytes
     /// are not its content.
     SectionEncrypted(u32),
+    /// The section map lists more sections than the whole-file walker's
+    /// table holds.
+    SectionTableFull,
+    /// A data page in the page map names a section the section map does
+    /// not describe; the number is the page's.
+    SectionPageUnknown(u32),
+    /// §20.1: the object section does not open with the four-byte prologue
+    /// (an `RL` of 0x0DCA), or is too short to hold it.
+    ObjectPrologue,
+    /// §20.1: the record at this section offset has an `MS` size of zero or
+    /// one that does not fit two words.
+    RecordSize(u64),
+    /// §20.1: the record at this section offset would run past the end of
+    /// the section.
+    RecordRange(u64),
+    /// §20.1: the CRC of the record at this section offset.
+    RecordCrc {
+        offset: u64,
+        expected: u16,
+        actual: u16,
+    },
+    /// §20.1: the `MC` handle-stream size, the type or the handle of the
+    /// record at this section offset cannot be read from its first bytes, or
+    /// the `MC` claims more bits than the record holds.
+    RecordHeader(u64),
+    /// The object section's bytes did not arrive in section order and
+    /// without a gap: the next byte due is at `expected`.
+    ObjectsOrder {
+        expected: u64,
+        actual: u64,
+    },
+    /// The walk ended before the object stream was consumed; this is the
+    /// section offset it reached.
+    ObjectsIncomplete(u64),
+    /// The section map does not describe `AcDb:AcDbObjects`.
+    ObjectsMissing,
+    /// The data pages the page map holds for section `n` are not the pages
+    /// the section map lists for it: a listed page is missing from the page
+    /// map, or a page is walked that is not listed.
+    SectionDigest(u32),
 }
 
 impl fmt::Display for StreamError {

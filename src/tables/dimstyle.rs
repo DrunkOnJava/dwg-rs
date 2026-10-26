@@ -136,6 +136,103 @@ fn read_cmc_inline(c: &mut BitCursor<'_>, version: Version) -> Result<i16> {
     Ok(index)
 }
 
+/// Decode the §20.4.68 "R13 & R14 Only" DIMSTYLE body inline.
+///
+/// R13 and R14 lay the dimension variables out in their own order and
+/// widths: the flags first, several of them `RC` where R2000 has `BS`,
+/// then the reals, the five `T` strings (`DIMPOST`, `DIMAPOST` and the
+/// three arrow-block names, which R2000 moves to handles) and three `BS`
+/// colours. The common trailing `B` §20.4.68 lists after `DIMLWE`
+/// closes the record, as it does on R2000 and later.
+///
+/// # Measured (#74)
+///
+/// All 20 R14 DIMSTYLE records of the public corpus close on the `RL`
+/// data-stream boundary of their common object data with this list:
+/// six in ACadSharp's `sample_AC1014.dwg` and two in each of the seven
+/// nextgis R14 drawings. Without the trailing `B` they fail the check
+/// (`0x27` of `sample_AC1014.dwg` ends one bit short). The fifteen
+/// fields [`DimStyleEntry`] surfaces equal those [`decode_r2000_inline`]
+/// reads from the R2000 save of the same drawing, handle for handle. Only the names differ, because R14 stores them in
+/// capitals. The spec's own example (§20.4.68.1, `STANDARD`) closes too.
+/// `DIMALTRND` is not in the R13/R14 block, so it is reported as 0.
+pub fn decode_r13_r14(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
+    let header = read_table_entry_header(c, version)?;
+    let _dimtol = c.read_b()?;
+    let _dimlim = c.read_b()?;
+    let dimtih = c.read_b()?;
+    let dimtoh = c.read_b()?;
+    let _dimse1 = c.read_b()?;
+    let _dimse2 = c.read_b()?;
+    let _dimalt = c.read_b()?;
+    let _dimtofl = c.read_b()?;
+    let _dimsah = c.read_b()?;
+    let _dimtix = c.read_b()?;
+    let _dimsoxd = c.read_b()?;
+    let _dimaltd = c.read_rc()?;
+    let _dimzin = c.read_rc()?;
+    let _dimsd1 = c.read_b()?;
+    let _dimsd2 = c.read_b()?;
+    let dimtolj = c.read_rc()?;
+    let _dimjust = c.read_rc()?;
+    let _dimfit = c.read_rc()?;
+    let dimupt = c.read_b()?;
+    let _dimtzin = c.read_rc()?;
+    let _dimaltz = c.read_rc()?;
+    let _dimalttz = c.read_rc()?;
+    let dimtad = c.read_rc()?;
+    let _dimunit = c.read_bs()?;
+    let _dimaunit = c.read_bs()?;
+    let _dimdec = c.read_bs()?;
+    let _dimtdec = c.read_bs()?;
+    let _dimaltu = c.read_bs()?;
+    let _dimalttd = c.read_bs()?;
+    let dimscale = c.read_bd()?;
+    let dimasz = c.read_bd()?;
+    let dimexo = c.read_bd()?;
+    let _dimdli = c.read_bd()?;
+    let dimexe = c.read_bd()?;
+    let _dimrnd = c.read_bd()?;
+    let _dimdle = c.read_bd()?;
+    let _dimtp = c.read_bd()?;
+    let _dimtm = c.read_bd()?;
+    let dimtxt = c.read_bd()?;
+    let dimcen = c.read_bd()?;
+    let _dimtsz = c.read_bd()?;
+    let dimaltf = c.read_bd()?;
+    let dimlfac = c.read_bd()?;
+    let _dimtvp = c.read_bd()?;
+    let dimtfac = c.read_bd()?;
+    let _dimgap = c.read_bd()?;
+    let _dimpost = crate::tables::read_tv(c, version)?;
+    let _dimapost = crate::tables::read_tv(c, version)?;
+    let _dimblk = crate::tables::read_tv(c, version)?;
+    let _dimblk1 = crate::tables::read_tv(c, version)?;
+    let _dimblk2 = crate::tables::read_tv(c, version)?;
+    let _dimclrd = c.read_bs()?;
+    let _dimclre = c.read_bs()?;
+    let _dimclrt = c.read_bs()?;
+    let _unknown = c.read_b()?;
+    Ok(DimStyleEntry {
+        header,
+        dimscale,
+        dimasz,
+        dimexo,
+        dimexe,
+        dimtxt,
+        dimcen,
+        dimtfac,
+        dimlfac,
+        dimtih,
+        dimtoh,
+        dimtad,
+        dimtolj,
+        dimaltf,
+        dimaltrnd: 0.0,
+        dimupt,
+    })
+}
+
 /// Decode the whole §20.4.68 "R2000+" DIMSTYLE body inline — the
 /// pre-R2007 counterpart of `decode_modern_split_stream`.
 ///
@@ -272,8 +369,7 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<DimStyleEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let c = &mut split.data;
     let dimscale = c.read_bd()?;
     let dimasz = c.read_bd()?;
@@ -442,11 +538,11 @@ mod tests {
     fn r2007_split_stream_dimstyle_reads_iso25_defaults() {
         let mut b = BitWriter::new();
         b.write_bs_u(0); // no EED
+        b.write_bl(0); // no reactors
         b.write_b(true); // no xdictionary
         b.write_b(false); // no binary data
         b.write_b(false); // 64-flag
         b.write_b(false); // xref dependent
-        b.write_bs(0); // xref index + 1
         b.write_bd(1.0); // dimscale
         b.write_bd(2.5); // dimasz
         b.write_bd(0.625); // dimexo
