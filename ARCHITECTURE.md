@@ -1678,6 +1678,8 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 | The spec's own example, §20.4.68.1 | closes; `r14-objects.tsv` moves from `unhandled` to `closes` |
 
 `DIMALTRND` has no slot in the R13/R14 block, so it reads 0 there.
+`examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
+`probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
 
 ## 8. Write pipeline (current scope)
 
