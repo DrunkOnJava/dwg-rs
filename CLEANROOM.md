@@ -489,8 +489,8 @@ print is learned from AutoCAD's own output, by this method and no other:
 - **What is observed.** An AutoCAD-written DWG and AutoCAD's own DXF export of
   the same drawing: the pinned `nextgis/dwg_samples` and ACadSharp `samples/`
   twins listed under "Public corpus" (data files, fetched by pinned hash), and,
-  from when the maintainer produces them, controlled drawings made in AutoCAD
-  that vary one property at a time, with their exports. A record's DWG bits are
+  once the project's agents have made them, controlled drawings made in
+  AutoCAD that vary one property at a time, with their exports. A record's DWG bits are
   read against the DXF record of the same handle, paired by
   `src/dxf_reader.rs` and `examples/dxf_oracle`.
 - **How a field is accepted.** A field list is kept only if both hold. It
