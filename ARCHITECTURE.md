@@ -1692,7 +1692,7 @@ Reproduce both readings with the entity field-list probe from bit 2374,
 just after `numfitpoints` (0, at bit 2372):
 
 ```sh
-D=~/Library/Caches/dwg-corpus/acadsharp/export_sample.dwg
+D=../dwg-corpus/acadsharp/export_sample.dwg   # fetched by tools/corpus/fetch.py
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD,B,BS,BD,2BD,2BD,BS,BD,BL,2RD --at=2374   # delta 0
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
 ```
