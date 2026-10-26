@@ -1307,7 +1307,7 @@ are fixed; three are not and are reported.
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
 | VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported |
 | MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported |
-| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
+| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported; closed 2026-10-26 by the whole §20.4.47 list (§7l) |
 
 The three fixes each meet the same bar as #58: `delta 0` **plus** a
 value that corroborates it independently of the bit count. BLOCK's
@@ -1526,6 +1526,63 @@ The corroboration is cross-version: the same drawing exists in seven
 releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
+
+## 7l. LEADER: one `3BD` missed, and no text box from R2010 (2026-10-26, #71)
+
+§7i reported LEADER's twelve missing bits on its one R2018 record and
+stopped, because one record could not choose between the continuations
+that fit. The public corpus (#225) holds the same LEADER (handle
+`0x512`) in ACadSharp's saves of one drawing as R14, R2000, R2004,
+R2007, R2010, R2013 and R2018, and every save but R14 has AutoCAD's
+DXF export. Seven releases settle what one could not.
+
+The old field list read four `3BD`s after the points where §20.4.47 has
+five — origin, extrusion, x direction, offset to the block insertion
+point, then the R14+ end point projection — so the value it called the
+end projection was the origin, which equals the first point, the
+default the section gives it. With the fifth `3BD` read, §20.4.47's own
+branches close the record on every band but one:
+
+| Release | Delta before | Closes as | Box height / width |
+|---|---:|---|---|
+| R14 | −282 | the R13-R14 branch: `BD` dimgap, box, `B`, `B`, `BS` arrowhead type, `BD` dimasz, `B`, `B`, `BS`, `BS` byblock colour, `B`, `B` | 1.844821… / 16.374004… |
+| R2000 | −144 | the R2000+ branch: box, `B`, `B`, `BS`, `B`, `B` | 1.844821… / 16.374004… = DXF 40 / 41 |
+| R2004 | −144 | same | same, = DXF 40 / 41 |
+| R2007 | −144 | same | same, = DXF 40 / 41 |
+| R2010 | −12 | the R2000+ branch **without** the box | not in the record |
+| R2013 | −12 | same | not in the record |
+| R2018 | −12 | same | not in the record |
+
+**The departure is measured, not borrowed.** §20.4.47 files box height
+and box width under "Common". On R2010, R2013 and R2018 the record is
+exactly 132 bits shorter than on R2007 — two non-default `BD`s — and
+the six bits after the end point projection are `011000`, the same six
+bits that follow the box width on R2000-R2007: hook line on the x
+direction `0` (DXF 74 is `0`), arrowhead on `1`, then the R2000+ `BS`
+`0` and two `B`s `0`. The R2010+ DXF exports still write 40 and 41 with
+the R2007 values, so AutoCAD carries them somewhere else; this record
+does not.
+
+On R14 the two creation-time values corroborate the R13-R14 branch
+independently of the bit count: dimgap `0.625` and dimasz `2.5` are the
+DIMGAP (group 147) and DIMASZ (group 41) of the drawing's ISO-25
+DIMSTYLE, the style the leader names (DXF group 3). Both `BS`s that
+follow the `B`s read `256`; only the width is claimed for them.
+
+The DXF twins agree with every value they write: groups 73 and 74, the
+box on R2000-R2007, and the vertices. AutoCAD's export holds four
+vertices where the record holds three, because with a hook line (group
+75 `1`) it inserts the hook line's start, 2.5 (DIMASZ) before the last
+point; the record's first two points and last point equal the DXF's
+first two and last. The DXF omits groups 71 and 72, so the arrowhead
+flag and path type are compared with nothing.
+
+`examples/probe_leader.rs` prints each record and, given the twin, the
+comparison:
+
+```sh
+cargo run --release --example probe_leader -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
 
 ## 8. Write pipeline (current scope)
 

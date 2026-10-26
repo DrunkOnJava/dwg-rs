@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 86 `closes`, 7 `decoder`, 11 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 67 `closes`, 7 `decoder`, 8 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 87 `closes`, 7 `decoder`, 10 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 68 `closes`, 7 `decoder`, 7 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -97,7 +97,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.44 | DICTIONARY (42) | 147 | `closes` | src/objects/dictionary.rs | #149 |  |
 | §20.4.45 | DICTIONARYWDFLT | 148 | `decoder` | src/objects/dictionary.rs | #149 |  |
 | §20.4.46 | MTEXT (44) | 148 | `closes` | src/entities/mtext.rs | #140 | R2018 tail and ATTRIB's embedded MTEXT (ARCHITECTURE §7g). |
-| §20.4.47 | LEADER (45) | 150 | `partial` | src/entities/leader.rs | #147 | 1 record errors (#71): 12 bits left. |
+| §20.4.47 | LEADER (45) | 150 | `closes` | src/entities/leader.rs | #147 | Closes on all 7 records of the public corpus (R14 to R2018; no R13 file) once the R14+ end point projection is read. Measured departure: from R2010 the box height and width are not written. Values equal the DXF twin on R2000 to R2018 (#71, ARCHITECTURE.md §7l). |
 | §20.4.48 | MLEADER | 152 | `closes` | src/entities/mleader.rs | #147 | All 15 MULTILEADER records close (#58). |
 | §20.4.49 | TOLERANCE (46) | 155 | `closes` | src/entities/tolerance.rs | #140 |  |
 | §20.4.50 | MLINE (47) | 156 | `closes` | src/entities/mline.rs | #147 |  |

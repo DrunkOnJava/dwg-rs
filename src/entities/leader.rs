@@ -1,70 +1,115 @@
-//! LEADER entity (§19.4.19) — legacy leader line (pre-MLEADER).
+//! LEADER entity (§20.4.47, type 45) — the legacy leader line that
+//! points from an annotation to a feature (before MULTILEADER).
 //!
-//! A LEADER is a connected chain of vertices that typically points at
-//! an annotation. It holds the vertex list plus arrow and hook-line
-//! decoration flags.
-//!
-//! # Stream shape
+//! # Stream shape (§20.4.47)
 //!
 //! ```text
-//! B     unknown_bit_1    -- always false in practice
-//! BS    annot_type       -- 0 = text, 1 = tolerance, 2 = block
-//! BS    path_type        -- 0 = straight, 1 = spline
-//! BL    num_points
-//! BD3 × num_points   path_points
-//! BD3   end_pt_proj     -- the point the leader "ends at"
-//! BD3   extrusion
-//! BD3   horiz_dir       -- X-axis for the leader's text plane
-//! BD3   offset_to_block_ins
-//! (R14+) BD3 offset_to_text
-//! BD    dimgap
-//! BD    box_height
-//! BD    box_width
-//! B     hookline_on_x_dir
-//! B     arrowhead_on
-//! BS    arrowhead_type        -- R13-R14
-//! (R13-R14 only): BD dimasz, B unknown_b1, B unknown_b2, BS unknown_short
-//! (R2000+) B byblock_color, B hookline_on_dir, B has_arrowhead_ref
+//! B     unknown               -- "always seems to be 0"
+//! BS    annotation type       -- 0 MTEXT, 1 TOLERANCE, 2 INSERT, 3 none
+//! BS    path type             -- 0 straight, 1 spline
+//! BL    numpts
+//! 3BD   point × numpts                              10
+//! 3BD   origin                -- the leader plane origin
+//! 3BD   extrusion                                   210
+//! 3BD   x direction                                 211
+//! 3BD   offset to block insertion point             212
+//! R14+:     3BD  end point projection
+//! R13-R14:  BD   dimgap        -- DIMGAP x DIMSCALE at creation
+//! R13-R2007 (measured, see below):
+//!           BD   box height                         40
+//!           BD   box width                          41
+//! B     hookline on x direction
+//! B     arrowhead on
+//! R13-R14:  BS arrowhead type, BD dimasz, B, B, BS, BS byblock colour, B, B
+//! R2000+:   BS, B, B           -- unknown
 //! ```
 //!
-//! Full spec is over 30 fields. This decoder covers the core
-//! geometric fields (points, end projection, extrusion) — the text
-//! attachment details are skipped via deliberate field count.
+//! The associated annotation and DIMSTYLE handles follow in the handle
+//! stream and are not read here.
 //!
-//! # Measured: twelve bits short, on one record
+//! # Measured (2026-10-26, #71)
 //!
-//! Since #63 this decoder is held to the record's own data-stream
-//! boundary. The single LEADER record in the corpus
-//! (`sample_AC1032.dwg`, handle `0x512`) has a 581-bit data-field
-//! budget and this list consumes 569 of them, so the record reports
-//! `delta -12` instead of returning a struct that only looks complete.
+//! The previous decoder read four `3BD`s after the points where
+//! §20.4.47 has five, so the field it called the end projection was the
+//! origin (equal to the first point, the default the section gives
+//! it), and it stopped there: `delta -12` on R2010+ records, `-144` on
+//! R2000-R2007, `-282` on R14.
 //!
-//! Twelve bits is small enough that several continuations of the field
-//! list above would fit it, and one record cannot choose between them:
-//! any combination of defaulted `BD`s and trailing `B` flags summing
-//! to twelve satisfies the budget equally well. Under this crate's
-//! evidence rule that is "documented offsets and stop", not a fix. A
-//! second file with a LEADER — ideally one with a text box, where the
-//! `box_height` / `box_width` pair is written explicitly rather than
-//! defaulted — separates the candidates immediately.
+//! The section's list closes at `delta 0` on the one LEADER of each of
+//! ACadSharp's seven saves of one drawing, R14 to R2018, with one
+//! departure: **from R2010 the box height and width are not written.**
+//! On R2000, R2004 and R2007 they are two full `BD`s, 1.844821… and
+//! 16.374004…, equal to groups 40 and 41 of the DXF twin; on R2010,
+//! R2013 and R2018 the record has exactly 132 bits less, and the six
+//! bits after the end point projection are the same `011000` as the six
+//! after the box width on R2000. The DXF exports of R2010+ still carry
+//! 40 and 41, so AutoCAD has them from elsewhere; the record does not.
+//!
+//! On R14 the R13-R14 branch closes exactly too, and its two creation
+//! values are the drawing's own ISO-25 DIMSTYLE: dimgap `0.625`
+//! (DIMGAP, group 147) and dimasz `2.5` (DIMASZ, group 41).
+//! ARCHITECTURE.md §7l has the table; `examples/probe_leader.rs`
+//! reproduces it.
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, Vec3D, read_bd3};
 use crate::error::{Error, Result};
+use crate::version::Version;
 
+/// A decoded LEADER entity (§20.4.47).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Leader {
+    /// `BS` annotation type: 0 MTEXT, 1 TOLERANCE, 2 INSERT, 3 none.
     pub annot_type: i16,
+    /// `BS` path type: 0 straight, 1 spline.
     pub path_type: i16,
+    /// `3BD` vertices (DXF 10).
     pub points: Vec<Point3D>,
-    pub end_projection: Point3D,
+    /// `3BD` leader plane origin; by default the first point.
+    pub origin: Point3D,
+    /// `3BD` extrusion (DXF 210).
     pub extrusion: Vec3D,
-    pub horiz_direction: Vec3D,
+    /// `3BD` x direction of the leader plane (DXF 211).
+    pub x_direction: Vec3D,
+    /// `3BD` offset to the block insertion point (DXF 212).
     pub offset_to_block_insertion: Vec3D,
+    /// `3BD` end point projection (R14+): the offset from the last point
+    /// to the annotation.
+    pub end_point_projection: Vec3D,
+    /// `BD` DIMGAP × DIMSCALE at creation; R13-R14 only.
+    pub dimgap: Option<f64>,
+    /// `BD` annotation box height (DXF 40); not written from R2010.
+    pub box_height: Option<f64>,
+    /// `BD` annotation box width (DXF 41); not written from R2010.
+    pub box_width: Option<f64>,
+    /// `B` hook line on the x direction (DXF 74).
+    pub hookline_on_x_dir: bool,
+    /// `B` arrowhead on.
+    pub arrowhead_on: bool,
+    /// The R13-R14 tail.
+    pub r14: Option<LeaderR14Tail>,
+    /// The R2000+ tail: `BS`, `B`, `B`, all unnamed by §20.4.47.
+    pub unknown_r2000: Option<(i16, bool, bool)>,
 }
 
-/// Decodes the `Leader` payload that follows the common entity header.
-pub fn decode(c: &mut BitCursor<'_>) -> Result<Leader> {
+/// The R13-R14-only fields at the end of a LEADER record (§20.4.47).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LeaderR14Tail {
+    /// `BS` arrowhead type.
+    pub arrowhead_type: i16,
+    /// `BD` DIMASZ × DIMSCALE at creation.
+    pub dimasz: f64,
+    /// The two `B`s, the `BS`, then the two `B`s §20.4.47 leaves unnamed.
+    pub unknown: (bool, bool, i16),
+    /// `BS` byblock colour.
+    pub byblock_color: i16,
+    /// The last two unnamed `B`s.
+    pub unknown_tail: (bool, bool),
+}
+
+/// Decodes the §20.4.47 LEADER payload that follows the common entity
+/// data.
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Leader> {
     let _unknown = c.read_b()?;
     let annot_type = c.read_bs()?;
     let path_type = c.read_bs()?;
@@ -84,18 +129,55 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Leader> {
     for _ in 0..num_points {
         points.push(read_bd3(c)?);
     }
-    let end_projection = read_bd3(c)?;
+    let origin = read_bd3(c)?;
     let extrusion = read_bd3(c)?;
-    let horiz_direction = read_bd3(c)?;
+    let x_direction = read_bd3(c)?;
     let offset_to_block_insertion = read_bd3(c)?;
+    let end_point_projection = read_bd3(c)?;
+    let r13_r14 = version == Version::R14;
+    let dimgap = if r13_r14 { Some(c.read_bd()?) } else { None };
+    let (box_height, box_width) = if version.is_r2010_plus() {
+        (None, None)
+    } else {
+        (Some(c.read_bd()?), Some(c.read_bd()?))
+    };
+    let hookline_on_x_dir = c.read_b()?;
+    let arrowhead_on = c.read_b()?;
+    let (r14, unknown_r2000) = if r13_r14 {
+        let arrowhead_type = c.read_bs()?;
+        let dimasz = c.read_bd()?;
+        let unknown = (c.read_b()?, c.read_b()?, c.read_bs()?);
+        let byblock_color = c.read_bs()?;
+        let unknown_tail = (c.read_b()?, c.read_b()?);
+        (
+            Some(LeaderR14Tail {
+                arrowhead_type,
+                dimasz,
+                unknown,
+                byblock_color,
+                unknown_tail,
+            }),
+            None,
+        )
+    } else {
+        (None, Some((c.read_bs()?, c.read_b()?, c.read_b()?)))
+    };
     Ok(Leader {
         annot_type,
         path_type,
         points,
-        end_projection,
+        origin,
         extrusion,
-        horiz_direction,
+        x_direction,
         offset_to_block_insertion,
+        end_point_projection,
+        dimgap,
+        box_height,
+        box_width,
+        hookline_on_x_dir,
+        arrowhead_on,
+        r14,
+        unknown_r2000,
     })
 }
 
@@ -132,14 +214,23 @@ mod tests {
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0);
+        // end point projection, then the R2010+ tail
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_b(false);
+        w.write_b(true);
+        w.write_bs(0);
+        w.write_b(false);
+        w.write_b(false);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let l = decode(&mut c).unwrap();
+        let l = decode(&mut c, Version::R2018).unwrap();
         assert_eq!(l.annot_type, 0);
         assert_eq!(l.path_type, 0);
         assert_eq!(l.points.len(), 3);
         assert_eq!(
-            l.end_projection,
+            l.origin,
             Point3D {
                 x: 10.0,
                 y: 5.0,

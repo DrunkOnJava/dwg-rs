@@ -1277,7 +1277,7 @@ fn decode_fixed_entity_body(
             DecodedEntity::PolyfaceMesh(polyface_mesh::decode_record(c, version)?)
         }
         OBJECT_TYPE_POLYLINE_MESH => DecodedEntity::PolygonMesh(polygon_mesh::decode(c)?),
-        OBJECT_TYPE_LEADER => DecodedEntity::Leader(leader::decode(c)?),
+        OBJECT_TYPE_LEADER => DecodedEntity::Leader(leader::decode(c, version)?),
         OBJECT_TYPE_TOLERANCE => DecodedEntity::Tolerance(tolerance::decode(c, version)?),
         OBJECT_TYPE_OLE2FRAME => DecodedEntity::Ole2Frame(ole2_frame::decode(c)?),
         OBJECT_TYPE_HATCH => DecodedEntity::Hatch(hatch::decode(c, version)?),

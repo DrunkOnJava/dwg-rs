@@ -554,10 +554,12 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         }
         DecodedEntity::Leader(l) => {
             println!(
-                "[{i}] LEADER  annot_type={} path_type={} points={}",
+                "[{i}] LEADER  annot_type={} path_type={} points={} box={:?} x {:?}",
                 l.annot_type,
                 l.path_type,
-                l.points.len()
+                l.points.len(),
+                l.box_height,
+                l.box_width
             );
         }
         DecodedEntity::Image(_) => {
