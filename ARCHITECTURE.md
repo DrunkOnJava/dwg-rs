@@ -2701,7 +2701,7 @@ cargo run --release --example probe_spatial_filter -- ../dwg-corpus
 | R2013 | 1 | 1 | 39 | 0 |
 | R2018 | 1 | 1 | 39 | 0 |
 
-## 7ai. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
+## 7aj. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
 
 §5.2 to §5.4 give R2007 a lot of integrity data and say how it was made, not
 what each value covers or how its seed is built: the legacy reader checks none

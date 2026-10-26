@@ -562,7 +562,7 @@ bytes of input or output, copies literal runs in §5.10.1's permuted blocks of 3
 window, the largest distance §5.10 encodes. This matters: the pages of
 `sample_AC1021.dwg` run to 70,912 bytes and 273 codewords although every section
 names `0xF800` as its maximum, so a buffer sized to the maximum refuses real
-drawings (ARCHITECTURE.md §7ai).
+drawings (ARCHITECTURE.md §7aj).
 
 **Every byte is checked before it is handed out.** Each page is walked twice.
 The first pass reads every codeword of the page (the repeated copies of a system
@@ -576,7 +576,7 @@ checking sequence of §5.2.1, the five check values at `0x3D8`, the header's own
 CRC and its fixed fields), and the page map's entries must account for the
 header's counts and name the page map and the section map. Every rule was
 measured on the pinned drawings before it was enforced, and the probe that
-reproduces the table is `tools/streaming/probe_r2007_checks.py` (§7ai). Where the
+reproduces the table is `tools/streaming/probe_r2007_checks.py` (§7aj). Where the
 legacy reader stops quietly on a stream that ends before its size, this walk
 reports `Lz77Truncated`; where it ignores a section name that is empty or an
 unnamed descriptor with pages, this walk accepts the first and refuses the
