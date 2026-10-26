@@ -1660,7 +1660,7 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
-## 7m. MTEXT before R2007: the version branches (2026-10-26, #226)
+## 7r. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
 spacing on every release and stopped there. ACadSharp's saves of one
