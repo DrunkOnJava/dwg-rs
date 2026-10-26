@@ -309,8 +309,8 @@ jobs:
       - name: Measure every pinned drawing and check the ratchet
         if: steps.fetch.outputs.measured == 'true'
         run: |
-          cargo +stable build --release --example coverage_report \
-            --example probe_class_census --example probe_reference_closure
+          cargo +stable build --release --features dxf-reader --example coverage_report \
+            --example probe_class_census --example probe_reference_closure --example dxf_oracle
           set +e
           python3 -I tools/corpus/measure.py run --corpus "$HOME/dwg-corpus" \
             --bin target/release/examples --out corpus-results.json --logs corpus-logs
@@ -339,15 +339,74 @@ jobs:
             echo "::error::no pinned R2007 drawing reached the Reed-Solomon probe"
             exit 1
           fi
+      # The §4.6 data page header as AutoCAD writes it (#205): every data page
+      # of every pinned R2004-family drawing, against the page map and section map.
+      - name: Data page headers on every R2004-family page
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --example probe_data_page_header -- --strict "$HOME/dwg-corpus" > dph-probe.log 2>&1
+          status=$?
+          set -e
+          cat dph-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' dph-probe.log; then
+            echo "::error::no pinned R2004-family drawing reached the data page probe"
+            exit 1
+          fi
+      # The DXF value oracle (#99, #103): every DWG record paired by handle
+      # with AutoCAD's own DXF export of the same drawing, and every decoded
+      # field compared with its DXF group. tools/oracle/baseline.tsv holds
+      # the agreeing values per release, type, field and group; a count
+      # that falls, or a row that disappears, fails the job. A change that
+      # raises, adds or renames a row commits the regenerated TSV (uploaded
+      # below as oracle.tsv) in the same pull request.
+      - name: DXF value oracle and its ratchet
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          target/release/examples/dxf_oracle "$HOME/dwg-corpus" --tsv oracle.tsv \
+            --summary oracle-summary.md --baseline tools/oracle/baseline.tsv > oracle.log 2>&1
+          status=$?
+          set -e
+          if [ -f oracle-summary.md ]; then
+            cat oracle-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          sed -n '/== Pairing by handle/,/== Field agreement/p;/== Disagreements/,/== DXF groups/p;/== Ratchet/,$p' oracle.log
+          exit "$status"
+      # Every header variable of every pinned drawing (§9, #126): the frame, the
+      # CRC and every stream boundary, then each variable against AutoCAD's own
+      # DXF export of the same drawing.
+      - name: Header variables against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --features dxf-reader --example probe_header_vars -- "$HOME/dwg-corpus" > header-probe.log 2>&1
+          status=$?
+          set -e
+          cat header-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' header-probe.log; then
+            echo "::error::no pinned drawing reached the header decoder"
+            exit 1
+          fi
       # Measurements and the baseline a change would need; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.fetch.outputs.measured == 'true'
         with:
           name: corpus-measurement
           path: |
+            oracle.tsv
+            oracle.log
+            oracle-summary.md
             corpus-results.json
             corpus-logs/
             corpus-tests.log
+            header-probe.log
             baseline.tsv
           if-no-files-found: warn
 
@@ -366,6 +425,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      # A conflict marker left by a hand-resolved merge or rebase (two reached
+      # main on 2026-10-26). `=======` alone is not matched: it is also a
+      # Markdown heading underline.
+      - name: No merge-conflict markers
+        run: |
+          if git grep -I -n -E '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)' -- .; then
+            echo "::error::a merge-conflict marker is committed"
+            exit 1
+          fi
       - name: Scan for PII-shaped leak patterns
         run: |
           set -e

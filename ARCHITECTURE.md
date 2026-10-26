@@ -1660,6 +1660,367 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
+## 7m. TOLERANCE before R2007: the version branch was upside down (2026-10-26, #226)
+
+§20.4.49 gives TOLERANCE three leading fields — an unknown short, the
+height and the dimgap — under "R13-R14 Only", then the insertion point,
+x direction, extrusion and text on every release. The R2007+
+split-stream reader had already measured that those three are absent
+from R2007 on. The inline reader for R13 to R2004 had it upside down:
+it read the short only on R2007+, the height and dimgap everywhere, and
+then the DIMSTYLE handle inline, past the data-stream boundary. All
+three TOLERANCE records of ACadSharp's R14, R2000 and R2004 saves (#225)
+errored.
+
+Read as printed, the list closes on all 21 TOLERANCE records of the
+public corpus, R14 to R2018. On R2000 and R2004 the 668, 196 and 236
+bits of the three records' budgets are exactly three `3BD`s and the
+`TV`; on R14 the R13-R14 fields take six more bits. Against the DXF
+twins (R2000 to R2018, matched by handle) the insertion point and the
+text agree on every record, 12 values per release with 0 differing. The
+twins omit 11 and 210 (the defaults the records hold).
+
+On R14 the three leading fields are `10 10 10`, the zero code of `BS`
+and `BD`, on all three records, and R14 has no twin. Their widths close
+the record; their values corroborate nothing.
+
+```sh
+cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
+## 7n. The R2004 data page header, as AutoCAD writes it (2026-10-26, #205)
+
+§4.6 gives every data page a 0x20-byte header, masked word by word with
+`0x4164536B` ^ the page's file offset. `section_map::DataPageHeader` named
+its eight words after that table, but two of its labels did not describe
+what the files hold, and the page-length fact it leaned on was not the one it
+used. After unmasking, on every data page of the pinned corpus:
+
+| Offset | Field | Equals |
+|---|---|---|
+| `0x00` | type | `0x4163043B` |
+| `0x04` | section number | the section's id |
+| `0x08` | data size | the stored bytes after the header; the section map's reference |
+| `0x0C` | page size | the page map's size for the page (header and padding included), **not** the decompressed size |
+| `0x10` | start offset | 8 bytes, not 4; the section map's reference |
+| `0x18` | header checksum | §4.2 over the 0x20 header bytes with this field zeroed, seeded with `0x1C` |
+| `0x1C` | data checksum | §4.2 over the stored bytes, seed 0 |
+
+`DataPageHeader` used to read `0x14` as a page header checksum (it is the
+high half of the start offset, always zero), `0x18` as the data checksum (it
+is the header checksum) and `0x1C` as unknown (it is the data checksum).
+`read_section_payload` only used the type, the data size and the page size,
+and treated the page size as a capacity hint, so no section read was wrong.
+The struct now carries the measured layout (an 8-byte `start_offset`,
+`header_checksum`, `data_checksum`; a breaking change recorded in
+CHANGELOG.md).
+
+`examples/probe_data_page_header.rs` unmasks every data page of every
+R2004-family drawing it is given and counts agreement with each reading.
+On the 28 R2004-family drawings of the pinned corpus (21 nextgis saves from
+AutoCAD 2016, 7 from ACadSharp's AutoCAD 2025 samples) and, separately, the
+four canonical fixtures:
+
+| Reading | Corpus (580 pages) | Fixtures (12 pages) |
+|---|---|---|
+| type, section number, data size, page size, start offset as above | 580 | 12 |
+| data checksum at `0x1C`, seed 0, over the stored bytes | 580 | 12 |
+| header checksum at `0x18`, seeded with `0x1C` | 580 | 12 |
+| former label: checksum at `0x14` over the header, seed 0 | 0 | 0 |
+| former label: data checksum at `0x18`, seed 0 | 0 | 0 |
+| former label: page size at `0x0C` is the decompressed size | 0 | 0 |
+
+The checksum rule was found on the 54 data pages of `sample_AC1032.dwg` by
+trying §4.2 over the header (each checksum field zeroed or kept, seeded
+with 0, `0x18` or `0x1C`), over the stored bytes, and over the header
+followed by them, against both fields: one reading matched each, and the
+probe then confirmed them on all 580. The checks that make the walker's section assembly safe fall out of the
+same pages: a page's start offset is its index in the section times the
+section's page size (580 of 580); a compressed page written by AutoCAD
+decodes to a whole page, padding included (447 of 447), so the section
+keeps `min(page, bytes left)` of it; a stored page is padded to a whole
+page (133 of 133); and `AcDb:Template` in `sample_AC1018.dwg` declares four
+bytes and lists no page, which a reader must hand out as zeros, as the
+legacy reader's zero-filled buffer does. This crate's writer emits compressed
+pages that decode to exactly the bytes left (the fixtures' 12 pages), the
+same difference in LZ77 framing noted on #163, so the walker accepts any
+length from `min(page, bytes left)` up to a whole page.
+
+The Corpus job runs the probe with `--strict` on every pinned drawing. The
+streaming section walker (`src/streaming/r2004_sections.rs`) verifies the
+header checksum, then each field above against the page map entry and the
+section map reference it was given, then the data checksum, before it
+decodes or hands out a byte; `tools/streaming/verify_sections.py` walks the
+same pages and compares every assembled section with an independent
+parser and the legacy reader.
+
+## 7n. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
+
+ACadSharp's R14 save (`sample_AC1014.dwg`, #225) is the corpus's only
+R14 drawing with INSERTs, dimensions or a 3DFACE, and every one of
+those 24 records errored. Each decoder read only the R2000+ branch of
+its section, and each section prints an R13-R14 branch of its own:
+
+| Section | R13-R14 branch | The decoder read |
+|---|---|---|
+| §20.4.9 INSERT | three `BD` scales | the R2000+ `BB` data flags and `RD` / `DD` scales |
+| §20.4.22 common dimension data | no attachment, line spacing style or factor, or actual measurement (those four are R2000+) | all four |
+| §20.4.32 3DFACE | four `3BD` corners and an unconditional `BS` of invisible edges | the R2000+ flag bits, `RD` first corner and `3DD` corners |
+
+Read as printed, all 24 records close: 12 INSERT, the 11 dimensions of
+all seven types, and the 3DFACE.
+
+R14 has no DXF export in the corpus. AutoCAD keeps handles across a
+save-as, so `examples/probe_cross_release.rs` compares each R14 record
+with the R2000 save of the same drawing, handle by handle. For the
+dimensions it is run with `--ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement`,
+the four fields R14 does not store:
+
+| Type | R14 records | Matched in the R2000 save | Equal |
+|---|---:|---:|---:|
+| INSERT | 14 | 10 | 10 |
+| 3DFACE | 1 | 1 | 1 |
+| DIMENSION, all types | 11 | 11 | 10 |
+
+Four R14 INSERT handles do not occur in the R2000 save. The one
+dimension that differs is the angular 2-line `0x516`, and only in the
+last digit of its 16-point's x: `528.6474703372945` against
+`528.6474703372946`. Both are read as exact raw doubles, so the two saves
+store doubles one unit in the last place apart. That is a property of
+what AutoCAD wrote, not a reading the bits leave open.
+
+```sh
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg INSERT
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg DIMENSION_LINEAR \
+    --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
+```
+
+## 7o. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
+
+§20.4.84 prescribes LAYOUT (and the plot-settings block it embeds) with
+three version branches the decoder had refused rather than read: a `TV`
+plot view name after the plot window on R13-R2000, the three shade-plot
+`BS`s from R2004, and the viewport count from R2004. R2007 was refused
+because its string stream could not be located; #65 fixed that long ago.
+On R14 and R2000 LAYOUT also carries a class number from AcDb:Classes
+rather than the fixed code `0x52`, so those records never reached the
+decoder at all. All 75 R14, R2000 and R2007 LAYOUT records of the public
+corpus (#225) were therefore counted as skipped.
+
+Read with the branches as printed, and routed by class name on R14 and
+R2000, all 75 close. AutoCAD keeps handles across a save-as, so each one
+can be compared with the R2004 save of the same drawing, the band whose
+field list §7d.2 measured. `examples/probe_cross_release.rs` (#264)
+does that, ignoring only the fields a release does not store:
+
+| Release | Records | Close | Equal to the R2004 save |
+|---|---:|---:|---:|
+| R14 | 25 | 25 | 25 |
+| R2000 | 25 | 25 | 25 |
+| R2007 | 25 | 25 | 25 (every field but the string-stream residue) |
+
+On R14 and R2000 the comparison ignores the shade-plot fields and the
+viewport count, which those releases do not store. R14 and R2000 are
+also compared with the plot view name included, and it agrees: the name
+is empty on every record, so it is measured only as an empty `TV`.
+
+```sh
+cargo run --release --example probe_cross_release -- arc_R14.dwg arc_2004.dwg LAYOUT \
+    --ignore=shade_plot_mode,shade_plot_resolution_level,shade_plot_custom_dpi,viewport_count,trailing_strings
+```
+
+## 7p. ACIS version-2 envelopes (2026-10-26, #228)
+
+§20.4.41 gives the ACIS envelope two forms. Version 1 is a loop of
+length-prefixed blocks; version 2 is "an acis file" written straight
+into the stream with no length: a binary (SAB) file opens with
+`ACIS BinaryFile` and "SAB files will end with
+`End\x0E\x02of\x0E\x04ACIS\x0D\x04data`", while a text (SAT) file
+"must be parsed to find the end". The decoder refused version 2
+outright. ACadSharp's R2004, R2007 and R2010 saves of one drawing (#225)
+write their two 3DSOLIDs and one REGION as version-2 SAB envelopes, so
+all nine records errored. (R2013 and later move the SAB stream into the
+data-storage section, §7h.)
+
+The envelope is now read byte by byte up to the SAB terminator. All
+nine records then close exactly on their data-stream boundary, and the
+§20.4.41 tail that follows each one is identical across the three saves:
+the same wireframe point per handle (`0xD65` at (17.78, −220.85, 2.5),
+`0xD69` at (24.99, −220.40, 0), `0xD6A` at (31.69, −220.11, 2.19)), 4
+isolines, no wires and no silhouettes. The SAB files differ between
+releases only in their ACIS file-version bytes and length (7,620 bytes
+for `0xD65` on R2004, 7,660 on R2007 and R2010). AutoCAD writes the ACIS
+version each target release reads.
+
+A version-2 envelope that is not `ACIS BinaryFile` (a text SAT file) is
+refused with `Unsupported` rather than scanned for an end the spec says
+needs a parser.
+
+## 7q. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
+
+§20.4.85 types LWPLINE `(varies)` and §20.4.75 types HATCH `(varies)`:
+both entered AutoCAD with R14 as classes and got the fixed codes `0x4D`
+and `0x4E` from R2000. On R14 their type code is a class number from
+AcDb:Classes, and dispatch routed only the fixed codes, so all 24 R14
+LWPOLYLINE records of the public corpus (23 in ACadSharp's
+`sample_AC1014.dwg`, 1 in nextgis `polyline2d_line_R14.dwg`) and the 8
+R14 HATCH records were counted as skipped. Routing the class names to
+the existing decoders measures them.
+
+HATCH closes as it stands. LWPOLYLINE needs one more branch from
+§20.4.85: R13-R14 write every vertex as a `2RD`, where R2000+ write the
+first as `2RD` and the rest as `2DD` against the previous vertex. With
+it, all 24 records close.
+
+R14 has no DXF export in the corpus, but AutoCAD keeps handles when it
+saves a drawing as another release, so the R14 records can be compared
+with the R2000 save of the same drawing. `examples/probe_cross_release.rs`
+does that, comparing the two decoded values handle by handle:
+
+| Drawings | Type | Records | Equal values |
+|---|---|---:|---:|
+| `sample_AC1014.dwg` / `sample_AC1015.dwg` | LWPOLYLINE | 23 | 23 |
+| `sample_AC1014.dwg` / `sample_AC1015.dwg` | HATCH | 8 | 8 |
+| `polyline2d_line_R14.dwg` / `polyline2d_line_2000.dwg` | LWPOLYLINE | 1 | 1 |
+
+The vertices are equal as doubles, bit for bit, so the R14 `2RD` reading
+and the R2000 `2DD` reading recover the same coordinates.
+
+```sh
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg LWPOLYLINE
+```
+
+## 7n. AcDb:Header: the variables, in three streams (2026-10-26, #126)
+
+`src/header_table.rs` holds §9 as one table, a row per slot in stream order
+with its bit code and the first and last release that carry it;
+`src/header_vars.rs` walks the rows of the file's release and nothing else.
+Names starting with `$` are AutoCAD's (spelled as DXF's `HEADER` spells them,
+so §9's `MENUNAME` is `$MENU` and its `(PSPACE)` group is `$PINSBASE`,
+`$PEXTMIN`, ...), a name without it is a slot that is not a variable (control
+objects, dictionaries), and `UNKNOWN_<code>_<n>` is a slot §9 itself calls
+unknown. `examples/probe_header_vars.rs` decodes every pinned drawing and holds
+it to the frame, the boundary of every stream and AutoCAD's DXF export of the
+same drawing; the Corpus job runs it.
+
+### The frame
+
+```
+R14, R2000, R2004   sentinel(16) RL size            data ... RS crc  sentinel(16)
+R2007               sentinel(16) RL size RL bits    data ... RS crc  sentinel(16)
+R2010, 2013, 2018   sentinel(16) RL size RL 0 RL bits  data ... RS crc  sentinel(16)
+```
+
+`size` counts from byte 20 (R2010 and later: byte 24, the zero `RL` being the
+high word of a 64-bit size, as in `AcDb:Classes`) to the end of the data; the CRC
+is seed `0xC0C1` over every byte after the first sentinel up to itself. All 52
+corpus sections satisfy `20 (24) + size + 2 + 16 = length`, so the length decides
+whether R2010 and R2013 carry the zero word (§9 says "if the maintenance version
+is greater than 3"; both header bytes are above 3 on every file, so that
+condition is not separable here). §9 lists the size in bits as "R2007 Only"; it
+is present on R2010, R2013 and R2018 as well.
+
+### R2007 and later: the same split as an object
+
+The size in bits counts from 32 bits before the data. It ends at the first
+handle bit, and the string stream is found backwards from there exactly as in an
+object (§19.1): the bit before is *strings present*, the 16 (or 32) before that
+the size. Three boundaries close on all 36 R2007 to R2018 sections: the data
+stream ends where the string stream starts, the strings end where the stream
+does, and the handles end inside the last byte. `HANDSEED` is the one handle in
+the data stream, as §9 says.
+
+### Where §9 differs from the files
+
+| §9 says | The files |
+|---|---|
+| `MENUNAME` is `R13-R18` | present in the string stream on R2007 to R2018 as well (read as `$MENU`) |
+| four `BS` "unknown short (type 5/6 only)", "do not seem to be required" | present on every release from R14, always the last four slots, a fresh random value in each file; from R2007 they sit after the last handle, in the handle stream |
+| nothing after them | R2004 and later: five more bits, always `10101` (five `B` slots), then padding |
+| padding "random bits" | all ones on all 52 corpus files; the spec's own 1998 R14 dump differs, so the probe counts it and does not require it |
+| `TDCREATE`, `TDUPDATE` | R2000 and later hold universal time: they equal DXF's `$TDUCREATE` and `$TDUUPDATE` to the millisecond, and DXF's `$TDCREATE` is that plus the exporting machine's offset, which the DWG does not store. R14 holds local time (its `$TDCREATE` equals the AC1015 export's) |
+| `CMC`: `BS` index, `BL` RGB, `RC` | from R2004 the `BS` is 0 and the colour is the top byte of the `BL`: `0xC0` BYLAYER, `0xC1` BYBLOCK, `0xC3` an index in the low byte, `0xC2` a true colour (DXF writes an approximate index, so only its kind is checkable) |
+| unknown `B` before `INTERFERECOLOR`, last unknown `BD` | `$REALWORLDSCALE` and `$SHADOWPLANELOCATION`, from the order DXF writes them and agreement on all 26 R2007+ files that have a twin |
+| first unknown `BL` "default 24L", first unknown `TV` default `""` | the TV is `"m"` on every file including the spec's dump; the BL is 0 on all 52 corpus files and 70 in the spec's own R14 dump |
+| `CELWEIGHT`: 5 bits of the flags word | index 29 is -1 (BYLAYER) on every R2000 and later file; 0 to 23 map to the published lineweight set and 30, 31 to -2, -3 are not measured |
+
+### Against AutoCAD's DXF (`probe_header_vars`)
+
+| Release | Files | Closed | DXF twins | Slots | Agree | Relation | Disagree | DWG-only | DXF-only |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AC1014 | 8 | 8 | 8 (AC1015) | 1,592 | 1,279 | 57 | 0 | 264 | 392 |
+| AC1015 | 8 | 8 | 8 | 1,888 | 1,670 | 42 | 0 | 184 | 40 |
+| AC1018 | 8 | 8 | 8 | 2,072 | 1,765 | 51 | 0 | 264 | 48 |
+| AC1021 | 8 | 8 | 8 | 2,432 | 2,093 | 51 | 0 | 296 | 48 |
+| AC1024 | 8 | 8 | 8 | 2,472 | 2,109 | 43 | 0 | 328 | 48 |
+| AC1027 | 8 | 8 | 8 | 2,488 | 2,103 | 57 | 0 | 336 | 48 |
+| AC1032 | 4 | 4 | 2 | 1,244 | 525 | 15 | 0 | 84 | 12 |
+
+*Agree*: equal values, reals to the precision DXF printed, a handle whose DXF
+form is a name through the DXF record with that handle (exact name), the control
+objects and dictionaries through the DXF `TABLE` records and root dictionary.
+*Relation*: a rule between the two files rather than equality. Symbol names are
+case-insensitive (`$CMLSTYLE` is `Standard`, the MLINESTYLE record holds
+`STANDARD`; R14 writes its names in capitals) and an arrowhead block is named
+with a leading underscore (`$DIMBLK` `BoxBlank`, block `_BoxBlank`). The twin is
+a different save, so `$TDUUPDATE`, `$TDINDWG` and `$TDUSRTIMER` may
+not be earlier in it (the last two by equal amounts) and `$HANDSEED` not lower;
+`$VERSIONGUID` is a new GUID on every save while `$FINGERPRINTGUID` agrees
+everywhere; before R2010 DXF writes `$XCLIPFRAME` 2 as false; DXF fills the
+default visual style into `$INTERFEREOBJVS` and `$INTERFEREVPVS` where the
+R2013 and R2018 files hold the null handle (the R2010 file of the same drawing
+holds it, and no bit of the R2013 section matches); a true colour (a top byte of `0xC2`)
+is an approximate index with no group 420 beside it, so its RGB is not
+checkable in DXF's `HEADER`. *DWG-only*: slots DXF's `HEADER` does not write, the unknown
+slots and `FLAGS`. *DXF-only*: for AC1014 the 392 are variables of later releases, the twin being
+an AC1015 export; otherwise `$ACADVER` is the version magic (checked),
+`$DWGCODEPAGE` is in the file header, `$MEASUREMENT` is in `AcDb:Template`
+(§22), local `$TDCREATE` and `$TDUPDATE` are not stored, and `$ACADMAINTVER`
+and `$LASTSAVEDBY` are not in this section.
+
+AC1014 has no DXF export in the corpus. It is held to the frame, the boundary
+and the spec's own R14 dump (`examples/spec_examples.rs` decodes all 199 slots of
+it), and compared against the AC1015 export of the same drawing, which agrees
+on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
+all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
+spec's R14 dump and in all eight R14 files, 64 from R2000.
+
+## 7r. MTEXT before R2007: the version branches (2026-10-26, #226)
+
+The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
+spacing on every release and stopped there. ACadSharp's saves of one
+drawing (#225) hold 36 MTEXT records on every release:
+
+| Release | Before | What the reader missed | After |
+|---|---|---|---|
+| R14 | 36 errors, `delta` +21 / +69 / +77 | §20.4.46's line spacing `BS`, `BD` and unknown `B` are R2000+; R14 does not write them | 36 close |
+| R2000 | 36 close | nothing: R2000 ends at the unknown bit | 36 close |
+| R2004 | 36 errors, `delta` −2 / −122 | the R2004+ `BL` background flags (`−2` is a `BL` 0), and for two records the background block (scale `BD`, `CMC`, transparency `BL`) | 36 close |
+
+One reader now serves every release, with `TV` inline before R2007 and
+from the string stream after. All 257 MTEXT records of the public corpus
+close. Against the DXF twins (R2000 to R2018, matched by handle) every
+value the record holds agrees, including the two R2004+ backgrounds:
+flags `1`, scale `1.25`, true colour `0x367542` (group 421 `3568962`)
+and transparency `0`.
+
+| Release | Values compared | Differ |
+|---|---:|---:|
+| R2000 | 368 | 0 |
+| R2004 | 376 | 0 |
+| R2007 / R2010 / R2013 / R2018 | 411 each | 0 |
+
+The comparison reads R2007+ DXF as UTF-8 and undoes the DXF's caret
+escapes (`^J` where the record holds a line feed). One MTEXT per save
+(`0x1032`) has no entity of its handle in the DXF and is counted, not
+compared. R13/R14 store no line spacing, so `MText::linespace_style`
+and `linespace_factor` read 0 there rather than a default the record
+does not hold.
+
+```sh
+cargo run --release --example probe_mtext -- sample_AC1018.dwg sample_AC1018_ascii.dxf
+```
+
 ## 7s. VIEWPORT: §20.4.38 is right as printed (2026-10-26, #71)
 
 §7i left VIEWPORT reported rather than fixed: six records of one
