@@ -11,9 +11,9 @@ name: Fuzz (nightly)
 # locally against long-lived corpora; this workflow is the "did a
 # regression sneak in today?" early warning.
 #
-# Crash artifacts (under fuzz/artifacts/<target>/) are uploaded on
-# any run — pass or fail — so committers can reproduce locally with
-# the exact input.
+# A crash fails that target's job. Crash artifacts (under
+# fuzz/artifacts/<target>/) are uploaded on any run — pass or fail — so
+# committers can reproduce locally with the exact input.
 
 on:
   schedule:
@@ -41,7 +41,8 @@ jobs:
   fuzz:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Room for a cold-cache release build before the 300 s budget starts.
+    timeout-minutes: 15
     strategy:
       # Don't kill all targets on one panic — we want per-target
       # crash artifacts uploaded independently.
@@ -77,16 +78,18 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --version 0.12.0 --locked
 
+      # The time budget alone ends a clean run, and a crash, leak or
+      # timeout fails the job (#187); the artifact upload below still runs.
       - name: Run ${{ matrix.target }}
         working-directory: fuzz
-        continue-on-error: true
+        env:
+          DURATION: ${{ github.event.inputs.duration_seconds || '300' }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          DURATION="${{ github.event.inputs.duration_seconds || '300' }}"
-          echo "Fuzzing ${{ matrix.target }} for ${DURATION}s"
-          cargo +nightly fuzz run ${{ matrix.target }} \
-            -- -max_total_time="${DURATION}" -runs=100000 \
-            2>&1 | head -n 500 || true
+          echo "Fuzzing ${TARGET} for ${DURATION}s"
+          cargo +nightly fuzz run "${TARGET}" \
+            -- -max_total_time="${DURATION}" -print_final_stats=1
 
       - name: Upload crash artifacts
         if: always()
