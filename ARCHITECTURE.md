@@ -1688,7 +1688,7 @@ the record; their values corroborate nothing.
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
-## 7n. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
+## 7q. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
 
 §20.4.85 types LWPLINE `(varies)` and §20.4.75 types HATCH `(varies)`:
 both entered AutoCAD with R14 as classes and got the fixed codes `0x4D`
