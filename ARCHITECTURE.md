@@ -2668,7 +2668,7 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7ad. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
+## 7ae. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
 
 `probe_reference_closure` decides whether a class the walk reaches fewer of
 than `AcDb:Classes` declares is a missing record or an over-declaring file: it
