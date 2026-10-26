@@ -231,7 +231,11 @@ fn legacy(path: &str, out: Option<&PathBuf>) -> Result<()> {
                 .file_offset_of(p.id)
                 .ok_or("page the page map does not list")? as u64;
             let rs = s.encoding == 4;
-            let codewords = if rs { p.compressed.div_ceil(251).max(1) } else { 0 };
+            let codewords = if rs {
+                p.compressed.div_ceil(251).max(1)
+            } else {
+                0
+            };
             println!(
                 "{}",
                 page_line(
@@ -270,7 +274,13 @@ fn legacy(path: &str, out: Option<&PathBuf>) -> Result<()> {
             fs::write(dir.join(format!("{index}.bin")), &data)?;
             println!(
                 "{}",
-                done_line(index, &s.name, covered, s.pages.len() as u64, crc32(0, &data))
+                done_line(
+                    index,
+                    &s.name,
+                    covered,
+                    s.pages.len() as u64,
+                    crc32(0, &data)
+                )
             );
         }
     }
@@ -577,7 +587,10 @@ fn main() -> Result<()> {
             if let Entry::Vacant(slot) = files.entry(s.index) {
                 slot.insert(open(dir, s.index, false)?);
             }
-            files.get(&s.index).ok_or("section file")?.set_len(s.covered)?;
+            files
+                .get(&s.index)
+                .ok_or("section file")?
+                .set_len(s.covered)?;
             println!(
                 "{}",
                 done_line(s.index, &s.name, s.covered, s.pages, file_crc(&path)?)

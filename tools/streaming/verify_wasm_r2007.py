@@ -68,7 +68,7 @@ def main():
             assert full[0] == 0, full[2]
             report = [json.loads(l) for l in full[2].splitlines()]
             steps = report[-1]['steps']
-            around = {e + d for r in report[:-1] for e in (r['step'],) for d in (-1, 0, 1)}
+            around = {e + d for r in report[:-1] for e in (r['step'],) for d in (-1, 0, 1) if 0 <= e + d <= steps}
             rng = random.Random(name)
             count = 30 if len(data) < v7.BIG else 14
             stops = sorted({0, 1, steps - 1, steps} | set(rng.sample(range(steps), count)) | set(rng.sample(sorted(around), min(count, len(around)))))

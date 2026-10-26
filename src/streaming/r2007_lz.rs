@@ -468,7 +468,9 @@ impl R2007Lz {
                     self.finish_operands(at)?;
                 }
             }
-            Mode::Block | Mode::Emit | Mode::Copy | Mode::Done => return Err(StreamError::Finished),
+            Mode::Block | Mode::Emit | Mode::Copy | Mode::Done => {
+                return Err(StreamError::Finished);
+            }
         }
         Ok(())
     }
@@ -633,7 +635,8 @@ impl R2007Lz {
                     && self.count <= room
                     && u64::from(self.blk_need) == self.count.min(32)
                     && self.blk_have < self.blk_need
-                    && self.blk[usize::from(self.blk_have)..] == [0; 32][usize::from(self.blk_have)..]
+                    && self.blk[usize::from(self.blk_have)..]
+                        == [0; 32][usize::from(self.blk_have)..]
                     && self.consumed > 0
             }
             Mode::Emit => {
@@ -650,7 +653,8 @@ impl R2007Lz {
                     && self.acc == 0
                     && (1..=32).contains(&self.pend_len)
                     && self.pend_pos < self.pend_len
-                    && self.pend[usize::from(self.pend_len)..] == [0; 32][usize::from(self.pend_len)..]
+                    && self.pend[usize::from(self.pend_len)..]
+                        == [0; 32][usize::from(self.pend_len)..]
                     && self.count <= room.saturating_sub(u64::from(self.pend_len - self.pend_pos))
                     && room >= u64::from(self.pend_len - self.pend_pos)
                     && self.consumed > 0
@@ -666,7 +670,8 @@ impl R2007Lz {
                     && self.lo == 0
                     && self.ins_need == need
                     && self.ins_have < self.ins_need
-                    && self.ins[usize::from(self.ins_have)..] == [0; 4][usize::from(self.ins_have)..]
+                    && self.ins[usize::from(self.ins_have)..]
+                        == [0; 4][usize::from(self.ins_have)..]
                     && self.dist == 0
                     && self.blk == [0; 32]
                     && self.blk_have == 0

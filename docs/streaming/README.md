@@ -1,15 +1,15 @@
-# Streaming core
-
 Two hand-written pure state machines are implemented for R13, R14 and
-R2000 (AC1012/AC1014/AC1015), ODA v5.4.1: the complete **file header**
-(§3.2), and the **container walk** that continues from it through the
-header-variable and class sections, the object map and every mapped
-record's framing, type and handle (below). Neither decodes object bodies.
+R2000 (AC1012/AC1014/AC1015), ODA v5.4.1: the complete **file header** (§3.2),
+and the **container walk** that continues from it through the header-variable
+and class sections, the object map and every mapped record's framing, type and
+handle (below). Neither decodes object bodies.
 For the R2004 family there is the **file header** (§4.1), a bounded,
 resumable **LZ77 decoder** (§4.7), the **page map and section map walk**
 (§4.3–§4.5), the **data pages** that assemble each section (§4.6) and the
-**whole-file walk** that joins them behind one checkpoint, all below; object
-bodies and R2007 are not implemented.
+**whole-file walk** that joins them behind one checkpoint, all below. R2007
+(AC1021) has its own **whole-file walk** (§5.1–§5.4, §5.10–§5.13): its own
+Reed-Solomon pages, LZ dialect, page map, section map and checksums, behind one
+checkpoint. Object bodies are not implemented.
 Those remain open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
 compiler is an upgrade after the hand-written baseline, tracked in
 [#208](https://github.com/DrunkOnJava/dwg-rs/issues/208).
@@ -333,8 +333,9 @@ encrypted section, a stored page's checksum and type and an overrun. One
 real file with a page moved past the section's end (rewriting a literal byte
 of the section map and resealing both pages) agrees with both oracles.
 
-Not covered here: object bodies, R2007, and throughput. The section walker
-needs the caller's page index; the whole-file walker (next section) does not.
+Not covered here: object bodies, R2007 (its own walk, below), and throughput. The
+section walker needs the caller's page index; the whole-file walker (next
+section) does not.
 
 ## The whole R2004-family file (§4.1, §4.3–§4.6)
 
@@ -409,8 +410,148 @@ offset the map does not list, a data size); on the built file a listed page the
 page map lacks, one it lists twice, an unlisted page of a known section, a page
 of an unknown section, 65 sections and an encrypted section.
 
-Not covered: object bodies, R2007, throughput, and R13 (no AC1012 drawing is
-available to walk).
+Not covered: object bodies, throughput, and R13 (no AC1012 drawing is
+available to walk). R2007 has its own walk, below.
+
+## The whole R2007 file (§5.1–§5.4, §5.10–§5.13)
+
+`streaming::R2007Walker` walks an AC1021 file behind one fixed-size state and
+one checkpoint: the file header, the page map, the section map and every data
+page of every section. R2007 shares nothing with the R2004 family's container
+(a different compression, Reed-Solomon pages, 64-bit CRCs, bare data pages), so
+it has its own walker, and the design differs where the format forces it.
+
+**The section map is the outer loop.** A data page has no header: its section,
+its place in it, its sizes, its checksum and its CRC are in its reference in
+the section map, and its address only in the page map. A walker with fixed state
+cannot hold a page index, so for each page reference it scans the page map from
+its start for the entry (one pass over a small system page per reference, and
+the scan stops at the entry) and then walks the page. Pages therefore come out
+in the order each section lists them, which is the order of its bytes, tagged
+with their offset, with a gap before a page handed out as a `Hole` of zeros
+(§5.2: a page of zeros is not written) and a section that ends short of its
+size ending short, both exactly as `r2007::read_section` returns them. No
+section table is needed, so there is no section limit. A section that is
+encrypted (§5.2, encryption other than 0 or 2) is refused when its description
+is read (`SectionEncrypted`), as the R2004 walk does.
+
+**No page is held, and none is bounded.** Every page, system or data, is a run of
+Reed-Solomon codewords interleaved across the page (§5.13.2): byte `i` of
+codeword `j` of `n` is at `n * i + j`, so a codeword's 255 bytes are not
+adjacent. The walker demands one codeword at a time with a `Gather` (the offset
+of its first byte, the stride `n`, the bytes still owed; `byte_source` has a
+`poll_gather`, and `FileSource` serves it from a 1 MiB window); a short feed is
+kept like any other. Each codeword's syndromes are checked as it arrives and its
+message bytes feed the §5.10 decoder, `streaming::r2007_lz`, which pauses between any two
+bytes of input or output, copies literal runs in §5.10.1's permuted blocks of 32
+(one block of input and one of output are its only buffers) and keeps a 64 KiB
+window, the largest distance §5.10 encodes. This matters: the pages of
+`sample_AC1021.dwg` run to 70,912 bytes and 273 codewords although every section
+names `0xF800` as its maximum, so a buffer sized to the maximum refuses real
+drawings (ARCHITECTURE.md §7u).
+
+**Every byte is checked before it is handed out.** Each page is walked twice.
+The first pass reads every codeword of the page (the repeated copies of a system
+page included), checks every syndrome, the CRC-64 of the stored bytes (mirrored
+flavour, `UpdateSeed1`, seeded from the header's CRC seed), and decodes the whole
+page to its declared size, checking the CRC-64 of the decompressed bytes for a
+system page and the §5.4.1 checksum for a data page; it hands out nothing. The
+second pass decodes again and hands out bytes. The file header page gets the
+same treatment in one buffer (its three codewords, the two CRC-64s and the
+checking sequence of §5.2.1, the five check values at `0x3D8`, the header's own
+CRC and its fixed fields), and the page map's entries must account for the
+header's counts and name the page map and the section map. Every rule was
+measured on the pinned drawings before it was enforced, and the probe that
+reproduces the table is `tools/streaming/probe_r2007_checks.py` (§7u). Where the
+legacy reader stops quietly on a stream that ends before its size, this walk
+reports `Lz77Truncated`; where it ignores a section name that is empty or an
+unnamed descriptor with pages, this walk accepts the first and refuses the
+second.
+
+State is two readers (the section map's, kept while the pages it lists are
+walked, and the page scan's or the data page's), each a 64 KiB window, a
+codeword and a 256-byte output stage, and a few hundred bytes of cursors,
+bounded at `2 * R2007_WINDOW + 8192` in the `no_std` kernel (native and wasm32).
+`R2007Checkpoint` (`DWGR`) holds the cursors, the verified 0x110-byte header
+(re-checked on restore) and each reader's progress; the geometry of every page
+(where it is, how many codewords, what its checks must be) is derived from them
+on restore and never stored, and a retained window is the last
+`min(produced, 64 KiB)` bytes. At most `2 * R2007_WINDOW + 8192` bytes. Restore
+requires a reachable state: each reader's counters against its page, the
+decoder's mode against its fields and window, the walk's stage against which
+readers are in use, and the page reference against the section.
+
+`examples/stream_r2007.rs` is the entry point. It prints a `page_entry` line per
+page map entry, a `section` line, then a `page`, a `hole` and a `page_end` line
+(with the CRC-32 of the page's emitted bytes) per page and a `section_end`, and
+the end of the walk, none of which depends on the chunking; with `--out` it
+writes each section sparsely to `<dir>/<index>.bin` and prints a `section_done`
+line (size and CRC-32, read back). `--legacy` walks the same file with
+`r2007::Container` and prints the same lines. `--trace` records every read or
+gather (`offset`, `stride`, `bytes`); `--stop-after` and `--resume` take the
+checkpoint alone and keep the output cursors in `<checkpoint>.caller`.
+`tools/streaming/verify_r2007.py` runs it on the eight pinned drawings (seven
+nextgis saves and ACadSharp's `sample_AC1021.dwg`; the local subset at
+`../../samples` holds three of them) and on three files `r2007_ref.build` writes
+from the spec's text, with shapes the corpus lacks (a page of 70,912 bytes and
+273 codewords, holes, a zero-length page, a page past its section, a section
+short of its size, a page map out of file order with free pages, a non-zero CRC
+seed, system pages and header stored, repeat factor 1, a compressed bare page).
+`tools/streaming/r2007_ref.py` is an independent reader and writer written from
+the spec's text and sharing no code with the crate (its Reed-Solomon encoder
+reproduces AutoCAD's parity on every codeword it is given, and its compressor
+emits every instruction class).
+
+Measured, by `verify_r2007.py` (11 files, 113 sections, 152 pages, 4,966 data
+codewords, 3,067,696 section bytes): on each of them every output line and every
+assembled byte equals the independent Python parse and the legacy reader's, four
+to six fixed chunk schedules (down to one byte at a time, with `Pending` polls)
+and 128 proptest schedules on three files (`arc_2007.dwg`, `constructed_a.dwg`,
+`sample_AC1021.dwg`) reproduce it. A fresh process resumes at 729 stops (every
+step of the tiny built file at 256-byte reads and every thirteenth at 3-byte
+reads; about 60 stops of each other file at 256 and at 7-byte reads, around
+every section, page, hole and the end of the walk): the source reads and output
+of the two processes concatenate to the uninterrupted run's, the bytes written
+equal the section, all six stages were checkpointed, both passes of the page map,
+the section map and a data page, a page scan, and nine of the decoder's
+fourteen modes. Bit flips at every byte and every truncation of a 395-byte
+checkpoint, 100 sampled of each for a walking one, a wrong identity, 123
+resealed unreachable states (a stage that does not follow, an odd name length, an
+encrypted section, codewords read past the page, bytes produced past it, a
+corrupted header) are rejected, and 180 resealed single-byte mutations of the
+stage checkpoints never panic. On `arc_2007.dwg` and `sample_AC1021.dwg` 41
+corruptions end in their named error with exactly the walk before them printed
+(a flipped byte in each of the header's codewords, check data, the page map, the
+section map and in a page's message, parity and padding; a bare page's stored
+CRC; another release's magic); on a built file 44 rules broken alone with every
+codeword intact each end in theirs: each of the header's five CRCs and seven
+fixed fields, the system pages' four CRCs, a data page's CRC and checksum, an
+encrypted section, an unknown encoding, a page the page map lacks or lists too
+small, an overlap, bad section names, page map and section map entries that end
+inside a record or break a rule, and a stream that reaches before its start,
+overruns its page or ends early; and a source cut inside the head, the section
+map or a data page ends in `Truncated`. The header's random padding, which the
+format leaves unprotected, is not read: a flipped byte there changes nothing.
+
+Not measured: a stored file header (negative `ComprLen`) and a non-zero CRC seed
+on a drawing AutoCAD wrote (only built files have them, so the seed plumbing is
+checked against the spec's text, not against AutoCAD); an R2007 section with
+encryption 1; a drawing larger than 1.1 MB (a page map of a few thousand pages
+costs one pass over it per page reference); a browser runtime.
+
+**Throughput** (not a gate; `cargo run --release --example stream_r2007_timing --
+<file> 15` in memory, best of 15, `SliceSource`, 256-byte scratch): the walk
+takes about 20 ms for `sample_AC1021.dwg` (1.06 MB file, 1.40 MB of section
+bytes) against 4.3 ms for `r2007::Container::parse` and `read_section` of every
+section, that is 53.6 MB/s of the file and 70.7 MB/s of section bytes against
+247 and 327 MB/s; on `arc_2007.dwg` (66 KB) 63 and 179 MB/s against 410 and 1,160
+MB/s. The legacy reader checks no CRC, checksum or syndrome and decodes each page
+once; the walk checks all of them, decodes each page twice (a page's checksum is
+of its decompressed bytes, so the first pass must decode it before the second
+may hand any of it out), reads each codeword byte by byte through a gather and
+scans the page map once per page reference. Measured on one Apple-silicon Mac
+under other load.
+
 
 ## LZ77 decoder (R2004 family, §4.7)
 
@@ -485,10 +626,10 @@ Not measured: R2018 pages in this acceptance run, pages larger than
 `0x7400`, and throughput. #225 pins R2018 drawings from DomCR/ACadSharp
 in `tools/corpus/pins.tsv`; `sample_AC1032.dwg`, byte-identical to one of
 them, was checked by hand (53 pages equal), and adding them to
-`lz77-corpus.json` is a follow-up. R2007 uses a different compression (§5.10) and is not
-covered.
+`lz77-corpus.json` is a follow-up. R2007 uses a different compression (§5.10),
+decoded by its own bounded decoder in the R2007 walk below.
 
-## Cross-runtime restore (R2004 walks)
+## Cross-runtime restore (R2004 and R2007 walks)
 
 `tools/streaming/wasm_resume.rs` is a `#![no_std]` WebAssembly module built
 from the identical grammar files (`rustc --target wasm32-unknown-unknown`,
@@ -532,6 +673,24 @@ checkpoint at the same step is byte-identical to the native one in every case
 native build resumes it to the uninterrupted run's output. A sampled bit flip of
 a native checkpoint of each of the three walks, and a wrong identity, are
 refused by the kernel.
+
+The R2007 walker crosses both ways from its checkpoint alone too: `run_r2007`
+walks for a number of steps and leaves a `DWGR` checkpoint, `resume_r2007`
+restores one given the saved page CRC-32, page length, section index and page id
+and finishes the whole walk, printing the lines `stream_r2007` prints. The
+grammar compiles unchanged to `wasm32-unknown-unknown` with no allocator; the
+kernel reads a gather one byte at a time from its copy of the file.
+`tools/streaming/verify_wasm_r2007.py` is its acceptance run: on `tiny.dwg` (a
+file `r2007_ref.build` writes), `arc_2007.dwg`, `constructed_a.dwg` and
+`sample_AC1021.dwg`, 247 native `DWGR` checkpoints (every thirteenth step of the
+smallest, and about 30 steps of each of the others, around every section, page,
+hole and the end of the walk, covering all six stages) restored in the kernel
+finish with exactly the lines the native resume prints, at kernel read sizes of
+1, 7, 64 and 256 bytes; the kernel's own checkpoint at the same step is
+byte-identical to the native one in all 247 and the native build resumes it to
+the uninterrupted run's output; and the kernel refuses 80 sampled bit flips of a
+native checkpoint, its first and last byte and a wrong identity (83 refusals), as
+the native build does.
 
 ## Checkpoint contract
 
@@ -586,7 +745,7 @@ rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/str
 The R13–R2000 walk and the LZ77 decoder have their own drivers:
 
 ```sh
-cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example streaming_schedules
+cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2007 --example streaming_schedules
 python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
@@ -595,6 +754,9 @@ python3 tools/streaming/verify_maps.py target/debug/examples/stream_r2004_maps t
 python3 tools/streaming/verify_sections.py target/debug/examples/stream_r2004_sections target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_file.py target/debug/examples/stream_r2004_file target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_wasm.py target/debug/examples/stream_r2004_maps target/debug/examples/stream_r2004_sections target/debug/examples/stream_r2004_file
+python3 tools/streaming/verify_r2007.py target/debug/examples/stream_r2007 target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_wasm_r2007.py target/debug/examples/stream_r2007
+python3 tools/streaming/probe_r2007_checks.py <the eight pinned R2007 drawings>
 ```
 
 Run these on the project's build host. The workflow uploads
@@ -608,8 +770,8 @@ and inconsistent checkpoints, source mismatch and failure-state restore.
 The real-file manifest records header fields, not object counts. No real R13
 file, multi-gigabyte model or independent object-count oracle has passed
 this reader. The kernel WASM compile does not establish browser runtime;
-cross-runtime checkpoint acceptance is established only for the R2004 walks
-(below).
+cross-runtime checkpoint acceptance is established only for the R2004 and
+R2007 walks (above).
 
 ## Current evidence
 

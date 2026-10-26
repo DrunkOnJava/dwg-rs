@@ -81,11 +81,16 @@ pub(super) fn codeword_intact(code: Code, codeword: &[u8]) -> bool {
     if codeword.len() != CODEWORD {
         return false;
     }
-    let f = code.field();
-    let mut s = [0u8; 16];
-    let parity = code.parity();
+    match code {
+        Code::System => syndromes_vanish::<16>(code.field(), codeword),
+        Code::Data => syndromes_vanish::<4>(code.field(), codeword),
+    }
+}
+
+fn syndromes_vanish<const N: usize>(f: &Field, codeword: &[u8]) -> bool {
+    let mut s = [0u8; N];
     for &c in codeword.iter().rev() {
-        for (j, y) in s[..parity].iter_mut().enumerate() {
+        for (j, y) in s.iter_mut().enumerate() {
             let shifted = if *y == 0 {
                 0
             } else {
@@ -94,7 +99,7 @@ pub(super) fn codeword_intact(code: Code, codeword: &[u8]) -> bool {
             *y = shifted ^ c;
         }
     }
-    s[..parity].iter().all(|&y| y == 0)
+    s.iter().all(|&y| y == 0)
 }
 
 const fn crc_table(polynomial: u64, mirrored: bool) -> [u64; 256] {
@@ -105,7 +110,11 @@ const fn crc_table(polynomial: u64, mirrored: bool) -> [u64; 256] {
         let mut bit = 0;
         while bit < 8 {
             c = if mirrored {
-                if c & 1 != 0 { (c >> 1) ^ polynomial } else { c >> 1 }
+                if c & 1 != 0 {
+                    (c >> 1) ^ polynomial
+                } else {
+                    c >> 1
+                }
             } else if c >> 63 != 0 {
                 (c << 1) ^ polynomial
             } else {
@@ -144,9 +153,7 @@ pub(super) fn seed1(seed: u64, length: u64) -> u64 {
         .wrapping_add(length)
         .wrapping_mul(0x343fd)
         .wrapping_add(0x269ec3);
-    s |= s
-        .wrapping_mul(0x343fd << 32)
-        .wrapping_add(0x269ec3 << 32);
+    s |= s.wrapping_mul(0x343fd << 32).wrapping_add(0x269ec3 << 32);
     !s
 }
 
@@ -323,7 +330,12 @@ fn crc_of_words(words: &[u64; 8], seed: u64, mirrored: bool) -> u64 {
 /// normal and mirrored CRCs of two eight-word buffers derived from the two
 /// random values. `Err((check, expected, actual))` names the first that
 /// fails (3 for the normal one, 4 for the mirrored one).
-pub(super) fn check_data(normal: u64, mirrored: u64, r1: u64, r2: u64) -> Result<(), (u8, u64, u64)> {
+pub(super) fn check_data(
+    normal: u64,
+    mirrored: u64,
+    r1: u64,
+    r2: u64,
+) -> Result<(), (u8, u64, u64)> {
     let mut w = [0u64; 8];
     w[0] = encode(r1, r2);
     w[1] = encode(w[0], w[0]);

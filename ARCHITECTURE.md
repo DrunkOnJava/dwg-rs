@@ -2075,6 +2075,75 @@ reports every disagreement:
 ```sh
 cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
 ```
+||||||| parent of cf06e58 (docs(streaming): the R2007 walk's design, evidence and measured checks (#205))
+
+## 7u. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
+
+§5.2 to §5.4 give R2007 a lot of integrity data and say how it was made, not
+what each value covers or how its seed is built: the legacy reader checks none
+of it (§"What does not run" in §7k: "the crate has no 64-bit CRC"). The
+streaming walk (`src/streaming/r2007*.rs`) verifies all of it before it hands
+out a byte, so each reading below was measured first, on the eight R2007
+drawings of the pinned corpus (seven nextgis saves from AutoCAD 2016 and
+ACadSharp's `sample_AC1021.dwg` from AutoCAD 2025), by
+`tools/streaming/probe_r2007_checks.py`, which uses only the independent
+reader `tools/streaming/r2007_ref.py` and prints, for each field, how many
+agree with the reading and how many with the nearest wrong ones (the other CRC
+flavour, the other seed update, plain byte order).
+
+| Field | Reading that holds | Agree | Any other reading |
+|---|---|---|---|
+| File header, compressed data CRC (decoded block `0x10`) | normal CRC, `UpdateSeed2(0, length)`, over the `ComprLen` bytes | 8 of 8 | 0 |
+| File header, header CRC (`0x108`) | normal CRC, `UpdateSeed2(0, 0x110)`, over the header with the CRC field zeroed | 8 of 8 | 0 |
+| File header, checking sequence CRC (decoded block `0x00`) | normal CRC, `UpdateSeed1(0, 16)`, over the key and the key rotated by itself | 8 of 8 | |
+| File header, check data (`0x3D8`, five values) | both CRCs of the eight-word buffers §5.2.1.1.5 builds from the two random values; seeds `~random2` (normal) and `~random1` (mirrored), no seed update | 8 of 8 | |
+| System page (page map, section map), stored bytes | mirrored CRC, `UpdateSeed1(seed, length)`, `seed` the ten bits of the header's encoded seed | 16 of 16 | 0 |
+| System page, decompressed bytes | the same reading over the decompressed bytes | 16 of 16 | 0 |
+| Data page, stored bytes | mirrored CRC, `UpdateSeed1(CrcSeed, compressed size)`, over the first `compressed size` bytes after the codewords are de-interleaved | 137 of 137 | 0 |
+| Data page, checksum | §5.4.1's checksum, seed 0, over the decompressed bytes | 137 of 137 | |
+| Syndromes of every codeword (§7l) | all zero | 24 header, 34 page map, 129 section map, 4,425 data | |
+
+Both CRCs take eight-byte blocks in the order `6 7 4 5 2 3 0 1` and a 1 to 7
+byte remainder in §5.12's table order (`2 3 0 1 4 5 6` for seven); the
+checksum takes its bytes in the same orders. Taken in plain byte order none of
+the CRCs matches (0 of 137 data pages), which is the part of §5.12 that is easy
+to read past. Both tables follow from one polynomial each: ECMA-182
+(`0x42F0E1EBA9EA3693`) most significant bit first for the normal CRC, and
+`0x95AC9329AC4BC9B5` shifting the other way for the mirrored one; the tables
+§5.12 prints are reproduced exactly.
+
+What is not protected, and so not checked: bytes `0x2FD` to `0x3D7` of the file
+header block (random padding after its three codewords; a flipped byte there
+changes nothing), and the padding after the stored bytes in a data page's last
+codeword, which is not zero (0 of 4,425 codewords' padding is) because §5.13.2
+fills it from the random encoder. The repeated copies of a system page's data
+are equal to the first (16 of 16) and protected by their own codewords; the walk
+reads only the first, and checks the others' syndromes in its first pass.
+
+Three facts about page sizes the legacy reader never needed, and a bounded walker
+cannot ignore:
+
+- **A data page is not bounded by its section's maximum size.** Every section of
+  `sample_AC1021.dwg` and the nextgis drawings names `0xF800` as its maximum,
+  yet 16 pages of `AcDb:AcDbObjects` decompress to more (up to 70,912 bytes)
+  and the largest has a compressed size of 68,365 bytes: 273 codewords. A
+  fixed buffer sized to the maximum would refuse real files, so the walker
+  holds no page: it gathers one codeword at a time (the stride of the
+  interleave is the page's codeword count, so a codeword's 255 bytes are not
+  adjacent) and decodes through a 64 KiB window, the largest distance §5.10
+  can encode.
+- **A page's section-map "size" is its decompressed size only for some pages**
+  (34 of 137), so it is carried and printed but not relied on; its page map
+  entry is the codewords' span rounded up to `0x20` (98 of 98 Reed-Solomon
+  pages), and for every page (137 of 137) at least the span.
+- **Every section's pages end exactly at its data size** (103 of 103), so a
+  section needs no tail of zeros; a gap before a page (§5.2: "a page that
+  contains zeroes only is not written") is a hole, as in the legacy reader.
+
+Not measured: a header whose `ComprLen` is negative (stored), a non-zero
+`CrcSeed` (every pinned header has 0, so the seed plumbing is checked only
+against files `r2007_ref.build` writes from the spec's text), and any file
+with an encrypted section.
 
 ## 7v. TEXT, ATTRIB and ATTDEF before R2007: the data flags were inverted (2026-10-26, #226 / #62)
 

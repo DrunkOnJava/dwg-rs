@@ -159,18 +159,33 @@ pub enum R2007Step {
     Page(R2007Page),
     /// `len` zero bytes of the current section at `offset`: a gap before
     /// the page that follows (§5.2: a page of zeros is not stored).
-    Hole { offset: u64, len: u64 },
+    Hole {
+        offset: u64,
+        len: u64,
+    },
     /// `len` bytes of the current section at `offset`, in
     /// [`R2007Walker::data`] until the next call.
-    Data { offset: u64, len: usize },
+    Data {
+        offset: u64,
+        len: usize,
+    },
     /// The page's stream ended; `emitted` of its `plain` bytes lay inside
     /// the section.
-    PageEnd { plain: u64, emitted: u64 },
+    PageEnd {
+        plain: u64,
+        emitted: u64,
+    },
     /// The section's last page was walked; `covered` bytes of it are
     /// described by pages (the legacy reader returns exactly that many).
-    SectionEnd { index: u32, covered: u64 },
+    SectionEnd {
+        index: u32,
+        covered: u64,
+    },
     /// Every section's pages were walked.
-    Finished { sections: u32, pages: u32 },
+    Finished {
+        sections: u32,
+        pages: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -189,9 +204,14 @@ pub(super) enum Pass {
 pub(super) enum Check {
     /// System page: the CRC-64 of the decompressed bytes (seed already
     /// updated with their length).
-    Crc { expected: u64, seed: u64 },
+    Crc {
+        expected: u64,
+        seed: u64,
+    },
     /// Data page: the §5.4.1 checksum.
-    Sum { expected: u32 },
+    Sum {
+        expected: u32,
+    },
     Nothing,
 }
 
@@ -428,7 +448,8 @@ impl Reader {
         let g = self.geom;
         let m = match g.code {
             Some(code) => {
-                if !codeword_intact(code, &self.buf[..CODEWORD]) {
+                // The emitting pass re-reads what the verifying pass checked.
+                if self.pass != Pass::Emit && !codeword_intact(code, &self.buf[..CODEWORD]) {
                     return Err(StreamError::R2007Parity {
                         at: g.base,
                         codeword: self.cw,
@@ -553,8 +574,7 @@ impl Reader {
                     && self.take <= self.msg
                     && self.fed == g.stored.min(self.cw.saturating_mul(k))
                     && (self.cw == 0
-                        || self.msg
-                            == g.stored.saturating_sub((self.cw - 1) * k).min(k) as usize)
+                        || self.msg == g.stored.saturating_sub((self.cw - 1) * k).min(k) as usize)
                     && (self.cw != 0 || self.msg == 0)
             }
             None => {
@@ -984,10 +1004,10 @@ impl R2007Walker {
         }
         let blocks = if rs { comp.div_ceil(251).max(1) } else { 0 };
         let span = if rs { blocks * CODEWORD as u64 } else { comp };
-        self.at_source(span, base)?;
         if span > r.entry_size {
             return Err(StreamError::R2007Page(base));
         }
+        self.at_source(span, base)?;
         Ok(Geom {
             base,
             code: rs.then_some(Code::Data),
@@ -1073,7 +1093,8 @@ impl R2007Walker {
                 actual,
             });
         }
-        let length = i32::from_le_bytes([decoded[0x18], decoded[0x19], decoded[0x1a], decoded[0x1b]]);
+        let length =
+            i32::from_le_bytes([decoded[0x18], decoded[0x19], decoded[0x1a], decoded[0x1b]]);
         let mut plain = [0u8; PLAIN];
         let stored = length.unsigned_abs() as usize;
         if stored == 0 || 0x20 + stored > DECODED {
@@ -1221,7 +1242,9 @@ impl R2007Walker {
             return Err(StreamError::MapLength(self.aux.geom.base));
         }
         if f.entries != self.hdr[12] || f.max_id != self.hdr[13] {
-            return Err(StreamError::PageEntry(u32::try_from(f.entries).unwrap_or(u32::MAX)));
+            return Err(StreamError::PageEntry(
+                u32::try_from(f.entries).unwrap_or(u32::MAX),
+            ));
         }
         if !f.self_seen {
             return Err(StreamError::PageMapSelf);
@@ -1270,8 +1293,9 @@ impl R2007Walker {
         let need = ((total - self.rec_have) as u64).min(left) as usize;
         let n = self.sec.pump(need)?;
         match self.rec_kind {
-            Rec::Name => self.name[self.rec_have..self.rec_have + n]
-                .copy_from_slice(&self.sec.stage[..n]),
+            Rec::Name => {
+                self.name[self.rec_have..self.rec_have + n].copy_from_slice(&self.sec.stage[..n])
+            }
             _ => self.rec[self.rec_have..self.rec_have + n].copy_from_slice(&self.sec.stage[..n]),
         }
         self.rec_have += n;
@@ -1292,12 +1316,16 @@ impl R2007Walker {
     fn on_descriptor(&mut self) -> Result<R2007Step, StreamError> {
         let r = &self.rec;
         let index = self.sections;
-        let (size, max, encryption, hash) = (u64_at(r, 0), u64_at(r, 8), u64_at(r, 16), u64_at(r, 24));
+        let (size, max, encryption, hash) =
+            (u64_at(r, 0), u64_at(r, 8), u64_at(r, 16), u64_at(r, 24));
         let (raw_name, encoding, pages) = (u64_at(r, 32), u64_at(r, 48), u64_at(r, 56));
         self.described = self
             .described
             .checked_add(1)
             .ok_or(StreamError::CounterOverflow)?;
+        if u64::from(self.described) > self.hdr[20] {
+            return Err(StreamError::SectionEntry(index));
+        }
         if raw_name == 0 {
             // The unnamed descriptor that makes `SectionsAmount` one more
             // than the sections; it describes no page.
@@ -1405,6 +1433,10 @@ impl R2007Walker {
         if reference.id == 0
             || reference.compressed > reference.uncompressed
             || reference.data_offset < self.cur.end
+            || reference
+                .data_offset
+                .checked_add(reference.uncompressed)
+                .is_none()
         {
             return Err(StreamError::SectionEntry(index));
         }
@@ -1473,7 +1505,10 @@ impl R2007Walker {
             .ok_or(StreamError::SectionEntry(self.cur.index))?;
         self.cur.end = end;
         self.cur.done += 1;
-        self.pages = self.pages.checked_add(1).ok_or(StreamError::CounterOverflow)?;
+        self.pages = self
+            .pages
+            .checked_add(1)
+            .ok_or(StreamError::CounterOverflow)?;
         let emitted = self.emitted;
         self.emitted = 0;
         self.refd = Ref::default();
@@ -1509,7 +1544,10 @@ impl R2007Walker {
 
 /// §5.2: the 0x110-byte header, checked on its own: its CRC-64 and the
 /// fields the spec fixes. Used by the walk and by checkpoint restore.
-pub(super) fn check_plain_header(plain: &[u8; PLAIN], length: u64) -> Result<[u64; 34], StreamError> {
+pub(super) fn check_plain_header(
+    plain: &[u8; PLAIN],
+    length: u64,
+) -> Result<[u64; 34], StreamError> {
     let mut fields = [0u64; 34];
     for (k, field) in fields.iter_mut().enumerate() {
         *field = u64_at(plain, k * 8);
@@ -1527,7 +1565,15 @@ pub(super) fn check_plain_header(plain: &[u8; PLAIN], length: u64) -> Result<[u6
             actual,
         });
     }
-    for (k, value) in [(0, 0x70), (14, 0x20), (15, 0x40), (17, 0xf800), (18, 4), (19, 1), (29, 0x60100)] {
+    for (k, value) in [
+        (0, 0x70),
+        (14, 0x20),
+        (15, 0x40),
+        (17, 0xf800),
+        (18, 4),
+        (19, 1),
+        (29, 0x60100),
+    ] {
         if fields[k] != value {
             return Err(StreamError::R2007Header(AT_HEADER + (k * 8) as u16));
         }
@@ -1615,6 +1661,7 @@ impl R2007Walker {
             && matches!(c.encoding, 1 | 4)
             && matches!(c.encryption, 0 | 2);
         let trimmed = usize::from(c.name_len) <= usize::from(c.raw_name)
+            && usize::from(c.name_len) <= MAX_NAME
             && c.name_len % 2 == 0
             && c.name[usize::from(c.name_len)..] == [0; MAX_NAME][usize::from(c.name_len)..];
         match self.rec_kind {
@@ -1656,7 +1703,10 @@ impl R2007Walker {
 
     fn reference_ok(&self) -> bool {
         let r = &self.refd;
-        r.id != 0 && r.compressed <= r.uncompressed && r.data_offset >= self.cur.end
+        r.id != 0
+            && r.compressed <= r.uncompressed
+            && r.data_offset >= self.cur.end
+            && r.data_offset.checked_add(r.uncompressed).is_some()
     }
 
     /// Restore-time check that a decoded state is one the walk can reach.
@@ -1686,7 +1736,12 @@ impl R2007Walker {
                 && self.entry_have == 0
                 && blank_parser;
         }
-        if self.have != 0 || self.head != [0; HEAD_BYTES] || *h == [0; 34] {
+        if self.have != 0
+            || self.head != [0; HEAD_BYTES]
+            || *h == [0; 34]
+            || u64::from(self.described) > h[20]
+            || self.sections > self.described
+        {
             return false;
         }
         let map_done = self.facts.sm_found
@@ -1722,6 +1777,7 @@ impl R2007Walker {
                         Pass::Verify => blank_parser,
                         Pass::Emit => {
                             u64::from(self.described) >= u64::from(self.sections)
+                                && u64::from(self.described) <= h[20]
                                 && self.refd == Ref::default()
                                 && self.section_ok()
                         }

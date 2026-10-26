@@ -10,7 +10,8 @@
 //! CRC detects accidental corruption and gives no authenticity.
 
 use super::r2007::{
-    Cur, MapFacts, Pass, Pending, R2007_WINDOW, R2007Walker, Reader, Rec, Ref, Stage, check_plain_header,
+    Cur, MapFacts, Pass, Pending, R2007_WINDOW, R2007Walker, Reader, Rec, Ref, Stage,
+    check_plain_header,
 };
 use super::r2007_codes::{Crc64, Sum32};
 use super::r2007_lz::{Mode, R2007Lz, WINDOW};
@@ -72,8 +73,14 @@ type Res<T> = Result<T, StreamError>;
 
 impl<'a> Get<'a> {
     fn take(&mut self, n: usize) -> Res<&'a [u8]> {
-        let end = self.at.checked_add(n).ok_or(StreamError::InvalidCheckpoint)?;
-        let s = self.b.get(self.at..end).ok_or(StreamError::InvalidCheckpoint)?;
+        let end = self
+            .at
+            .checked_add(n)
+            .ok_or(StreamError::InvalidCheckpoint)?;
+        let s = self
+            .b
+            .get(self.at..end)
+            .ok_or(StreamError::InvalidCheckpoint)?;
         self.at = end;
         Ok(s)
     }
@@ -270,7 +277,16 @@ fn put_cur(w: &mut Put<'_>, c: &Cur) {
     w.u8(c.raw_name);
     w.u8(c.name_len);
     w.bytes(&c.name);
-    for v in [c.size, c.max, c.encryption, c.hash, c.encoding, c.pages, c.done, c.end] {
+    for v in [
+        c.size,
+        c.max,
+        c.encryption,
+        c.hash,
+        c.encoding,
+        c.pages,
+        c.done,
+        c.end,
+    ] {
         w.u64(v);
     }
 }

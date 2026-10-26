@@ -424,7 +424,9 @@ pub fn poll_r2007_walk<S: ByteSource>(
     let (offset, stride, wanted) = match walker.demand().map_err(PumpError::Grammar)? {
         R2007Demand::Done => return Ok(R2007Poll::Complete),
         R2007Demand::Pump => {
-            return Ok(R2007Poll::Pumped(walker.pump().map_err(PumpError::Grammar)?));
+            return Ok(R2007Poll::Pumped(
+                walker.pump().map_err(PumpError::Grammar)?,
+            ));
         }
         R2007Demand::Read(r) => (r.offset, 1, r.len),
         R2007Demand::Gather(g) => (g.offset, g.stride, g.len),
@@ -434,7 +436,13 @@ pub fn poll_r2007_walk<S: ByteSource>(
         return Err(PumpError::InvalidRead { maximum, actual: 0 });
     }
     let polled = if stride == 1 {
-        source.poll_read(Request { offset, len: maximum }, &mut scratch[..maximum])
+        source.poll_read(
+            Request {
+                offset,
+                len: maximum,
+            },
+            &mut scratch[..maximum],
+        )
     } else {
         source.poll_gather(offset, stride, &mut scratch[..maximum])
     };
@@ -530,9 +538,8 @@ impl<R: Read + Seek> ByteSource for FileSource<R> {
         let Some(last) = last.filter(|last| last - offset < GATHER_WINDOW as u64) else {
             return gather_by_reads(self, offset, stride, output);
         };
-        let covered = |s: &Self| {
-            offset >= s.window_at && last < s.window_at + s.window.len() as u64
-        };
+        let covered =
+            |s: &Self| offset >= s.window_at && last < s.window_at + s.window.len() as u64;
         if !covered(self) {
             self.window.resize(GATHER_WINDOW, 0);
             self.window_at = offset;

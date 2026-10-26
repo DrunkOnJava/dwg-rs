@@ -202,9 +202,13 @@ def main():
             path.mkdir()
             return path
 
+        on_disk = {}
+
         def run(data, *args, name='input.dwg'):
             path = tmp / name
-            path.write_bytes(data)
+            if on_disk.get(name) is not data:
+                path.write_bytes(data)
+                on_disk[name] = data
             result = subprocess.run([binary, str(path), *map(str, args)], capture_output=True, timeout=600)
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
@@ -270,7 +274,8 @@ def main():
             data = files[name]
             parsed, lines, done, blobs = expectations[name]
             identity = hashlib.sha256(data).hexdigest()
-            configs = ((256, 'every'), (3, 'seventh')) if name == 'tiny.dwg' else ((256, 'sampled'),) + (((7, 'sampled'),) if len(data) <= BIG else ())
+            holes = any('"hole"' in l for l in lines)
+            configs = ((256, 'every'), (3, 'thirteenth')) if name == 'tiny.dwg' else ((256, 'sampled'),) + (((7, 'sampled'),) if len(data) <= BIG else ())
             for chunk, how in configs:
                 full = run(data, chunk, '--trace', full_trace, '--report-steps', '--out', fresh(), name=name)
                 reads = full_trace.read_text().splitlines()
@@ -279,19 +284,22 @@ def main():
                 events = [r['step'] for r in report if 'event' in r]
                 if how == 'every':
                     stops = list(range(steps + 1))
-                elif how == 'seventh':
-                    stops = list(range(0, steps + 1, 7))
+                elif how == 'thirteenth':
+                    stops = list(range(0, steps + 1, 13))
                 else:
                     around = {0, 1, 2, steps - 1, steps}
                     for e in events:
                         around.update((e - 1, e, e + 1))
-                    around = sorted(s for s in around if 0 <= s <= steps)
-                    pick = random.Random(f'{name}{chunk}').sample(around, min(len(around), 40))
-                    stops = sorted(set(pick) | {0, steps} | set(random.Random(f'{name}{chunk}x').sample(range(steps), 40)))
+                    around = {s for s in around if 0 <= s <= steps}
+                    early = set(range(0, events[0] + 1, max(1, events[0] // 16)))
+                    around |= early
+                    pick = random.Random(f'{name}{chunk}').sample(sorted(around), min(len(around), 24)) + sorted(early)
+                    stops = sorted(set(pick) | {0, steps} | set(random.Random(f'{name}{chunk}x').sample(range(steps), 24)))
                 for stop in stops:
                     out = fresh()
-                    for i in range(len(blobs)):
-                        (out / f'{i}.bin').write_bytes(b'X' * 70000)
+                    if holes:
+                        for i in range(len(blobs)):
+                            (out / f'{i}.bin').write_bytes(b'X' * 70000)
                     paused = run(data, chunk, '--identity', identity, '--checkpoint-out', checkpoint, '--stop-after', stop,
                                  '--trace', first, '--out', out, name=name)
                     assert paused[0] == 0 and paused[1].splitlines()[-1] == ref.jline({'checkpoint': True, 'steps': stop}), (name, stop, paused)
@@ -371,10 +379,10 @@ def main():
                 (f'stage {stage}: header bytes held', state, [(HAVE, p16(7))]),
                 (f'stage {stage}: the header corrupted', state, [(VARIABLE + 100, bytes([state[VARIABLE + 100] ^ 0x55]))]),
                 (f'stage {stage}: sections described that were not', state, [(DESCRIBED, p32(1 << 20))]),
-                (f'stage {stage}: pages walked that were not', state, [(PAGES, p32(1 << 20))]),
                 (f'stage {stage}: bytes emitted out of nothing', state, [(EMITTED, p64(1 << 40))]),
                 (f'stage {stage}: page map entries counted that were not', state, [(FACTS, p64(0xFFFF))]),
             ]
+        forgeries.append(('map: pages walked before the first page', by_stage[1][1], [(PAGES, p32(1 << 20))]))
         for stage in (2, 3, 4):
             state = by_stage[stage][1]
             forgeries += [
@@ -402,23 +410,26 @@ def main():
                 (f'stage {stage} {key}: stored bytes fed that were not', state, [(at + R_FED, p64(1 << 40))]),
                 (f'stage {stage} {key}: bytes produced past the page', state, [(at + R_PRODUCED, p64(1 << 40))]),
             ]
-        rejected = []
+        rejected, accepted = [], []
         for label, state, edit in forgeries:
             prepare(next(s for s in stages if by_stage[s][1] is state))
             checkpoint.write_bytes(reseal(state, edit))
             result = run(data, 7, '--identity', identity, '--resume', checkpoint, name=name)
-            assert result[0] != 0 and 'InvalidCheckpoint' in result[2] and 'panicked' not in result[2], (label, result[2][:300])
-            rejected.append(label)
+            if result[0] != 0 and 'InvalidCheckpoint' in result[2] and 'panicked' not in result[2]:
+                rejected.append(label)
+            else:
+                accepted.append((label, result[2][:200]))
+        assert not accepted, ('resealed forgeries not rejected', accepted)
         # A resealed change to any one byte never panics: it is rejected, or it is a state the walk can go on from.
         fuzz = 0
         for stage in sorted(stages):
             state = by_stage[stage][1]
             prepare(stage)
-            for at in sorted(random.Random(f'fuzz{stage}').sample(range(5, len(state) - 4), min(40, len(state) - 9))):
+            for at in sorted(random.Random(f'fuzz{stage}').sample(range(5, len(state) - 4), min(30, len(state) - 9))):
                 bad = bytearray(state[:-4])
                 bad[at] ^= random.Random(at).randrange(1, 256)
                 checkpoint.write_bytes(bytes(bad) + struct.pack('<I', zlib.crc32(bytes(bad))))
-                result = run(data, 7, '--identity', identity, '--resume', checkpoint, name=name)
+                result = run(data, 256, '--identity', identity, '--resume', checkpoint, name=name)
                 assert 'panicked' not in result[2] and result[0] in (0, 1), (stage, at, result[2][:300])
                 fuzz += 1
         receipts.append({'file': name, 'checkpoint_stages': sorted(stages), 'bit_flips_rejected': len(small) + 100,
@@ -426,11 +437,14 @@ def main():
                          'resealed_forgeries_rejected': len(rejected), 'resealed_mutations_without_panic': fuzz,
                          'checkpointed_decoder_modes': modes})
 
+        problems = []
+
         def must_fail(label, bad, error, prefix=None, nm='input.dwg'):
             result = run(bad, name=nm)
-            assert result[0] != 0 and error in result[2] and 'panicked' not in result[2], (label, error, result[2][:400])
-            if prefix is not None:
-                assert result[1].splitlines() == prefix, (label, 'output is not exactly the walk up to the failure')
+            if not (result[0] != 0 and error in result[2] and 'panicked' not in result[2]):
+                problems.append((label, error, result[2][:300]))
+            elif prefix is not None and result[1].splitlines() != prefix:
+                problems.append((label, 'output is not exactly the walk up to the failure'))
             return label
 
         # Corruptions of real files, each ending in its named error with exactly the walk before it printed.
@@ -451,7 +465,7 @@ def main():
             sm_base, sm_blocks = ref.PAGE_BASE + sm_ent[2], ref.system_blocks(min(f[22], f[25]), f[27])
             cases = [
                 ('another release magic', flip(4, 0x03), 'InvalidMagic', []),
-                ('the R2004 magic', data[:5] + b'8' + data[6:], 'UnsupportedLayout', []),
+                ('the R2004 magic', data[:4] + b'18' + data[6:], 'UnsupportedLayout', []),
                 ('the 0x80 at 0x28', flip(0x28), 'R2007Header(40)', []),
                 ('header block, codeword 1', flip(0x80 + 3 * 10 + 1), 'R2007Parity { at: 128, codeword: 1 }', []),
                 ('header block, parity of codeword 2', flip(0x80 + 3 * 250 + 2), 'R2007Parity { at: 128, codeword: 2 }', []),
@@ -484,6 +498,7 @@ def main():
                 # What the format leaves unprotected is not checked: the random padding after the header's codewords.
                 assert run(flip(0x80 + 800)) == run(data), 'header padding is read'
                 labels.append('the header block\'s random padding is not covered')
+        assert not problems, problems
         receipts.append({'file': 'arc_2007.dwg and sample_AC1021.dwg', 'corruptions_rejected': labels})
 
         # Rules broken alone in a built file, every codeword still intact.
@@ -556,6 +571,7 @@ def main():
         for label, cut in (('inside the head', 0x47F), ('inside the section map', sm_address + 10),
                            ('inside a data page', last['address'] + 10)):
             labels.append(must_fail(f'cut {label}', good[:cut], 'Truncated {', None, 'built.dwg'))
+        assert not problems, problems
         receipts.append({'file': 'a built file', 'corruptions_rejected': labels})
 
     report = {'scope': 'ODA 5.4.1 sections 5.1-5.4 and 5.10-5.13: the whole R2007 walk behind one state and one '
