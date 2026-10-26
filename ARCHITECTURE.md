@@ -2002,18 +2002,19 @@ Corpus job runs it.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | AC1015 | 8 | 1,527 | 1,494 | 33 | 0 | 0 | 65 |
 | AC1018 | 8 | 1,622 | 1,589 | 33 | 0 | 0 | 66 |
-| AC1021 | 8 | 1,939 | 1,907 | 32 | 0 | 0 | 69 |
-| AC1024 | 8 | 1,947 | 1,914 | 33 | 0 | 0 | 69 |
-| AC1027 | 8 | 1,941 | 1,908 | 33 | 0 | 0 | 83 |
-| AC1032 | 2 | 483 | 474 | 9 | 0 | 0 | 23 |
+| AC1021 | 8 | 1,915 | 1,883 | 32 | 0 | 0 | 93 |
+| AC1024 | 8 | 1,923 | 1,890 | 33 | 0 | 0 | 93 |
+| AC1027 | 8 | 1,931 | 1,898 | 33 | 0 | 0 | 93 |
+| AC1032 | 2 | 479 | 470 | 9 | 0 | 0 | 27 |
 
 *Relation* is the later-save rule above for `$TDUUPDATE`, `$TDINDWG`,
 `$TDUSRTIMER`, `$HANDSEED` and `$VERSIONGUID`. *Extra* is a variable written that
 the export omits: none. Every *omitted* variable has a stated reason: the local
 `$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
 file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
-329), a true-colour `$CECOLOR`, `$INTERFEREOBJVS` and `$INTERFEREVPVS` where the
-DWG holds the null handle, and every name for a symbol record the output does not
+329), a true-colour `$CECOLOR`, `$CMATERIAL`, `$INTERFEREOBJVS` and `$INTERFEREVPVS`
+(handles to MATERIAL and VISUALSTYLE objects, which the converter exports as
+untyped placeholders, so the reference would point at the wrong thing), and every name for a symbol record the output does not
 define: the converter writes layer 0 and no other symbol table, so `$TEXTSTYLE`,
 `$CELTYPE`, `$DIMSTYLE`, `$CMLSTYLE`, a non-zero `$CLAYER` and the like are
 omitted until those tables are written (a DXF whose header names a style it never
@@ -2028,7 +2029,10 @@ through the decoded symbol-table record; `$CMLSTYLE` takes the case of its
 is AutoCAD's documented one, and any other block keeps its name, underscore
 included). `$ANGBASE` is radians in the database and degrees in DXF group 50, and
 before R2007 non-ASCII text is written as `\U+XXXX` escapes; the corpus holds a
-zero `$ANGBASE` and only ASCII header text, so neither is measured. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
+zero `$ANGBASE` and only ASCII header text, so neither is measured. Control
+characters and the caret are written in DXF's caret notation (a line feed is
+`^J`, a caret `^ `) so a value stays on its own line; no corpus header text has
+one. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
 export of either exists to measure the set against.
 
 ## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
