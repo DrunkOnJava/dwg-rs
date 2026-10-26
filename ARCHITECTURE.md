@@ -1806,9 +1806,8 @@ entity each sorts is the matching handle of the handle stream, which is not
 read.
 
 The dispatcher had no class-name arm for it, so all 27 SORTENTSTABLE records
-of the corpus were skipped. All 27 close on their data-stream boundary, R14 to
-R2018, the three of each ACadSharp sample (model space, paper space and a
-block's) plus the six more R2018 ones.
+of the corpus were skipped. All 27 close on their data-stream boundary: three
+on each release from R14 to R2013 and nine on the R2018 drawings.
 
 Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
 5) the entry count and every sort handle equal the groups the DXF writes as
