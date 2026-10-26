@@ -383,6 +383,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      # A conflict marker left by a hand-resolved merge or rebase (two reached
+      # main on 2026-10-26). `=======` alone is not matched: it is also a
+      # Markdown heading underline.
+      - name: No merge-conflict markers
+        run: |
+          if git grep -I -n -E '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)' -- .; then
+            echo "::error::a merge-conflict marker is committed"
+            exit 1
+          fi
       - name: Scan for PII-shaped leak patterns
         run: |
           set -e

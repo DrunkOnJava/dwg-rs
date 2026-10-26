@@ -1687,7 +1687,6 @@ the record; their values corroborate nothing.
 ```sh
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
-||||||| parent of 7a7a6a5 (feat(streaming): assemble R2004 sections from their data pages with byte-demand states)
 
 ## 7n. The R2004 data page header, as AutoCAD writes it (2026-10-26, #205)
 
