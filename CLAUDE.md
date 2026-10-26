@@ -60,9 +60,20 @@ Features: `lz77-trace` (plus `DWG_LZ77_TRACE=1` at runtime) traces the LZ77 deco
 
 ## Real-file corpus
 
-CI reads no real DWG file (#95); it runs only on the five self-generated files in `tests/fixtures/canonical/`. The real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) look for the corpus at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green `cargo test` says nothing about real drawings unless that directory exists. The corpus is 19 files: `arc_`, `circle_` and `line_` in `R14`, `2000`, `2004`, `2007`, `2010` and `2013` from the public `nextgis/dwg_samples` (AutoCAD saves, each with AutoCAD's DXF export), plus `sample_AC1032.dwg` (R2018, provenance #96). Copy only those files rather than cloning the whole repository: `corpus_roundtrip.rs` runs over every `.dwg` in the directory, and the rest of nextgis has never been measured. Fetch by pinned commit; nextgis declares no licence, so never vendor it into this repo. A worktree resolves `../../samples` against its own path, so it needs its own copy or link.
+Every real drawing CI reads is public, pinned by sha256 in `tools/corpus/pins.tsv`, and fetched at run time; none is committed (nextgis declares no licence, so never vendor its files). The pins cover `nextgis/dwg_samples` at ff05d5a8 (42 drawings from R14 to 2013, each with AutoCAD's DXF export) and ACadSharp's `samples/` at c30a97ce (MIT, including the R2018 files):
 
-The coverage tables in `README.md`, `STATUS.md` and `lib.rs` are local measurements from 2026-08-30, not CI output. Never estimate or carry them forward: re-run `coverage_report` and paste the table.
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus --legacy-samples ../../samples   # fetch + verify every pin
+cargo build --release --example coverage_report --example probe_class_census --example probe_reference_closure
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json        # every drawing against tools/corpus/baseline.tsv
+```
+
+The `Corpus (public DWG)` job runs exactly this and fails on any count change in either direction, so a PR that changes a decoded, skipped or errored count must commit the regenerated baseline (`python3 -I tools/corpus/measure.py baseline`, or the `corpus-measurement` artifact the job uploads). Streaming E2E reads its own pinned nextgis files (`tools/streaming/*-corpus.json`, cross-checked against `pins.tsv`).
+
+The older real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) read a 19-file subset at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green local `cargo test` says nothing about real drawings unless that directory exists. `fetch.py --legacy-samples ../../samples` writes exactly that subset there; from a worktree, `../../samples` resolves against the worktree's own path.
+
+Coverage numbers in `README.md`, `STATUS.md` and `docs/spec-coverage.md` come from the corpus job's run on `main`. Never estimate or carry them forward: re-measure and cite the run.
 
 ## Architecture
 
