@@ -1,17 +1,35 @@
 //! Bounded, pausable DWG grammar. It covers the complete R13–R2000 file
 //! header (ODA v5.4.1 §3.2) and the R13–R2000 container walk: header
 //! variables, classes, the object map and every mapped record's framing,
-//! type and handle. Object bodies, decompression and the R2004+
-//! containers remain open; see issue #205.
+//! type and handle. For the R2004 family it verifies the §4.1 file header
+//! and has a bounded, resumable decoder for the
+//! R2004-family LZ77 dialect (§4.7); it walks the R2004 page map and
+//! section map and assembles sections from their data pages (§4.6). Object
+//! bodies and R2007 remain open; see issue #205.
 
 use core::fmt;
 
 mod checkpoint;
 mod flat;
-pub use checkpoint::{Checkpoint, WalkCheckpoint};
+mod lz77;
+mod r2004;
+mod r2004_maps;
+mod r2004_sections;
+mod r2004_walk;
+pub use checkpoint::{
+    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004SectionCheckpoint,
+    R2004WalkCheckpoint, WalkCheckpoint,
+};
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
 };
+pub use lz77::{Lz77Decoder, Progress, WINDOW};
+pub use r2004::{R2004_HEADER_BYTES, R2004Header, R2004HeaderParser};
+pub use r2004_maps::{
+    MapDemand, MapStep, PageEntry, R2004MapWalker, SectionEntry, SectionPage, SystemKind,
+};
+pub use r2004_sections::{DataPage, R2004SectionWalker, STAGE, SectionDemand, SectionStep};
+pub use r2004_walk::{MAX_SECTIONS, R2004Walker, WalkDemand, WalkStep};
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -95,6 +113,100 @@ pub enum StreamError {
         map: u64,
         record: u64,
     },
+    /// §4.7: an opcode in the reserved range 0x00–0x0F, at input byte `at`.
+    Lz77Opcode {
+        at: u64,
+        opcode: u8,
+    },
+    /// §4.7: a back-reference reaching before the first output byte.
+    Lz77Offset {
+        at: u64,
+        distance: u32,
+    },
+    /// Output would pass the declared decompressed size.
+    Lz77Overrun {
+        limit: u64,
+    },
+    /// The compressed bytes ended before the 0x11 terminator.
+    Lz77Truncated {
+        consumed: u64,
+    },
+    /// A position or count would pass `u64::MAX`. No real input reaches
+    /// this; a forged but CRC-valid checkpoint can.
+    CounterOverflow,
+    /// §4.1: the R2004-family header field at this file offset is not what
+    /// the spec fixes (0x28, the file ID at 0x80, a fixed decrypted field,
+    /// the trailer at 0xEC) or points outside the source (0xD4, 0xB4).
+    R2004Field(u16),
+    /// §4.1: CRC-32 of the decrypted 0x6C-byte block.
+    R2004HeaderCrc {
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.3: the system page at this address has the wrong type or
+    /// compression, an empty size, or lies outside the source or its page.
+    SystemPage(u64),
+    /// §4.3: the system page's checksum.
+    SystemPageChecksum {
+        address: u64,
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.4: page map entry `n` has number 0 or a size that is zero, not a
+    /// multiple of 0x20, or overflows the address.
+    PageEntry(u32),
+    /// §4.4: the page map does not list itself at the header's address, or
+    /// its own entry is smaller than the page.
+    PageMapSelf,
+    /// §4.4: the page map has no entry for the header's section map id.
+    SectionMapMissing,
+    /// §4.5: the section map header is not (count, 2, 0x7400, 0, ...).
+    SectionMapHeader,
+    /// §4.5: section description `n` or one of its page references is
+    /// malformed (compression or encryption flag, page size, name, or a
+    /// start offset that is not a rising multiple of the page size).
+    SectionEntry(u32),
+    /// A system page decoded to a size other than declared, or ended
+    /// inside a record.
+    MapLength(u64),
+    /// §4.6: the data page at this address has a masked header that is not
+    /// what the page map and section map say of it (type, section number,
+    /// start offset, data size or page size), or whose data runs outside the
+    /// page or the source.
+    DataPage(u64),
+    /// §4.6: the data page header's own checksum.
+    DataPageHeaderChecksum {
+        address: u64,
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.6: the checksum over the data page's stored bytes.
+    DataPageChecksum {
+        address: u64,
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.6: the data page's stream ended with fewer bytes than the page
+    /// must give for its place in the section, which would leave an
+    /// undeclared gap.
+    DataPageLength(u64),
+    /// A page offered to a section walker with this page number is not the
+    /// next one it expects: no page is due, or the page map entry, the
+    /// section map reference and the section disagree.
+    SectionPageRef(u32),
+    /// §4.5: the section with this id is encrypted, so its stored bytes
+    /// are not its content.
+    SectionEncrypted(u32),
+    /// The section map lists more sections than the whole-file walker's
+    /// table holds.
+    SectionTableFull,
+    /// A data page in the page map names a section the section map does
+    /// not describe; the number is the page's.
+    SectionPageUnknown(u32),
+    /// The data pages the page map holds for section `n` are not the pages
+    /// the section map lists for it: a listed page is missing from the page
+    /// map, or a page is walked that is not listed.
+    SectionDigest(u32),
 }
 
 impl fmt::Display for StreamError {

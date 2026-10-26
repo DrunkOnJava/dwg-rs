@@ -44,7 +44,7 @@
 //! - [`cipher`] — R2004+ XOR magic-sequence + Sec_Mask page masking
 //! - [`crc`] — CRC-8 (spec §2.14.1) and CRC-32 (IEEE)
 //! - [`lz77`] / [`lz77_encode`] — LZ77 de/compression (spec §4.7)
-//! - [`reed_solomon`] — (255,239) FEC over GF(256), defensive-only
+//! - [`reed_solomon`] / [`reed_solomon_encode`] — the two Reed-Solomon codes of R2007 pages (spec §5.13)
 //! - [`header`] / [`header_vars`] — file-open header + `AcDb:Header` parse
 //! - [`section`] / [`section_map`] / [`section_writer`] — page + section layer
 //! - [`handle_map`] / [`classes`] — object-stream cross-ref tables
@@ -110,6 +110,8 @@ pub mod crc;
 pub mod curve;
 pub mod dxf;
 pub mod dxf_convert;
+#[cfg(feature = "dxf-reader")]
+pub mod dxf_reader;
 pub mod dxf_sections;
 pub mod element_encoder;
 pub mod entities;
@@ -122,6 +124,7 @@ pub mod graph;
 pub mod handle_allocator;
 pub mod handle_map;
 pub mod header;
+pub mod header_table;
 pub mod header_vars;
 pub mod limits;
 pub mod lz77;

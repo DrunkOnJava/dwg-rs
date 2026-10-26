@@ -20,8 +20,6 @@
 //! any real record. That list is withdrawn.
 //!
 //! ```text
-//! RC   ds_block[0]                   -- R2013+, only when the record's
-//! RC   ds_block[1]                      `has AcDs binary data` bit is set
 //! <plot-settings block — see acad_plot_settings>
 //! TV   layout_name            (1)
 //! BL   tab_order              (71)
@@ -45,32 +43,27 @@
 //! handle stream, past the data-stream boundary this module checks, so
 //! they are not fields of this struct.
 //!
-//! # The R2013+ data-store block — measured
+//! # No data-store block: the R2013+ flag is followed by nothing
 //!
-//! Across `arc_2013.dwg`, `circle_2013.dwg`, `line_2013.dwg` and
-//! `sample_AC1032.dwg`, exactly four non-entity records set the
-//! R2013+ `has AcDs binary data` bit of the common object data, and
-//! all four are the LAYOUT records of `sample_AC1032.dwg` (handles
-//! 34, 89, 94, 602). The 327 other non-entity records of those files
-//! clear it. On all four, this field list closes on the string-stream
-//! start bit only when **16 further bits** are read before the
-//! plot-settings block: the first byte is `0x2C` on every one of them,
-//! the second `0x0B` on the `Model` record and `0x00` on the three
-//! paper layouts. 8 bits leaves every one of them 8 bits short and 0
-//! bits leaves them 16 short.
+//! Four LAYOUT records of `sample_AC1032.dwg` (handles 34, 89, 94, 602),
+//! and the four of the ACadSharp R2013 save of the same drawing, set the
+//! R2013+ `has AcDs binary data` bit of the common object data. This
+//! module used to read 16 bits after it as a "data-store block" (first
+//! byte `0x2C` on all of them, second `0x0B` on `Model` and `0x00` on the
+//! paper layouts) because that reading closes. So does reading nothing:
+//! the plot-settings block's first `BS`, `plot_layout_flags`, is then in
+//! its full form, the `00` code and a 16-bit `RS`, which is the same 18
+//! bits as the 16 the old reading took plus a `10` (value 0) `BS`. The
+//! boundary cannot tell the two apart; AutoCAD's DXF export of the same
+//! drawings can. Group 70 of the plot settings is `688` (`0x02B0`) on
+//! every paper layout and `11952` (`0x2EB0`) on `Model`, the values the
+//! full-form `BS` decodes to, where the old reading decoded `0` on all
+//! nine records the DXF value oracle pairs (#99). The bytes agree bit for
+//! bit: `00` + `B0 02` (`688`, little-endian) is `0x2C`, `0x00` and the
+//! `10` code; `00` + `B0 2E` (`11952`) is `0x2C`, `0x0B` and `10`.
 //!
-//! Those 16 bits used to sit in `crate::objects::modern` as a
-//! payload of the flag itself. #61 moved them here: the three ACIS
-//! entity records of the same file also set the flag, and their
-//! §20.4.41 field list closes with **zero** bits after it
-//! ([`crate::entities::modeler`]). One flag cannot be followed by 0
-//! bits on an entity and 16 on an object, so the 16 belong to LAYOUT.
-//!
-//! What the corpus cannot say is whether the block is keyed on the
-//! flag or is an unconditional R2018 addition — no R2018 LAYOUT in the
-//! corpus clears the bit, and no R2004/R2010/R2013 LAYOUT sets it. It
-//! is read conditionally here because that is the reading in which
-//! every one of the 31 corpus records closes.
+//! The flag is therefore followed by no bits on LAYOUT, as it is on the
+//! three ACIS entity records that set it ([`crate::entities::modeler`]).
 //!
 //! # `viewport_count` is a `BL`, not the `RL` §20.4.84 prints
 //!
@@ -122,8 +115,12 @@
 //! |---|---|
 //! | R2004 | closes on all 9 corpus records (inline `TV`s, `RL` boundary) |
 //! | R2010 / R2013 / R2018 | closes on all 22 corpus records (string-stream `TV`s) |
-//! | R13 / R14 / R2000 | §20.4.84 inserts `T plot_view_name` and omits shade-plot + `viewport_count`; those files have no walkable object stream in this crate (`STATUS.md` #104), so the branch is undetermined — [`crate::error::Error::Unsupported`] |
-//! | R2007 | same field list as R2004 is likely, but the R2007 string stream is not locatable here yet — [`crate::error::Error::Unsupported`] |
+//! | R14 / R2000 | §20.4.84's R13-R2000 `TV` plot view name, and no shade-plot fields or `viewport_count`; a class number from AcDb:Classes rather than `0x52`. Closes on all 50 corpus records (2026-10-26, #229) |
+//! | R2007 | the R2004 field list with string-stream `TV`s; closes on all 25 corpus records (2026-10-26, #229) |
+//!
+//! Every R14, R2000 and R2007 record decodes to the same values as the
+//! R2004 save of the same drawing, handle by handle, apart from the
+//! fields the earlier releases do not store (ARCHITECTURE.md §7p).
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
@@ -167,11 +164,6 @@ fn read_bd3(c: &mut BitCursor<'_>) -> Result<Point3D> {
 /// A decoded LAYOUT record.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AcadLayout {
-    /// R2013+ data-store block — the two bytes a LAYOUT writes ahead
-    /// of its plot-settings block when the record's `has AcDs binary
-    /// data` bit is set. `None` on every record that clears the bit.
-    /// See the module docs for the four records that measure it.
-    pub ds_block: Option<[u8; 2]>,
     /// The plot-settings block §20.4.84 opens with.
     pub plot_settings: AcadPlotSettings,
     /// Layout name (group 1), e.g. `Model`, `Layout1`.
@@ -200,8 +192,9 @@ pub struct AcadLayout {
     pub extent_min: Point3D,
     /// Maximum drawing extents (group 15).
     pub extent_max: Point3D,
-    /// Number of viewports this layout owns. R2004+; see the module
-    /// docs on why this is a `BL` rather than the `RL` §20.4.84 prints.
+    /// Number of viewports this layout owns. R2004+ (0 before, where the
+    /// record does not store it); see the module docs on why this is a
+    /// `BL` rather than the `RL` §20.4.84 prints.
     pub viewport_count: i32,
     /// String-stream entries the field list does not place. Empty on
     /// every corpus record; a `TV` costs no data-stream bits, so an
@@ -251,23 +244,13 @@ impl AcadLayout {
 /// its five `TV` fields from the R2007+ string stream and checking
 /// that the data fields end exactly on the data-stream boundary.
 ///
-/// Returns [`crate::error::Error::Unsupported`] for the release bands listed in the
-/// module docs.
 pub fn decode_object(
     payload: &[u8],
     body_start: usize,
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<AcadLayout> {
-    acad_plot_settings::check_version(version, "LAYOUT")?;
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
-    // R2013+ data-store block — see the module docs for the four
-    // records that measure it.
-    let ds_block = if split.has_ds_binary_data {
-        Some([split.data.read_rc()?, split.data.read_rc()?])
-    } else {
-        None
-    };
     let plot_settings = acad_plot_settings::read_fields(&mut split, version)?;
     let layout_name = modern::read_tv(&mut split.data, &mut split.strings, version)?;
     let c = &mut split.data;
@@ -283,7 +266,12 @@ pub fn decode_object(
     let ucs_ortho_view_type = c.read_bs()?;
     let extent_min = read_bd3(c)?;
     let extent_max = read_bd3(c)?;
-    let viewport_count = c.read_bl()?;
+    // §20.4.84: the viewport count is R2004+ (measured as a `BL`).
+    let viewport_count = if version.is_r2004_plus() {
+        c.read_bl()?
+    } else {
+        0
+    };
 
     split.finish("LAYOUT")?;
 
@@ -298,7 +286,6 @@ pub fn decode_object(
     }
 
     Ok(AcadLayout {
-        ds_block,
         plot_settings,
         layout_name,
         tab_order,
@@ -322,7 +309,6 @@ pub fn decode_object(
 mod tests {
     use super::*;
     use crate::bitwriter::BitWriter;
-    use crate::error::Error;
     use crate::objects::acad_plot_settings::tests::write_split_stream_block;
 
     fn write_bd3(w: &mut BitWriter, p: Point3D) {
@@ -460,15 +446,6 @@ mod tests {
         let bits = crate::string_stream::tests::bits_of(&body);
         let payload = crate::string_stream::tests::build_payload(&bits, &["", "", "", "", "Model"]);
         assert!(decode_object(&payload, 8, None, Version::R2018).is_err());
-    }
-
-    #[test]
-    fn rejects_the_undetermined_release_bands() {
-        let payload = build_r2018("Model", 0, Point2D::default(), 0);
-        for version in [Version::R14, Version::R2000, Version::R2007] {
-            let err = decode_object(&payload, 8, None, version).unwrap_err();
-            assert!(matches!(&err, Error::Unsupported { feature } if feature.contains("LAYOUT")));
-        }
     }
 
     #[test]

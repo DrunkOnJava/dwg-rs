@@ -1,0 +1,221 @@
+name: Measure
+
+# Compare any ref against a base on the public corpus (#98). Both refs are
+# built here, the same three examples (coverage_report, probe_class_census,
+# probe_reference_closure) run over every drawing pinned in
+# tools/corpus/pins.tsv, and the differences go to the run summary, with the
+# raw results as artifacts. Sample files are fetched for the run and never
+# uploaded.
+#
+#   gh workflow run measure.yml -f ref=<branch|tag|sha> -f base=main
+#
+# On a pull request that changes the measurement itself, the PR is measured
+# against its merge-base with `main`. This is a report, not a gate: the
+# ratchet is the Corpus job in ci.yml. The DXF value oracle (#99) runs on
+# both commits when both have it, and every field whose agreeing count fell
+# or vanished is listed; a base older than the oracle reports the head alone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to measure
+        required: true
+      base:
+        description: Branch, tag or commit to compare against
+        required: true
+        default: main
+  pull_request:
+    branches: [main]
+    paths:
+      - examples/coverage_report.rs
+      - examples/probe_class_census.rs
+      - examples/probe_reference_closure.rs
+      - tools/corpus/**
+      - examples/dxf_oracle/**
+      - tools/oracle/**
+      - .github/workflows/measure.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: measure-${{ github.event_name }}-${{ github.ref }}-${{ inputs.ref }}-${{ inputs.base }}
+  cancel-in-progress: true
+
+env:
+  # crates.io index or crate downloads that fail transiently are retried instead of failing the job
+  CARGO_NET_RETRY: "10"
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  measure:
+    name: Measure ref against base
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          fetch-depth: 0
+      - name: Install stable toolchain
+        run: rustup update stable
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          key: measure
+      - name: Restore the fetched corpus
+        id: corpus-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/dwg-corpus
+          key: dwg-corpus-${{ hashFiles('tools/corpus/pins.tsv') }}
+      - name: Fetch and verify every pinned file
+        id: fetch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          python3 -I tools/corpus/fetch.py --dest "$HOME/dwg-corpus"
+          status=$?
+          set -e
+          if [ "$status" -eq 69 ]; then
+            echo "::warning::NOT MEASURED: the corpus host was unreachable after every retry"
+            echo "## Measure: NOT MEASURED (corpus host unreachable)" >> "$GITHUB_STEP_SUMMARY"
+            echo "measured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          echo "measured=true" >> "$GITHUB_OUTPUT"
+      - name: Save the fetched corpus
+        if: steps.fetch.outputs.measured == 'true' && steps.corpus-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/dwg-corpus
+          key: dwg-corpus-${{ hashFiles('tools/corpus/pins.tsv') }}
+      - name: Resolve the two commits
+        if: steps.fetch.outputs.measured == 'true'
+        id: refs
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_BASE: ${{ inputs.base }}
+        run: |
+          set -euo pipefail
+          resolve() {
+            git rev-parse --verify --quiet "origin/$1^{commit}" \
+              || git rev-parse --verify --quiet "$1^{commit}" \
+              || { echo "::error::cannot resolve '$1'"; exit 1; }
+          }
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            head=$(git rev-parse HEAD)
+            base=$(git merge-base origin/main HEAD)
+          else
+            head=$(resolve "$INPUT_REF")
+            base=$(resolve "$INPUT_BASE")
+          fi
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "Measuring $head against $base"
+      - name: Build and measure both commits
+        if: steps.fetch.outputs.measured == 'true'
+        env:
+          HEAD_SHA: ${{ steps.refs.outputs.head }}
+          BASE_SHA: ${{ steps.refs.outputs.base }}
+        run: |
+          # A base the examples cannot measure is reported, not fatal, so
+          # errexit (on by default) stays off and each status is checked.
+          set +e -uo pipefail
+          mkdir -p measure
+          for side in base head; do
+            if [ "$side" = base ]; then sha="$BASE_SHA"; else sha="$HEAD_SHA"; fi
+            git worktree add --detach "$RUNNER_TEMP/$side" "$sha"
+            (cd "$RUNNER_TEMP/$side" && CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
+              cargo +stable build --release --example coverage_report \
+                --example probe_class_census --example probe_reference_closure) \
+              || { echo "::error::$side ($sha) does not build"; exit 1; }
+            mkdir -p "$RUNNER_TEMP/bin-$side"
+            cp target/release/examples/coverage_report target/release/examples/probe_class_census \
+              target/release/examples/probe_reference_closure "$RUNNER_TEMP/bin-$side/"
+            python3 -I tools/corpus/measure.py run --corpus "$HOME/dwg-corpus" \
+              --bin "$RUNNER_TEMP/bin-$side" --out "measure/$side.json" --logs "measure/$side-logs"
+            echo "$?" > "measure/$side.status"
+            # The DXF value oracle, where this commit has it (#99).
+            if [ -f "$RUNNER_TEMP/$side/examples/dxf_oracle/main.rs" ]; then
+              (cd "$RUNNER_TEMP/$side" && CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
+                cargo +stable build --release --features dxf-reader --example dxf_oracle) \
+                && cp target/release/examples/dxf_oracle "$RUNNER_TEMP/bin-$side/"
+            fi
+          done
+          {
+            echo "Head: \`$HEAD_SHA\`; base: \`$BASE_SHA\`."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$(cat measure/head.status)" -ne 0 ]; then
+            echo "::error::the head commit could not be measured; see measure/head-logs"
+            exit 1
+          fi
+          if [ "$(cat measure/base.status)" -eq 0 ]; then
+            python3 -I tools/corpus/measure.py diff --base measure/base.json --head measure/head.json \
+              --summary "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "Base: NOT MEASURED. Its examples could not measure the corpus (a base older than"
+              echo "\`coverage_report --tsv\` cannot); the head's measurement follows alone."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            python3 -I tools/corpus/measure.py report --results measure/head.json \
+              --summary "$GITHUB_STEP_SUMMARY"
+          fi
+          # A report, not a gate: drops against the base are listed, not fatal.
+          if [ -x "$RUNNER_TEMP/bin-head/dxf_oracle" ]; then
+            if [ -x "$RUNNER_TEMP/bin-base/dxf_oracle" ]; then
+              # A base run that failed (a pair it could not load, an output it
+              # could not write) left a partial TSV: comparing the head with
+              # it would compare different drawing sets, so the base is
+              # reported as not measured instead.
+              if "$RUNNER_TEMP/bin-base/dxf_oracle" "$HOME/dwg-corpus" --tsv measure/base-oracle.tsv \
+                > measure/base-oracle.log 2>&1; then
+                against=(--baseline measure/base-oracle.tsv)
+              else
+                {
+                  echo "DXF value oracle: the base's run failed, so the head is not compared with it (base NOT MEASURED):"
+                  echo
+                  echo '```'
+                  grep -E '^LOAD FAILED|^cannot ' measure/base-oracle.log | head -20
+                  echo '```'
+                } >> "$GITHUB_STEP_SUMMARY"
+                against=()
+              fi
+            else
+              echo "DXF value oracle: the base has none; the head's scores follow alone." >> "$GITHUB_STEP_SUMMARY"
+              against=()
+            fi
+            "$RUNNER_TEMP/bin-head/dxf_oracle" "$HOME/dwg-corpus" --tsv measure/head-oracle.tsv \
+              --summary measure/head-oracle.md "${against[@]}" > measure/head-oracle.log 2>&1
+            if grep -qE '^LOAD FAILED|^cannot ' measure/head-oracle.log; then
+              {
+                echo "DXF value oracle: the head's run did not load every pair; its scores below are incomplete:"
+                echo
+                echo '```'
+                grep -E '^LOAD FAILED|^cannot ' measure/head-oracle.log | head -20
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            cat measure/head-oracle.md >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo
+              echo '```'
+              sed -n '/== Pairing by handle/,/== Field agreement/p;/== Ratchet/,$p' measure/head-oracle.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "DXF value oracle: NOT MEASURED (the head has no examples/dxf_oracle)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # Measurements and logs only; never a sample file.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.fetch.outputs.measured == 'true'
+        with:
+          name: measure-${{ steps.refs.outputs.head }}
+          path: measure/
+          if-no-files-found: warn

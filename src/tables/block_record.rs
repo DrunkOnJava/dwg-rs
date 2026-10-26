@@ -233,7 +233,8 @@ pub(crate) fn decode_modern_split_stream(
     }
 
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) =
+        modern::read_entry_flags(&mut split.data, version)?;
     let is_anonymous = split.data.read_b()?;
     let has_attribs = split.data.read_b()?;
     let is_xref = split.data.read_b()?;
@@ -259,9 +260,9 @@ pub(crate) fn decode_modern_split_stream(
     Ok(BlockRecord {
         header: TableEntryHeader {
             name,
-            is_xref_dependent,
+            flag_64: flag64,
             xref_index_plus_1,
-            is_xref_resolved: flag64,
+            is_xref_dependent,
         },
         is_anonymous,
         has_attribs,
@@ -487,7 +488,7 @@ mod tests {
         assert_eq!(block.xref_path, "");
         assert_eq!(block.description, "a description");
         assert_eq!(block.num_owned_objects, Some(0));
-        assert!(block.header.is_xref_resolved);
+        assert!(block.header.flag_64);
         assert!(!block.header.is_xref_dependent);
         assert_eq!(block.header.xref_index_plus_1, 1);
         assert!(

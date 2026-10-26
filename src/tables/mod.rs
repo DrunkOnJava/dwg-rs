@@ -40,36 +40,48 @@ use crate::version::Version;
 /// caller), each table entry writes:
 ///
 /// ```text
-/// TV    name
-/// B     is_xref_dependent     -- entry from an external reference
-/// BS    xref_index_plus_1     -- 0 if not xref-dependent
-/// B     is_xref_resolved
+/// TV    name                  (2)
+/// B     64-flag               (70, bit 64)
+/// BS    xrefindex+1           -- 0 if not from an xref
+/// B     Xdep                  (70, bit 16)  -- dependent on an xref
 /// ```
+///
+/// That is §20.4.54's (and every other table section's) order up to
+/// R2010; the R2013+ split-stream decoders read `B, B, BS` instead
+/// (`tables::modern::read_entry_flags`). The field
+/// names are the spec's: the first bit is the 64-flag, the last the
+/// xref dependence. The DXF value oracle (#99) measures both on every
+/// table record of the corpus: the 64-flag is set on every entry AutoCAD
+/// writes to DWG (its DXF export never writes bit 64), and the Xdep bit
+/// equals bit 16 of the exported group 70.
 ///
 /// This struct captures those shared fields. Per-kind decoders append
 /// to it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TableEntryHeader {
     pub name: String,
-    pub is_xref_dependent: bool,
+    /// The 64-flag: bit 64 of the entry's DXF group 70.
+    pub flag_64: bool,
     pub xref_index_plus_1: i16,
-    pub is_xref_resolved: bool,
+    /// Xdep: the entry depends on an external reference (bit 16 of the
+    /// entry's DXF group 70).
+    pub is_xref_dependent: bool,
 }
 
-/// Reads the name / xref-dependent / xref-index / xref-resolved header shared by every table entry.
+/// Reads the name / 64-flag / xref-index / Xdep header shared by every table entry (§20.4.54).
 pub fn read_table_entry_header(
     c: &mut BitCursor<'_>,
     version: Version,
 ) -> Result<TableEntryHeader> {
     let name = read_tv(c, version)?;
-    let is_xref_dependent = c.read_b()?;
+    let flag_64 = c.read_b()?;
     let xref_index_plus_1 = c.read_bs()?;
-    let is_xref_resolved = c.read_b()?;
+    let is_xref_dependent = c.read_b()?;
     Ok(TableEntryHeader {
         name,
-        is_xref_dependent,
+        flag_64,
         xref_index_plus_1,
-        is_xref_resolved,
+        is_xref_dependent,
     })
 }
 
@@ -118,15 +130,15 @@ mod tests {
         for b in s {
             w.write_rc(*b);
         }
-        w.write_b(false); // not xref dependent
+        w.write_b(false); // 64-flag
         w.write_bs(0);
-        w.write_b(false);
+        w.write_b(false); // not xref dependent
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let h = read_table_entry_header(&mut c, Version::R2000).unwrap();
         assert_eq!(h.name, "MyLayer");
-        assert!(!h.is_xref_dependent);
+        assert!(!h.flag_64);
         assert_eq!(h.xref_index_plus_1, 0);
-        assert!(!h.is_xref_resolved);
+        assert!(!h.is_xref_dependent);
     }
 }

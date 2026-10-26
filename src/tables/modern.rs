@@ -117,17 +117,38 @@ pub(crate) fn skip_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Res
 ///
 /// # Measured field order
 ///
+/// The entry header's data-stream bits on R2007 and later, returned as
+/// `(64-flag, xrefindex+1, Xdep)`.
+///
 /// The pre-R2007 inline layout is `TV name, B 64-flag, BS xrefindex+1,
-/// B xdep`. With the name gone the remaining three are observed in the
-/// order `B, B, BS` — not `B, BS, B`. Evidence: in every STYLE record
+/// B Xdep` (§20.4.54). With the name gone the remaining three are observed
+/// in the order `B, B, BS` — not `B, BS, B`. Evidence: in every STYLE record
 /// of `sample_AC1032.dwg` only this order leaves the two-bit `BS` on a
 /// `10` (value 0) code and lands the field body exactly on the string
 /// stream; the alternative puts the `BS` on an `01` code and yields an
 /// xref index of 83 for `Standard`.
-pub(crate) fn read_entry_flags(c: &mut BitCursor<'_>) -> Result<(bool, i16, bool)> {
-    let flag64 = c.read_b()?;
-    let is_xref_dependent = c.read_b()?;
+///
+/// Which of the two bits is which differs by release, measured by the DXF
+/// value oracle (#99) against AutoCAD's exports of the same drawings. On
+/// every table entry of the corpus the 64-flag is set (as it is in the
+/// R2000 and R2004 records, whose order is the spec's) and Xdep is clear
+/// (bit 16 of the exported group 70 is clear on every entry). The set bit
+/// is the second on R2007 and R2010 and the first on R2013 and R2018, so
+/// the order is `B Xdep, B 64-flag` up to R2010 and `B 64-flag, B Xdep`
+/// from R2013. The corpus holds no xref-dependent entry, so what it pins is
+/// which position carries the always-clear bit, not a set Xdep.
+pub(crate) fn read_entry_flags(
+    c: &mut BitCursor<'_>,
+    version: Version,
+) -> Result<(bool, i16, bool)> {
+    let first = c.read_b()?;
+    let second = c.read_b()?;
     let xref_index_plus_1 = c.read_bs()?;
+    let (flag64, is_xref_dependent) = if matches!(version, Version::R2013 | Version::R2018) {
+        (first, second)
+    } else {
+        (second, first)
+    };
     Ok((flag64, xref_index_plus_1, is_xref_dependent))
 }
 

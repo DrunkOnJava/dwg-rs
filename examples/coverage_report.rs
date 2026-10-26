@@ -4,26 +4,51 @@
 //! up, no excuses.
 //!
 //! ```bash
-//! cargo run --release --example coverage_report -- path/to/corpus/
+//! cargo run --release --example coverage_report -- path/to/corpus/ [--tsv out.tsv]
 //! ```
 //!
 //! This example intentionally does NOT dump per-entity field values.
-//! Its audience is CI (the coverage-smoke job calls it) and humans
-//! wanting a quick corpus-wide summary; printing every decoded
+//! Its audience is CI (the coverage-smoke and corpus jobs call it) and
+//! humans wanting a quick corpus-wide summary; printing every decoded
 //! value would bury the summary in noise. For per-entity field
 //! inspection, see the sibling example
 //! [`dump_decoded_entities`](../examples/dump_decoded_entities.rs).
+//!
+//! `--tsv <path>` also writes the same measurement as tab-separated
+//! rows, which `tools/corpus/measure.py` reads instead of the aligned
+//! table:
+//!
+//! ```text
+//! file       <name> <AC10xx> <decoded> <skipped> <errored> <walk-skips> <handle-mismatches>
+//! error      <name> <type label> <count>
+//! unhandled  <name> <type label> <count>
+//! failed     <name> <stage> <message>
+//! ```
 
 use dwg::entities::DecodedEntity;
 use dwg::{DwgFile, ObjectType, entities::DispatchSummary};
 use std::collections::BTreeMap;
 use std::env;
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    let Some(dir_arg) = env::args().nth(1) else {
-        eprintln!("usage: coverage_report <directory-of-dwg-files>");
+    let args: Vec<String> = env::args().skip(1).collect();
+    let mut dir_arg = None;
+    let mut tsv_path = None;
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--tsv" {
+            tsv_path = args.get(i + 1).map(PathBuf::from);
+            i += 2;
+        } else {
+            dir_arg.get_or_insert_with(|| args[i].clone());
+            i += 1;
+        }
+    }
+    let Some(dir_arg) = dir_arg else {
+        eprintln!("usage: coverage_report <directory-of-dwg-files> [--tsv <path>]");
         return ExitCode::FAILURE;
     };
     let dir = PathBuf::from(dir_arg);
@@ -44,6 +69,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    let mut tsv = String::new();
     let mut totals = DispatchSummary::default();
     let mut type_histo: BTreeMap<String, usize> = BTreeMap::new();
     let mut unhandled_histo: BTreeMap<String, usize> = BTreeMap::new();
@@ -70,14 +96,17 @@ fn main() -> ExitCode {
             Ok(f) => f,
             Err(e) => {
                 println!("{:<32} open-failed: {e}", filename);
+                let _ = writeln!(tsv, "failed\t{filename}\topen\t{}", one_line(&e));
                 continue;
             }
         };
         let version = file.version();
+        let magic = String::from_utf8_lossy(&version.magic()).into_owned();
         let (entities, summary) = match file.decoded_entities() {
             Some(Ok((e, s))) => (e, s),
             Some(Err(e)) => {
                 println!("{:<32} decoded_entities-failed: {e}", filename);
+                let _ = writeln!(tsv, "failed\t{filename}\tdecode\t{}", one_line(&e));
                 continue;
             }
             None => {
@@ -86,23 +115,24 @@ fn main() -> ExitCode {
                     filename,
                     format!("{version}")
                 );
+                let _ = writeln!(tsv, "failed\t{filename}\twalk\tno handle map");
                 continue;
             }
         };
 
         // Walker-level diagnostic pass: how many handle-map entries did
         // not resolve to a record at all?
-        let file_walk_skips = match file.all_objects_lossy() {
+        let (file_walk_skips, file_handle_mismatches) = match file.all_objects_lossy() {
             Some(Ok((_, walk))) => {
                 for entry in &walk.skipped {
                     *walk_skips.entry(classify_skip(&entry.reason)).or_default() += 1;
                 }
-                total_handle_mismatches += walk.handle_mismatches.len();
-                walk.skipped.len()
+                (walk.skipped.len(), walk.handle_mismatches.len())
             }
-            _ => 0,
+            _ => (0, 0),
         };
         total_walk_skips += file_walk_skips;
+        total_handle_mismatches += file_handle_mismatches;
 
         println!(
             "{:<32} {:<12} {:>6} {:>6} {:>6} {:>6} {:>7.1}",
@@ -114,11 +144,18 @@ fn main() -> ExitCode {
             file_walk_skips,
             summary.decoded_ratio() * 100.0
         );
+        let _ = writeln!(
+            tsv,
+            "file\t{filename}\t{magic}\t{}\t{}\t{}\t{file_walk_skips}\t{file_handle_mismatches}",
+            summary.decoded, summary.unhandled, summary.errored
+        );
 
         // Custom(N) codes mean nothing on their own — the DXF class
         // name comes from this file's AcDb:Classes table, so an
         // unhandled custom object is only honest when it is named.
         let class_map = file.class_map().and_then(std::result::Result::ok);
+        let mut file_errors: BTreeMap<String, usize> = BTreeMap::new();
+        let mut file_unhandled: BTreeMap<String, usize> = BTreeMap::new();
         // Accumulate per-type histogram via error dedup, keyed by the
         // same name the unhandled histogram uses.
         for (tc, _msg) in &summary.errors {
@@ -127,7 +164,7 @@ fn main() -> ExitCode {
                 .and_then(|m| m.by_type_code(*tc))
                 .map(|d| format!("{} (custom class)", d.dxf_class_name))
                 .unwrap_or_else(|| format!("{} (0x{tc:04X})", ObjectType::from_code(*tc)));
-            *type_histo.entry(label).or_default() += 1;
+            *file_errors.entry(label).or_default() += 1;
         }
         for entity in &entities {
             if let DecodedEntity::Unhandled { type_code, kind } = entity {
@@ -139,8 +176,16 @@ fn main() -> ExitCode {
                     .and_then(|m| m.by_type_code(*type_code))
                     .map(|d| format!("{} (custom class)", d.dxf_class_name))
                     .unwrap_or_else(|| format!("{kind} (0x{type_code:04X})"));
-                *unhandled_histo.entry(label).or_default() += 1;
+                *file_unhandled.entry(label).or_default() += 1;
             }
+        }
+        for (label, cnt) in file_errors {
+            let _ = writeln!(tsv, "error\t{filename}\t{label}\t{cnt}");
+            *type_histo.entry(label).or_default() += cnt;
+        }
+        for (label, cnt) in file_unhandled {
+            let _ = writeln!(tsv, "unhandled\t{filename}\t{label}\t{cnt}");
+            *unhandled_histo.entry(label).or_default() += cnt;
         }
         totals.decoded += summary.decoded;
         totals.unhandled += summary.unhandled;
@@ -175,24 +220,36 @@ fn main() -> ExitCode {
     }
     println!();
     if !type_histo.is_empty() {
-        println!("Error histogram by kind (top 10):");
+        println!("Error histogram by kind:");
         let mut rows: Vec<(&String, &usize)> = type_histo.iter().collect();
         rows.sort_by_key(|(label, cnt)| (std::cmp::Reverse(**cnt), (*label).clone()));
-        for (label, cnt) in rows.iter().take(10) {
+        for (label, cnt) in rows {
             println!("  {label:<32} → {cnt} errors");
         }
     }
     if !unhandled_histo.is_empty() {
         println!();
-        println!("Unhandled histogram by kind (top 15):");
+        println!("Unhandled histogram by kind:");
         let mut rows: Vec<(&String, &usize)> = unhandled_histo.iter().collect();
         rows.sort_by_key(|(label, cnt)| (std::cmp::Reverse(**cnt), (*label).clone()));
-        for (label, cnt) in rows.iter().take(15) {
+        for (label, cnt) in rows {
             println!("  {label:<32} → {cnt}");
         }
     }
 
+    if let Some(path) = tsv_path {
+        if let Err(e) = std::fs::write(&path, tsv) {
+            eprintln!("cannot write {}: {e}", path.display());
+            return ExitCode::FAILURE;
+        }
+    }
     ExitCode::SUCCESS
+}
+
+/// Flatten an error message onto one TSV field: tabs and newlines would
+/// split the row.
+fn one_line(e: &impl std::fmt::Display) -> String {
+    e.to_string().replace(['\t', '\n', '\r'], " ")
 }
 
 /// Collapse a per-record skip reason into a stable bucket so the

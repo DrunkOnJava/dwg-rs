@@ -89,6 +89,13 @@ impl HandleMap {
                 // Empty section → end of list.
                 break;
             }
+            if section_size < 2 {
+                return Err(Error::SectionMap(format!(
+                    "AcDb:Handles section at byte {} claims {} bytes, less than its own 2-byte CRC",
+                    pos - 2,
+                    section_size
+                )));
+            }
             if pos + section_size > bytes.len() {
                 return Err(Error::SectionMap(format!(
                     "AcDb:Handles section at byte {} claims {} bytes, {} remain",

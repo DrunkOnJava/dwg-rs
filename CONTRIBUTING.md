@@ -36,13 +36,49 @@ Two soft gates you will also hit:
   touching `src/bitcursor.rs`, `src/bitwriter.rs`, or `src/lz77*.rs`.
 
 Coverage numbers in `README.md` / `STATUS.md` are *measured*, never
-estimated. If your change moves them, re-run the report on a real corpus
-and paste the table into the PR:
+estimated, and come from the `Corpus (public DWG)` CI job. It fetches the
+public drawings pinned in `tools/corpus/pins.tsv` (nothing is committed),
+runs the real-file tests on them, and fails when any drawing's
+measurement differs from `tools/corpus/baseline.tsv`, in either
+direction. A change that moves a number updates the baseline in the same
+PR. The job's `corpus-measurement` artifact holds the `baseline.tsv` it
+measured; or reproduce it locally:
 
 ```sh
-git clone --depth 1 https://github.com/nextgis/dwg_samples ../dwg_samples
-cargo run --release --example coverage_report -- ../dwg_samples
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus --legacy-samples ../../samples
+cargo build --release --example coverage_report \
+    --example probe_class_census --example probe_reference_closure
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus \
+    --bin target/release/examples --out corpus-results.json
+python3 -I tools/corpus/measure.py check --results corpus-results.json
+python3 -I tools/corpus/measure.py baseline --results corpus-results.json   # record a change
 ```
+
+The same job runs the DXF value oracle (`examples/dxf_oracle`): it pairs
+every DWG record with AutoCAD's own DXF export of the drawing by handle
+and compares each decoded field with its DXF group. It fails when a
+field's agreeing count falls below `tools/oracle/baseline.tsv` or a row
+of it disappears. A change that raises, adds or renames a row commits the
+regenerated TSV (the artifact's `oracle.tsv`) in the same PR:
+
+```sh
+cargo run --release --features dxf-reader --example dxf_oracle -- ../dwg-corpus \
+    --baseline tools/oracle/baseline.tsv --tsv oracle.tsv
+cp oracle.tsv tools/oracle/baseline.tsv   # record a change
+```
+
+When the oracle's numbers for a section move, its note in
+`docs/data/spec-coverage.tsv` follows: save the oracle's text output and
+run `python3 tools/oracle/spec_notes.py <oracle-output> docs/data/spec-coverage.tsv`,
+then `python3 tools/ci/spec_coverage.py --write`. It replaces only the
+note's `DXF oracle (examples/dxf_oracle): ...` sentence and keeps a
+`The spec's own example ...` sentence last, where the spec-examples check
+(#107) writes it, so the two can be regenerated in either order.
+
+`--legacy-samples ../../samples` places the 19 drawings that
+`tests/samples.rs` and its siblings are written against where they look
+for them (they skip silently without it). To compare a branch against
+`main` on GitHub's runners: `gh workflow run measure.yml -f ref=<branch> -f base=main`.
 
 The plan is [`ROADMAP.md`](ROADMAP.md) and its milestones; every section of
 ODA spec v5.4.1 and its state on `main` is in

@@ -847,9 +847,9 @@ mod tests {
     fn header(name: &str) -> TableEntryHeader {
         TableEntryHeader {
             name: name.to_string(),
-            is_xref_dependent: false,
+            flag_64: false,
             xref_index_plus_1: 0,
-            is_xref_resolved: false,
+            is_xref_dependent: false,
         }
     }
 
