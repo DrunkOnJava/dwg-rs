@@ -133,3 +133,22 @@ seeded 0xC0C1 over the `MS` bytes and data.
   at the largest limit still decodes.
 - Output equals the legacy whole-buffer decoder and an independent parse
   on every compressed page of every real file in the pinned manifest.
+
+## Asynchronous source failure cases (#206, written before the adapter)
+
+- A poll with a read in flight returns `Pending` and changes nothing; a
+  different request while one is in flight is an error, never a second
+  fetch.
+- An answer for another offset, an empty answer or one longer than the
+  request is rejected and leaves the request in flight.
+- More bytes than the caller's next scratch takes are held and delivered
+  on the following polls; a request that does not continue them is an
+  error.
+- An answer of "no byte here" becomes `Eof` at exactly that offset, and
+  the grammar turns it into its typed truncation.
+- A transport failure surfaces as the source error on the next poll.
+- Output through the adapter equals the file-backed run; every fetched
+  byte is delivered once, in order; a fresh-process resume fetches no
+  byte twice, including bytes the adapter held at the checkpoint.
+- A transport answer that ignores the range or is longer than the request
+  is refused before its body is read.
