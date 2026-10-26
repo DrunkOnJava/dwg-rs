@@ -1828,7 +1828,7 @@ cargo run --release --example probe_cross_release -- arc_R14.dwg arc_2004.dwg LA
     --ignore=shade_plot_mode,shade_plot_resolution_level,shade_plot_custom_dpi,viewport_count,trailing_strings
 ```
 
-## 7x. ACDBPLACEHOLDER by class number on R14 and R2000 (2026-10-26)
+## 7af. ACDBPLACEHOLDER by class number on R14 and R2000 (2026-10-26)
 
 §5 lists ACDBPLACEHOLDER with the fixed object types (`0x50`) and
 prints no field list for it: the record is the common object data and
