@@ -2605,11 +2605,12 @@ error until it does, and close once it does.
 
 1. **§23.1 chunk length.** "Each section is cut off at a maximum length of
    2032" is a limit on the *entries*: the big-endian size field counts its own
-   two bytes, so a full chunk reads 2034. Seven of the 22 R13 drawings hold
-   chunks of 2033 or 2034 (`Cabin.dwg` 2033; three Sovol at 2034, three at
-   2033), and so do ACadSharp's AutoCAD-saved `sample_AC1014.dwg` (2033) and
-   `sample_AC1015.dwg` (2034). The streaming walk rejected all nine with
-   `MapChunk`; its bound is now 2034 and `verify_walk.py` forges 2035.
+   two bytes, so a full chunk reads 2034 (§7ac found the same on ACadSharp's
+   AutoCAD-saved `sample_AC1014.dwg`, 2033, and `sample_AC1015.dwg`, 2034).
+   Seven of the 22 R13 drawings hold such chunks too (`Cabin.dwg` 2033; three
+   Sovol at 2034, three at 2033), which the streaming walk's old bound of 2032
+   rejected with `MapChunk`. The bound is 2034 on main; `verify_walk.py` now
+   also walks `Cabin.dwg` and two Sovol drawings through the same bound.
 2. **§2.8 and §2.10: BE and BT on R13-R14 are a bare `3BD` and `BD`.** The
    helpers read the R2000+ flag-then-value forms on every release, which agrees
    with the R13-R14 form only when the thickness is 0 and the extrusion is
