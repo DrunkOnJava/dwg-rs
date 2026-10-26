@@ -1794,6 +1794,41 @@ cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC
     --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
 ```
 
+## 7x. SORTENTSTABLE (2026-10-26, #149)
+
+§20.4.93 prints the draw-order table of a block as `BL` numentries and that
+many sort handles, typed `H` but "CODE 0, i.e. part of the main bit stream,
+not of the handle bit stream": the one place in a non-entity object where
+a handle sits in the data stream. A code-0 handle's counter bytes are the
+absolute handle, so each reads as one `H` with no offset to resolve; the
+decoder refuses another code instead of reading an offset as a handle. The
+entity each sorts is the matching handle of the handle stream, which is not
+read.
+
+The dispatcher had no class-name arm for it, so all 27 SORTENTSTABLE records
+of the corpus were skipped. All 27 close on their data-stream boundary, R14 to
+R2018, the three of each ACadSharp sample (model space, paper space and a
+block's) plus the six more R2018 ones.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) the entry count and every sort handle equal the groups the DXF writes as
+pairs, the entity under group 331 and the sort handle as a further group 5:
+66 values, none differing. R14 has no twin.
+
+```sh
+cargo run --release --example probe_sortentstable -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 3 | 3 | no twin | |
+| R2000 | 3 | 3 | 11 | 0 |
+| R2004 | 3 | 3 | 11 | 0 |
+| R2007 | 3 | 3 | 11 | 0 |
+| R2010 | 3 | 3 | 11 | 0 |
+| R2013 | 3 | 3 | 11 | 0 |
+| R2018 | 9 | 9 | 11 | 0 |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

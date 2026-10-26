@@ -31,6 +31,7 @@
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
+//! | SORTENTSTABLE            | [`sortents_table`]        | §20.4.93         |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
 //!
@@ -97,5 +98,6 @@ pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod sortents_table;
 pub mod xdata;
 pub mod xrecord;
