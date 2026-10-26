@@ -96,6 +96,23 @@ lz77-trace = []
 # `cargo test`. Activate with
 # `cargo run --release --example dhat_profile --features dhat-heap`.
 dhat-heap = ["dep:dhat"]
+# The ASCII DXF reader the value oracle (#99) reads AutoCAD's own exports
+# with. A measuring instrument, not part of the DWG reader's surface, so it
+# is off by default; `--all-features` builds, lints and documents it.
+dxf-reader = []
+
+[[example]]
+name = "dxf_census"
+required-features = ["dxf-reader"]
+
+[[example]]
+name = "dxf_oracle"
+path = "examples/dxf_oracle/main.rs"
+required-features = ["dxf-reader"]
+
+[[example]]
+name = "probe_header_vars"
+required-features = ["dxf-reader"]
 
 [[bin]]
 name = "dwg-info"

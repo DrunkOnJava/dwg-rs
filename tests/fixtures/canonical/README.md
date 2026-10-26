@@ -34,6 +34,16 @@ header variables are 26 zero bytes, the class table is empty, and no
 AutoCAD build has opened the file. The R2004-family files share the
 object-map and record CRCs but are not walked by the streaming reader.
 
+The R2004-family file headers carry the §4.1 fixed fields every real
+R2004, R2010, R2013 and R2018 file checked has: the long `0x80` at 0x28,
+the decrypted block's `0x6C`, `4`, `1`, `0x20`, `0x80` and `0x40` at
+0x10, 0x14, 0x24, 0x44, 0x48 and 0x4C, and the magic sequence continued
+to 0x100 in the 0x14 bytes after the block. Their system pages (§4.3) and
+data page headers (§4.6) carry the §4.2 page checksums real files carry,
+at the spec's offsets (#265). They still have no second
+header copy at the end of the file (its address is 0), and their LZ77
+streams end at `0x11` with unpadded data pages, unlike AutoCAD's (#163).
+
 ## Licence and provenance
 
 **Apache-2.0, same as the rest of this repository.** These files are

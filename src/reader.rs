@@ -568,15 +568,35 @@ impl DwgFile {
         )
     }
 
-    /// Read + parse the `AcDb:Header` variable table (~200 system
-    /// vars). Only the raw bit-stream is captured; targeted
-    /// accessors on [`crate::header_vars::HeaderVars`] can extract individual variables.
+    /// Read and decode `AcDb:Header` (§9): every system variable the
+    /// release carries, by AutoCAD name (`$INSBASE`, `$EXTMIN`, ...), as
+    /// [`crate::header_vars::HeaderVars`].
+    ///
+    /// Lossy: a section whose CRC, sentinels, stream boundaries or a slot
+    /// fail to check still returns the variables read before the failure,
+    /// with the reasons in [`crate::header_vars::HeaderVars::diagnostics`].
+    /// See [`Self::header_vars_strict`] for the checked read.
     pub fn header_vars(&self) -> Option<Result<crate::header_vars::HeaderVars>> {
         let version = self.version;
         Some(
             self.read_section("AcDb:Header")?
-                .and_then(|bytes| crate::header_vars::HeaderVars::parse(&bytes, version)),
+                .and_then(|bytes| crate::header_vars::HeaderVars::parse_lossy(&bytes, version)),
         )
+    }
+
+    /// Read and decode `AcDb:Header` (§9), failing on anything that does
+    /// not check: a sentinel or the CRC, a slot that will not read, a
+    /// stream that does not end where the section says it does. The
+    /// section is bounded by [`crate::limits::ParseLimits::max_header_bytes`].
+    pub fn header_vars_strict(&self) -> Option<Result<crate::header_vars::HeaderVars>> {
+        let version = self.version;
+        Some(self.read_section("AcDb:Header")?.and_then(|bytes| {
+            crate::header_vars::HeaderVars::decode(
+                &bytes,
+                version,
+                &crate::limits::ParseLimits::safe(),
+            )
+        }))
     }
 
     /// Full handle-driven object iteration — uses `AcDb:Handles` to

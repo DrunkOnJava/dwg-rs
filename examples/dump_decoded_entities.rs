@@ -274,7 +274,7 @@ fn print_entity(i: usize, e: &DecodedEntity) {
                  grid=({:.3},{:.3}) snap_spacing=({:.3},{:.3}) snap_rot={:.3} mode={} render={}",
                 v.header.name,
                 v.view_height,
-                v.aspect_ratio,
+                v.aspect_ratio().unwrap_or(0.0),
                 v.view_center.x,
                 v.view_center.y,
                 v.view_direction.x,
@@ -569,8 +569,17 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         DecodedEntity::MLeader(_) => {
             println!("[{i}] MLEADER (multileader custom class)");
         }
-        DecodedEntity::Viewport(_) => {
-            println!("[{i}] VIEWPORT (stub)");
+        DecodedEntity::Viewport(v) => {
+            println!(
+                "[{i}] VIEWPORT  center=({:.6}, {:.6}, {:.6}) {:.6} x {:.6}",
+                v.center.x, v.center.y, v.center.z, v.width, v.height
+            );
+            if let Some(view) = &v.view {
+                println!(
+                    "        view_center=({:.6}, {:.6}) view_height={:.6} status=0x{:X}",
+                    view.view_center.x, view.view_center.y, view.view_height, view.status_flags
+                );
+            }
         }
         DecodedEntity::SeqEnd(_) => {
             println!("[{i}] SEQEND");

@@ -1,5 +1,5 @@
-//! XRECORD object (spec §19.6.5 / §19.5.67) — opaque key/value
-//! storage under a parent DICTIONARY.
+//! XRECORD object (§20.4.104) — opaque key/value storage under a
+//! parent DICTIONARY.
 //!
 //! XRECORD is how the DWG format extends itself without changing the
 //! spec: each XRECORD is a list of (group-code, value) pairs like
@@ -12,9 +12,18 @@
 //! ```text
 //! BL     num_databytes          -- size of the raw body (≤ 16 MiB)
 //! // body: concatenated raw bytes of DXF-style (code, value) pairs
-//! // encoded per group-code type (see spec §19.6.5 Table 20).
+//! // encoded per group-code type, following "the normal AutoCAD DXF
+//! // convention for group codes" (§20.4.104).
 //! BS     cloning_flags          -- R2000+ only
 //! ```
+//!
+//! §20.4.104 types XRECORD `(varies)`. From R2000 on it is the fixed
+//! code `0x4F`; R14 files give it a class number from AcDb:Classes, so
+//! `entities::dispatch` routes the `XRECORD` class name here as well
+//! (#149). Measured 2026-10-26: with that route every XRECORD of the
+//! public corpus closes on its boundary, the 1,154 R14 ones included
+//! (115 in each of six nextgis R14 drawings, 122 in `ellipse_R14.dwg`,
+//! 342 in ACadSharp's `sample_AC1014.dwg`).
 //!
 //! # Opaque-body handling
 //!

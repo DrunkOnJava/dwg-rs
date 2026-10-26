@@ -8,6 +8,73 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Changed — an encrypted section is refused with a typed error by every reader (2026-10-26, #205)
+
+The R2004-family section map carries an encryption flag (§4.5: 0 none, 1
+encrypted, 2 properties only). The legacy reader ignored it, so a
+password-protected section's ciphertext was decompressed and returned as if
+it were the section; the streaming walker (`R2004SectionWalker`) already
+refused it. `section_map::read_section_payload`, and so every
+`DwgFile::read_section` and the readers built on it, now returns the new
+`Error::SectionEncrypted { name }` for a section whose flag is 1, the same
+refusal as `streaming::StreamError::SectionEncrypted`. A flag of 2 marks only
+the properties (`AcDb:FileDepList`, `AcDb:AppInfo` in real files) and is
+still read. The R2007 refusal, which was `Error::Unsupported`, returns the
+same variant. No pinned drawing has the flag set to 1, so the corpus counts
+do not move; `tools/streaming/verify_sections.py` repackages the sections of
+four real drawings with one flagged (and a control without) and checks that
+both readers refuse the one and read the other equal to the drawing.
+
+- **Added:** `Error::SectionEncrypted { name: String }`.
+- **Changed:** a section with encryption flag 1 is `Err(SectionEncrypted)`
+  from `read_section_payload` instead of its undecrypted bytes, and an R2007
+  section with encryption other than 0 or 2 is `Err(SectionEncrypted)` instead
+  of `Err(Unsupported)` (its unit test is adapted).
+
+### Changed (breaking) — `section_map::DataPageHeader` carries the measured §4.6 layout (2026-10-26, #205)
+
+The struct labelled its eight words after the §4.6 table, and from `0x14`
+on the labels did not match any data page of the pinned corpus. After the
+Sec_Mask XOR, on all 580 data pages of the 28 pinned R2004-family drawings
+and the four canonical fixtures (`examples/probe_data_page_header.rs
+--strict`, run by the Corpus job; ARCHITECTURE.md §7n): `0x08` data size
+(the stored bytes after the header), `0x0C` page size (the page map's size
+for the page, not the decompressed size), `0x10` start offset (8 bytes),
+`0x18` header checksum (§4.2 over the header with its own field zeroed,
+seeded with the data checksum) and `0x1C` data checksum (§4.2 over the
+stored bytes, seed 0).
+
+- **Changed:** `DataPageHeader::start_offset` is `u64` (was `u32`).
+- **Renamed:** `data_checksum` read `0x18` and now reads `0x1C`; the old
+  `page_header_checksum` (`0x14`, the high half of the start offset) is gone,
+  and `_unknown` (`0x1C`) is now `data_checksum`. New field: `header_checksum`
+  (`0x18`).
+- `read_section_payload` takes its LZ77 capacity hint from the section's
+  declared page size instead of the page's size on disk (a hint only; the
+  assembled bytes are unchanged).
+
+### Fixed — Reed-Solomon uses §5.13's codes, as AutoCAD writes them (2026-10-26, closes #275)
+
+`reed_solomon` decoded R2007 system pages with `0x11D`, which §5.13 gives
+to data pages, and read each codeword back to front; no codeword of a real
+file verified. It now implements both §5.13 codes as `Code::SYSTEM_PAGE`
+((255, 239) over `0x169`) and `Code::DATA_PAGE` ((255, 251) over `0x11D`),
+with byte *i* the coefficient of x^i, roots α^1 … α^(n-k) and the message
+first, all measured: on the eight R2007 drawings of the pinned corpus,
+every one of 187 system and 4,425 data codewords verifies, re-encodes to
+AutoCAD's own parity bytes and is restored after (n-k)/2 injected errors
+(`examples/probe_r2007_rs.rs`, run by the Corpus job).
+
+- `reed_solomon::verify`, `syndromes`, `codewords_for_message` and the
+  `CODEWORD_BYTES` / `PARITY_BYTES` / `MESSAGE_BYTES` constants keep their
+  signatures and now mean the system-page code; `Code::verify` returns the
+  number of bytes corrected, and `Code::verify_interleaved` handles §5.13.2.
+- `reed_solomon_encode::encode_with(code, message)` encodes for either code.
+- **Removed:** `reed_solomon::verify_stream` and `decode_stream`, which
+  treated a block as back-to-back 255-byte codewords, a layout §5.13 does
+  not use (it interleaves, §5.13.2, or puts every data block before every
+  parity block, §5.13.1).
+
 ### Added — the roadmap to 1.0 as milestones, epics and a spec coverage matrix (2026-10-21)
 
 The plan is now on GitHub: seven milestones from 0.2.0 to 1.0.0, eighteen
@@ -109,7 +176,6 @@ So the `KNOWN_SHORTFALL` pins in `tests/class_census.rs` keep their
 counts — nothing was under-walked to recover — and are re-documented as
 files that over-declare rather than as an open walker gap. They still
 gate: a *drop* in any `walked` figure fails the ratchet.
-||||||| 6cc9b13
 ### Added — VISUALSTYLE on R14, R2000 and R2007: one field list, four releases (2026-08-30, closes #73)
 
 #72 made the R14 / R2000 / R2007 object walk work and their 216

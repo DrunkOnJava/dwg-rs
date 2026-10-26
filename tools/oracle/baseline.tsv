@@ -1,0 +1,2866 @@
+release	section	type	field	group	equal	default	different	dwg_only
+R14	§20.4.18	ARC	center.x	10	1	0	0	0
+R14	§20.4.18	ARC	center.y	20	1	0	0	0
+R14	§20.4.18	ARC	center.z	30	1	0	0	0
+R14	§20.4.18	ARC	end_angle	51	1	0	0	0
+R14	§20.4.18	ARC	extrusion.x	210	0	1	0	0
+R14	§20.4.18	ARC	extrusion.y	220	0	1	0	0
+R14	§20.4.18	ARC	extrusion.z	230	0	1	0	0
+R14	§20.4.18	ARC	radius	40	1	0	0	0
+R14	§20.4.18	ARC	start_angle	50	1	0	0	0
+R14	§20.4.18	ARC	thickness	39	0	1	0	0
+R14	§20.4.20	CIRCLE	center.x	10	1	0	0	0
+R14	§20.4.20	CIRCLE	center.y	20	1	0	0	0
+R14	§20.4.20	CIRCLE	center.z	30	1	0	0	0
+R14	§20.4.20	CIRCLE	extrusion.x	210	0	1	0	0
+R14	§20.4.20	CIRCLE	extrusion.y	220	0	1	0	0
+R14	§20.4.20	CIRCLE	extrusion.z	230	0	1	0	0
+R14	§20.4.20	CIRCLE	radius	40	1	0	0	0
+R14	§20.4.20	CIRCLE	thickness	39	0	1	0	0
+R14	§20.4.21	LINE	end.x	11	1	0	0	0
+R14	§20.4.21	LINE	end.y	21	1	0	0	0
+R14	§20.4.21	LINE	end.z	31	1	0	0	0
+R14	§20.4.21	LINE	extrusion.x	210	0	1	0	0
+R14	§20.4.21	LINE	extrusion.y	220	0	1	0	0
+R14	§20.4.21	LINE	extrusion.z	230	0	1	0	0
+R14	§20.4.21	LINE	is_2d	-	0	0	0	1
+R14	§20.4.21	LINE	start.x	10	1	0	0	0
+R14	§20.4.21	LINE	start.y	20	1	0	0	0
+R14	§20.4.21	LINE	start.z	30	1	0	0	0
+R14	§20.4.21	LINE	thickness	39	0	1	0	0
+R14	§20.4.31	POINT	extrusion.x	210	0	2	0	0
+R14	§20.4.31	POINT	extrusion.y	220	0	2	0	0
+R14	§20.4.31	POINT	extrusion.z	230	0	2	0	0
+R14	§20.4.31	POINT	position.x	10	2	0	0	0
+R14	§20.4.31	POINT	position.y	20	2	0	0	0
+R14	§20.4.31	POINT	position.z	30	2	0	0	0
+R14	§20.4.31	POINT	thickness	39	0	2	0	0
+R14	§20.4.31	POINT	x_axis_angle	50	0	2	0	0
+R2000	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
+R2000	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
+R2000	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
+R2000	§20.4.12	VERTEX_3D	location.x	10	5	0	0	0
+R2000	§20.4.12	VERTEX_3D	location.y	20	5	0	0	0
+R2000	§20.4.12	VERTEX_3D	location.z	30	5	0	0	0
+R2000	§20.4.14	VERTEX_PFACE	flag	70	5	0	0	0
+R2000	§20.4.14	VERTEX_PFACE	location.x	10	5	0	0	0
+R2000	§20.4.14	VERTEX_PFACE	location.y	20	5	0	0	0
+R2000	§20.4.14	VERTEX_PFACE	location.z	30	5	0	0	0
+R2000	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[0]	71	2	0	0	0
+R2000	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[1]	72	2	0	0	0
+R2000	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[2]	73	2	0	0	0
+R2000	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[3]	74	1	1	0	0
+R2000	§20.4.17	POLYLINE_3D	3D polyline (always)	70&8	1	0	0	0
+R2000	§20.4.17	POLYLINE_3D	flags[0] & 3 (splined)	70&4	1	0	0	0
+R2000	§20.4.17	POLYLINE_3D	flags[0] (75: 5 or 6 when splined)	75	0	1	0	0
+R2000	§20.4.17	POLYLINE_3D	flags[1] & 1 (closed)	70&1	1	0	0	0
+R2000	§20.4.18	ARC	center.x	10	4	0	0	0
+R2000	§20.4.18	ARC	center.y	20	4	0	0	0
+R2000	§20.4.18	ARC	center.z	30	4	0	0	0
+R2000	§20.4.18	ARC	end_angle	51	4	0	0	0
+R2000	§20.4.18	ARC	extrusion.x	210	0	4	0	0
+R2000	§20.4.18	ARC	extrusion.y	220	0	4	0	0
+R2000	§20.4.18	ARC	extrusion.z	230	0	4	0	0
+R2000	§20.4.18	ARC	radius	40	4	0	0	0
+R2000	§20.4.18	ARC	start_angle	50	4	0	0	0
+R2000	§20.4.18	ARC	thickness	39	0	4	0	0
+R2000	§20.4.20	CIRCLE	center.x	10	14	0	0	0
+R2000	§20.4.20	CIRCLE	center.y	20	14	0	0	0
+R2000	§20.4.20	CIRCLE	center.z	30	14	0	0	0
+R2000	§20.4.20	CIRCLE	extrusion.x	210	0	14	0	0
+R2000	§20.4.20	CIRCLE	extrusion.y	220	0	14	0	0
+R2000	§20.4.20	CIRCLE	extrusion.z	230	0	14	0	0
+R2000	§20.4.20	CIRCLE	radius	40	14	0	0	0
+R2000	§20.4.20	CIRCLE	thickness	39	0	14	0	0
+R2000	§20.4.21	LINE	end.x	11	99	0	0	0
+R2000	§20.4.21	LINE	end.y	21	99	0	0	0
+R2000	§20.4.21	LINE	end.z	31	99	0	0	0
+R2000	§20.4.21	LINE	extrusion.x	210	0	99	0	0
+R2000	§20.4.21	LINE	extrusion.y	220	0	99	0	0
+R2000	§20.4.21	LINE	extrusion.z	230	0	99	0	0
+R2000	§20.4.21	LINE	is_2d	-	0	0	0	99
+R2000	§20.4.21	LINE	start.x	10	99	0	0	0
+R2000	§20.4.21	LINE	start.y	20	99	0	0	0
+R2000	§20.4.21	LINE	start.z	30	99	0	0	0
+R2000	§20.4.21	LINE	thickness	39	0	99	0	0
+R2000	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2000	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2000	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2000	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2000	§20.4.3	TEXT	generation	71	0	29	0	0
+R2000	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2000	§20.4.3	TEXT	height	40	29	0	0	0
+R2000	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2000	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2000	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2000	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2000	§20.4.3	TEXT	text	1	29	0	0	0
+R2000	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2000	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2000	§20.4.3	TEXT	width_factor	41	0	29	0	0
+R2000	§20.4.31	POINT	extrusion.x	210	0	42	0	0
+R2000	§20.4.31	POINT	extrusion.y	220	0	42	0	0
+R2000	§20.4.31	POINT	extrusion.z	230	0	42	0	0
+R2000	§20.4.31	POINT	position.x	10	42	0	0	0
+R2000	§20.4.31	POINT	position.y	20	42	0	0	0
+R2000	§20.4.31	POINT	position.z	30	42	0	0	0
+R2000	§20.4.31	POINT	thickness	39	0	42	0	0
+R2000	§20.4.31	POINT	x_axis_angle	50	0	42	0	0
+R2000	§20.4.32	3DFACE	corners[0].x	10	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[0].y	20	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[0].z	30	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[1].x	11	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[1].y	21	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[1].z	31	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[2].x	12	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[2].y	22	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[2].z	32	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[3].x	13	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[3].y	23	1	0	0	0
+R2000	§20.4.32	3DFACE	corners[3].z	33	1	0	0	0
+R2000	§20.4.32	3DFACE	invisible_edges	70	0	1	0	0
+R2000	§20.4.32	3DFACE	is_triangle	-	0	0	0	1
+R2000	§20.4.33	POLYLINE_PFACE	face_count	72	1	0	0	0
+R2000	§20.4.33	POLYLINE_PFACE	vertex_count	71	1	0	0	0
+R2000	§20.4.35	SOLID	corners[0].x	10	14	0	0	0
+R2000	§20.4.35	SOLID	corners[0].y	20	14	0	0	0
+R2000	§20.4.35	SOLID	corners[1].x	11	14	0	0	0
+R2000	§20.4.35	SOLID	corners[1].y	21	14	0	0	0
+R2000	§20.4.35	SOLID	corners[2].x	12	14	0	0	0
+R2000	§20.4.35	SOLID	corners[2].y	22	14	0	0	0
+R2000	§20.4.35	SOLID	corners[3].x	13	14	0	0	0
+R2000	§20.4.35	SOLID	corners[3].y	23	14	0	0	0
+R2000	§20.4.35	SOLID	elevation (corners[0].z)	30	14	0	0	0
+R2000	§20.4.35	SOLID	elevation (corners[1].z)	31	14	0	0	0
+R2000	§20.4.35	SOLID	elevation (corners[2].z)	32	14	0	0	0
+R2000	§20.4.35	SOLID	elevation (corners[3].z)	33	14	0	0	0
+R2000	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
+R2000	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
+R2000	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
+R2000	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2000	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
+R2000	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
+R2000	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
+R2000	§20.4.39	ELLIPSE	center.z	30	2	0	0	0
+R2000	§20.4.39	ELLIPSE	end_param	42	2	0	0	0
+R2000	§20.4.39	ELLIPSE	extrusion.x	210	2	0	0	0
+R2000	§20.4.39	ELLIPSE	extrusion.y	220	2	0	0	0
+R2000	§20.4.39	ELLIPSE	extrusion.z	230	2	0	0	0
+R2000	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
+R2000	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
+R2000	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
+R2000	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2000	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2000	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2000	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2000	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2000	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2000	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2000	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2000	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2000	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2000	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2000	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2000	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2000	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2000	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2000	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2000	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2000	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2000	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2000	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2000	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2000	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2000	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2000	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2000	§20.4.42	RAY	direction.x	11	1	0	0	0
+R2000	§20.4.42	RAY	direction.y	21	1	0	0	0
+R2000	§20.4.42	RAY	direction.z	31	1	0	0	0
+R2000	§20.4.42	RAY	start.x	10	1	0	0	0
+R2000	§20.4.42	RAY	start.y	20	1	0	0	0
+R2000	§20.4.42	RAY	start.z	30	1	0	0	0
+R2000	§20.4.43	XLINE	direction.x	11	1	0	0	0
+R2000	§20.4.43	XLINE	direction.y	21	1	0	0	0
+R2000	§20.4.43	XLINE	direction.z	31	1	0	0	0
+R2000	§20.4.43	XLINE	point.x	10	1	0	0	0
+R2000	§20.4.43	XLINE	point.y	20	1	0	0	0
+R2000	§20.4.43	XLINE	point.z	30	1	0	0	0
+R2000	§20.4.44	DICTIONARY	cloning_flag	281	200	0	0	0
+R2000	§20.4.44	DICTIONARY	hard_owner	280	71	129	0	0
+R2000	§20.4.44	DICTIONARY	key	3	1012	0	0	0
+R2000	§20.4.44	DICTIONARY	key (absent from the export)	3	0	0	0	1
+R2000	§20.4.44	DICTIONARY	key order	3	200	0	0	0
+R2000	§20.4.45	ACDBDICTIONARYWDFLT	cloning_flag	281	8	0	0	0
+R2000	§20.4.45	ACDBDICTIONARYWDFLT	hard_owner	280	0	8	0	0
+R2000	§20.4.45	ACDBDICTIONARYWDFLT	key	3	8	0	0	0
+R2000	§20.4.45	ACDBDICTIONARYWDFLT	key order	3	8	0	0	0
+R2000	§20.4.46	MTEXT	attachment_point	71	35	0	0	0
+R2000	§20.4.46	MTEXT	drawing_direction	72	35	0	0	0
+R2000	§20.4.46	MTEXT	extents_height	43	0	0	0	35
+R2000	§20.4.46	MTEXT	extents_width	42	0	0	0	35
+R2000	§20.4.46	MTEXT	extrusion.x	210	0	35	0	0
+R2000	§20.4.46	MTEXT	extrusion.y	220	0	35	0	0
+R2000	§20.4.46	MTEXT	extrusion.z	230	0	35	0	0
+R2000	§20.4.46	MTEXT	insertion_point.x	10	35	0	0	0
+R2000	§20.4.46	MTEXT	insertion_point.y	20	35	0	0	0
+R2000	§20.4.46	MTEXT	insertion_point.z	30	35	0	0	0
+R2000	§20.4.46	MTEXT	linespace_factor	44	35	0	0	0
+R2000	§20.4.46	MTEXT	linespace_style	73	35	0	0	0
+R2000	§20.4.46	MTEXT	nominal_text_height	40	35	0	0	0
+R2000	§20.4.46	MTEXT	rect_width	41	35	0	0	0
+R2000	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
+R2000	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
+R2000	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
+R2000	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2000	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2000	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2000	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2000	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2000	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2000	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2000	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2000	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2000	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2000	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2000	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2000	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2000	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2000	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2000	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2000	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2000	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2000	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2000	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2000	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2000	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2000	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2000	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2000	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2000	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.z	BLOCK.30	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.description	BLOCK.4	1	46	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.has_attribs	BLOCK.70&2	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.is_anonymous	BLOCK.70&1	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.is_xref	BLOCK.70&4	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.is_xref_dependent (Xdep)	BLOCK.70&16	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.xref_overlay	BLOCK.70&8	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	BLOCK.xref_path	BLOCK.1	47	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	block_sentinel_handle (not decoded on this release)	-	0	0	0	47
+R2000	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70)	2	46	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70) (anonymous; AutoCAD numbers it)	2	1	0	0	0
+R2000	§20.4.52	BLOCK_HEADER	xref_index_plus_1	-	0	0	0	47
+R2000	§20.4.53	LAYER_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.54	LAYER	color_index	62	26	0	0	0
+R2000	§20.4.54	LAYER	flag_64 (the export never writes bit 64)	-	0	0	0	26
+R2000	§20.4.54	LAYER	frozen (flags & 1)	70&1	26	0	0	0
+R2000	§20.4.54	LAYER	frozen in new viewports (flags & 4)	70&2	26	0	0	0
+R2000	§20.4.54	LAYER	is_xref_dependent (Xdep)	70&16	26	0	0	0
+R2000	§20.4.54	LAYER	lineweight	370	26	0	0	0
+R2000	§20.4.54	LAYER	locked (flags & 8)	70&4	26	0	0	0
+R2000	§20.4.54	LAYER	name	2	26	0	0	0
+R2000	§20.4.54	LAYER	off (flags & 2)	62 sign	26	0	0	0
+R2000	§20.4.54	LAYER	plot_flag	290	2	24	0	0
+R2000	§20.4.54	LAYER	xref_index_plus_1	-	0	0	0	26
+R2000	§20.4.55	STYLE_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.56	STYLE	bigfont_filename	4	20	0	0	0
+R2000	§20.4.56	STYLE	fixed_height	40	20	0	0	0
+R2000	§20.4.56	STYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2000	§20.4.56	STYLE	font_filename	3	20	0	0	0
+R2000	§20.4.56	STYLE	generation	71	20	0	0	0
+R2000	§20.4.56	STYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2000	§20.4.56	STYLE	last_height	42	20	0	0	0
+R2000	§20.4.56	STYLE	name	2	20	0	0	0
+R2000	§20.4.56	STYLE	oblique_angle	50	20	0	0	0
+R2000	§20.4.56	STYLE	shape file (flags & 1)	70&1	20	0	0	0
+R2000	§20.4.56	STYLE	vertical (flags & 4)	70&4	20	0	0	0
+R2000	§20.4.56	STYLE	width_factor	41	20	0	0	0
+R2000	§20.4.56	STYLE	xref_index_plus_1	-	0	0	0	20
+R2000	§20.4.57	LTYPE_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.58	LTYPE	alignment	72	29	0	0	0
+R2000	§20.4.58	LTYPE	dash count	73	29	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].length	49	5	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].rotation	50	1	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].scale	46	1	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].shape_flag	74	5	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].shape_number	75	1	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].x_offset	44	1	0	0	0
+R2000	§20.4.58	LTYPE	dashes[0].y_offset	45	1	0	0	0
+R2000	§20.4.58	LTYPE	dashes[1].length	49	5	0	0	0
+R2000	§20.4.58	LTYPE	dashes[1].rotation	50	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[1].scale	46	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[1].shape_flag	74	4	0	1	0
+R2000	§20.4.58	LTYPE	dashes[1].shape_number	75	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[1].x_offset	44	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[1].y_offset	45	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].length	49	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].rotation	50	2	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].scale	46	2	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].shape_flag	74	3	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].shape_number	75	2	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].x_offset	44	2	0	0	0
+R2000	§20.4.58	LTYPE	dashes[2].y_offset	45	2	0	0	0
+R2000	§20.4.58	LTYPE	dashes[3].length	49	2	0	0	0
+R2000	§20.4.58	LTYPE	dashes[3].shape_flag	74	2	0	0	0
+R2000	§20.4.58	LTYPE	description	3	29	0	0	0
+R2000	§20.4.58	LTYPE	flag_64 (the export never writes bit 64)	-	0	0	0	29
+R2000	§20.4.58	LTYPE	is_xref_dependent (Xdep)	70&16	29	0	0	0
+R2000	§20.4.58	LTYPE	name	2	29	0	0	0
+R2000	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
+R2000	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
+R2000	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
+R2000	§20.4.6	BLOCK	name	2	46	0	1	0
+R2000	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
+R2000	§20.4.64	VPORT	back_clip	44	8	0	0	0
+R2000	§20.4.64	VPORT	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2000	§20.4.64	VPORT	front_clip	43	8	0	0	0
+R2000	§20.4.64	VPORT	grid_spacing.x	15	8	0	0	0
+R2000	§20.4.64	VPORT	grid_spacing.y	25	8	0	0	0
+R2000	§20.4.64	VPORT	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2000	§20.4.64	VPORT	lens_length	42	8	0	0	0
+R2000	§20.4.64	VPORT	lower_left.x	10	8	0	0	0
+R2000	§20.4.64	VPORT	lower_left.y	20	8	0	0	0
+R2000	§20.4.64	VPORT	name	2	8	0	0	0
+R2000	§20.4.64	VPORT	render_mode	281	8	0	0	0
+R2000	§20.4.64	VPORT	snap_base.x	13	8	0	0	0
+R2000	§20.4.64	VPORT	snap_base.y	23	8	0	0	0
+R2000	§20.4.64	VPORT	snap_rotation	50	8	0	0	0
+R2000	§20.4.64	VPORT	snap_spacing.x	14	8	0	0	0
+R2000	§20.4.64	VPORT	snap_spacing.y	24	8	0	0	0
+R2000	§20.4.64	VPORT	ucs_at_origin	74&2	8	0	0	0
+R2000	§20.4.64	VPORT	ucs_per_vport	65	8	0	0	0
+R2000	§20.4.64	VPORT	upper_right.x	11	8	0	0	0
+R2000	§20.4.64	VPORT	upper_right.y	21	8	0	0	0
+R2000	§20.4.64	VPORT	view_center.x	12	8	0	0	0
+R2000	§20.4.64	VPORT	view_center.y	22	8	0	0	0
+R2000	§20.4.64	VPORT	view_direction.x	16	8	0	0	0
+R2000	§20.4.64	VPORT	view_direction.y	26	8	0	0	0
+R2000	§20.4.64	VPORT	view_direction.z	36	8	0	0	0
+R2000	§20.4.64	VPORT	view_height	40	8	0	0	0
+R2000	§20.4.64	VPORT	view_mode	71	8	0	0	0
+R2000	§20.4.64	VPORT	view_target.x	17	8	0	0	0
+R2000	§20.4.64	VPORT	view_target.y	27	8	0	0	0
+R2000	§20.4.64	VPORT	view_target.z	37	8	0	0	0
+R2000	§20.4.64	VPORT	view_twist	51	8	0	0	0
+R2000	§20.4.64	VPORT	xref_index_plus_1	-	0	0	0	8
+R2000	§20.4.65	APPID_CONTROL	num_entries	70	7	0	1	0
+R2000	§20.4.66	APPID	flag_64 (the export never writes bit 64)	-	0	0	0	60
+R2000	§20.4.66	APPID	is_xref_dependent (Xdep)	70&16	60	0	0	0
+R2000	§20.4.66	APPID	name	2	60	0	0	0
+R2000	§20.4.66	APPID	unknown	71	0	60	0	0
+R2000	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
+R2000	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
+R2000	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
+R2000	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2000	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2000	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2000	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2000	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2000	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2000	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2000	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2000	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2000	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
+R2000	§20.4.73	MLINESTYLE	description	3	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	flags (remapped)	70	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	line count	71	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	lines[0].color	62	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	lines[0].linetype_index	-	0	0	0	8
+R2000	§20.4.73	MLINESTYLE	lines[0].offset	49	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	lines[1].color	62	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	lines[1].linetype_index	-	0	0	0	8
+R2000	§20.4.73	MLINESTYLE	lines[1].offset	49	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	name	2	8	0	0	0
+R2000	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
+R2000	§20.4.74	DICTIONARYVAR	schema	280	81	0	0	0
+R2000	§20.4.74	DICTIONARYVAR	value	1	81	0	0	0
+R2000	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
+R2000	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
+R2000	§20.4.84	LAYOUT	elevation	146	25	0	0	0
+R2000	§20.4.84	LAYOUT	extent_max.x	15	25	0	0	0
+R2000	§20.4.84	LAYOUT	extent_max.y	25	25	0	0	0
+R2000	§20.4.84	LAYOUT	extent_max.z	35	25	0	0	0
+R2000	§20.4.84	LAYOUT	extent_min.x	14	25	0	0	0
+R2000	§20.4.84	LAYOUT	extent_min.y	24	25	0	0	0
+R2000	§20.4.84	LAYOUT	extent_min.z	34	25	0	0	0
+R2000	§20.4.84	LAYOUT	flags	70	25	0	0	0
+R2000	§20.4.84	LAYOUT	insertion_point.x	12	25	0	0	0
+R2000	§20.4.84	LAYOUT	insertion_point.y	22	25	0	0	0
+R2000	§20.4.84	LAYOUT	insertion_point.z	32	25	0	0	0
+R2000	§20.4.84	LAYOUT	layout_name	1	25	0	0	0
+R2000	§20.4.84	LAYOUT	limmax.x	11	25	0	0	0
+R2000	§20.4.84	LAYOUT	limmax.y	21	25	0	0	0
+R2000	§20.4.84	LAYOUT	limmin.x	10	25	0	0	0
+R2000	§20.4.84	LAYOUT	limmin.y	20	25	0	0	0
+R2000	§20.4.84	LAYOUT	margin_bottom	41	25	0	0	0
+R2000	§20.4.84	LAYOUT	margin_left	40	25	0	0	0
+R2000	§20.4.84	LAYOUT	margin_right	42	25	0	0	0
+R2000	§20.4.84	LAYOUT	margin_top	43	25	0	0	0
+R2000	§20.4.84	LAYOUT	page_setup_name	1	25	0	0	0
+R2000	§20.4.84	LAYOUT	paper_height	45	25	0	0	0
+R2000	§20.4.84	LAYOUT	paper_image_origin.x	148	25	0	0	0
+R2000	§20.4.84	LAYOUT	paper_image_origin.y	149	25	0	0	0
+R2000	§20.4.84	LAYOUT	paper_size	4	25	0	0	0
+R2000	§20.4.84	LAYOUT	paper_units	72	25	0	0	0
+R2000	§20.4.84	LAYOUT	paper_width	44	25	0	0	0
+R2000	§20.4.84	LAYOUT	plot_layout_flags	70	25	0	0	0
+R2000	§20.4.84	LAYOUT	plot_origin.x	46	25	0	0	0
+R2000	§20.4.84	LAYOUT	plot_origin.y	47	25	0	0	0
+R2000	§20.4.84	LAYOUT	plot_rotation	73	25	0	0	0
+R2000	§20.4.84	LAYOUT	plot_type	74	25	0	0	0
+R2000	§20.4.84	LAYOUT	printer_config_name	2	25	0	0	0
+R2000	§20.4.84	LAYOUT	real_world_units	142	25	0	0	0
+R2000	§20.4.84	LAYOUT	scale_factor	147	25	0	0	0
+R2000	§20.4.84	LAYOUT	shade_plot_custom_dpi	78	0	0	0	25
+R2000	§20.4.84	LAYOUT	shade_plot_mode	76	0	0	0	25
+R2000	§20.4.84	LAYOUT	shade_plot_resolution_level	77	0	0	0	25
+R2000	§20.4.84	LAYOUT	standard_scale_type	75	25	0	0	0
+R2000	§20.4.84	LAYOUT	tab_order	71	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_origin.x	13	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_origin.y	23	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_origin.z	33	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_ortho_view_type	76	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_x_axis.x	16	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_x_axis.y	26	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_x_axis.z	36	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_y_axis.x	17	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_y_axis.y	27	25	0	0	0
+R2000	§20.4.84	LAYOUT	ucs_y_axis.z	37	25	0	0	0
+R2000	§20.4.84	LAYOUT	viewport_count	-	0	0	0	25
+R2000	§20.4.84	LAYOUT	window_max.x	140	25	0	0	0
+R2000	§20.4.84	LAYOUT	window_max.y	141	25	0	0	0
+R2000	§20.4.84	LAYOUT	window_min.x	48	25	0	0	0
+R2000	§20.4.84	LAYOUT	window_min.y	49	25	0	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[0]	42	1	2	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[1]	42	3	0	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[2]	42	2	1	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[3]	42	2	1	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[4]	42	2	1	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[5]	42	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	bulges[6]	42	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	closed (flag & 0x200)	70&1	24	0	0	0
+R2000	§20.4.85	LWPOLYLINE	constant_width	43	1	0	0	0
+R2000	§20.4.85	LWPOLYLINE	constant_width (absent: 0)	43	21	2	0	0
+R2000	§20.4.85	LWPOLYLINE	elevation	38	0	24	0	0
+R2000	§20.4.85	LWPOLYLINE	extrusion.x	210	0	24	0	0
+R2000	§20.4.85	LWPOLYLINE	extrusion.y	220	0	24	0	0
+R2000	§20.4.85	LWPOLYLINE	extrusion.z	230	0	24	0	0
+R2000	§20.4.85	LWPOLYLINE	flag (presence bits)	-	0	0	0	24
+R2000	§20.4.85	LWPOLYLINE	thickness	39	0	24	0	0
+R2000	§20.4.85	LWPOLYLINE	vertex count	90	24	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[0].x	10	24	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[0].y	20	24	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[1].x	10	24	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[1].y	20	24	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[2].x	10	23	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[2].y	20	23	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[3].x	10	22	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[3].y	20	22	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[4].x	10	6	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[4].y	20	6	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[5].x	10	3	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[5].y	20	3	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[6].x	10	3	0	0	0
+R2000	§20.4.85	LWPOLYLINE	vertices[6].y	20	3	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[0].end	41	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[0].start	40	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[1].end	41	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[1].start	40	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[2].end	41	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[2].start	40	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
+R2000	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2000	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
+R2000	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
+R2000	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
+R2000	§20.4.9	INSERT	has_attribs	66	2	10	0	0
+R2000	§20.4.9	INSERT	insertion_point.x	10	12	0	0	0
+R2000	§20.4.9	INSERT	insertion_point.y	20	12	0	0	0
+R2000	§20.4.9	INSERT	insertion_point.z	30	12	0	0	0
+R2000	§20.4.9	INSERT	owned_object_count	-	0	0	0	12
+R2000	§20.4.9	INSERT	rotation	50	3	9	0	0
+R2000	§20.4.9	INSERT	scale.x	41	9	3	0	0
+R2000	§20.4.9	INSERT	scale.y	42	9	3	0	0
+R2000	§20.4.9	INSERT	scale.z	43	9	3	0	0
+R2000	§20.4.92	SCALE	drawing_units	141	152	0	0	0
+R2000	§20.4.92	SCALE	is_unit_scale	290	152	0	0	0
+R2000	§20.4.92	SCALE	paper_units	140	152	0	0	0
+R2000	§20.4.92	SCALE	scale_name	300	152	0	0	0
+R2000	§20.4.92	SCALE	version	70	152	0	0	0
+R2004	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2004	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
+R2004	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
+R2004	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
+R2004	§20.4.12	VERTEX_3D	location.x	10	5	0	0	0
+R2004	§20.4.12	VERTEX_3D	location.y	20	5	0	0	0
+R2004	§20.4.12	VERTEX_3D	location.z	30	5	0	0	0
+R2004	§20.4.14	VERTEX_PFACE	flag	70	5	0	0	0
+R2004	§20.4.14	VERTEX_PFACE	location.x	10	5	0	0	0
+R2004	§20.4.14	VERTEX_PFACE	location.y	20	5	0	0	0
+R2004	§20.4.14	VERTEX_PFACE	location.z	30	5	0	0	0
+R2004	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[0]	71	2	0	0	0
+R2004	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[1]	72	2	0	0	0
+R2004	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[2]	73	2	0	0	0
+R2004	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[3]	74	1	1	0	0
+R2004	§20.4.17	POLYLINE_3D	3D polyline (always)	70&8	1	0	0	0
+R2004	§20.4.17	POLYLINE_3D	flags[0] & 3 (splined)	70&4	1	0	0	0
+R2004	§20.4.17	POLYLINE_3D	flags[0] (75: 5 or 6 when splined)	75	0	1	0	0
+R2004	§20.4.17	POLYLINE_3D	flags[1] & 1 (closed)	70&1	1	0	0	0
+R2004	§20.4.17	POLYLINE_3D	num_owned_objects	-	0	0	0	1
+R2004	§20.4.18	ARC	center.x	10	4	0	0	0
+R2004	§20.4.18	ARC	center.y	20	4	0	0	0
+R2004	§20.4.18	ARC	center.z	30	4	0	0	0
+R2004	§20.4.18	ARC	end_angle	51	4	0	0	0
+R2004	§20.4.18	ARC	extrusion.x	210	0	4	0	0
+R2004	§20.4.18	ARC	extrusion.y	220	0	4	0	0
+R2004	§20.4.18	ARC	extrusion.z	230	0	4	0	0
+R2004	§20.4.18	ARC	radius	40	4	0	0	0
+R2004	§20.4.18	ARC	start_angle	50	4	0	0	0
+R2004	§20.4.18	ARC	thickness	39	0	4	0	0
+R2004	§20.4.20	CIRCLE	center.x	10	14	0	0	0
+R2004	§20.4.20	CIRCLE	center.y	20	14	0	0	0
+R2004	§20.4.20	CIRCLE	center.z	30	14	0	0	0
+R2004	§20.4.20	CIRCLE	extrusion.x	210	0	14	0	0
+R2004	§20.4.20	CIRCLE	extrusion.y	220	0	14	0	0
+R2004	§20.4.20	CIRCLE	extrusion.z	230	0	14	0	0
+R2004	§20.4.20	CIRCLE	radius	40	14	0	0	0
+R2004	§20.4.20	CIRCLE	thickness	39	0	14	0	0
+R2004	§20.4.21	LINE	end.x	11	99	0	0	0
+R2004	§20.4.21	LINE	end.y	21	99	0	0	0
+R2004	§20.4.21	LINE	end.z	31	99	0	0	0
+R2004	§20.4.21	LINE	extrusion.x	210	0	99	0	0
+R2004	§20.4.21	LINE	extrusion.y	220	0	99	0	0
+R2004	§20.4.21	LINE	extrusion.z	230	0	99	0	0
+R2004	§20.4.21	LINE	is_2d	-	0	0	0	99
+R2004	§20.4.21	LINE	start.x	10	99	0	0	0
+R2004	§20.4.21	LINE	start.y	20	99	0	0	0
+R2004	§20.4.21	LINE	start.z	30	99	0	0	0
+R2004	§20.4.21	LINE	thickness	39	0	99	0	0
+R2004	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2004	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2004	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2004	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2004	§20.4.3	TEXT	generation	71	0	29	0	0
+R2004	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2004	§20.4.3	TEXT	height	40	29	0	0	0
+R2004	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2004	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2004	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2004	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2004	§20.4.3	TEXT	text	1	29	0	0	0
+R2004	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2004	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2004	§20.4.3	TEXT	width_factor	41	0	29	0	0
+R2004	§20.4.31	POINT	extrusion.x	210	0	42	0	0
+R2004	§20.4.31	POINT	extrusion.y	220	0	42	0	0
+R2004	§20.4.31	POINT	extrusion.z	230	0	42	0	0
+R2004	§20.4.31	POINT	position.x	10	42	0	0	0
+R2004	§20.4.31	POINT	position.y	20	42	0	0	0
+R2004	§20.4.31	POINT	position.z	30	42	0	0	0
+R2004	§20.4.31	POINT	thickness	39	0	42	0	0
+R2004	§20.4.31	POINT	x_axis_angle	50	0	42	0	0
+R2004	§20.4.32	3DFACE	corners[0].x	10	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[0].y	20	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[0].z	30	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[1].x	11	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[1].y	21	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[1].z	31	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[2].x	12	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[2].y	22	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[2].z	32	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[3].x	13	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[3].y	23	1	0	0	0
+R2004	§20.4.32	3DFACE	corners[3].z	33	1	0	0	0
+R2004	§20.4.32	3DFACE	invisible_edges	70	0	1	0	0
+R2004	§20.4.32	3DFACE	is_triangle	-	0	0	0	1
+R2004	§20.4.33	POLYLINE_PFACE	face_count	72	1	0	0	0
+R2004	§20.4.33	POLYLINE_PFACE	num_owned_objects	-	0	0	0	1
+R2004	§20.4.33	POLYLINE_PFACE	vertex_count	71	1	0	0	0
+R2004	§20.4.35	SOLID	corners[0].x	10	14	0	0	0
+R2004	§20.4.35	SOLID	corners[0].y	20	14	0	0	0
+R2004	§20.4.35	SOLID	corners[1].x	11	14	0	0	0
+R2004	§20.4.35	SOLID	corners[1].y	21	14	0	0	0
+R2004	§20.4.35	SOLID	corners[2].x	12	14	0	0	0
+R2004	§20.4.35	SOLID	corners[2].y	22	14	0	0	0
+R2004	§20.4.35	SOLID	corners[3].x	13	14	0	0	0
+R2004	§20.4.35	SOLID	corners[3].y	23	14	0	0	0
+R2004	§20.4.35	SOLID	elevation (corners[0].z)	30	14	0	0	0
+R2004	§20.4.35	SOLID	elevation (corners[1].z)	31	14	0	0	0
+R2004	§20.4.35	SOLID	elevation (corners[2].z)	32	14	0	0	0
+R2004	§20.4.35	SOLID	elevation (corners[3].z)	33	14	0	0	0
+R2004	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
+R2004	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
+R2004	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
+R2004	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2004	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
+R2004	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
+R2004	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
+R2004	§20.4.39	ELLIPSE	center.z	30	2	0	0	0
+R2004	§20.4.39	ELLIPSE	end_param	42	2	0	0	0
+R2004	§20.4.39	ELLIPSE	extrusion.x	210	2	0	0	0
+R2004	§20.4.39	ELLIPSE	extrusion.y	220	2	0	0	0
+R2004	§20.4.39	ELLIPSE	extrusion.z	230	2	0	0	0
+R2004	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
+R2004	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
+R2004	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
+R2004	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2004	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2004	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2004	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2004	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2004	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2004	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2004	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2004	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2004	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2004	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2004	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2004	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2004	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2004	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2004	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2004	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2004	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2004	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2004	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2004	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2004	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2004	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2004	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2004	§20.4.42	RAY	direction.x	11	1	0	0	0
+R2004	§20.4.42	RAY	direction.y	21	1	0	0	0
+R2004	§20.4.42	RAY	direction.z	31	1	0	0	0
+R2004	§20.4.42	RAY	start.x	10	1	0	0	0
+R2004	§20.4.42	RAY	start.y	20	1	0	0	0
+R2004	§20.4.42	RAY	start.z	30	1	0	0	0
+R2004	§20.4.43	XLINE	direction.x	11	1	0	0	0
+R2004	§20.4.43	XLINE	direction.y	21	1	0	0	0
+R2004	§20.4.43	XLINE	direction.z	31	1	0	0	0
+R2004	§20.4.43	XLINE	point.x	10	1	0	0	0
+R2004	§20.4.43	XLINE	point.y	20	1	0	0	0
+R2004	§20.4.43	XLINE	point.z	30	1	0	0	0
+R2004	§20.4.44	DICTIONARY	cloning_flag	281	200	0	0	0
+R2004	§20.4.44	DICTIONARY	hard_owner	280	71	129	0	0
+R2004	§20.4.44	DICTIONARY	key	3	967	0	0	0
+R2004	§20.4.44	DICTIONARY	key (absent from the export)	3	0	0	0	8
+R2004	§20.4.44	DICTIONARY	key order	3	200	0	0	0
+R2004	§20.4.45	ACDBDICTIONARYWDFLT	cloning_flag	281	8	0	0	0
+R2004	§20.4.45	ACDBDICTIONARYWDFLT	hard_owner	280	0	8	0	0
+R2004	§20.4.45	ACDBDICTIONARYWDFLT	key	3	8	0	0	0
+R2004	§20.4.45	ACDBDICTIONARYWDFLT	key order	3	8	0	0	0
+R2004	§20.4.46	MTEXT	attachment_point	71	35	0	0	0
+R2004	§20.4.46	MTEXT	drawing_direction	72	35	0	0	0
+R2004	§20.4.46	MTEXT	extents_height	43	0	0	0	35
+R2004	§20.4.46	MTEXT	extents_width	42	0	0	0	35
+R2004	§20.4.46	MTEXT	extrusion.x	210	0	35	0	0
+R2004	§20.4.46	MTEXT	extrusion.y	220	0	35	0	0
+R2004	§20.4.46	MTEXT	extrusion.z	230	0	35	0	0
+R2004	§20.4.46	MTEXT	insertion_point.x	10	35	0	0	0
+R2004	§20.4.46	MTEXT	insertion_point.y	20	35	0	0	0
+R2004	§20.4.46	MTEXT	insertion_point.z	30	35	0	0	0
+R2004	§20.4.46	MTEXT	linespace_factor	44	35	0	0	0
+R2004	§20.4.46	MTEXT	linespace_style	73	35	0	0	0
+R2004	§20.4.46	MTEXT	nominal_text_height	40	35	0	0	0
+R2004	§20.4.46	MTEXT	rect_width	41	35	0	0	0
+R2004	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
+R2004	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
+R2004	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
+R2004	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2004	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2004	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2004	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2004	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2004	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2004	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2004	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2004	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2004	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2004	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2004	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2004	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2004	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2004	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2004	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2004	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2004	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2004	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2004	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2004	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2004	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2004	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2004	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2004	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2004	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.z	BLOCK.30	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.description	BLOCK.4	1	46	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.has_attribs	BLOCK.70&2	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.is_anonymous	BLOCK.70&1	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.is_xref	BLOCK.70&4	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.is_xref_dependent (Xdep)	BLOCK.70&16	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.xref_overlay	BLOCK.70&8	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	BLOCK.xref_path	BLOCK.1	47	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	block_sentinel_handle (not decoded on this release)	-	0	0	0	47
+R2004	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70)	2	46	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70) (anonymous; AutoCAD numbers it)	2	1	0	0	0
+R2004	§20.4.52	BLOCK_HEADER	num_owned_objects	-	0	0	0	47
+R2004	§20.4.52	BLOCK_HEADER	xref_index_plus_1	-	0	0	0	47
+R2004	§20.4.53	LAYER_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.54	LAYER	color_index	-	0	0	0	3
+R2004	§20.4.54	LAYER	color_index	62	23	0	0	0
+R2004	§20.4.54	LAYER	flag_64 (the export never writes bit 64)	-	0	0	0	26
+R2004	§20.4.54	LAYER	frozen (flags & 1)	70&1	26	0	0	0
+R2004	§20.4.54	LAYER	frozen in new viewports (flags & 4)	70&2	26	0	0	0
+R2004	§20.4.54	LAYER	is_xref_dependent (Xdep)	70&16	26	0	0	0
+R2004	§20.4.54	LAYER	lineweight	370	26	0	0	0
+R2004	§20.4.54	LAYER	locked (flags & 8)	70&4	26	0	0	0
+R2004	§20.4.54	LAYER	name	2	26	0	0	0
+R2004	§20.4.54	LAYER	off (flags & 2)	62 sign	26	0	0	0
+R2004	§20.4.54	LAYER	plot_flag	290	2	24	0	0
+R2004	§20.4.54	LAYER	xref_index_plus_1	-	0	0	0	26
+R2004	§20.4.55	STYLE_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.56	STYLE	bigfont_filename	4	20	0	0	0
+R2004	§20.4.56	STYLE	fixed_height	40	20	0	0	0
+R2004	§20.4.56	STYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2004	§20.4.56	STYLE	font_filename	3	20	0	0	0
+R2004	§20.4.56	STYLE	generation	71	20	0	0	0
+R2004	§20.4.56	STYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2004	§20.4.56	STYLE	last_height	42	20	0	0	0
+R2004	§20.4.56	STYLE	name	2	20	0	0	0
+R2004	§20.4.56	STYLE	oblique_angle	50	20	0	0	0
+R2004	§20.4.56	STYLE	shape file (flags & 1)	70&1	20	0	0	0
+R2004	§20.4.56	STYLE	vertical (flags & 4)	70&4	20	0	0	0
+R2004	§20.4.56	STYLE	width_factor	41	20	0	0	0
+R2004	§20.4.56	STYLE	xref_index_plus_1	-	0	0	0	20
+R2004	§20.4.57	LTYPE_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.58	LTYPE	alignment	72	29	0	0	0
+R2004	§20.4.58	LTYPE	dash count	73	29	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].length	49	5	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].rotation	50	1	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].scale	46	1	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].shape_flag	74	5	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].shape_number	75	1	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].x_offset	44	1	0	0	0
+R2004	§20.4.58	LTYPE	dashes[0].y_offset	45	1	0	0	0
+R2004	§20.4.58	LTYPE	dashes[1].length	49	5	0	0	0
+R2004	§20.4.58	LTYPE	dashes[1].rotation	50	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[1].scale	46	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[1].shape_flag	74	4	0	1	0
+R2004	§20.4.58	LTYPE	dashes[1].shape_number	75	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[1].x_offset	44	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[1].y_offset	45	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].length	49	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].rotation	50	2	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].scale	46	2	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].shape_flag	74	3	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].shape_number	75	2	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].x_offset	44	2	0	0	0
+R2004	§20.4.58	LTYPE	dashes[2].y_offset	45	2	0	0	0
+R2004	§20.4.58	LTYPE	dashes[3].length	49	2	0	0	0
+R2004	§20.4.58	LTYPE	dashes[3].shape_flag	74	2	0	0	0
+R2004	§20.4.58	LTYPE	description	3	29	0	0	0
+R2004	§20.4.58	LTYPE	flag_64 (the export never writes bit 64)	-	0	0	0	29
+R2004	§20.4.58	LTYPE	is_xref_dependent (Xdep)	70&16	29	0	0	0
+R2004	§20.4.58	LTYPE	name	2	29	0	0	0
+R2004	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
+R2004	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
+R2004	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
+R2004	§20.4.6	BLOCK	name	2	46	0	1	0
+R2004	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
+R2004	§20.4.64	VPORT	back_clip	44	8	0	0	0
+R2004	§20.4.64	VPORT	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2004	§20.4.64	VPORT	front_clip	43	8	0	0	0
+R2004	§20.4.64	VPORT	grid_spacing.x	15	8	0	0	0
+R2004	§20.4.64	VPORT	grid_spacing.y	25	8	0	0	0
+R2004	§20.4.64	VPORT	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2004	§20.4.64	VPORT	lens_length	42	8	0	0	0
+R2004	§20.4.64	VPORT	lower_left.x	10	8	0	0	0
+R2004	§20.4.64	VPORT	lower_left.y	20	8	0	0	0
+R2004	§20.4.64	VPORT	name	2	8	0	0	0
+R2004	§20.4.64	VPORT	render_mode	281	8	0	0	0
+R2004	§20.4.64	VPORT	snap_base.x	13	8	0	0	0
+R2004	§20.4.64	VPORT	snap_base.y	23	8	0	0	0
+R2004	§20.4.64	VPORT	snap_rotation	50	8	0	0	0
+R2004	§20.4.64	VPORT	snap_spacing.x	14	8	0	0	0
+R2004	§20.4.64	VPORT	snap_spacing.y	24	8	0	0	0
+R2004	§20.4.64	VPORT	ucs_at_origin	74&2	8	0	0	0
+R2004	§20.4.64	VPORT	ucs_per_vport	65	8	0	0	0
+R2004	§20.4.64	VPORT	upper_right.x	11	8	0	0	0
+R2004	§20.4.64	VPORT	upper_right.y	21	8	0	0	0
+R2004	§20.4.64	VPORT	view_center.x	12	8	0	0	0
+R2004	§20.4.64	VPORT	view_center.y	22	8	0	0	0
+R2004	§20.4.64	VPORT	view_direction.x	16	8	0	0	0
+R2004	§20.4.64	VPORT	view_direction.y	26	8	0	0	0
+R2004	§20.4.64	VPORT	view_direction.z	36	8	0	0	0
+R2004	§20.4.64	VPORT	view_height	40	8	0	0	0
+R2004	§20.4.64	VPORT	view_mode	71	8	0	0	0
+R2004	§20.4.64	VPORT	view_target.x	17	8	0	0	0
+R2004	§20.4.64	VPORT	view_target.y	27	8	0	0	0
+R2004	§20.4.64	VPORT	view_target.z	37	8	0	0	0
+R2004	§20.4.64	VPORT	view_twist	51	8	0	0	0
+R2004	§20.4.64	VPORT	xref_index_plus_1	-	0	0	0	8
+R2004	§20.4.65	APPID_CONTROL	num_entries	70	7	0	1	0
+R2004	§20.4.66	APPID	flag_64 (the export never writes bit 64)	-	0	0	0	60
+R2004	§20.4.66	APPID	is_xref_dependent (Xdep)	70&16	60	0	0	0
+R2004	§20.4.66	APPID	name	2	60	0	0	0
+R2004	§20.4.66	APPID	unknown	71	0	60	0	0
+R2004	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
+R2004	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
+R2004	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
+R2004	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2004	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2004	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2004	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2004	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2004	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2004	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2004	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2004	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2004	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
+R2004	§20.4.73	MLINESTYLE	description	3	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	flags (remapped)	70	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	line count	71	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	lines[0].color	62	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	lines[0].linetype_index	-	0	0	0	8
+R2004	§20.4.73	MLINESTYLE	lines[0].offset	49	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	lines[1].color	62	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	lines[1].linetype_index	-	0	0	0	8
+R2004	§20.4.73	MLINESTYLE	lines[1].offset	49	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	name	2	8	0	0	0
+R2004	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
+R2004	§20.4.74	DICTIONARYVAR	schema	280	53	0	0	0
+R2004	§20.4.74	DICTIONARYVAR	value	1	53	0	0	0
+R2004	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
+R2004	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
+R2004	§20.4.84	LAYOUT	elevation	146	25	0	0	0
+R2004	§20.4.84	LAYOUT	extent_max.x	15	25	0	0	0
+R2004	§20.4.84	LAYOUT	extent_max.y	25	25	0	0	0
+R2004	§20.4.84	LAYOUT	extent_max.z	35	25	0	0	0
+R2004	§20.4.84	LAYOUT	extent_min.x	14	25	0	0	0
+R2004	§20.4.84	LAYOUT	extent_min.y	24	25	0	0	0
+R2004	§20.4.84	LAYOUT	extent_min.z	34	25	0	0	0
+R2004	§20.4.84	LAYOUT	flags	70	25	0	0	0
+R2004	§20.4.84	LAYOUT	insertion_point.x	12	25	0	0	0
+R2004	§20.4.84	LAYOUT	insertion_point.y	22	25	0	0	0
+R2004	§20.4.84	LAYOUT	insertion_point.z	32	25	0	0	0
+R2004	§20.4.84	LAYOUT	layout_name	1	25	0	0	0
+R2004	§20.4.84	LAYOUT	limmax.x	11	25	0	0	0
+R2004	§20.4.84	LAYOUT	limmax.y	21	25	0	0	0
+R2004	§20.4.84	LAYOUT	limmin.x	10	25	0	0	0
+R2004	§20.4.84	LAYOUT	limmin.y	20	25	0	0	0
+R2004	§20.4.84	LAYOUT	margin_bottom	41	25	0	0	0
+R2004	§20.4.84	LAYOUT	margin_left	40	25	0	0	0
+R2004	§20.4.84	LAYOUT	margin_right	42	25	0	0	0
+R2004	§20.4.84	LAYOUT	margin_top	43	25	0	0	0
+R2004	§20.4.84	LAYOUT	page_setup_name	1	25	0	0	0
+R2004	§20.4.84	LAYOUT	paper_height	45	25	0	0	0
+R2004	§20.4.84	LAYOUT	paper_image_origin.x	148	25	0	0	0
+R2004	§20.4.84	LAYOUT	paper_image_origin.y	149	25	0	0	0
+R2004	§20.4.84	LAYOUT	paper_size	4	25	0	0	0
+R2004	§20.4.84	LAYOUT	paper_units	72	25	0	0	0
+R2004	§20.4.84	LAYOUT	paper_width	44	25	0	0	0
+R2004	§20.4.84	LAYOUT	plot_layout_flags	70	25	0	0	0
+R2004	§20.4.84	LAYOUT	plot_origin.x	46	25	0	0	0
+R2004	§20.4.84	LAYOUT	plot_origin.y	47	25	0	0	0
+R2004	§20.4.84	LAYOUT	plot_rotation	73	25	0	0	0
+R2004	§20.4.84	LAYOUT	plot_type	74	25	0	0	0
+R2004	§20.4.84	LAYOUT	printer_config_name	2	25	0	0	0
+R2004	§20.4.84	LAYOUT	real_world_units	142	25	0	0	0
+R2004	§20.4.84	LAYOUT	scale_factor	147	25	0	0	0
+R2004	§20.4.84	LAYOUT	shade_plot_custom_dpi	78	25	0	0	0
+R2004	§20.4.84	LAYOUT	shade_plot_mode	76	25	0	0	0
+R2004	§20.4.84	LAYOUT	shade_plot_resolution_level	77	25	0	0	0
+R2004	§20.4.84	LAYOUT	standard_scale_type	75	25	0	0	0
+R2004	§20.4.84	LAYOUT	tab_order	71	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_origin.x	13	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_origin.y	23	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_origin.z	33	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_ortho_view_type	76	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_x_axis.x	16	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_x_axis.y	26	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_x_axis.z	36	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_y_axis.x	17	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_y_axis.y	27	25	0	0	0
+R2004	§20.4.84	LAYOUT	ucs_y_axis.z	37	25	0	0	0
+R2004	§20.4.84	LAYOUT	viewport_count	-	0	0	0	25
+R2004	§20.4.84	LAYOUT	window_max.x	140	25	0	0	0
+R2004	§20.4.84	LAYOUT	window_max.y	141	25	0	0	0
+R2004	§20.4.84	LAYOUT	window_min.x	48	25	0	0	0
+R2004	§20.4.84	LAYOUT	window_min.y	49	25	0	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[0]	42	1	2	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[1]	42	3	0	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[2]	42	2	1	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[3]	42	2	1	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[4]	42	2	1	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[5]	42	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	bulges[6]	42	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	closed (flag & 0x200)	70&1	24	0	0	0
+R2004	§20.4.85	LWPOLYLINE	constant_width	43	1	0	0	0
+R2004	§20.4.85	LWPOLYLINE	constant_width (absent: 0)	43	21	2	0	0
+R2004	§20.4.85	LWPOLYLINE	elevation	38	0	24	0	0
+R2004	§20.4.85	LWPOLYLINE	extrusion.x	210	0	24	0	0
+R2004	§20.4.85	LWPOLYLINE	extrusion.y	220	0	24	0	0
+R2004	§20.4.85	LWPOLYLINE	extrusion.z	230	0	24	0	0
+R2004	§20.4.85	LWPOLYLINE	flag (presence bits)	-	0	0	0	24
+R2004	§20.4.85	LWPOLYLINE	thickness	39	0	24	0	0
+R2004	§20.4.85	LWPOLYLINE	vertex count	90	24	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[0].x	10	24	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[0].y	20	24	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[1].x	10	24	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[1].y	20	24	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[2].x	10	23	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[2].y	20	23	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[3].x	10	22	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[3].y	20	22	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[4].x	10	6	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[4].y	20	6	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[5].x	10	3	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[5].y	20	3	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[6].x	10	3	0	0	0
+R2004	§20.4.85	LWPOLYLINE	vertices[6].y	20	3	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[0].end	41	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[0].start	40	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[1].end	41	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[1].start	40	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[2].end	41	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[2].start	40	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
+R2004	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2004	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
+R2004	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
+R2004	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
+R2004	§20.4.9	INSERT	has_attribs	66	2	10	0	0
+R2004	§20.4.9	INSERT	insertion_point.x	10	12	0	0	0
+R2004	§20.4.9	INSERT	insertion_point.y	20	12	0	0	0
+R2004	§20.4.9	INSERT	insertion_point.z	30	12	0	0	0
+R2004	§20.4.9	INSERT	owned_object_count	-	0	0	0	12
+R2004	§20.4.9	INSERT	rotation	50	3	9	0	0
+R2004	§20.4.9	INSERT	scale.x	41	9	3	0	0
+R2004	§20.4.9	INSERT	scale.y	42	9	3	0	0
+R2004	§20.4.9	INSERT	scale.z	43	9	3	0	0
+R2004	§20.4.92	SCALE	drawing_units	141	152	0	0	0
+R2004	§20.4.92	SCALE	is_unit_scale	290	152	0	0	0
+R2004	§20.4.92	SCALE	paper_units	140	152	0	0	0
+R2004	§20.4.92	SCALE	scale_name	300	152	0	0	0
+R2004	§20.4.92	SCALE	version	70	152	0	0	0
+R2007	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2007	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
+R2007	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
+R2007	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
+R2007	§20.4.12	VERTEX_3D	location.x	10	5	0	0	0
+R2007	§20.4.12	VERTEX_3D	location.y	20	5	0	0	0
+R2007	§20.4.12	VERTEX_3D	location.z	30	5	0	0	0
+R2007	§20.4.14	VERTEX_PFACE	flag	70	5	0	0	0
+R2007	§20.4.14	VERTEX_PFACE	location.x	10	5	0	0	0
+R2007	§20.4.14	VERTEX_PFACE	location.y	20	5	0	0	0
+R2007	§20.4.14	VERTEX_PFACE	location.z	30	5	0	0	0
+R2007	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[0]	71	2	0	0	0
+R2007	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[1]	72	2	0	0	0
+R2007	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[2]	73	2	0	0	0
+R2007	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[3]	74	1	1	0	0
+R2007	§20.4.17	POLYLINE_3D	3D polyline (always)	70&8	1	0	0	0
+R2007	§20.4.17	POLYLINE_3D	flags[0] & 3 (splined)	70&4	1	0	0	0
+R2007	§20.4.17	POLYLINE_3D	flags[0] (75: 5 or 6 when splined)	75	0	1	0	0
+R2007	§20.4.17	POLYLINE_3D	flags[1] & 1 (closed)	70&1	1	0	0	0
+R2007	§20.4.17	POLYLINE_3D	num_owned_objects	-	0	0	0	1
+R2007	§20.4.18	ARC	center.x	10	4	0	0	0
+R2007	§20.4.18	ARC	center.y	20	4	0	0	0
+R2007	§20.4.18	ARC	center.z	30	4	0	0	0
+R2007	§20.4.18	ARC	end_angle	51	4	0	0	0
+R2007	§20.4.18	ARC	extrusion.x	210	0	4	0	0
+R2007	§20.4.18	ARC	extrusion.y	220	0	4	0	0
+R2007	§20.4.18	ARC	extrusion.z	230	0	4	0	0
+R2007	§20.4.18	ARC	radius	40	4	0	0	0
+R2007	§20.4.18	ARC	start_angle	50	4	0	0	0
+R2007	§20.4.18	ARC	thickness	39	0	4	0	0
+R2007	§20.4.20	CIRCLE	center.x	10	14	0	0	0
+R2007	§20.4.20	CIRCLE	center.y	20	14	0	0	0
+R2007	§20.4.20	CIRCLE	center.z	30	14	0	0	0
+R2007	§20.4.20	CIRCLE	extrusion.x	210	0	14	0	0
+R2007	§20.4.20	CIRCLE	extrusion.y	220	0	14	0	0
+R2007	§20.4.20	CIRCLE	extrusion.z	230	0	14	0	0
+R2007	§20.4.20	CIRCLE	radius	40	14	0	0	0
+R2007	§20.4.20	CIRCLE	thickness	39	0	14	0	0
+R2007	§20.4.21	LINE	end.x	11	99	0	0	0
+R2007	§20.4.21	LINE	end.y	21	99	0	0	0
+R2007	§20.4.21	LINE	end.z	31	99	0	0	0
+R2007	§20.4.21	LINE	extrusion.x	210	0	99	0	0
+R2007	§20.4.21	LINE	extrusion.y	220	0	99	0	0
+R2007	§20.4.21	LINE	extrusion.z	230	0	99	0	0
+R2007	§20.4.21	LINE	is_2d	-	0	0	0	99
+R2007	§20.4.21	LINE	start.x	10	99	0	0	0
+R2007	§20.4.21	LINE	start.y	20	99	0	0	0
+R2007	§20.4.21	LINE	start.z	30	99	0	0	0
+R2007	§20.4.21	LINE	thickness	39	0	99	0	0
+R2007	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2007	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2007	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2007	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2007	§20.4.3	TEXT	generation	71	0	29	0	0
+R2007	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2007	§20.4.3	TEXT	height	40	29	0	0	0
+R2007	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2007	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2007	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2007	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2007	§20.4.3	TEXT	text	1	29	0	0	0
+R2007	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2007	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2007	§20.4.3	TEXT	width_factor	41	0	29	0	0
+R2007	§20.4.31	POINT	extrusion.x	210	0	42	0	0
+R2007	§20.4.31	POINT	extrusion.y	220	0	42	0	0
+R2007	§20.4.31	POINT	extrusion.z	230	0	42	0	0
+R2007	§20.4.31	POINT	position.x	10	42	0	0	0
+R2007	§20.4.31	POINT	position.y	20	42	0	0	0
+R2007	§20.4.31	POINT	position.z	30	42	0	0	0
+R2007	§20.4.31	POINT	thickness	39	0	42	0	0
+R2007	§20.4.31	POINT	x_axis_angle	50	0	42	0	0
+R2007	§20.4.32	3DFACE	corners[0].x	10	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[0].y	20	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[0].z	30	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[1].x	11	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[1].y	21	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[1].z	31	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[2].x	12	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[2].y	22	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[2].z	32	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[3].x	13	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[3].y	23	1	0	0	0
+R2007	§20.4.32	3DFACE	corners[3].z	33	1	0	0	0
+R2007	§20.4.32	3DFACE	invisible_edges	70	0	1	0	0
+R2007	§20.4.32	3DFACE	is_triangle	-	0	0	0	1
+R2007	§20.4.33	POLYLINE_PFACE	face_count	72	1	0	0	0
+R2007	§20.4.33	POLYLINE_PFACE	num_owned_objects	-	0	0	0	1
+R2007	§20.4.33	POLYLINE_PFACE	vertex_count	71	1	0	0	0
+R2007	§20.4.35	SOLID	corners[0].x	10	14	0	0	0
+R2007	§20.4.35	SOLID	corners[0].y	20	14	0	0	0
+R2007	§20.4.35	SOLID	corners[1].x	11	14	0	0	0
+R2007	§20.4.35	SOLID	corners[1].y	21	14	0	0	0
+R2007	§20.4.35	SOLID	corners[2].x	12	14	0	0	0
+R2007	§20.4.35	SOLID	corners[2].y	22	14	0	0	0
+R2007	§20.4.35	SOLID	corners[3].x	13	14	0	0	0
+R2007	§20.4.35	SOLID	corners[3].y	23	14	0	0	0
+R2007	§20.4.35	SOLID	elevation (corners[0].z)	30	14	0	0	0
+R2007	§20.4.35	SOLID	elevation (corners[1].z)	31	14	0	0	0
+R2007	§20.4.35	SOLID	elevation (corners[2].z)	32	14	0	0	0
+R2007	§20.4.35	SOLID	elevation (corners[3].z)	33	14	0	0	0
+R2007	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
+R2007	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
+R2007	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
+R2007	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2007	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
+R2007	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
+R2007	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
+R2007	§20.4.39	ELLIPSE	center.z	30	2	0	0	0
+R2007	§20.4.39	ELLIPSE	end_param	42	2	0	0	0
+R2007	§20.4.39	ELLIPSE	extrusion.x	210	2	0	0	0
+R2007	§20.4.39	ELLIPSE	extrusion.y	220	2	0	0	0
+R2007	§20.4.39	ELLIPSE	extrusion.z	230	2	0	0	0
+R2007	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
+R2007	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
+R2007	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
+R2007	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2007	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2007	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2007	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2007	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2007	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2007	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2007	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2007	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2007	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2007	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2007	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2007	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2007	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2007	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2007	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2007	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2007	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2007	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2007	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2007	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2007	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2007	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2007	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2007	§20.4.42	RAY	direction.x	11	1	0	0	0
+R2007	§20.4.42	RAY	direction.y	21	1	0	0	0
+R2007	§20.4.42	RAY	direction.z	31	1	0	0	0
+R2007	§20.4.42	RAY	start.x	10	1	0	0	0
+R2007	§20.4.42	RAY	start.y	20	1	0	0	0
+R2007	§20.4.42	RAY	start.z	30	1	0	0	0
+R2007	§20.4.43	XLINE	direction.x	11	1	0	0	0
+R2007	§20.4.43	XLINE	direction.y	21	1	0	0	0
+R2007	§20.4.43	XLINE	direction.z	31	1	0	0	0
+R2007	§20.4.43	XLINE	point.x	10	1	0	0	0
+R2007	§20.4.43	XLINE	point.y	20	1	0	0	0
+R2007	§20.4.43	XLINE	point.z	30	1	0	0	0
+R2007	§20.4.44	DICTIONARY	cloning_flag	281	200	0	0	0
+R2007	§20.4.44	DICTIONARY	hard_owner	280	71	129	0	0
+R2007	§20.4.44	DICTIONARY	key	3	892	0	0	0
+R2007	§20.4.44	DICTIONARY	key (absent from the export)	3	0	0	0	1
+R2007	§20.4.44	DICTIONARY	key order	3	200	0	0	0
+R2007	§20.4.45	ACDBDICTIONARYWDFLT	cloning_flag	281	8	0	0	0
+R2007	§20.4.45	ACDBDICTIONARYWDFLT	hard_owner	280	0	8	0	0
+R2007	§20.4.45	ACDBDICTIONARYWDFLT	key	3	8	0	0	0
+R2007	§20.4.45	ACDBDICTIONARYWDFLT	key order	3	8	0	0	0
+R2007	§20.4.46	MTEXT	attachment_point	71	35	0	0	0
+R2007	§20.4.46	MTEXT	drawing_direction	72	35	0	0	0
+R2007	§20.4.46	MTEXT	extents_height	43	0	0	0	35
+R2007	§20.4.46	MTEXT	extents_width	42	0	0	0	35
+R2007	§20.4.46	MTEXT	extrusion.x	210	0	35	0	0
+R2007	§20.4.46	MTEXT	extrusion.y	220	0	35	0	0
+R2007	§20.4.46	MTEXT	extrusion.z	230	0	35	0	0
+R2007	§20.4.46	MTEXT	insertion_point.x	10	35	0	0	0
+R2007	§20.4.46	MTEXT	insertion_point.y	20	35	0	0	0
+R2007	§20.4.46	MTEXT	insertion_point.z	30	35	0	0	0
+R2007	§20.4.46	MTEXT	linespace_factor	44	35	0	0	0
+R2007	§20.4.46	MTEXT	linespace_style	73	35	0	0	0
+R2007	§20.4.46	MTEXT	nominal_text_height	40	35	0	0	0
+R2007	§20.4.46	MTEXT	rect_height	46	35	0	0	0
+R2007	§20.4.46	MTEXT	rect_width	41	35	0	0	0
+R2007	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
+R2007	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
+R2007	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
+R2007	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2007	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2007	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2007	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2007	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2007	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2007	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2007	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2007	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2007	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2007	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2007	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2007	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2007	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2007	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2007	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2007	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2007	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2007	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2007	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2007	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2007	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2007	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2007	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2007	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2007	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.z	BLOCK.30	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.description	BLOCK.4	1	46	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.has_attribs	BLOCK.70&2	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.is_anonymous	BLOCK.70&1	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.is_xref	BLOCK.70&4	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.is_xref_dependent (Xdep)	BLOCK.70&16	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.xref_overlay	BLOCK.70&8	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	BLOCK.xref_path	BLOCK.1	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	block_sentinel_handle	BLOCK.5	47	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70)	2	46	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70) (anonymous; AutoCAD numbers it)	2	1	0	0	0
+R2007	§20.4.52	BLOCK_HEADER	num_owned_objects	-	0	0	0	47
+R2007	§20.4.52	BLOCK_HEADER	xref_index_plus_1	-	0	0	0	47
+R2007	§20.4.53	LAYER_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.54	LAYER	color_index	-	0	0	0	3
+R2007	§20.4.54	LAYER	color_index	62	23	0	0	0
+R2007	§20.4.54	LAYER	flag_64 (the export never writes bit 64)	-	0	0	0	26
+R2007	§20.4.54	LAYER	frozen (flags & 1)	70&1	26	0	0	0
+R2007	§20.4.54	LAYER	frozen in new viewports (flags & 4)	70&2	26	0	0	0
+R2007	§20.4.54	LAYER	is_xref_dependent (Xdep)	70&16	26	0	0	0
+R2007	§20.4.54	LAYER	lineweight	370	26	0	0	0
+R2007	§20.4.54	LAYER	locked (flags & 8)	70&4	26	0	0	0
+R2007	§20.4.54	LAYER	name	2	26	0	0	0
+R2007	§20.4.54	LAYER	off (flags & 2)	62 sign	26	0	0	0
+R2007	§20.4.54	LAYER	plot_flag	290	2	24	0	0
+R2007	§20.4.54	LAYER	xref_index_plus_1	-	0	0	0	26
+R2007	§20.4.55	STYLE_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.56	STYLE	bigfont_filename	4	20	0	0	0
+R2007	§20.4.56	STYLE	fixed_height	40	20	0	0	0
+R2007	§20.4.56	STYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2007	§20.4.56	STYLE	font_filename	3	20	0	0	0
+R2007	§20.4.56	STYLE	generation	71	20	0	0	0
+R2007	§20.4.56	STYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2007	§20.4.56	STYLE	last_height	42	20	0	0	0
+R2007	§20.4.56	STYLE	name	2	20	0	0	0
+R2007	§20.4.56	STYLE	oblique_angle	50	20	0	0	0
+R2007	§20.4.56	STYLE	shape file (flags & 1)	70&1	20	0	0	0
+R2007	§20.4.56	STYLE	vertical (flags & 4)	70&4	20	0	0	0
+R2007	§20.4.56	STYLE	width_factor	41	20	0	0	0
+R2007	§20.4.56	STYLE	xref_index_plus_1	-	0	0	0	20
+R2007	§20.4.57	LTYPE_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.58	LTYPE	alignment	72	29	0	0	0
+R2007	§20.4.58	LTYPE	dash count	73	29	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].length	49	5	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].rotation	50	1	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].scale	46	1	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].shape_flag	74	5	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].shape_number	75	1	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].x_offset	44	1	0	0	0
+R2007	§20.4.58	LTYPE	dashes[0].y_offset	45	1	0	0	0
+R2007	§20.4.58	LTYPE	dashes[1].length	49	5	0	0	0
+R2007	§20.4.58	LTYPE	dashes[1].rotation	50	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[1].scale	46	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[1].shape_flag	74	4	0	1	0
+R2007	§20.4.58	LTYPE	dashes[1].shape_number	75	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[1].x_offset	44	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[1].y_offset	45	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].length	49	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].rotation	50	2	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].scale	46	2	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].shape_flag	74	3	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].shape_number	75	2	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].x_offset	44	2	0	0	0
+R2007	§20.4.58	LTYPE	dashes[2].y_offset	45	2	0	0	0
+R2007	§20.4.58	LTYPE	dashes[3].length	49	2	0	0	0
+R2007	§20.4.58	LTYPE	dashes[3].shape_flag	74	2	0	0	0
+R2007	§20.4.58	LTYPE	description	3	29	0	0	0
+R2007	§20.4.58	LTYPE	flag_64 (the export never writes bit 64)	-	0	0	0	29
+R2007	§20.4.58	LTYPE	is_xref_dependent (Xdep)	70&16	29	0	0	0
+R2007	§20.4.58	LTYPE	name	2	29	0	0	0
+R2007	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
+R2007	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
+R2007	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
+R2007	§20.4.6	BLOCK	name	2	46	0	1	0
+R2007	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
+R2007	§20.4.64	VPORT	back_clip	44	8	0	0	0
+R2007	§20.4.64	VPORT	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2007	§20.4.64	VPORT	front_clip	43	8	0	0	0
+R2007	§20.4.64	VPORT	grid_spacing.x	15	8	0	0	0
+R2007	§20.4.64	VPORT	grid_spacing.y	25	8	0	0	0
+R2007	§20.4.64	VPORT	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2007	§20.4.64	VPORT	lens_length	42	8	0	0	0
+R2007	§20.4.64	VPORT	lower_left.x	10	8	0	0	0
+R2007	§20.4.64	VPORT	lower_left.y	20	8	0	0	0
+R2007	§20.4.64	VPORT	name	2	8	0	0	0
+R2007	§20.4.64	VPORT	render_mode	281	8	0	0	0
+R2007	§20.4.64	VPORT	snap_base.x	13	8	0	0	0
+R2007	§20.4.64	VPORT	snap_base.y	23	8	0	0	0
+R2007	§20.4.64	VPORT	snap_rotation	50	8	0	0	0
+R2007	§20.4.64	VPORT	snap_spacing.x	14	8	0	0	0
+R2007	§20.4.64	VPORT	snap_spacing.y	24	8	0	0	0
+R2007	§20.4.64	VPORT	ucs_at_origin	74&2	8	0	0	0
+R2007	§20.4.64	VPORT	ucs_per_vport	65	8	0	0	0
+R2007	§20.4.64	VPORT	upper_right.x	11	8	0	0	0
+R2007	§20.4.64	VPORT	upper_right.y	21	8	0	0	0
+R2007	§20.4.64	VPORT	view_center.x	12	8	0	0	0
+R2007	§20.4.64	VPORT	view_center.y	22	8	0	0	0
+R2007	§20.4.64	VPORT	view_direction.x	16	8	0	0	0
+R2007	§20.4.64	VPORT	view_direction.y	26	8	0	0	0
+R2007	§20.4.64	VPORT	view_direction.z	36	8	0	0	0
+R2007	§20.4.64	VPORT	view_height	40	8	0	0	0
+R2007	§20.4.64	VPORT	view_mode	71	8	0	0	0
+R2007	§20.4.64	VPORT	view_target.x	17	8	0	0	0
+R2007	§20.4.64	VPORT	view_target.y	27	8	0	0	0
+R2007	§20.4.64	VPORT	view_target.z	37	8	0	0	0
+R2007	§20.4.64	VPORT	view_twist	51	8	0	0	0
+R2007	§20.4.64	VPORT	xref_index_plus_1	-	0	0	0	8
+R2007	§20.4.65	APPID_CONTROL	num_entries	70	7	0	1	0
+R2007	§20.4.66	APPID	flag_64 (the export never writes bit 64)	-	0	0	0	60
+R2007	§20.4.66	APPID	is_xref_dependent (Xdep)	70&16	60	0	0	0
+R2007	§20.4.66	APPID	name	2	60	0	0	0
+R2007	§20.4.66	APPID	unknown	71	0	60	0	0
+R2007	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
+R2007	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
+R2007	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
+R2007	§20.4.68	DIMSTYLE	dimaltf	143	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimaltrnd	148	0	17	0	0
+R2007	§20.4.68	DIMSTYLE	dimasz	41	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimcen	141	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimexe	44	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimexo	42	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimlfac	144	0	17	0	0
+R2007	§20.4.68	DIMSTYLE	dimscale	40	2	15	0	0
+R2007	§20.4.68	DIMSTYLE	dimtad	77	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimtfac	146	0	17	0	0
+R2007	§20.4.68	DIMSTYLE	dimtih	73	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimtoh	74	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimtolj	283	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimtxt	140	8	9	0	0
+R2007	§20.4.68	DIMSTYLE	dimupt	288	0	17	0	0
+R2007	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	17
+R2007	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	17	0	0	0
+R2007	§20.4.68	DIMSTYLE	name	2	17	0	0	0
+R2007	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	17
+R2007	§20.4.73	MLINESTYLE	description	3	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	flags (remapped)	70	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	line count	71	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	lines[0].color	62	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	lines[0].linetype_index	-	0	0	0	8
+R2007	§20.4.73	MLINESTYLE	lines[0].offset	49	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	lines[1].color	62	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	lines[1].linetype_index	-	0	0	0	8
+R2007	§20.4.73	MLINESTYLE	lines[1].offset	49	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	name	2	8	0	0	0
+R2007	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
+R2007	§20.4.74	DICTIONARYVAR	schema	280	46	0	0	0
+R2007	§20.4.74	DICTIONARYVAR	value	1	46	0	0	0
+R2007	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
+R2007	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
+R2007	§20.4.84	LAYOUT	elevation	146	25	0	0	0
+R2007	§20.4.84	LAYOUT	extent_max.x	15	25	0	0	0
+R2007	§20.4.84	LAYOUT	extent_max.y	25	25	0	0	0
+R2007	§20.4.84	LAYOUT	extent_max.z	35	25	0	0	0
+R2007	§20.4.84	LAYOUT	extent_min.x	14	25	0	0	0
+R2007	§20.4.84	LAYOUT	extent_min.y	24	25	0	0	0
+R2007	§20.4.84	LAYOUT	extent_min.z	34	25	0	0	0
+R2007	§20.4.84	LAYOUT	flags	70	25	0	0	0
+R2007	§20.4.84	LAYOUT	insertion_point.x	12	25	0	0	0
+R2007	§20.4.84	LAYOUT	insertion_point.y	22	25	0	0	0
+R2007	§20.4.84	LAYOUT	insertion_point.z	32	25	0	0	0
+R2007	§20.4.84	LAYOUT	layout_name	1	25	0	0	0
+R2007	§20.4.84	LAYOUT	limmax.x	11	25	0	0	0
+R2007	§20.4.84	LAYOUT	limmax.y	21	25	0	0	0
+R2007	§20.4.84	LAYOUT	limmin.x	10	25	0	0	0
+R2007	§20.4.84	LAYOUT	limmin.y	20	25	0	0	0
+R2007	§20.4.84	LAYOUT	margin_bottom	41	25	0	0	0
+R2007	§20.4.84	LAYOUT	margin_left	40	25	0	0	0
+R2007	§20.4.84	LAYOUT	margin_right	42	25	0	0	0
+R2007	§20.4.84	LAYOUT	margin_top	43	25	0	0	0
+R2007	§20.4.84	LAYOUT	page_setup_name	1	25	0	0	0
+R2007	§20.4.84	LAYOUT	paper_height	45	25	0	0	0
+R2007	§20.4.84	LAYOUT	paper_image_origin.x	148	25	0	0	0
+R2007	§20.4.84	LAYOUT	paper_image_origin.y	149	25	0	0	0
+R2007	§20.4.84	LAYOUT	paper_size	4	25	0	0	0
+R2007	§20.4.84	LAYOUT	paper_units	72	25	0	0	0
+R2007	§20.4.84	LAYOUT	paper_width	44	25	0	0	0
+R2007	§20.4.84	LAYOUT	plot_layout_flags	70	25	0	0	0
+R2007	§20.4.84	LAYOUT	plot_origin.x	46	25	0	0	0
+R2007	§20.4.84	LAYOUT	plot_origin.y	47	25	0	0	0
+R2007	§20.4.84	LAYOUT	plot_rotation	73	25	0	0	0
+R2007	§20.4.84	LAYOUT	plot_type	74	25	0	0	0
+R2007	§20.4.84	LAYOUT	printer_config_name	2	25	0	0	0
+R2007	§20.4.84	LAYOUT	real_world_units	142	25	0	0	0
+R2007	§20.4.84	LAYOUT	scale_factor	147	25	0	0	0
+R2007	§20.4.84	LAYOUT	shade_plot_custom_dpi	78	25	0	0	0
+R2007	§20.4.84	LAYOUT	shade_plot_mode	76	25	0	0	0
+R2007	§20.4.84	LAYOUT	shade_plot_resolution_level	77	25	0	0	0
+R2007	§20.4.84	LAYOUT	standard_scale_type	75	25	0	0	0
+R2007	§20.4.84	LAYOUT	tab_order	71	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_origin.x	13	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_origin.y	23	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_origin.z	33	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_ortho_view_type	76	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_x_axis.x	16	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_x_axis.y	26	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_x_axis.z	36	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_y_axis.x	17	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_y_axis.y	27	25	0	0	0
+R2007	§20.4.84	LAYOUT	ucs_y_axis.z	37	25	0	0	0
+R2007	§20.4.84	LAYOUT	viewport_count	-	0	0	0	25
+R2007	§20.4.84	LAYOUT	window_max.x	140	25	0	0	0
+R2007	§20.4.84	LAYOUT	window_max.y	141	25	0	0	0
+R2007	§20.4.84	LAYOUT	window_min.x	48	25	0	0	0
+R2007	§20.4.84	LAYOUT	window_min.y	49	25	0	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[0]	42	1	2	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[1]	42	3	0	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[2]	42	2	1	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[3]	42	2	1	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[4]	42	2	1	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[5]	42	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	bulges[6]	42	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	closed (flag & 0x200)	70&1	24	0	0	0
+R2007	§20.4.85	LWPOLYLINE	constant_width	43	1	0	0	0
+R2007	§20.4.85	LWPOLYLINE	constant_width (absent: 0)	43	21	2	0	0
+R2007	§20.4.85	LWPOLYLINE	elevation	38	0	24	0	0
+R2007	§20.4.85	LWPOLYLINE	extrusion.x	210	0	24	0	0
+R2007	§20.4.85	LWPOLYLINE	extrusion.y	220	0	24	0	0
+R2007	§20.4.85	LWPOLYLINE	extrusion.z	230	0	24	0	0
+R2007	§20.4.85	LWPOLYLINE	flag (presence bits)	-	0	0	0	24
+R2007	§20.4.85	LWPOLYLINE	thickness	39	0	24	0	0
+R2007	§20.4.85	LWPOLYLINE	vertex count	90	24	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[0].x	10	24	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[0].y	20	24	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[1].x	10	24	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[1].y	20	24	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[2].x	10	23	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[2].y	20	23	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[3].x	10	22	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[3].y	20	22	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[4].x	10	6	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[4].y	20	6	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[5].x	10	3	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[5].y	20	3	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[6].x	10	3	0	0	0
+R2007	§20.4.85	LWPOLYLINE	vertices[6].y	20	3	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[0].end	41	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[0].start	40	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[1].end	41	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[1].start	40	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[2].end	41	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[2].start	40	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
+R2007	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2007	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
+R2007	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
+R2007	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
+R2007	§20.4.9	INSERT	has_attribs	66	2	10	0	0
+R2007	§20.4.9	INSERT	insertion_point.x	10	12	0	0	0
+R2007	§20.4.9	INSERT	insertion_point.y	20	12	0	0	0
+R2007	§20.4.9	INSERT	insertion_point.z	30	12	0	0	0
+R2007	§20.4.9	INSERT	owned_object_count	-	0	0	0	12
+R2007	§20.4.9	INSERT	rotation	50	3	9	0	0
+R2007	§20.4.9	INSERT	scale.x	41	9	3	0	0
+R2007	§20.4.9	INSERT	scale.y	42	9	3	0	0
+R2007	§20.4.9	INSERT	scale.z	43	9	3	0	0
+R2007	§20.4.92	SCALE	drawing_units	141	152	0	0	0
+R2007	§20.4.92	SCALE	is_unit_scale	290	152	0	0	0
+R2007	§20.4.92	SCALE	paper_units	140	152	0	0	0
+R2007	§20.4.92	SCALE	scale_name	300	152	0	0	0
+R2007	§20.4.92	SCALE	version	70	152	0	0	0
+R2010	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2010	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
+R2010	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
+R2010	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
+R2010	§20.4.12	VERTEX_3D	location.x	10	5	0	0	0
+R2010	§20.4.12	VERTEX_3D	location.y	20	5	0	0	0
+R2010	§20.4.12	VERTEX_3D	location.z	30	5	0	0	0
+R2010	§20.4.14	VERTEX_PFACE	flag	70	5	0	0	0
+R2010	§20.4.14	VERTEX_PFACE	location.x	10	5	0	0	0
+R2010	§20.4.14	VERTEX_PFACE	location.y	20	5	0	0	0
+R2010	§20.4.14	VERTEX_PFACE	location.z	30	5	0	0	0
+R2010	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[0]	71	2	0	0	0
+R2010	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[1]	72	2	0	0	0
+R2010	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[2]	73	2	0	0	0
+R2010	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[3]	74	1	1	0	0
+R2010	§20.4.17	POLYLINE_3D	3D polyline (always)	70&8	1	0	0	0
+R2010	§20.4.17	POLYLINE_3D	flags[0] & 3 (splined)	70&4	1	0	0	0
+R2010	§20.4.17	POLYLINE_3D	flags[0] (75: 5 or 6 when splined)	75	0	1	0	0
+R2010	§20.4.17	POLYLINE_3D	flags[1] & 1 (closed)	70&1	1	0	0	0
+R2010	§20.4.17	POLYLINE_3D	num_owned_objects	-	0	0	0	1
+R2010	§20.4.18	ARC	center.x	10	4	0	0	0
+R2010	§20.4.18	ARC	center.y	20	4	0	0	0
+R2010	§20.4.18	ARC	center.z	30	4	0	0	0
+R2010	§20.4.18	ARC	end_angle	51	4	0	0	0
+R2010	§20.4.18	ARC	extrusion.x	210	0	4	0	0
+R2010	§20.4.18	ARC	extrusion.y	220	0	4	0	0
+R2010	§20.4.18	ARC	extrusion.z	230	0	4	0	0
+R2010	§20.4.18	ARC	radius	40	4	0	0	0
+R2010	§20.4.18	ARC	start_angle	50	4	0	0	0
+R2010	§20.4.18	ARC	thickness	39	0	4	0	0
+R2010	§20.4.20	CIRCLE	center.x	10	14	0	0	0
+R2010	§20.4.20	CIRCLE	center.y	20	14	0	0	0
+R2010	§20.4.20	CIRCLE	center.z	30	14	0	0	0
+R2010	§20.4.20	CIRCLE	extrusion.x	210	0	14	0	0
+R2010	§20.4.20	CIRCLE	extrusion.y	220	0	14	0	0
+R2010	§20.4.20	CIRCLE	extrusion.z	230	0	14	0	0
+R2010	§20.4.20	CIRCLE	radius	40	14	0	0	0
+R2010	§20.4.20	CIRCLE	thickness	39	0	14	0	0
+R2010	§20.4.21	LINE	end.x	11	99	0	0	0
+R2010	§20.4.21	LINE	end.y	21	99	0	0	0
+R2010	§20.4.21	LINE	end.z	31	99	0	0	0
+R2010	§20.4.21	LINE	extrusion.x	210	0	99	0	0
+R2010	§20.4.21	LINE	extrusion.y	220	0	99	0	0
+R2010	§20.4.21	LINE	extrusion.z	230	0	99	0	0
+R2010	§20.4.21	LINE	is_2d	-	0	0	0	99
+R2010	§20.4.21	LINE	start.x	10	99	0	0	0
+R2010	§20.4.21	LINE	start.y	20	99	0	0	0
+R2010	§20.4.21	LINE	start.z	30	99	0	0	0
+R2010	§20.4.21	LINE	thickness	39	0	99	0	0
+R2010	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2010	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2010	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2010	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2010	§20.4.3	TEXT	generation	71	0	29	0	0
+R2010	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2010	§20.4.3	TEXT	height	40	29	0	0	0
+R2010	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2010	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2010	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2010	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2010	§20.4.3	TEXT	text	1	29	0	0	0
+R2010	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2010	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2010	§20.4.3	TEXT	width_factor	41	0	29	0	0
+R2010	§20.4.31	POINT	extrusion.x	210	0	42	0	0
+R2010	§20.4.31	POINT	extrusion.y	220	0	42	0	0
+R2010	§20.4.31	POINT	extrusion.z	230	0	42	0	0
+R2010	§20.4.31	POINT	position.x	10	42	0	0	0
+R2010	§20.4.31	POINT	position.y	20	42	0	0	0
+R2010	§20.4.31	POINT	position.z	30	42	0	0	0
+R2010	§20.4.31	POINT	thickness	39	0	42	0	0
+R2010	§20.4.31	POINT	x_axis_angle	50	0	42	0	0
+R2010	§20.4.32	3DFACE	corners[0].x	10	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[0].y	20	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[0].z	30	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[1].x	11	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[1].y	21	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[1].z	31	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[2].x	12	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[2].y	22	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[2].z	32	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[3].x	13	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[3].y	23	1	0	0	0
+R2010	§20.4.32	3DFACE	corners[3].z	33	1	0	0	0
+R2010	§20.4.32	3DFACE	invisible_edges	70	0	1	0	0
+R2010	§20.4.32	3DFACE	is_triangle	-	0	0	0	1
+R2010	§20.4.33	POLYLINE_PFACE	face_count	72	1	0	0	0
+R2010	§20.4.33	POLYLINE_PFACE	num_owned_objects	-	0	0	0	1
+R2010	§20.4.33	POLYLINE_PFACE	vertex_count	71	1	0	0	0
+R2010	§20.4.35	SOLID	corners[0].x	10	14	0	0	0
+R2010	§20.4.35	SOLID	corners[0].y	20	14	0	0	0
+R2010	§20.4.35	SOLID	corners[1].x	11	14	0	0	0
+R2010	§20.4.35	SOLID	corners[1].y	21	14	0	0	0
+R2010	§20.4.35	SOLID	corners[2].x	12	14	0	0	0
+R2010	§20.4.35	SOLID	corners[2].y	22	14	0	0	0
+R2010	§20.4.35	SOLID	corners[3].x	13	14	0	0	0
+R2010	§20.4.35	SOLID	corners[3].y	23	14	0	0	0
+R2010	§20.4.35	SOLID	elevation (corners[0].z)	30	14	0	0	0
+R2010	§20.4.35	SOLID	elevation (corners[1].z)	31	14	0	0	0
+R2010	§20.4.35	SOLID	elevation (corners[2].z)	32	14	0	0	0
+R2010	§20.4.35	SOLID	elevation (corners[3].z)	33	14	0	0	0
+R2010	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
+R2010	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
+R2010	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
+R2010	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2010	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
+R2010	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
+R2010	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
+R2010	§20.4.39	ELLIPSE	center.z	30	2	0	0	0
+R2010	§20.4.39	ELLIPSE	end_param	42	2	0	0	0
+R2010	§20.4.39	ELLIPSE	extrusion.x	210	2	0	0	0
+R2010	§20.4.39	ELLIPSE	extrusion.y	220	2	0	0	0
+R2010	§20.4.39	ELLIPSE	extrusion.z	230	2	0	0	0
+R2010	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
+R2010	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
+R2010	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
+R2010	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2010	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2010	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2010	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2010	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2010	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2010	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2010	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2010	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2010	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2010	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2010	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2010	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2010	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2010	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2010	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2010	§20.4.4	ATTRIB	lock_position	280 (last)	4	0	0	0
+R2010	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2010	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2010	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2010	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2010	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2010	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2010	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2010	§20.4.42	RAY	direction.x	11	1	0	0	0
+R2010	§20.4.42	RAY	direction.y	21	1	0	0	0
+R2010	§20.4.42	RAY	direction.z	31	1	0	0	0
+R2010	§20.4.42	RAY	start.x	10	1	0	0	0
+R2010	§20.4.42	RAY	start.y	20	1	0	0	0
+R2010	§20.4.42	RAY	start.z	30	1	0	0	0
+R2010	§20.4.43	XLINE	direction.x	11	1	0	0	0
+R2010	§20.4.43	XLINE	direction.y	21	1	0	0	0
+R2010	§20.4.43	XLINE	direction.z	31	1	0	0	0
+R2010	§20.4.43	XLINE	point.x	10	1	0	0	0
+R2010	§20.4.43	XLINE	point.y	20	1	0	0	0
+R2010	§20.4.43	XLINE	point.z	30	1	0	0	0
+R2010	§20.4.44	DICTIONARY	cloning_flag	281	198	0	0	0
+R2010	§20.4.44	DICTIONARY	hard_owner	280	70	128	0	0
+R2010	§20.4.44	DICTIONARY	key	3	876	0	0	0
+R2010	§20.4.44	DICTIONARY	key (absent from the export)	3	0	0	0	2
+R2010	§20.4.44	DICTIONARY	key order	3	198	0	0	0
+R2010	§20.4.45	ACDBDICTIONARYWDFLT	cloning_flag	281	8	0	0	0
+R2010	§20.4.45	ACDBDICTIONARYWDFLT	hard_owner	280	0	8	0	0
+R2010	§20.4.45	ACDBDICTIONARYWDFLT	key	3	8	0	0	0
+R2010	§20.4.45	ACDBDICTIONARYWDFLT	key order	3	8	0	0	0
+R2010	§20.4.46	MTEXT	attachment_point	71	35	0	0	0
+R2010	§20.4.46	MTEXT	drawing_direction	72	35	0	0	0
+R2010	§20.4.46	MTEXT	extents_height	43	0	0	0	35
+R2010	§20.4.46	MTEXT	extents_width	42	0	0	0	35
+R2010	§20.4.46	MTEXT	extrusion.x	210	0	35	0	0
+R2010	§20.4.46	MTEXT	extrusion.y	220	0	35	0	0
+R2010	§20.4.46	MTEXT	extrusion.z	230	0	35	0	0
+R2010	§20.4.46	MTEXT	insertion_point.x	10	35	0	0	0
+R2010	§20.4.46	MTEXT	insertion_point.y	20	35	0	0	0
+R2010	§20.4.46	MTEXT	insertion_point.z	30	35	0	0	0
+R2010	§20.4.46	MTEXT	linespace_factor	44	35	0	0	0
+R2010	§20.4.46	MTEXT	linespace_style	73	35	0	0	0
+R2010	§20.4.46	MTEXT	nominal_text_height	40	35	0	0	0
+R2010	§20.4.46	MTEXT	rect_height	46	35	0	0	0
+R2010	§20.4.46	MTEXT	rect_width	41	35	0	0	0
+R2010	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
+R2010	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
+R2010	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
+R2010	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2010	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2010	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2010	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2010	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2010	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2010	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2010	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2010	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2010	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2010	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2010	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2010	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2010	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2010	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2010	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2010	§20.4.5	ATTDEF	lock_position	280 (last)	5	0	0	0
+R2010	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2010	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2010	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2010	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2010	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2010	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2010	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2010	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2010	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.z	BLOCK.30	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.description	BLOCK.4	1	46	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.has_attribs	BLOCK.70&2	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.is_anonymous	BLOCK.70&1	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.is_xref	BLOCK.70&4	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.is_xref_dependent (Xdep)	BLOCK.70&16	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.xref_overlay	BLOCK.70&8	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	BLOCK.xref_path	BLOCK.1	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	block_sentinel_handle	BLOCK.5	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70)	2	47	0	0	0
+R2010	§20.4.52	BLOCK_HEADER	num_owned_objects	-	0	0	0	47
+R2010	§20.4.52	BLOCK_HEADER	xref_index_plus_1	-	0	0	0	47
+R2010	§20.4.53	LAYER_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.54	LAYER	color_index	-	0	0	0	3
+R2010	§20.4.54	LAYER	color_index	62	23	0	0	0
+R2010	§20.4.54	LAYER	flag_64 (the export never writes bit 64)	-	0	0	0	26
+R2010	§20.4.54	LAYER	frozen (flags & 1)	70&1	26	0	0	0
+R2010	§20.4.54	LAYER	frozen in new viewports (flags & 4)	70&2	26	0	0	0
+R2010	§20.4.54	LAYER	is_xref_dependent (Xdep)	70&16	26	0	0	0
+R2010	§20.4.54	LAYER	lineweight	370	26	0	0	0
+R2010	§20.4.54	LAYER	locked (flags & 8)	70&4	26	0	0	0
+R2010	§20.4.54	LAYER	name	2	26	0	0	0
+R2010	§20.4.54	LAYER	off (flags & 2)	62 sign	26	0	0	0
+R2010	§20.4.54	LAYER	plot_flag	290	2	24	0	0
+R2010	§20.4.54	LAYER	xref_index_plus_1	-	0	0	0	26
+R2010	§20.4.55	STYLE_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.56	STYLE	bigfont_filename	4	20	0	0	0
+R2010	§20.4.56	STYLE	fixed_height	40	20	0	0	0
+R2010	§20.4.56	STYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2010	§20.4.56	STYLE	font_filename	3	20	0	0	0
+R2010	§20.4.56	STYLE	generation	71	20	0	0	0
+R2010	§20.4.56	STYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2010	§20.4.56	STYLE	last_height	42	20	0	0	0
+R2010	§20.4.56	STYLE	name	2	20	0	0	0
+R2010	§20.4.56	STYLE	oblique_angle	50	20	0	0	0
+R2010	§20.4.56	STYLE	shape file (flags & 1)	70&1	20	0	0	0
+R2010	§20.4.56	STYLE	vertical (flags & 4)	70&4	20	0	0	0
+R2010	§20.4.56	STYLE	width_factor	41	20	0	0	0
+R2010	§20.4.56	STYLE	xref_index_plus_1	-	0	0	0	20
+R2010	§20.4.57	LTYPE_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.58	LTYPE	alignment	72	29	0	0	0
+R2010	§20.4.58	LTYPE	dash count	73	29	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].length	49	5	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].rotation	50	1	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].scale	46	1	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].shape_flag	74	5	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].shape_number	75	1	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].x_offset	44	1	0	0	0
+R2010	§20.4.58	LTYPE	dashes[0].y_offset	45	1	0	0	0
+R2010	§20.4.58	LTYPE	dashes[1].length	49	5	0	0	0
+R2010	§20.4.58	LTYPE	dashes[1].rotation	50	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[1].scale	46	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[1].shape_flag	74	4	0	1	0
+R2010	§20.4.58	LTYPE	dashes[1].shape_number	75	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[1].x_offset	44	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[1].y_offset	45	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].length	49	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].rotation	50	2	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].scale	46	2	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].shape_flag	74	3	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].shape_number	75	2	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].x_offset	44	2	0	0	0
+R2010	§20.4.58	LTYPE	dashes[2].y_offset	45	2	0	0	0
+R2010	§20.4.58	LTYPE	dashes[3].length	49	2	0	0	0
+R2010	§20.4.58	LTYPE	dashes[3].shape_flag	74	2	0	0	0
+R2010	§20.4.58	LTYPE	description	3	29	0	0	0
+R2010	§20.4.58	LTYPE	flag_64 (the export never writes bit 64)	-	0	0	0	29
+R2010	§20.4.58	LTYPE	is_xref_dependent (Xdep)	70&16	29	0	0	0
+R2010	§20.4.58	LTYPE	name	2	29	0	0	0
+R2010	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
+R2010	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
+R2010	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
+R2010	§20.4.6	BLOCK	name	2	47	0	0	0
+R2010	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
+R2010	§20.4.64	VPORT	back_clip	44	8	0	0	0
+R2010	§20.4.64	VPORT	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2010	§20.4.64	VPORT	front_clip	43	8	0	0	0
+R2010	§20.4.64	VPORT	grid_spacing.x	15	8	0	0	0
+R2010	§20.4.64	VPORT	grid_spacing.y	25	8	0	0	0
+R2010	§20.4.64	VPORT	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2010	§20.4.64	VPORT	lens_length	42	8	0	0	0
+R2010	§20.4.64	VPORT	lower_left.x	10	8	0	0	0
+R2010	§20.4.64	VPORT	lower_left.y	20	8	0	0	0
+R2010	§20.4.64	VPORT	name	2	8	0	0	0
+R2010	§20.4.64	VPORT	render_mode	281	8	0	0	0
+R2010	§20.4.64	VPORT	snap_base.x	13	8	0	0	0
+R2010	§20.4.64	VPORT	snap_base.y	23	8	0	0	0
+R2010	§20.4.64	VPORT	snap_rotation	50	8	0	0	0
+R2010	§20.4.64	VPORT	snap_spacing.x	14	8	0	0	0
+R2010	§20.4.64	VPORT	snap_spacing.y	24	8	0	0	0
+R2010	§20.4.64	VPORT	ucs_at_origin	74&2	8	0	0	0
+R2010	§20.4.64	VPORT	ucs_per_vport	65	8	0	0	0
+R2010	§20.4.64	VPORT	upper_right.x	11	8	0	0	0
+R2010	§20.4.64	VPORT	upper_right.y	21	8	0	0	0
+R2010	§20.4.64	VPORT	view_center.x	12	8	0	0	0
+R2010	§20.4.64	VPORT	view_center.y	22	8	0	0	0
+R2010	§20.4.64	VPORT	view_direction.x	16	8	0	0	0
+R2010	§20.4.64	VPORT	view_direction.y	26	8	0	0	0
+R2010	§20.4.64	VPORT	view_direction.z	36	8	0	0	0
+R2010	§20.4.64	VPORT	view_height	40	8	0	0	0
+R2010	§20.4.64	VPORT	view_mode	71	8	0	0	0
+R2010	§20.4.64	VPORT	view_target.x	17	8	0	0	0
+R2010	§20.4.64	VPORT	view_target.y	27	8	0	0	0
+R2010	§20.4.64	VPORT	view_target.z	37	8	0	0	0
+R2010	§20.4.64	VPORT	view_twist	51	8	0	0	0
+R2010	§20.4.64	VPORT	xref_index_plus_1	-	0	0	0	8
+R2010	§20.4.65	APPID_CONTROL	num_entries	70	7	0	1	0
+R2010	§20.4.66	APPID	flag_64 (the export never writes bit 64)	-	0	0	0	60
+R2010	§20.4.66	APPID	is_xref_dependent (Xdep)	70&16	60	0	0	0
+R2010	§20.4.66	APPID	name	2	60	0	0	0
+R2010	§20.4.66	APPID	unknown	71	0	60	0	0
+R2010	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
+R2010	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
+R2010	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
+R2010	§20.4.68	DIMSTYLE	dimaltf	143	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimaltrnd	148	0	17	0	0
+R2010	§20.4.68	DIMSTYLE	dimasz	41	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimcen	141	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimexe	44	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimexo	42	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimlfac	144	0	17	0	0
+R2010	§20.4.68	DIMSTYLE	dimscale	40	2	15	0	0
+R2010	§20.4.68	DIMSTYLE	dimtad	77	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimtfac	146	0	17	0	0
+R2010	§20.4.68	DIMSTYLE	dimtih	73	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimtoh	74	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimtolj	283	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimtxt	140	8	9	0	0
+R2010	§20.4.68	DIMSTYLE	dimupt	288	0	17	0	0
+R2010	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	17
+R2010	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	17	0	0	0
+R2010	§20.4.68	DIMSTYLE	name	2	17	0	0	0
+R2010	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	17
+R2010	§20.4.73	MLINESTYLE	description	3	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	flags (remapped)	70	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	line count	71	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	lines[0].color	62	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	lines[0].linetype_index	-	0	0	0	8
+R2010	§20.4.73	MLINESTYLE	lines[0].offset	49	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	lines[1].color	62	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	lines[1].linetype_index	-	0	0	0	8
+R2010	§20.4.73	MLINESTYLE	lines[1].offset	49	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	name	2	8	0	0	0
+R2010	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
+R2010	§20.4.74	DICTIONARYVAR	schema	280	46	0	0	0
+R2010	§20.4.74	DICTIONARYVAR	value	1	46	0	0	0
+R2010	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
+R2010	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
+R2010	§20.4.84	LAYOUT	elevation	146	25	0	0	0
+R2010	§20.4.84	LAYOUT	extent_max.x	15	25	0	0	0
+R2010	§20.4.84	LAYOUT	extent_max.y	25	25	0	0	0
+R2010	§20.4.84	LAYOUT	extent_max.z	35	25	0	0	0
+R2010	§20.4.84	LAYOUT	extent_min.x	14	25	0	0	0
+R2010	§20.4.84	LAYOUT	extent_min.y	24	25	0	0	0
+R2010	§20.4.84	LAYOUT	extent_min.z	34	25	0	0	0
+R2010	§20.4.84	LAYOUT	flags	70	25	0	0	0
+R2010	§20.4.84	LAYOUT	insertion_point.x	12	25	0	0	0
+R2010	§20.4.84	LAYOUT	insertion_point.y	22	25	0	0	0
+R2010	§20.4.84	LAYOUT	insertion_point.z	32	25	0	0	0
+R2010	§20.4.84	LAYOUT	layout_name	1	25	0	0	0
+R2010	§20.4.84	LAYOUT	limmax.x	11	25	0	0	0
+R2010	§20.4.84	LAYOUT	limmax.y	21	25	0	0	0
+R2010	§20.4.84	LAYOUT	limmin.x	10	25	0	0	0
+R2010	§20.4.84	LAYOUT	limmin.y	20	25	0	0	0
+R2010	§20.4.84	LAYOUT	margin_bottom	41	25	0	0	0
+R2010	§20.4.84	LAYOUT	margin_left	40	25	0	0	0
+R2010	§20.4.84	LAYOUT	margin_right	42	25	0	0	0
+R2010	§20.4.84	LAYOUT	margin_top	43	25	0	0	0
+R2010	§20.4.84	LAYOUT	page_setup_name	1	25	0	0	0
+R2010	§20.4.84	LAYOUT	paper_height	45	25	0	0	0
+R2010	§20.4.84	LAYOUT	paper_image_origin.x	148	25	0	0	0
+R2010	§20.4.84	LAYOUT	paper_image_origin.y	149	25	0	0	0
+R2010	§20.4.84	LAYOUT	paper_size	4	25	0	0	0
+R2010	§20.4.84	LAYOUT	paper_units	72	25	0	0	0
+R2010	§20.4.84	LAYOUT	paper_width	44	25	0	0	0
+R2010	§20.4.84	LAYOUT	plot_layout_flags	70	25	0	0	0
+R2010	§20.4.84	LAYOUT	plot_origin.x	46	25	0	0	0
+R2010	§20.4.84	LAYOUT	plot_origin.y	47	25	0	0	0
+R2010	§20.4.84	LAYOUT	plot_rotation	73	25	0	0	0
+R2010	§20.4.84	LAYOUT	plot_type	74	25	0	0	0
+R2010	§20.4.84	LAYOUT	printer_config_name	2	25	0	0	0
+R2010	§20.4.84	LAYOUT	real_world_units	142	25	0	0	0
+R2010	§20.4.84	LAYOUT	scale_factor	147	25	0	0	0
+R2010	§20.4.84	LAYOUT	shade_plot_custom_dpi	78	25	0	0	0
+R2010	§20.4.84	LAYOUT	shade_plot_mode	76	25	0	0	0
+R2010	§20.4.84	LAYOUT	shade_plot_resolution_level	77	25	0	0	0
+R2010	§20.4.84	LAYOUT	standard_scale_type	75	25	0	0	0
+R2010	§20.4.84	LAYOUT	tab_order	71	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_origin.x	13	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_origin.y	23	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_origin.z	33	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_ortho_view_type	76	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_x_axis.x	16	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_x_axis.y	26	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_x_axis.z	36	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_y_axis.x	17	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_y_axis.y	27	25	0	0	0
+R2010	§20.4.84	LAYOUT	ucs_y_axis.z	37	25	0	0	0
+R2010	§20.4.84	LAYOUT	viewport_count	-	0	0	0	25
+R2010	§20.4.84	LAYOUT	window_max.x	140	25	0	0	0
+R2010	§20.4.84	LAYOUT	window_max.y	141	25	0	0	0
+R2010	§20.4.84	LAYOUT	window_min.x	48	25	0	0	0
+R2010	§20.4.84	LAYOUT	window_min.y	49	25	0	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[0]	42	1	2	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[1]	42	3	0	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[2]	42	2	1	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[3]	42	2	1	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[4]	42	2	1	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[5]	42	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	bulges[6]	42	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	closed (flag & 0x200)	70&1	24	0	0	0
+R2010	§20.4.85	LWPOLYLINE	constant_width	43	1	0	0	0
+R2010	§20.4.85	LWPOLYLINE	constant_width (absent: 0)	43	21	2	0	0
+R2010	§20.4.85	LWPOLYLINE	elevation	38	0	24	0	0
+R2010	§20.4.85	LWPOLYLINE	extrusion.x	210	0	24	0	0
+R2010	§20.4.85	LWPOLYLINE	extrusion.y	220	0	24	0	0
+R2010	§20.4.85	LWPOLYLINE	extrusion.z	230	0	24	0	0
+R2010	§20.4.85	LWPOLYLINE	flag (presence bits)	-	0	0	0	24
+R2010	§20.4.85	LWPOLYLINE	thickness	39	0	24	0	0
+R2010	§20.4.85	LWPOLYLINE	vertex count	90	24	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[0].x	10	24	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[0].y	20	24	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[1].x	10	24	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[1].y	20	24	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[2].x	10	23	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[2].y	20	23	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[3].x	10	22	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[3].y	20	22	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[4].x	10	6	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[4].y	20	6	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[5].x	10	3	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[5].y	20	3	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[6].x	10	3	0	0	0
+R2010	§20.4.85	LWPOLYLINE	vertices[6].y	20	3	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[0].end	41	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[0].start	40	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[1].end	41	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[1].start	40	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[2].end	41	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[2].start	40	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
+R2010	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2010	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
+R2010	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
+R2010	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
+R2010	§20.4.9	INSERT	has_attribs	66	2	10	0	0
+R2010	§20.4.9	INSERT	insertion_point.x	10	12	0	0	0
+R2010	§20.4.9	INSERT	insertion_point.y	20	12	0	0	0
+R2010	§20.4.9	INSERT	insertion_point.z	30	12	0	0	0
+R2010	§20.4.9	INSERT	owned_object_count	-	0	0	0	12
+R2010	§20.4.9	INSERT	rotation	50	3	9	0	0
+R2010	§20.4.9	INSERT	scale.x	41	9	3	0	0
+R2010	§20.4.9	INSERT	scale.y	42	9	3	0	0
+R2010	§20.4.9	INSERT	scale.z	43	9	3	0	0
+R2010	§20.4.92	SCALE	drawing_units	141	152	0	0	0
+R2010	§20.4.92	SCALE	is_unit_scale	290	152	0	0	0
+R2010	§20.4.92	SCALE	paper_units	140	152	0	0	0
+R2010	§20.4.92	SCALE	scale_name	300	152	0	0	0
+R2010	§20.4.92	SCALE	version	70	152	0	0	0
+R2013	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2013	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
+R2013	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
+R2013	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
+R2013	§20.4.12	VERTEX_3D	location.x	10	5	0	0	0
+R2013	§20.4.12	VERTEX_3D	location.y	20	5	0	0	0
+R2013	§20.4.12	VERTEX_3D	location.z	30	5	0	0	0
+R2013	§20.4.14	VERTEX_PFACE	flag	70	5	0	0	0
+R2013	§20.4.14	VERTEX_PFACE	location.x	10	5	0	0	0
+R2013	§20.4.14	VERTEX_PFACE	location.y	20	5	0	0	0
+R2013	§20.4.14	VERTEX_PFACE	location.z	30	5	0	0	0
+R2013	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[0]	71	2	0	0	0
+R2013	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[1]	72	2	0	0	0
+R2013	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[2]	73	2	0	0	0
+R2013	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[3]	74	1	1	0	0
+R2013	§20.4.17	POLYLINE_3D	3D polyline (always)	70&8	1	0	0	0
+R2013	§20.4.17	POLYLINE_3D	flags[0] & 3 (splined)	70&4	1	0	0	0
+R2013	§20.4.17	POLYLINE_3D	flags[0] (75: 5 or 6 when splined)	75	0	1	0	0
+R2013	§20.4.17	POLYLINE_3D	flags[1] & 1 (closed)	70&1	1	0	0	0
+R2013	§20.4.17	POLYLINE_3D	num_owned_objects	-	0	0	0	1
+R2013	§20.4.18	ARC	center.x	10	4	0	0	0
+R2013	§20.4.18	ARC	center.y	20	4	0	0	0
+R2013	§20.4.18	ARC	center.z	30	4	0	0	0
+R2013	§20.4.18	ARC	end_angle	51	4	0	0	0
+R2013	§20.4.18	ARC	extrusion.x	210	0	4	0	0
+R2013	§20.4.18	ARC	extrusion.y	220	0	4	0	0
+R2013	§20.4.18	ARC	extrusion.z	230	0	4	0	0
+R2013	§20.4.18	ARC	radius	40	4	0	0	0
+R2013	§20.4.18	ARC	start_angle	50	4	0	0	0
+R2013	§20.4.18	ARC	thickness	39	0	4	0	0
+R2013	§20.4.20	CIRCLE	center.x	10	14	0	0	0
+R2013	§20.4.20	CIRCLE	center.y	20	14	0	0	0
+R2013	§20.4.20	CIRCLE	center.z	30	14	0	0	0
+R2013	§20.4.20	CIRCLE	extrusion.x	210	0	14	0	0
+R2013	§20.4.20	CIRCLE	extrusion.y	220	0	14	0	0
+R2013	§20.4.20	CIRCLE	extrusion.z	230	0	14	0	0
+R2013	§20.4.20	CIRCLE	radius	40	14	0	0	0
+R2013	§20.4.20	CIRCLE	thickness	39	0	14	0	0
+R2013	§20.4.21	LINE	end.x	11	99	0	0	0
+R2013	§20.4.21	LINE	end.y	21	99	0	0	0
+R2013	§20.4.21	LINE	end.z	31	99	0	0	0
+R2013	§20.4.21	LINE	extrusion.x	210	0	99	0	0
+R2013	§20.4.21	LINE	extrusion.y	220	0	99	0	0
+R2013	§20.4.21	LINE	extrusion.z	230	0	99	0	0
+R2013	§20.4.21	LINE	is_2d	-	0	0	0	99
+R2013	§20.4.21	LINE	start.x	10	99	0	0	0
+R2013	§20.4.21	LINE	start.y	20	99	0	0	0
+R2013	§20.4.21	LINE	start.z	30	99	0	0	0
+R2013	§20.4.21	LINE	thickness	39	0	99	0	0
+R2013	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2013	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2013	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2013	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2013	§20.4.3	TEXT	generation	71	0	29	0	0
+R2013	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2013	§20.4.3	TEXT	height	40	29	0	0	0
+R2013	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2013	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2013	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2013	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2013	§20.4.3	TEXT	text	1	29	0	0	0
+R2013	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2013	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2013	§20.4.3	TEXT	width_factor	41	0	29	0	0
+R2013	§20.4.31	POINT	extrusion.x	210	0	42	0	0
+R2013	§20.4.31	POINT	extrusion.y	220	0	42	0	0
+R2013	§20.4.31	POINT	extrusion.z	230	0	42	0	0
+R2013	§20.4.31	POINT	position.x	10	42	0	0	0
+R2013	§20.4.31	POINT	position.y	20	42	0	0	0
+R2013	§20.4.31	POINT	position.z	30	42	0	0	0
+R2013	§20.4.31	POINT	thickness	39	0	42	0	0
+R2013	§20.4.31	POINT	x_axis_angle	50	0	42	0	0
+R2013	§20.4.32	3DFACE	corners[0].x	10	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[0].y	20	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[0].z	30	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[1].x	11	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[1].y	21	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[1].z	31	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[2].x	12	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[2].y	22	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[2].z	32	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[3].x	13	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[3].y	23	1	0	0	0
+R2013	§20.4.32	3DFACE	corners[3].z	33	1	0	0	0
+R2013	§20.4.32	3DFACE	invisible_edges	70	0	1	0	0
+R2013	§20.4.32	3DFACE	is_triangle	-	0	0	0	1
+R2013	§20.4.33	POLYLINE_PFACE	face_count	72	1	0	0	0
+R2013	§20.4.33	POLYLINE_PFACE	num_owned_objects	-	0	0	0	1
+R2013	§20.4.33	POLYLINE_PFACE	vertex_count	71	1	0	0	0
+R2013	§20.4.35	SOLID	corners[0].x	10	14	0	0	0
+R2013	§20.4.35	SOLID	corners[0].y	20	14	0	0	0
+R2013	§20.4.35	SOLID	corners[1].x	11	14	0	0	0
+R2013	§20.4.35	SOLID	corners[1].y	21	14	0	0	0
+R2013	§20.4.35	SOLID	corners[2].x	12	14	0	0	0
+R2013	§20.4.35	SOLID	corners[2].y	22	14	0	0	0
+R2013	§20.4.35	SOLID	corners[3].x	13	14	0	0	0
+R2013	§20.4.35	SOLID	corners[3].y	23	14	0	0	0
+R2013	§20.4.35	SOLID	elevation (corners[0].z)	30	14	0	0	0
+R2013	§20.4.35	SOLID	elevation (corners[1].z)	31	14	0	0	0
+R2013	§20.4.35	SOLID	elevation (corners[2].z)	32	14	0	0	0
+R2013	§20.4.35	SOLID	elevation (corners[3].z)	33	14	0	0	0
+R2013	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
+R2013	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
+R2013	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
+R2013	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2013	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
+R2013	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
+R2013	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
+R2013	§20.4.39	ELLIPSE	center.z	30	2	0	0	0
+R2013	§20.4.39	ELLIPSE	end_param	42	2	0	0	0
+R2013	§20.4.39	ELLIPSE	extrusion.x	210	2	0	0	0
+R2013	§20.4.39	ELLIPSE	extrusion.y	220	2	0	0	0
+R2013	§20.4.39	ELLIPSE	extrusion.z	230	2	0	0	0
+R2013	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
+R2013	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
+R2013	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
+R2013	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2013	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2013	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2013	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2013	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2013	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2013	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2013	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2013	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2013	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2013	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2013	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2013	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2013	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2013	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2013	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2013	§20.4.4	ATTRIB	lock_position	280 (last)	4	0	0	0
+R2013	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2013	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2013	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2013	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2013	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2013	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2013	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2013	§20.4.42	RAY	direction.x	11	1	0	0	0
+R2013	§20.4.42	RAY	direction.y	21	1	0	0	0
+R2013	§20.4.42	RAY	direction.z	31	1	0	0	0
+R2013	§20.4.42	RAY	start.x	10	1	0	0	0
+R2013	§20.4.42	RAY	start.y	20	1	0	0	0
+R2013	§20.4.42	RAY	start.z	30	1	0	0	0
+R2013	§20.4.43	XLINE	direction.x	11	1	0	0	0
+R2013	§20.4.43	XLINE	direction.y	21	1	0	0	0
+R2013	§20.4.43	XLINE	direction.z	31	1	0	0	0
+R2013	§20.4.43	XLINE	point.x	10	1	0	0	0
+R2013	§20.4.43	XLINE	point.y	20	1	0	0	0
+R2013	§20.4.43	XLINE	point.z	30	1	0	0	0
+R2013	§20.4.44	DICTIONARY	cloning_flag	281	191	0	0	0
+R2013	§20.4.44	DICTIONARY	hard_owner	280	70	121	0	0
+R2013	§20.4.44	DICTIONARY	key	3	848	0	0	0
+R2013	§20.4.44	DICTIONARY	key order	3	191	0	0	0
+R2013	§20.4.45	ACDBDICTIONARYWDFLT	cloning_flag	281	8	0	0	0
+R2013	§20.4.45	ACDBDICTIONARYWDFLT	hard_owner	280	0	8	0	0
+R2013	§20.4.45	ACDBDICTIONARYWDFLT	key	3	8	0	0	0
+R2013	§20.4.45	ACDBDICTIONARYWDFLT	key order	3	8	0	0	0
+R2013	§20.4.46	MTEXT	attachment_point	71	35	0	0	0
+R2013	§20.4.46	MTEXT	drawing_direction	72	35	0	0	0
+R2013	§20.4.46	MTEXT	extents_height	43	0	0	0	35
+R2013	§20.4.46	MTEXT	extents_width	42	0	0	0	35
+R2013	§20.4.46	MTEXT	extrusion.x	210	0	35	0	0
+R2013	§20.4.46	MTEXT	extrusion.y	220	0	35	0	0
+R2013	§20.4.46	MTEXT	extrusion.z	230	0	35	0	0
+R2013	§20.4.46	MTEXT	insertion_point.x	10	35	0	0	0
+R2013	§20.4.46	MTEXT	insertion_point.y	20	35	0	0	0
+R2013	§20.4.46	MTEXT	insertion_point.z	30	35	0	0	0
+R2013	§20.4.46	MTEXT	linespace_factor	44	35	0	0	0
+R2013	§20.4.46	MTEXT	linespace_style	73	35	0	0	0
+R2013	§20.4.46	MTEXT	nominal_text_height	40	35	0	0	0
+R2013	§20.4.46	MTEXT	rect_height	46	35	0	0	0
+R2013	§20.4.46	MTEXT	rect_width	41	35	0	0	0
+R2013	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
+R2013	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
+R2013	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
+R2013	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2013	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2013	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2013	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2013	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2013	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2013	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2013	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2013	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2013	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2013	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2013	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2013	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2013	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2013	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2013	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2013	§20.4.5	ATTDEF	lock_position	280 (last)	5	0	0	0
+R2013	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2013	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2013	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2013	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2013	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2013	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2013	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2013	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2013	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.z	BLOCK.30	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.description	BLOCK.4	1	46	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.has_attribs	BLOCK.70&2	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.is_anonymous	BLOCK.70&1	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.is_xref	BLOCK.70&4	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.is_xref_dependent (Xdep)	BLOCK.70&16	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.xref_overlay	BLOCK.70&8	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	BLOCK.xref_path	BLOCK.1	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	block_sentinel_handle	BLOCK.5	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70)	2	47	0	0	0
+R2013	§20.4.52	BLOCK_HEADER	num_owned_objects	-	0	0	0	47
+R2013	§20.4.52	BLOCK_HEADER	xref_index_plus_1	-	0	0	0	47
+R2013	§20.4.53	LAYER_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.54	LAYER	color_index	-	0	0	0	3
+R2013	§20.4.54	LAYER	color_index	62	23	0	0	0
+R2013	§20.4.54	LAYER	flag_64 (the export never writes bit 64)	-	0	0	0	26
+R2013	§20.4.54	LAYER	frozen (flags & 1)	70&1	26	0	0	0
+R2013	§20.4.54	LAYER	frozen in new viewports (flags & 4)	70&2	26	0	0	0
+R2013	§20.4.54	LAYER	is_xref_dependent (Xdep)	70&16	26	0	0	0
+R2013	§20.4.54	LAYER	lineweight	370	26	0	0	0
+R2013	§20.4.54	LAYER	locked (flags & 8)	70&4	26	0	0	0
+R2013	§20.4.54	LAYER	name	2	26	0	0	0
+R2013	§20.4.54	LAYER	off (flags & 2)	62 sign	26	0	0	0
+R2013	§20.4.54	LAYER	plot_flag	290	2	24	0	0
+R2013	§20.4.54	LAYER	xref_index_plus_1	-	0	0	0	26
+R2013	§20.4.55	STYLE_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.56	STYLE	bigfont_filename	4	20	0	0	0
+R2013	§20.4.56	STYLE	fixed_height	40	20	0	0	0
+R2013	§20.4.56	STYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2013	§20.4.56	STYLE	font_filename	3	20	0	0	0
+R2013	§20.4.56	STYLE	generation	71	20	0	0	0
+R2013	§20.4.56	STYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2013	§20.4.56	STYLE	last_height	42	20	0	0	0
+R2013	§20.4.56	STYLE	name	2	20	0	0	0
+R2013	§20.4.56	STYLE	oblique_angle	50	20	0	0	0
+R2013	§20.4.56	STYLE	shape file (flags & 1)	70&1	20	0	0	0
+R2013	§20.4.56	STYLE	vertical (flags & 4)	70&4	20	0	0	0
+R2013	§20.4.56	STYLE	width_factor	41	20	0	0	0
+R2013	§20.4.56	STYLE	xref_index_plus_1	-	0	0	0	20
+R2013	§20.4.57	LTYPE_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.58	LTYPE	alignment	72	29	0	0	0
+R2013	§20.4.58	LTYPE	dash count	73	29	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].length	49	5	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].rotation	50	1	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].scale	46	1	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].shape_flag	74	5	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].shape_number	75	1	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].x_offset	44	1	0	0	0
+R2013	§20.4.58	LTYPE	dashes[0].y_offset	45	1	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].length	49	5	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].rotation	50	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].scale	46	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].shape_flag	74	5	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].shape_number	75	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].x_offset	44	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[1].y_offset	45	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].length	49	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].rotation	50	2	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].scale	46	2	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].shape_flag	74	3	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].shape_number	75	2	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].x_offset	44	2	0	0	0
+R2013	§20.4.58	LTYPE	dashes[2].y_offset	45	2	0	0	0
+R2013	§20.4.58	LTYPE	dashes[3].length	49	2	0	0	0
+R2013	§20.4.58	LTYPE	dashes[3].shape_flag	74	2	0	0	0
+R2013	§20.4.58	LTYPE	description	3	29	0	0	0
+R2013	§20.4.58	LTYPE	flag_64 (the export never writes bit 64)	-	0	0	0	29
+R2013	§20.4.58	LTYPE	is_xref_dependent (Xdep)	70&16	29	0	0	0
+R2013	§20.4.58	LTYPE	name	2	29	0	0	0
+R2013	§20.4.58	LTYPE	pattern_length	40	29	0	0	0
+R2013	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	29
+R2013	§20.4.59	VIEW_CONTROL	num_entries	70	7	0	1	0
+R2013	§20.4.6	BLOCK	name	2	47	0	0	0
+R2013	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.63	VPORT_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	8	0	0	0
+R2013	§20.4.64	VPORT	back_clip	44	8	0	0	0
+R2013	§20.4.64	VPORT	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2013	§20.4.64	VPORT	front_clip	43	8	0	0	0
+R2013	§20.4.64	VPORT	grid_spacing.x	15	8	0	0	0
+R2013	§20.4.64	VPORT	grid_spacing.y	25	8	0	0	0
+R2013	§20.4.64	VPORT	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2013	§20.4.64	VPORT	lens_length	42	8	0	0	0
+R2013	§20.4.64	VPORT	lower_left.x	10	8	0	0	0
+R2013	§20.4.64	VPORT	lower_left.y	20	8	0	0	0
+R2013	§20.4.64	VPORT	name	2	8	0	0	0
+R2013	§20.4.64	VPORT	render_mode	281	8	0	0	0
+R2013	§20.4.64	VPORT	snap_base.x	13	8	0	0	0
+R2013	§20.4.64	VPORT	snap_base.y	23	8	0	0	0
+R2013	§20.4.64	VPORT	snap_rotation	50	8	0	0	0
+R2013	§20.4.64	VPORT	snap_spacing.x	14	8	0	0	0
+R2013	§20.4.64	VPORT	snap_spacing.y	24	8	0	0	0
+R2013	§20.4.64	VPORT	ucs_at_origin	74&2	8	0	0	0
+R2013	§20.4.64	VPORT	ucs_per_vport	65	8	0	0	0
+R2013	§20.4.64	VPORT	upper_right.x	11	8	0	0	0
+R2013	§20.4.64	VPORT	upper_right.y	21	8	0	0	0
+R2013	§20.4.64	VPORT	view_center.x	12	8	0	0	0
+R2013	§20.4.64	VPORT	view_center.y	22	8	0	0	0
+R2013	§20.4.64	VPORT	view_direction.x	16	8	0	0	0
+R2013	§20.4.64	VPORT	view_direction.y	26	8	0	0	0
+R2013	§20.4.64	VPORT	view_direction.z	36	8	0	0	0
+R2013	§20.4.64	VPORT	view_height	40	8	0	0	0
+R2013	§20.4.64	VPORT	view_mode	71	8	0	0	0
+R2013	§20.4.64	VPORT	view_target.x	17	8	0	0	0
+R2013	§20.4.64	VPORT	view_target.y	27	8	0	0	0
+R2013	§20.4.64	VPORT	view_target.z	37	8	0	0	0
+R2013	§20.4.64	VPORT	view_twist	51	8	0	0	0
+R2013	§20.4.64	VPORT	xref_index_plus_1	-	0	0	0	8
+R2013	§20.4.65	APPID_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.66	APPID	flag_64 (the export never writes bit 64)	-	0	0	0	60
+R2013	§20.4.66	APPID	is_xref_dependent (Xdep)	70&16	60	0	0	0
+R2013	§20.4.66	APPID	name	2	60	0	0	0
+R2013	§20.4.66	APPID	unknown	71	0	60	0	0
+R2013	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
+R2013	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
+R2013	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
+R2013	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2013	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2013	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2013	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2013	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2013	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2013	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2013	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2013	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2013	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
+R2013	§20.4.73	MLINESTYLE	description	3	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	flags (remapped)	70	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	line count	71	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	lines[0].color	62	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	lines[0].linetype_index	-	0	0	0	8
+R2013	§20.4.73	MLINESTYLE	lines[0].offset	49	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	lines[1].color	62	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	lines[1].linetype_index	-	0	0	0	8
+R2013	§20.4.73	MLINESTYLE	lines[1].offset	49	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	name	2	8	0	0	0
+R2013	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
+R2013	§20.4.74	DICTIONARYVAR	schema	280	11	0	0	0
+R2013	§20.4.74	DICTIONARYVAR	value	1	11	0	0	0
+R2013	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
+R2013	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
+R2013	§20.4.84	LAYOUT	elevation	146	25	0	0	0
+R2013	§20.4.84	LAYOUT	extent_max.x	15	25	0	0	0
+R2013	§20.4.84	LAYOUT	extent_max.y	25	25	0	0	0
+R2013	§20.4.84	LAYOUT	extent_max.z	35	25	0	0	0
+R2013	§20.4.84	LAYOUT	extent_min.x	14	25	0	0	0
+R2013	§20.4.84	LAYOUT	extent_min.y	24	25	0	0	0
+R2013	§20.4.84	LAYOUT	extent_min.z	34	25	0	0	0
+R2013	§20.4.84	LAYOUT	flags	70	25	0	0	0
+R2013	§20.4.84	LAYOUT	insertion_point.x	12	25	0	0	0
+R2013	§20.4.84	LAYOUT	insertion_point.y	22	25	0	0	0
+R2013	§20.4.84	LAYOUT	insertion_point.z	32	25	0	0	0
+R2013	§20.4.84	LAYOUT	layout_name	1	25	0	0	0
+R2013	§20.4.84	LAYOUT	limmax.x	11	25	0	0	0
+R2013	§20.4.84	LAYOUT	limmax.y	21	25	0	0	0
+R2013	§20.4.84	LAYOUT	limmin.x	10	25	0	0	0
+R2013	§20.4.84	LAYOUT	limmin.y	20	25	0	0	0
+R2013	§20.4.84	LAYOUT	margin_bottom	41	25	0	0	0
+R2013	§20.4.84	LAYOUT	margin_left	40	25	0	0	0
+R2013	§20.4.84	LAYOUT	margin_right	42	25	0	0	0
+R2013	§20.4.84	LAYOUT	margin_top	43	25	0	0	0
+R2013	§20.4.84	LAYOUT	page_setup_name	1	25	0	0	0
+R2013	§20.4.84	LAYOUT	paper_height	45	25	0	0	0
+R2013	§20.4.84	LAYOUT	paper_image_origin.x	148	25	0	0	0
+R2013	§20.4.84	LAYOUT	paper_image_origin.y	149	25	0	0	0
+R2013	§20.4.84	LAYOUT	paper_size	4	25	0	0	0
+R2013	§20.4.84	LAYOUT	paper_units	72	25	0	0	0
+R2013	§20.4.84	LAYOUT	paper_width	44	25	0	0	0
+R2013	§20.4.84	LAYOUT	plot_layout_flags	70	25	0	0	0
+R2013	§20.4.84	LAYOUT	plot_origin.x	46	25	0	0	0
+R2013	§20.4.84	LAYOUT	plot_origin.y	47	25	0	0	0
+R2013	§20.4.84	LAYOUT	plot_rotation	73	25	0	0	0
+R2013	§20.4.84	LAYOUT	plot_type	74	25	0	0	0
+R2013	§20.4.84	LAYOUT	printer_config_name	2	25	0	0	0
+R2013	§20.4.84	LAYOUT	real_world_units	142	25	0	0	0
+R2013	§20.4.84	LAYOUT	scale_factor	147	25	0	0	0
+R2013	§20.4.84	LAYOUT	shade_plot_custom_dpi	78	25	0	0	0
+R2013	§20.4.84	LAYOUT	shade_plot_mode	76	25	0	0	0
+R2013	§20.4.84	LAYOUT	shade_plot_resolution_level	77	25	0	0	0
+R2013	§20.4.84	LAYOUT	standard_scale_type	75	25	0	0	0
+R2013	§20.4.84	LAYOUT	tab_order	71	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_origin.x	13	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_origin.y	23	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_origin.z	33	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_ortho_view_type	76	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_x_axis.x	16	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_x_axis.y	26	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_x_axis.z	36	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_y_axis.x	17	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_y_axis.y	27	25	0	0	0
+R2013	§20.4.84	LAYOUT	ucs_y_axis.z	37	25	0	0	0
+R2013	§20.4.84	LAYOUT	viewport_count	-	0	0	0	25
+R2013	§20.4.84	LAYOUT	window_max.x	140	25	0	0	0
+R2013	§20.4.84	LAYOUT	window_max.y	141	25	0	0	0
+R2013	§20.4.84	LAYOUT	window_min.x	48	25	0	0	0
+R2013	§20.4.84	LAYOUT	window_min.y	49	25	0	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[0]	42	1	2	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[1]	42	3	0	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[2]	42	2	1	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[3]	42	2	1	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[4]	42	2	1	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[5]	42	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	bulges[6]	42	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	closed (flag & 0x200)	70&1	24	0	0	0
+R2013	§20.4.85	LWPOLYLINE	constant_width	43	1	0	0	0
+R2013	§20.4.85	LWPOLYLINE	constant_width (absent: 0)	43	21	2	0	0
+R2013	§20.4.85	LWPOLYLINE	elevation	38	0	24	0	0
+R2013	§20.4.85	LWPOLYLINE	extrusion.x	210	0	24	0	0
+R2013	§20.4.85	LWPOLYLINE	extrusion.y	220	0	24	0	0
+R2013	§20.4.85	LWPOLYLINE	extrusion.z	230	0	24	0	0
+R2013	§20.4.85	LWPOLYLINE	flag (presence bits)	-	0	0	0	24
+R2013	§20.4.85	LWPOLYLINE	thickness	39	0	24	0	0
+R2013	§20.4.85	LWPOLYLINE	vertex count	90	24	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[0].x	10	24	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[0].y	20	24	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[1].x	10	24	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[1].y	20	24	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[2].x	10	23	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[2].y	20	23	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[3].x	10	22	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[3].y	20	22	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[4].x	10	6	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[4].y	20	6	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[5].x	10	3	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[5].y	20	3	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[6].x	10	3	0	0	0
+R2013	§20.4.85	LWPOLYLINE	vertices[6].y	20	3	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[0].end	41	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[0].start	40	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[1].end	41	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[1].start	40	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[2].end	41	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[2].start	40	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
+R2013	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2013	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
+R2013	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
+R2013	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
+R2013	§20.4.9	INSERT	has_attribs	66	2	10	0	0
+R2013	§20.4.9	INSERT	insertion_point.x	10	12	0	0	0
+R2013	§20.4.9	INSERT	insertion_point.y	20	12	0	0	0
+R2013	§20.4.9	INSERT	insertion_point.z	30	12	0	0	0
+R2013	§20.4.9	INSERT	owned_object_count	-	0	0	0	12
+R2013	§20.4.9	INSERT	rotation	50	3	9	0	0
+R2013	§20.4.9	INSERT	scale.x	41	9	3	0	0
+R2013	§20.4.9	INSERT	scale.y	42	9	3	0	0
+R2013	§20.4.9	INSERT	scale.z	43	9	3	0	0
+R2013	§20.4.92	SCALE	drawing_units	141	152	0	0	0
+R2013	§20.4.92	SCALE	is_unit_scale	290	152	0	0	0
+R2013	§20.4.92	SCALE	paper_units	140	152	0	0	0
+R2013	§20.4.92	SCALE	scale_name	300	152	0	0	0
+R2013	§20.4.92	SCALE	version	70	152	0	0	0
+R2018	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	2	0	0	0
+R2018	§20.4.104	XRECORD	cloning_flags	280	102	0	0	0
+R2018	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	102
+R2018	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
+R2018	§20.4.12	VERTEX_3D	location.x	10	5	0	0	0
+R2018	§20.4.12	VERTEX_3D	location.y	20	5	0	0	0
+R2018	§20.4.12	VERTEX_3D	location.z	30	5	0	0	0
+R2018	§20.4.14	VERTEX_PFACE	flag	70	5	0	0	0
+R2018	§20.4.14	VERTEX_PFACE	location.x	10	5	0	0	0
+R2018	§20.4.14	VERTEX_PFACE	location.y	20	5	0	0	0
+R2018	§20.4.14	VERTEX_PFACE	location.z	30	5	0	0	0
+R2018	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[0]	71	2	0	0	0
+R2018	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[1]	72	2	0	0	0
+R2018	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[2]	73	2	0	0	0
+R2018	§20.4.15	VERTEX_PFACE_FACE	vertex_indices[3]	74	1	1	0	0
+R2018	§20.4.17	POLYLINE_3D	3D polyline (always)	70&8	1	0	0	0
+R2018	§20.4.17	POLYLINE_3D	flags[0] & 3 (splined)	70&4	1	0	0	0
+R2018	§20.4.17	POLYLINE_3D	flags[0] (75: 5 or 6 when splined)	75	0	1	0	0
+R2018	§20.4.17	POLYLINE_3D	flags[1] & 1 (closed)	70&1	1	0	0	0
+R2018	§20.4.17	POLYLINE_3D	num_owned_objects	-	0	0	0	1
+R2018	§20.4.18	ARC	center.x	10	3	0	0	0
+R2018	§20.4.18	ARC	center.y	20	3	0	0	0
+R2018	§20.4.18	ARC	center.z	30	3	0	0	0
+R2018	§20.4.18	ARC	end_angle	51	3	0	0	0
+R2018	§20.4.18	ARC	extrusion.x	210	0	3	0	0
+R2018	§20.4.18	ARC	extrusion.y	220	0	3	0	0
+R2018	§20.4.18	ARC	extrusion.z	230	0	3	0	0
+R2018	§20.4.18	ARC	radius	40	3	0	0	0
+R2018	§20.4.18	ARC	start_angle	50	3	0	0	0
+R2018	§20.4.18	ARC	thickness	39	0	3	0	0
+R2018	§20.4.20	CIRCLE	center.x	10	13	0	0	0
+R2018	§20.4.20	CIRCLE	center.y	20	13	0	0	0
+R2018	§20.4.20	CIRCLE	center.z	30	13	0	0	0
+R2018	§20.4.20	CIRCLE	extrusion.x	210	0	13	0	0
+R2018	§20.4.20	CIRCLE	extrusion.y	220	0	13	0	0
+R2018	§20.4.20	CIRCLE	extrusion.z	230	0	13	0	0
+R2018	§20.4.20	CIRCLE	radius	40	13	0	0	0
+R2018	§20.4.20	CIRCLE	thickness	39	0	13	0	0
+R2018	§20.4.21	LINE	end.x	11	98	0	0	0
+R2018	§20.4.21	LINE	end.y	21	98	0	0	0
+R2018	§20.4.21	LINE	end.z	31	98	0	0	0
+R2018	§20.4.21	LINE	extrusion.x	210	0	98	0	0
+R2018	§20.4.21	LINE	extrusion.y	220	0	98	0	0
+R2018	§20.4.21	LINE	extrusion.z	230	0	98	0	0
+R2018	§20.4.21	LINE	is_2d	-	0	0	0	98
+R2018	§20.4.21	LINE	start.x	10	98	0	0	0
+R2018	§20.4.21	LINE	start.y	20	98	0	0	0
+R2018	§20.4.21	LINE	start.z	30	98	0	0	0
+R2018	§20.4.21	LINE	thickness	39	0	98	0	0
+R2018	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2018	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2018	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2018	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2018	§20.4.3	TEXT	generation	71	0	29	0	0
+R2018	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2018	§20.4.3	TEXT	height	40	29	0	0	0
+R2018	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2018	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2018	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2018	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2018	§20.4.3	TEXT	text	1	29	0	0	0
+R2018	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2018	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2018	§20.4.3	TEXT	width_factor	41	0	29	0	0
+R2018	§20.4.31	POINT	extrusion.x	210	0	40	0	0
+R2018	§20.4.31	POINT	extrusion.y	220	0	40	0	0
+R2018	§20.4.31	POINT	extrusion.z	230	0	40	0	0
+R2018	§20.4.31	POINT	position.x	10	40	0	0	0
+R2018	§20.4.31	POINT	position.y	20	40	0	0	0
+R2018	§20.4.31	POINT	position.z	30	40	0	0	0
+R2018	§20.4.31	POINT	thickness	39	0	40	0	0
+R2018	§20.4.31	POINT	x_axis_angle	50	0	40	0	0
+R2018	§20.4.32	3DFACE	corners[0].x	10	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[0].y	20	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[0].z	30	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[1].x	11	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[1].y	21	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[1].z	31	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[2].x	12	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[2].y	22	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[2].z	32	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[3].x	13	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[3].y	23	1	0	0	0
+R2018	§20.4.32	3DFACE	corners[3].z	33	1	0	0	0
+R2018	§20.4.32	3DFACE	invisible_edges	70	0	1	0	0
+R2018	§20.4.32	3DFACE	is_triangle	-	0	0	0	1
+R2018	§20.4.33	POLYLINE_PFACE	face_count	72	1	0	0	0
+R2018	§20.4.33	POLYLINE_PFACE	num_owned_objects	-	0	0	0	1
+R2018	§20.4.33	POLYLINE_PFACE	vertex_count	71	1	0	0	0
+R2018	§20.4.35	SOLID	corners[0].x	10	14	0	0	0
+R2018	§20.4.35	SOLID	corners[0].y	20	14	0	0	0
+R2018	§20.4.35	SOLID	corners[1].x	11	14	0	0	0
+R2018	§20.4.35	SOLID	corners[1].y	21	14	0	0	0
+R2018	§20.4.35	SOLID	corners[2].x	12	14	0	0	0
+R2018	§20.4.35	SOLID	corners[2].y	22	14	0	0	0
+R2018	§20.4.35	SOLID	corners[3].x	13	14	0	0	0
+R2018	§20.4.35	SOLID	corners[3].y	23	14	0	0	0
+R2018	§20.4.35	SOLID	elevation (corners[0].z)	30	14	0	0	0
+R2018	§20.4.35	SOLID	elevation (corners[1].z)	31	14	0	0	0
+R2018	§20.4.35	SOLID	elevation (corners[2].z)	32	14	0	0	0
+R2018	§20.4.35	SOLID	elevation (corners[3].z)	33	14	0	0	0
+R2018	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
+R2018	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
+R2018	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
+R2018	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2018	§20.4.39	ELLIPSE	axis_ratio	40	1	0	0	0
+R2018	§20.4.39	ELLIPSE	center.x	10	1	0	0	0
+R2018	§20.4.39	ELLIPSE	center.y	20	1	0	0	0
+R2018	§20.4.39	ELLIPSE	center.z	30	1	0	0	0
+R2018	§20.4.39	ELLIPSE	end_param	42	1	0	0	0
+R2018	§20.4.39	ELLIPSE	extrusion.x	210	1	0	0	0
+R2018	§20.4.39	ELLIPSE	extrusion.y	220	1	0	0	0
+R2018	§20.4.39	ELLIPSE	extrusion.z	230	1	0	0	0
+R2018	§20.4.39	ELLIPSE	major_axis.x	11	1	0	0	0
+R2018	§20.4.39	ELLIPSE	major_axis.y	21	1	0	0	0
+R2018	§20.4.39	ELLIPSE	major_axis.z	31	1	0	0	0
+R2018	§20.4.39	ELLIPSE	start_param	41	1	0	0	0
+R2018	§20.4.4	ATTRIB	alignment_point.x	11	2	0	0	0
+R2018	§20.4.4	ATTRIB	alignment_point.y	21	2	0	0	0
+R2018	§20.4.4	ATTRIB	attribute_type	-	0	0	0	3
+R2018	§20.4.4	ATTRIB	attribute_type	71	1	0	0	0
+R2018	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2018	§20.4.4	ATTRIB	elevation (31)	31	2	0	0	0
+R2018	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2018	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2018	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2018	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2018	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2018	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2018	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2018	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2018	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2018	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2018	§20.4.4	ATTRIB	lock_position	280 (last)	4	0	0	0
+R2018	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2018	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2018	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2018	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2018	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2018	§20.4.4	ATTRIB	v_align	74	2	2	0	0
+R2018	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2018	§20.4.42	RAY	direction.x	11	1	0	0	0
+R2018	§20.4.42	RAY	direction.y	21	1	0	0	0
+R2018	§20.4.42	RAY	direction.z	31	1	0	0	0
+R2018	§20.4.42	RAY	start.x	10	1	0	0	0
+R2018	§20.4.42	RAY	start.y	20	1	0	0	0
+R2018	§20.4.42	RAY	start.z	30	1	0	0	0
+R2018	§20.4.43	XLINE	direction.x	11	1	0	0	0
+R2018	§20.4.43	XLINE	direction.y	21	1	0	0	0
+R2018	§20.4.43	XLINE	direction.z	31	1	0	0	0
+R2018	§20.4.43	XLINE	point.x	10	1	0	0	0
+R2018	§20.4.43	XLINE	point.y	20	1	0	0	0
+R2018	§20.4.43	XLINE	point.z	30	1	0	0	0
+R2018	§20.4.44	DICTIONARY	cloning_flag	281	104	0	0	0
+R2018	§20.4.44	DICTIONARY	hard_owner	280	58	46	0	0
+R2018	§20.4.44	DICTIONARY	key	3	349	0	0	0
+R2018	§20.4.44	DICTIONARY	key order	3	104	0	0	0
+R2018	§20.4.45	ACDBDICTIONARYWDFLT	cloning_flag	281	2	0	0	0
+R2018	§20.4.45	ACDBDICTIONARYWDFLT	hard_owner	280	0	2	0	0
+R2018	§20.4.45	ACDBDICTIONARYWDFLT	key	3	2	0	0	0
+R2018	§20.4.45	ACDBDICTIONARYWDFLT	key order	3	2	0	0	0
+R2018	§20.4.46	MTEXT	attachment_point	71	35	0	0	0
+R2018	§20.4.46	MTEXT	drawing_direction	72	35	0	0	0
+R2018	§20.4.46	MTEXT	extents_height	43	0	0	0	35
+R2018	§20.4.46	MTEXT	extents_width	42	0	0	0	35
+R2018	§20.4.46	MTEXT	extrusion.x	210	0	35	0	0
+R2018	§20.4.46	MTEXT	extrusion.y	220	0	35	0	0
+R2018	§20.4.46	MTEXT	extrusion.z	230	0	35	0	0
+R2018	§20.4.46	MTEXT	insertion_point.x	10	35	0	0	0
+R2018	§20.4.46	MTEXT	insertion_point.y	20	35	0	0	0
+R2018	§20.4.46	MTEXT	insertion_point.z	30	35	0	0	0
+R2018	§20.4.46	MTEXT	linespace_factor	44	35	0	0	0
+R2018	§20.4.46	MTEXT	linespace_style	73	35	0	0	0
+R2018	§20.4.46	MTEXT	nominal_text_height	40	35	0	0	0
+R2018	§20.4.46	MTEXT	rect_height	46	35	0	0	0
+R2018	§20.4.46	MTEXT	rect_width	41	35	0	0	0
+R2018	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
+R2018	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
+R2018	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
+R2018	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2018	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2018	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2018	§20.4.5	ATTDEF	attribute_type	-	0	0	0	4
+R2018	§20.4.5	ATTDEF	attribute_type	71	1	0	0	0
+R2018	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2018	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2018	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2018	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2018	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2018	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2018	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2018	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2018	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2018	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2018	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2018	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2018	§20.4.5	ATTDEF	lock_position	280 (last)	5	0	0	0
+R2018	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2018	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2018	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2018	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2018	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2018	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2018	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2018	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2018	§20.4.51	BLOCK_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.z	BLOCK.30	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.description	BLOCK.4	1	28	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.has_attribs	BLOCK.70&2	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.is_anonymous	BLOCK.70&1	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.is_xref	BLOCK.70&4	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.is_xref_dependent (Xdep)	BLOCK.70&16	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.xref_overlay	BLOCK.70&8	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	BLOCK.xref_path	BLOCK.1	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	block_sentinel_handle	BLOCK.5	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	name (resolved through BLOCK, #70)	2	29	0	0	0
+R2018	§20.4.52	BLOCK_HEADER	num_owned_objects	-	0	0	0	29
+R2018	§20.4.52	BLOCK_HEADER	xref_index_plus_1	-	0	0	0	29
+R2018	§20.4.53	LAYER_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.54	LAYER	color_index	-	0	0	0	3
+R2018	§20.4.54	LAYER	color_index	62	17	0	0	0
+R2018	§20.4.54	LAYER	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2018	§20.4.54	LAYER	frozen (flags & 1)	70&1	20	0	0	0
+R2018	§20.4.54	LAYER	frozen in new viewports (flags & 4)	70&2	20	0	0	0
+R2018	§20.4.54	LAYER	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2018	§20.4.54	LAYER	lineweight	370	20	0	0	0
+R2018	§20.4.54	LAYER	locked (flags & 8)	70&4	20	0	0	0
+R2018	§20.4.54	LAYER	name	2	20	0	0	0
+R2018	§20.4.54	LAYER	off (flags & 2)	62 sign	20	0	0	0
+R2018	§20.4.54	LAYER	plot_flag	290	2	18	0	0
+R2018	§20.4.54	LAYER	xref_index_plus_1	-	0	0	0	20
+R2018	§20.4.55	STYLE_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.56	STYLE	bigfont_filename	4	8	0	0	0
+R2018	§20.4.56	STYLE	fixed_height	40	8	0	0	0
+R2018	§20.4.56	STYLE	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2018	§20.4.56	STYLE	font_filename	3	8	0	0	0
+R2018	§20.4.56	STYLE	generation	71	8	0	0	0
+R2018	§20.4.56	STYLE	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2018	§20.4.56	STYLE	last_height	42	8	0	0	0
+R2018	§20.4.56	STYLE	name	2	8	0	0	0
+R2018	§20.4.56	STYLE	oblique_angle	50	8	0	0	0
+R2018	§20.4.56	STYLE	shape file (flags & 1)	70&1	8	0	0	0
+R2018	§20.4.56	STYLE	vertical (flags & 4)	70&4	8	0	0	0
+R2018	§20.4.56	STYLE	width_factor	41	8	0	0	0
+R2018	§20.4.56	STYLE	xref_index_plus_1	-	0	0	0	8
+R2018	§20.4.57	LTYPE_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.58	LTYPE	alignment	72	11	0	0	0
+R2018	§20.4.58	LTYPE	dash count	73	11	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].length	49	5	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].rotation	50	1	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].scale	46	1	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].shape_flag	74	5	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].shape_number	75	1	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].x_offset	44	1	0	0	0
+R2018	§20.4.58	LTYPE	dashes[0].y_offset	45	1	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].length	49	5	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].rotation	50	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].scale	46	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].shape_flag	74	5	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].shape_number	75	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].x_offset	44	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[1].y_offset	45	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].length	49	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].rotation	50	2	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].scale	46	2	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].shape_flag	74	3	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].shape_number	75	2	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].x_offset	44	2	0	0	0
+R2018	§20.4.58	LTYPE	dashes[2].y_offset	45	2	0	0	0
+R2018	§20.4.58	LTYPE	dashes[3].length	49	2	0	0	0
+R2018	§20.4.58	LTYPE	dashes[3].shape_flag	74	2	0	0	0
+R2018	§20.4.58	LTYPE	description	3	11	0	0	0
+R2018	§20.4.58	LTYPE	flag_64 (the export never writes bit 64)	-	0	0	0	11
+R2018	§20.4.58	LTYPE	is_xref_dependent (Xdep)	70&16	11	0	0	0
+R2018	§20.4.58	LTYPE	name	2	11	0	0	0
+R2018	§20.4.58	LTYPE	pattern_length	40	11	0	0	0
+R2018	§20.4.58	LTYPE	xref_index_plus_1	-	0	0	0	11
+R2018	§20.4.59	VIEW_CONTROL	num_entries	70	1	0	1	0
+R2018	§20.4.6	BLOCK	name	2	29	0	0	0
+R2018	§20.4.61	UCS_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.63	VPORT_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.64	VPORT	aspect_ratio() (view_width / view_height)	41	2	0	0	0
+R2018	§20.4.64	VPORT	back_clip	44	2	0	0	0
+R2018	§20.4.64	VPORT	flag_64 (the export never writes bit 64)	-	0	0	0	2
+R2018	§20.4.64	VPORT	front_clip	43	2	0	0	0
+R2018	§20.4.64	VPORT	grid_spacing.x	15	2	0	0	0
+R2018	§20.4.64	VPORT	grid_spacing.y	25	2	0	0	0
+R2018	§20.4.64	VPORT	is_xref_dependent (Xdep)	70&16	2	0	0	0
+R2018	§20.4.64	VPORT	lens_length	42	2	0	0	0
+R2018	§20.4.64	VPORT	lower_left.x	10	2	0	0	0
+R2018	§20.4.64	VPORT	lower_left.y	20	2	0	0	0
+R2018	§20.4.64	VPORT	name	2	2	0	0	0
+R2018	§20.4.64	VPORT	render_mode	281	2	0	0	0
+R2018	§20.4.64	VPORT	snap_base.x	13	2	0	0	0
+R2018	§20.4.64	VPORT	snap_base.y	23	2	0	0	0
+R2018	§20.4.64	VPORT	snap_rotation	50	2	0	0	0
+R2018	§20.4.64	VPORT	snap_spacing.x	14	2	0	0	0
+R2018	§20.4.64	VPORT	snap_spacing.y	24	2	0	0	0
+R2018	§20.4.64	VPORT	ucs_at_origin	74&2	2	0	0	0
+R2018	§20.4.64	VPORT	ucs_per_vport	65	2	0	0	0
+R2018	§20.4.64	VPORT	upper_right.x	11	2	0	0	0
+R2018	§20.4.64	VPORT	upper_right.y	21	2	0	0	0
+R2018	§20.4.64	VPORT	view_center.x	12	2	0	0	0
+R2018	§20.4.64	VPORT	view_center.y	22	1	0	1	0
+R2018	§20.4.64	VPORT	view_direction.x	16	2	0	0	0
+R2018	§20.4.64	VPORT	view_direction.y	26	2	0	0	0
+R2018	§20.4.64	VPORT	view_direction.z	36	2	0	0	0
+R2018	§20.4.64	VPORT	view_height	40	1	0	1	0
+R2018	§20.4.64	VPORT	view_mode	71	2	0	0	0
+R2018	§20.4.64	VPORT	view_target.x	17	2	0	0	0
+R2018	§20.4.64	VPORT	view_target.y	27	2	0	0	0
+R2018	§20.4.64	VPORT	view_target.z	37	2	0	0	0
+R2018	§20.4.64	VPORT	view_twist	51	2	0	0	0
+R2018	§20.4.64	VPORT	xref_index_plus_1	-	0	0	0	2
+R2018	§20.4.65	APPID_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.66	APPID	flag_64 (the export never writes bit 64)	-	0	0	0	41
+R2018	§20.4.66	APPID	is_xref_dependent (Xdep)	70&16	41	0	0	0
+R2018	§20.4.66	APPID	name	2	41	0	0	0
+R2018	§20.4.66	APPID	unknown	71	0	41	0	0
+R2018	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	41
+R2018	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	2	0	0	0
+R2018	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	2	0	0	0
+R2018	§20.4.68	DIMSTYLE	dimaltf	143	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimaltrnd	148	0	8	0	0
+R2018	§20.4.68	DIMSTYLE	dimasz	41	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimcen	141	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimexe	44	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimexo	42	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimlfac	144	0	8	0	0
+R2018	§20.4.68	DIMSTYLE	dimscale	40	3	5	0	0
+R2018	§20.4.68	DIMSTYLE	dimtad	77	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimtfac	146	0	8	0	0
+R2018	§20.4.68	DIMSTYLE	dimtih	73	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimtoh	74	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimtolj	283	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimtxt	140	2	6	0	0
+R2018	§20.4.68	DIMSTYLE	dimupt	288	0	8	0	0
+R2018	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	8
+R2018	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	8	0	0	0
+R2018	§20.4.68	DIMSTYLE	name	2	8	0	0	0
+R2018	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	8
+R2018	§20.4.73	MLINESTYLE	description	3	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	end_angle	52	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	fill_color	62	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	flags (remapped)	70	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	line count	71	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	lines[0].color	62	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	lines[0].linetype_index	-	0	0	0	2
+R2018	§20.4.73	MLINESTYLE	lines[0].offset	49	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	lines[1].color	62	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	lines[1].linetype_index	-	0	0	0	2
+R2018	§20.4.73	MLINESTYLE	lines[1].offset	49	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	name	2	2	0	0	0
+R2018	§20.4.73	MLINESTYLE	start_angle	51	2	0	0	0
+R2018	§20.4.74	DICTIONARYVAR	schema	280	21	0	0	0
+R2018	§20.4.74	DICTIONARYVAR	value	1	21	0	0	0
+R2018	§20.4.84	LAYOUT	current_style_sheet	7	7	0	0	0
+R2018	§20.4.84	LAYOUT	drawing_units	143	7	0	0	0
+R2018	§20.4.84	LAYOUT	elevation	146	7	0	0	0
+R2018	§20.4.84	LAYOUT	extent_max.x	15	7	0	0	0
+R2018	§20.4.84	LAYOUT	extent_max.y	25	7	0	0	0
+R2018	§20.4.84	LAYOUT	extent_max.z	35	7	0	0	0
+R2018	§20.4.84	LAYOUT	extent_min.x	14	7	0	0	0
+R2018	§20.4.84	LAYOUT	extent_min.y	24	7	0	0	0
+R2018	§20.4.84	LAYOUT	extent_min.z	34	7	0	0	0
+R2018	§20.4.84	LAYOUT	flags	70	7	0	0	0
+R2018	§20.4.84	LAYOUT	insertion_point.x	12	7	0	0	0
+R2018	§20.4.84	LAYOUT	insertion_point.y	22	7	0	0	0
+R2018	§20.4.84	LAYOUT	insertion_point.z	32	7	0	0	0
+R2018	§20.4.84	LAYOUT	layout_name	1	7	0	0	0
+R2018	§20.4.84	LAYOUT	limmax.x	11	7	0	0	0
+R2018	§20.4.84	LAYOUT	limmax.y	21	7	0	0	0
+R2018	§20.4.84	LAYOUT	limmin.x	10	7	0	0	0
+R2018	§20.4.84	LAYOUT	limmin.y	20	7	0	0	0
+R2018	§20.4.84	LAYOUT	margin_bottom	41	7	0	0	0
+R2018	§20.4.84	LAYOUT	margin_left	40	7	0	0	0
+R2018	§20.4.84	LAYOUT	margin_right	42	7	0	0	0
+R2018	§20.4.84	LAYOUT	margin_top	43	7	0	0	0
+R2018	§20.4.84	LAYOUT	page_setup_name	1	7	0	0	0
+R2018	§20.4.84	LAYOUT	paper_height	45	7	0	0	0
+R2018	§20.4.84	LAYOUT	paper_image_origin.x	148	7	0	0	0
+R2018	§20.4.84	LAYOUT	paper_image_origin.y	149	7	0	0	0
+R2018	§20.4.84	LAYOUT	paper_size	4	7	0	0	0
+R2018	§20.4.84	LAYOUT	paper_units	72	7	0	0	0
+R2018	§20.4.84	LAYOUT	paper_width	44	7	0	0	0
+R2018	§20.4.84	LAYOUT	plot_layout_flags	70	7	0	0	0
+R2018	§20.4.84	LAYOUT	plot_origin.x	46	7	0	0	0
+R2018	§20.4.84	LAYOUT	plot_origin.y	47	7	0	0	0
+R2018	§20.4.84	LAYOUT	plot_rotation	73	7	0	0	0
+R2018	§20.4.84	LAYOUT	plot_type	74	7	0	0	0
+R2018	§20.4.84	LAYOUT	printer_config_name	2	7	0	0	0
+R2018	§20.4.84	LAYOUT	real_world_units	142	7	0	0	0
+R2018	§20.4.84	LAYOUT	scale_factor	147	7	0	0	0
+R2018	§20.4.84	LAYOUT	shade_plot_custom_dpi	78	7	0	0	0
+R2018	§20.4.84	LAYOUT	shade_plot_mode	76	7	0	0	0
+R2018	§20.4.84	LAYOUT	shade_plot_resolution_level	77	7	0	0	0
+R2018	§20.4.84	LAYOUT	standard_scale_type	75	7	0	0	0
+R2018	§20.4.84	LAYOUT	tab_order	71	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_origin.x	13	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_origin.y	23	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_origin.z	33	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_ortho_view_type	76	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_x_axis.x	16	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_x_axis.y	26	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_x_axis.z	36	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_y_axis.x	17	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_y_axis.y	27	7	0	0	0
+R2018	§20.4.84	LAYOUT	ucs_y_axis.z	37	7	0	0	0
+R2018	§20.4.84	LAYOUT	viewport_count	-	0	0	0	7
+R2018	§20.4.84	LAYOUT	window_max.x	140	7	0	0	0
+R2018	§20.4.84	LAYOUT	window_max.y	141	7	0	0	0
+R2018	§20.4.84	LAYOUT	window_min.x	48	7	0	0	0
+R2018	§20.4.84	LAYOUT	window_min.y	49	7	0	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[0]	42	1	2	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[1]	42	3	0	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[2]	42	2	1	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[3]	42	2	1	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[4]	42	2	1	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[5]	42	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	bulges[6]	42	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	closed (flag & 0x200)	70&1	23	0	0	0
+R2018	§20.4.85	LWPOLYLINE	constant_width	43	1	0	0	0
+R2018	§20.4.85	LWPOLYLINE	constant_width (absent: 0)	43	20	2	0	0
+R2018	§20.4.85	LWPOLYLINE	elevation	38	0	23	0	0
+R2018	§20.4.85	LWPOLYLINE	extrusion.x	210	0	23	0	0
+R2018	§20.4.85	LWPOLYLINE	extrusion.y	220	0	23	0	0
+R2018	§20.4.85	LWPOLYLINE	extrusion.z	230	0	23	0	0
+R2018	§20.4.85	LWPOLYLINE	flag (presence bits)	-	0	0	0	23
+R2018	§20.4.85	LWPOLYLINE	thickness	39	0	23	0	0
+R2018	§20.4.85	LWPOLYLINE	vertex count	90	23	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[0].x	10	23	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[0].y	20	23	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[1].x	10	23	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[1].y	20	23	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[2].x	10	22	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[2].y	20	22	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[3].x	10	22	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[3].y	20	22	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[4].x	10	6	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[4].y	20	6	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[5].x	10	3	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[5].y	20	3	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[6].x	10	3	0	0	0
+R2018	§20.4.85	LWPOLYLINE	vertices[6].y	20	3	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[0].end	41	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[0].start	40	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[1].end	41	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[1].start	40	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[2].end	41	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[2].start	40	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[3].end	41	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[3].start	40	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[4].end	41	2	0	0	0
+R2018	§20.4.85	LWPOLYLINE	widths[4].start	40	2	0	0	0
+R2018	§20.4.9	INSERT	extrusion.x	210	0	12	0	0
+R2018	§20.4.9	INSERT	extrusion.y	220	0	12	0	0
+R2018	§20.4.9	INSERT	extrusion.z	230	0	12	0	0
+R2018	§20.4.9	INSERT	has_attribs	66	2	10	0	0
+R2018	§20.4.9	INSERT	insertion_point.x	10	12	0	0	0
+R2018	§20.4.9	INSERT	insertion_point.y	20	12	0	0	0
+R2018	§20.4.9	INSERT	insertion_point.z	30	12	0	0	0
+R2018	§20.4.9	INSERT	owned_object_count	-	0	0	0	12
+R2018	§20.4.9	INSERT	rotation	50	3	9	0	0
+R2018	§20.4.9	INSERT	scale.x	41	9	3	0	0
+R2018	§20.4.9	INSERT	scale.y	42	9	3	0	0
+R2018	§20.4.9	INSERT	scale.z	43	9	3	0	0
+R2018	§20.4.92	SCALE	drawing_units	141	66	0	0	0
+R2018	§20.4.92	SCALE	is_unit_scale	290	66	0	0	0
+R2018	§20.4.92	SCALE	paper_units	140	66	0	0	0
+R2018	§20.4.92	SCALE	scale_name	300	66	0	0	0
+R2018	§20.4.92	SCALE	version	70	66	0	0	0
