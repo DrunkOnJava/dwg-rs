@@ -856,7 +856,7 @@ Measured budgets, for whoever picks this up: R2004 1849, R2010 6836,
 R2013 6844, R2018 5820. The records stay `Unhandled`.
 
 *Superseded:* §20.4.101 prints TABLESTYLE after all, and its
-until-R21 layout closes on every record of R14 to R2007 (§7x); the
+until-R21 layout closes on every record of R14 to R2007 (§7ad); the
 R2010+ record is §20.4.101.2's different layout.
 
 ## 7e. `AcDb:Classes` — where the class list actually starts
@@ -1692,7 +1692,7 @@ the record; their values corroborate nothing.
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
-## 7x. TABLESTYLE until R2007: the spec prints it (2026-10-26, #151)
+## 7ad. TABLESTYLE until R2007: the spec prints it (2026-10-26, #151)
 
 The notes above call TABLESTYLE "declined" (§7d) because "§20.4 has no
 entry" for it. It has: §20.4.101 prints the object, in two layouts.
