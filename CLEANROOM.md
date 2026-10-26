@@ -691,3 +691,21 @@ by value: the former are refused as unsupported, the latter are read as `TV`. No
 vocabulary beyond the DXF group codes and subclass marker in the twin was used, and
 no third-party DWG or DXF implementation was consulted.
 
+## 2026-10-26 — ACDB_TEXTOBJECTCONTEXTDATA_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/text_context_data.rs` was derived from the data bits
+of the seven records of the pinned corpus: two each in ACadSharp's `sample_base`
+saves of R2010, R2013 and R2018 (AutoCAD 2025), and one in `export_sample.dwg`
+(R2018, no DXF twin), against AutoCAD's DXF export of the same handles for the six
+`sample_base` records. The R2004 and R2007 saves declare the class and hold no
+object. Accepted: all seven close on the data-stream boundary, and 48 values (the
+two groups 70, and 290, 50, 10, 20, 11 and 21) equal the decoded fields with 0
+differences (`examples/probe_text_context_data.rs`). Unverified by value: the unit
+of the rotation (group 50 is 0.0 in both twins; the record without a twin stores
+0.5235987755982988, 30 degrees as radians), the order of groups 11 and 21 (both
+0.0), and every release before R2010, which is refused as unsupported. The handle of
+the annotation scale (group 340) is not decoded. No vocabulary beyond the DXF group
+codes and subclass markers in the twins was used, and no third-party DWG or DXF
+implementation was consulted.
+

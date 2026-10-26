@@ -25,6 +25,7 @@
 //! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
 //! | DATATABLE               | [`data_table`]            | none — derived from AutoCAD output |
 //! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
+//! | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | [`text_context_data`] | none — derived from AutoCAD output |
 //! | ACSH_HISTORY_CLASS, ACSH_BOX_CLASS | [`sh_history`]  | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
@@ -106,5 +107,6 @@ pub mod proxy_entity;
 pub mod proxy_object;
 pub mod sh_history;
 pub mod small_classes;
+pub mod text_context_data;
 pub mod xdata;
 pub mod xrecord;
