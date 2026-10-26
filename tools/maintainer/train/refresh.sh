@@ -114,7 +114,7 @@ if [ -d examples/dxf_oracle ] && [ -f tools/oracle/spec_notes.py ]; then
   python3 -I tools/oracle/spec_notes.py "$OUT/oracle.txt" docs/data/spec-coverage.tsv > "$OUT/oracle-notes.log" 2>&1 || { say "spec_notes FAILED"; exit 1; }
 fi
 if [ -f tools/oracle/baseline.tsv ] && grep -q -- '--baseline' examples/dxf_oracle/main.rs 2>/dev/null; then
-  git show origin/main:tools/oracle/baseline.tsv > "$OUT/main-oracle.tsv" 2>/dev/null || cp tools/oracle/baseline.tsv "$OUT/main-oracle.tsv"
+  python3 -I "$TRAIN_HERE/oracle_base.py" "$(git merge-base origin/main "$base")" "$base" > "$OUT/main-oracle.tsv" || { say "oracle baseline FAILED"; exit 1; }
   if ! "$CARGO_TARGET_DIR/release/examples/dxf_oracle" "$C" --tsv "$OUT/oracle.tsv" --baseline "$OUT/main-oracle.tsv" > "$OUT/oracle-ratchet.log" 2>&1; then
     say "REFUSED: DXF oracle agreement fell against main's: $(grep -E 'agreeing in the baseline|absent from this run' "$OUT/oracle-ratchet.log" | head -3 | tr '\n' ' ')"
     git merge --abort > /dev/null 2>&1
