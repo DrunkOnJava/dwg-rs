@@ -21,6 +21,8 @@ permissions:
   contents: write  # needed to create the GitHub Release
 
 env:
+  # crates.io index or crate downloads that fail transiently are retried instead of failing the job
+  CARGO_NET_RETRY: "10"
   CARGO_TERM_COLOR: always
 
 jobs:
