@@ -36,6 +36,7 @@ R14	§20.4.31	POINT	position.y	20	2	0	0	0
 R14	§20.4.31	POINT	position.z	30	2	0	0	0
 R14	§20.4.31	POINT	thickness	39	0	2	0	0
 R14	§20.4.31	POINT	x_axis_angle	50	0	2	0	0
+R2000	-	ACDBPLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
 R2000	-	VISUALSTYLE	description	2	192	0	0	0
 R2000	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2000	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0

@@ -135,12 +135,17 @@ pub enum DecodedEntity {
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
+    SortEntsTable(crate::objects::block_sortents_table::SortEntsTable),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
+    SpatialFilter(Box<crate::objects::clip_spatial_filter::SpatialFilter>),
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
+    TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
+    ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
+    RasterVariables(crate::objects::image_raster_variables::RasterVariables),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -246,18 +251,27 @@ impl DecodedEntity {
             Self::Placeholder(_) => OBJECT_TYPE_ACDB_PLACEHOLDER,
             Self::Group(_) => OBJECT_TYPE_GROUP,
             Self::Layout(_) => OBJECT_TYPE_LAYOUT,
+            // SORTENTSTABLE is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::SortEntsTable(_) => 0,
             Self::MLineStyle(_) => OBJECT_TYPE_MLINESTYLE,
+            // SPATIAL_FILTER is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::SpatialFilter(_) => 0,
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
             // to consult the class map.
             Self::DictionaryVar(_)
             | Self::Scale(_)
             | Self::ImageDef(_)
+            | Self::ImageDefReactor(_)
+            | Self::RasterVariables(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
             | Self::DetailViewStyle(_)
-            | Self::SectionViewStyle(_) => 0,
+            | Self::SectionViewStyle(_)
+            | Self::TableStyle(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -475,6 +489,14 @@ pub fn decode_from_raw_with_class_map(
         "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
             hatch::decode(c, v).map(DecodedEntity::Hatch)
         }),
+
+        // MULTILEADER before R2007: AutoCAD writes the record into R14
+        // to R2004 saves too, with its `TV`s inline (#229).
+        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
+            checked_inline(raw, body_start, version, "MULTILEADER", |c, v, _, _| {
+                mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
+            })
+        }
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -685,6 +707,12 @@ fn dispatch_object_class(
             crate::objects::acad_scale::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::Scale)
         }
+        "SORTENTSTABLE" | "ACDBSORTENTSTABLE" => {
+            crate::objects::block_sortents_table::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::SortEntsTable)
+        }
         "VISUALSTYLE" | "ACDBVISUALSTYLE" => crate::objects::acad_visual_style::decode_object(
             payload, body_start, inline_end, version,
         )
@@ -702,6 +730,12 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::PlotSettings),
+        "SPATIAL_FILTER" | "ACDBSPATIALFILTER" => {
+            crate::objects::clip_spatial_filter::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(|filter| DecodedEntity::SpatialFilter(Box::new(filter)))
+        }
         "MLEADERSTYLE" | "ACDBMLEADERSTYLE" => crate::objects::acad_mleader_style::decode_object(
             payload, body_start, inline_end, version,
         )
@@ -718,6 +752,10 @@ fn dispatch_object_class(
             )
             .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
         }
+        "TABLESTYLE" | "ACDBTABLESTYLE" => crate::objects::acad_table_style::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|style| DecodedEntity::TableStyle(Box::new(style))),
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
@@ -742,12 +780,29 @@ fn dispatch_object_class(
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ImageDef)
         }
+        "IMAGEDEF_REACTOR" | "IMAGEDEFREACTOR" => crate::objects::image_def_reactor::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::ImageDefReactor),
+        "RASTERVARIABLES" | "ACDBRASTERVARIABLES" => {
+            crate::objects::image_raster_variables::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::RasterVariables)
+        }
         // §20.4.104 types XRECORD `(varies)`: from R2000 it has the
         // fixed code 0x4F, but R14 files give it a class number from
         // AcDb:Classes. It is the same record either way.
         "XRECORD" => {
             crate::objects::xrecord::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::XRecord)
+        }
+        // The spec lists ACDBPLACEHOLDER with the fixed codes (0x50), but
+        // R14 and R2000 files give it a class number from AcDb:Classes; it
+        // is the same body-less record either way.
+        "ACDBPLACEHOLDER" | "ACDB_PLACEHOLDER" | "PLACEHOLDER" => {
+            crate::objects::placeholder::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Placeholder)
         }
         _ => return None,
     };
@@ -785,17 +840,22 @@ fn dispatch_split_stream_class(
     kind: ObjectType,
     version: Version,
 ) -> Option<DecodedEntity> {
-    if !version.is_r2010_plus() {
+    if !version.is_r2007_plus() {
         return None;
     }
     let result = match dxf_class_name {
+        // §20.4.48: MULTILEADER exists from R2007 (version 21); its
+        // R2007 record has the `-R2007` tail in place of the R2010+
+        // fields (#229).
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(|m| DecodedEntity::MLeader(Box::new(m)))
         }
         // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
         "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
-        | "ACDBDGNUNDERLAY" => {
+        | "ACDBDGNUNDERLAY"
+            if version.is_r2010_plus() =>
+        {
             let kind = match dxf_class_name {
                 "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
                 "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
