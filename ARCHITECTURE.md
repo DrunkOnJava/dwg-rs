@@ -2736,8 +2736,11 @@ reader and checks, per file, the locator CRC and the sentinel after it, the
 image sentinel, the §9 and §10.1 sections (both sentinels, the `RL`, the CRC
 seeded 0xC0C1, and locator size = 38 + `RL`) and every §23.1 chunk's CRC with
 the map ending on its locator. All six pass on all 22 files. No three-locator
-(R13 C2) drawing is in the corpus, so that layout, and the PRE-R13C3 image
-position, are untested.
+(R13 C2) drawing is among the 22, so that layout, and the PRE-R13C3 image
+position, are untested here. Autodesk's own R13 drawings use three locators
+(older discs) or four (the C4 era, with a §26 tail ending `18 78 01 04`) and
+pass the same framing checks (#345); the US Forest Service set, pinned next,
+brings the three-locator layout into the corpus.
 
 The §9 header variables decode strictly on all 22, to the stated size. The
 R13 rows of the table close `Cabin.dwg` as they are (195 slots, the R14
@@ -2750,15 +2753,18 @@ required", so §9 itself says a writer may omit them; this one writes -1 in all
 four where AutoCAD's R14 files hold arbitrary values (`line_R14.dwg`: -32079,
 7245, -8010, 30738), and writes 0 where AutoCAD writes 256 in the first short
 (§9's "R13-R14 Only" unknown short). The 12 bits are the 4 bits that end the
-byte holding the last slot (always `1010`; AutoCAD R14 writes `1111`) and one
-whole byte more (`00` in 19 files, `52` and `7F` in the others): the Sovol
-section size is `ceil(bits / 8) + 1` (403 to 404 bytes, 395 to 396), where
-AutoCAD's is `ceil(bits / 8)`. The decoder reads an AC1012 header with the R14
+byte holding the last slot (`1010` in all 21) and one whole byte more (`00` in
+19 files, `52` and `7F` in the others): the Sovol section size is
+`ceil(bits / 8) + 1` (403 to 404 bytes, 395 to 396). The padding bits do not
+tell the writers apart: Autodesk's own R13 discs pad `0000` in 196 of 263
+headers and `1111` in 6, so `1111` is R14 evidence only (#345). What holds on
+every AutoCAD-written R13 header measured is 195 slots, without §9's four
+"R14+" shorts, in a section of exactly `ceil(bits / 8)`; the Sovol writer's
+four -1 shorts and extra byte break both. The decoder reads an AC1012 header with the R14
 rows when the R13 rows leave a whole byte or more, and lets that header end
 one byte before its data does. That early end is a tolerance for this
-writer's R13 variant, confined to AC1012: the Sovol drawings are not
-AutoCAD-written (AutoCAD's R14 pads with `1111` and sizes the section
-`ceil(bits / 8)`), so it is not AutoCAD's format and no other release gets it.
+writer's R13 variant, confined to AC1012: no AutoCAD-written R13 header has
+the extra byte, so it is not AutoCAD's format, and no other release gets it.
 `Cabin.dwg` is untouched by either rule, and the end-inside-the-last-byte rule
 for every other release is unchanged.
 
@@ -2767,7 +2773,9 @@ locator 3 ends; the self-address and `AC1012` read as printed). Its body
 follows §26 on `Cabin.dwg` only: the locator copies agree with the first
 header and 14 handle records follow, but the bytes after `AC1012` read
 `00 00 00 00 00 04` and the four fixed bytes `18 30 01 04`, where §26 prints
-`18 78 01 04` for R13. The 21 Sovol second headers do not follow the order §26
+`18 78 01 04` for R13. The byte after `18` varies on Autodesk's own
+three-locator files (`30`, `78`, `08`), so `Cabin.dwg`'s `18 30 01 04` is
+not evidence against AutoCAD. The 21 Sovol second headers do not follow the order §26
 prints after the version string. The reader does not use this section.
 
 ### The walk
@@ -2843,11 +2851,16 @@ belong to the decoders that read them.
 
 ### What is not measured
 
-No AutoCAD DXF of an R13 drawing exists, so no R13 value has been compared. The
-R13 files are not known to be AutoCAD's: the Sovol drawings carry a `SUN`
-object, which §20.4 gives to R2007 and later, so something newer than AutoCAD
-R13 wrote them. They are evidence of the format as it is found, not of what
-AutoCAD R13 itself wrote. Reference closure (#84) is also open:
+No AutoCAD DXF of an R13 drawing exists, so no R13 value has been compared. None
+of the 22 is known to be AutoCAD's. `Cabin.dwg` is SketchUp's export. The Sovol
+drawings are not AutoCAD-written, on three grounds: a header section one byte
+longer than `ceil(bits / 8)`; a preview that is one blank 180 x 97 bitmap in
+all 21 drawings (18,524 bytes, every pixel byte `0xFF`), where AutoCAD-written
+R13 drawings carry real previews of 1.3 to 16.7 KB; and a `SUN` object, which
+§20.4 gives to R2007 and later, so something newer than AutoCAD R13 wrote them.
+The header padding is not one of the grounds. The 22 are evidence of the
+format as it is found, not of what AutoCAD R13 itself wrote; drawings AutoCAD
+R13 saved are public (#345) and are pinned by a later PR. Reference closure (#84) is also open:
 R13 and R14 records still count as `references_unchecked` (27,714 of 27,714).
 
 Reproduce:
