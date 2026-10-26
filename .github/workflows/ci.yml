@@ -72,6 +72,8 @@ jobs:
         run: cargo +${{ matrix.toolchain }} build --release --all-features --all-targets
       - name: cargo test --release
         run: cargo +${{ matrix.toolchain }} test --release --all-features
+      - name: The specification's worked examples (#107)
+        run: cargo +${{ matrix.toolchain }} run --release --all-features --example spec_examples
 
   doc:
     name: Documentation

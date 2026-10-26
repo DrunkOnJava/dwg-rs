@@ -1,0 +1,7 @@
+# §3.2.6: the value the R13-R15 section-locator CRC is XORed with, by number of locator records.
+# Source: ODA Open Design Specification for .dwg files v5.4.1 (sha256 973628f353535b81a0be8a31f965bca4fb88b989127b2c1029d28f33be0f504b).
+id	section	page	count	xor	quote
+3.2.6-3	3.2.6	20	3	A598	3 : 0xA598
+3.2.6-4	3.2.6	20	4	8101	4 : 0x8101
+3.2.6-5	3.2.6	20	5	3CC4	5 : 0x3CC4
+3.2.6-6	3.2.6	20	6	8461	6 : 0x8461

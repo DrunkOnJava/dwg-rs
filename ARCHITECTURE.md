@@ -1525,6 +1525,92 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
+## 7k. The specification's own worked examples (2026-10-26, #107)
+
+The ODA specification prints worked examples and full tables, and every
+one now runs through the crate's public code:
+`examples/spec_examples.rs`, on the bytes in
+`tests/fixtures/spec-examples/`, in CI's Test job. Each fixture quotes
+the v5.4.1 PDF (sha256 `973628f3…f504b`) verbatim and names its pages;
+`tools/spec/extract_examples.py` regenerates the long ones from the PDF
+and audits every one against it. A dump is only accepted when its row
+addresses are contiguous, its hex agrees with its printed bit column,
+its `MS` equals the length in its header line and its printed CRC is
+the CRC-8 of its bytes, so a transcription error cannot pass as data.
+
+```sh
+cargo run --release --example spec_examples
+```
+
+| Spec | Examples | Crate path | Reproduced |
+|---|---|---|---|
+| §2.2, §2.3, §2.6 (three), §2.7, §2.13, §2.14.1 | 8 bit streams with their parsed values | `BitCursor` | 8 / 8, each consuming exactly the printed stream |
+| §2.14.1, §2.14.2 | CRC-8 and CRC-32 tables, 256 values each | `crc::crc8`, `crc::crc32` | both |
+| §3.2.6 | the four locator-CRC XOR values | `crc::r13_locator_seed` | 4 / 4 |
+| §4.1 | the header magic sequence | `cipher::magic_sequence` | the 92 printed bytes |
+| §3.2.6, §9, §10.1 | five 16-byte sentinels | the reader's and the streaming grammar's constants | 7 / 7 constants |
+| §4.7 | two literal lengths, two long compression offsets | `lz77::decompress` and `streaming::Lz77Decoder` | 4 / 4, both decoders |
+| §5.10.1 | the 32-row literal copy table | `r21_lz::decompress` | 32 / 32 under the recursive reading of §7j |
+| §9 | "a dump of a complete R14 header", 0x245 bytes | `R13R15Header`, `crc8`, `streaming::FlatWalker`, `HeaderVars` | locator CRC `5C2D` (XOR `0x3CC4`), section CRC `275B` (seed `0xC0C1`), both sentinels; its first four `BD`s are §9's printed defaults |
+| §20.4.N.1 | 78 R13/R14 object records in 77 sections | `ObjectWalker`, `decode_from_raw` | 78 / 78 type, length, handle and CRC; 43 close on their own §20.4.1 `RL`, 18 error, 4 have no decoder, 13 are class-numbered |
+
+The spec prints no decoded values for the §20.4 dumps, only each
+record's type, length, handle and CRC, so "close" there is the crate's
+own boundary check run on the spec's bytes. The 13 class-numbered
+records (type 500 and up) cannot be dispatched, because the spec prints
+no `AcDb:Classes` for its example drawing, and are checked to the walk
+and CRC only. `r14-objects.tsv` records each record's expected outcome;
+the example fails when a result moves in either direction, so a fixed
+decoder flips its row in the same pull request.
+
+### Errata in the specification
+
+Each was found by running a printed example, and each correction is
+read from the example's own bytes.
+
+| Where | What the spec prints | What its example says |
+|---|---|---|
+| §2.3, p8 | "reading 5 longs" | the stream and its parse hold four |
+| §4.1, p23 | XOR "the 0x6c bytes" with a sequence it prints 92 bytes of | the generator printed beneath it yields all 0x6C; the last 16 are `32 3B A1 22 F6 22 91 9D E1 8B 1F DA B0 CA 99 02` |
+| §20.1, p101 | "The CRC includes the size bytes", with no seed | `0xC0C1`, the seed §9 states for its section, on all 78 records |
+| §20.4.28, p126 | DIMENSION (RADIUS): the 10 and 15 points only | one more `BD` after them, the leader length §20.4.29 prints for DIAMETER (0.0 here); the record closes only with it |
+| §20.4.49, p155 | TOLERANCE R13-R14: `Height BD`, `Dimgap BD`, then `Text string BS` | one more `BD` before `Height` (0.0 here), and the text is a `TV`: height 0.18 and dimgap 0.09 (AutoCAD's imperial DIMTXT and DIMGAP), extrusion (0, 0, 1), text `{\Fgdt;j}%%v{\Fgdt;n}asdf…`. One record cannot name the extra `BD`, so it is consumed, not named |
+
+### Where the crate disagrees with an example
+
+For every record below, §20.4's own R13-R14 field list closes exactly
+on the example (with the two corrections above for RADIUS and
+TOLERANCE); the crate's decoder does not.
+
+| Example | The crate | Issue |
+|---|---|---|
+| TEXT, ATTRIB, ATTDEF (§20.4.3-5) | no R13-R14 branch: reads the R2000+ `DataFlags` layout | #226 |
+| MTEXT (§20.4.46) | reads the R2000+ linespacing fields on R14 (+69 bits) | #226 |
+| TOLERANCE (§20.4.49) | reads its DIMSTYLE handle inside the data fields | #226 |
+| INSERT (§20.4.9) | reads the R2000+ `BB` scale flags on R14 | #227 |
+| DIMENSION ordinate, linear, aligned, angular, radius, diameter (§20.4.22-29) | reads the R2000+ common dimension fields on R14 | #227 |
+| 3DFACE (§20.4.32) | has only the R2000+ layout | #227 |
+| VERTEX (2D) (§20.4.11) | reads the tangent only when `flag & 0x02`; §20.4.11 makes it unconditional | #272 |
+| POLYLINE (MESH) (§20.4.34) | five `BS`, without the curve type, in another order | #273 |
+| LEADER (§20.4.47) | stops after the offset to the block insertion point | #71 |
+| VIEW (§20.4.60) | reads the four-bit view mode as a `BS` | #256 |
+| UCS (§20.4.62) | reads the R2000+ elevation and ortho fields on R14 | #274 |
+
+MINSERT, SHAPE, VIEWPORT ENTITY HEADER and the R13/R14 DIMSTYLE (#74)
+have no decoder, so their examples return `Unhandled`.
+
+### What does not run
+
+- §5.12's two CRC-64 tables: the crate has no 64-bit CRC, so R2007
+  header and page CRCs are not verified (#124).
+- §5.1's section hashcode table: the crate reads each section's
+  hashcode from the file and holds no table to compare.
+- §5.13 prints Reed-Solomon configurations, not an example. Measured on
+  `line_2007.dwg`'s header page, its system-page polynomial `0x169` is
+  right and `src/reed_solomon.rs`'s `0x11D` is not (#275).
+- §20.4.88 and §20.4.90 print "<<No example>>", and 25 other §20.4
+  sections print none.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

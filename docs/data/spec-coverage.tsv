@@ -1,17 +1,17 @@
 # One row per section of ODA spec v5.4.1 (docs/spec-coverage.md). Columns: section, title, page, state, code, tracking issue, note.
 1	Introduction	5	n/a			Informative.
-2	Bit codes and data definitions	6	closes	src/bitcursor.rs, src/bitwriter.rs	#107	B, BB, 3B, BS, BL, BLL, BD, DD, BT, BE, RC/RS/RL/RD, MC, MS, H, T/TU/TV, CMC/ENC, OT. Every primitive is exercised by every decoded record; the spec's worked examples are not yet fixtures.
+2	Bit codes and data definitions	6	closes	src/bitcursor.rs, src/bitwriter.rs	#107	B, BB, 3B, BS, BL, BLL, BD, DD, BT, BE, RC/RS/RL/RD, MC, MS, H, T/TU/TV, CMC/ENC, OT. Every primitive is exercised by every decoded record. The spec's worked examples for BS (§2.2), BL (§2.3), MC (§2.6, three), MS (§2.7) and handles (§2.13) run in examples/spec_examples.rs (#107); §2.1, §2.4, §2.5 and §2.8 to §2.12 print none. §2.3 announces five longs and parses four.
 2.11	CmColor (CMC and ENC)	13	partial	src/color.rs	#123	ENC flags 0x8000, 0x4000 (AcDbColor handle) and 0x2000 (transparency) are read; DBCOLOR objects are not decoded.
 2.12	Object type (R2010+ encoding)	13	closes	src/object_type.rs	#107	
-2.13	Handle references	14	closes	src/bitcursor.rs, src/handle_map.rs	#107	Offset codes 6, 8, A and C.
-2.14	CRCs (8-bit and 32-bit)	15	closes	src/crc.rs	#124	
-3	R13-R15 file format organization	19	partial	src/reader.rs, src/section.rs	#119	§3.2.6 section locators are read (R14, R2000; #104). No R13 (AC1012) file is in the corpus. §3.2.3 object free space, §3.2.4 template and §3.2.5 DWGCODEPAGE are not read; image data is located only through the preview.
-4	R2004 file format organization	22	closes	src/section_map.rs, src/cipher.rs, src/lz77.rs	#124	§4.1 header, §4.2 page checksum, §4.3 system page, §4.4 page map, §4.5 section map, §4.6 masked page headers, §4.7 compression.
-5	R2007 file format organization	35	closes	src/r2007.rs, src/r21_lz.rs, src/reed_solomon.rs	#124	§5.1 to §5.4, §5.10 and §5.13 read on all three corpus files (#110). Password-protected files are refused. §5.5 Security and §5.6 AuxHeader are listed, not decoded; §5.11 CRC random encoding and §5.12 CRCs are needed only to write.
+2.13	Handle references	14	closes	src/bitcursor.rs, src/handle_map.rs	#107	Offset codes 6, 8, A and C. The §2.13 worked example runs in examples/spec_examples.rs (#107).
+2.14	CRCs (8-bit and 32-bit)	15	closes	src/crc.rs	#124	The §2.14.1 CRC-8 and §2.14.2 CRC-32 tables and the §2.14.1 layout example are reproduced by examples/spec_examples.rs (#107). Object CRCs use seed 0xC0C1, which §20.1 does not state; all 78 §20.4 examples carry it.
+3	R13-R15 file format organization	19	partial	src/reader.rs, src/section.rs	#119	§3.2.6 section locators are read (R14, R2000; #104). No R13 (AC1012) file is in the corpus. §3.2.3 object free space, §3.2.4 template and §3.2.5 DWGCODEPAGE are not read; image data is located only through the preview. §3.2.6's locator-CRC XOR values and sentinel, and §9's R14 header dump, run in examples/spec_examples.rs (#107).
+4	R2004 file format organization	22	closes	src/section_map.rs, src/cipher.rs, src/lz77.rs	#124	§4.1 header, §4.2 page checksum, §4.3 system page, §4.4 page map, §4.5 section map, §4.6 masked page headers, §4.7 compression. §4.1's printed magic sequence (92 of the 0x6C bytes it names) and the four §4.7 worked examples run in examples/spec_examples.rs, through both LZ77 decoders (#107).
+5	R2007 file format organization	35	closes	src/r2007.rs, src/r21_lz.rs, src/reed_solomon.rs	#124	§5.1 to §5.4, §5.10 and §5.13 read on all three corpus files (#110). Password-protected files are refused. §5.5 Security and §5.6 AuxHeader are listed, not decoded; §5.11 CRC random encoding and §5.12 CRCs are needed only to write. §5.10.1's copy table is reproduced row for row by r21_lz (#107). src/reed_solomon.rs, which the reader does not call, uses the data-page polynomial for system pages (#275).
 6	R2010 file format organization	67	closes	src/section_map.rs	#124	Same organization as R2004 (§6).
 7	R2013 file format organization	68	closes	src/section_map.rs	#124	R2004 organization plus the §7 changes.
 8	R2018 file format organization	69	closes	src/section_map.rs	#153	Four R2018 drawings in the public corpus (ACadSharp; AutoCAD 2023 and 2025).
-9	AcDb:Header (header variables)	70	missing	src/header_vars.rs	#126	The section is kept as bytes: sentinel and size are read, the ~200 variables are not.
+9	AcDb:Header (header variables)	70	missing	src/header_vars.rs	#126	The section is kept as bytes: sentinel and size are read, the ~200 variables are not. The spec's R14 header dump (p80-83) passes both CRCs, the sentinels and the streaming FlatWalker, and its first four BDs are §9's printed defaults (#107).
 10	AcDb:Classes	84	closes	src/classes.rs	#137	§10.1 R13-R15 and §10.2 R18+; the R2018 record layout fixed in #37.
 11	Padding (R13C3 and later)	86	missing		#120	
 12	Data section "" (unnamed)	87	missing		#135	
@@ -22,104 +22,104 @@
 17	AcDb:FileDepList	95	closes	src/metadata.rs	#137	
 18	AcDb:RevHistory	97	missing		#133	Named, not decoded.
 19	AcDb:Security	98	missing		#122	Named, not decoded; password-protected R2007 files are refused.
-20.1	Common non-entity object format	100	closes	src/objects/modern.rs, src/object.rs	#139	Measured: EED, BL num_reactors, B no_xdictionary, B has_ds_binary_data (#40 documents the table path's difference).
+20.1	Common non-entity object format	100	closes	src/objects/modern.rs, src/object.rs	#139	Measured: EED, BL num_reactors, B no_xdictionary, B has_ds_binary_data (#40 documents the table path's difference). §20.1 states no seed for the record CRC; all 78 §20.4 examples use 0xC0C1 (#107).
 20.2	Common entity format	101	closes	src/common_entity.rs	#139	
 20.3	Object types	104	closes	src/object_type.rs	#139	
 20.4.1	Common Entity Data	106	closes	src/common_entity.rs	#139	Graphics-preview block (ARCHITECTURE §7f).
 20.4.2	Common Entity Handle Data	107	closes	src/common_entity.rs	#139	
-20.4.3	TEXT (1)	108	partial	src/entities/text.rs	#140	#62: three angles read BD where §20.4.3 types them RD. 29 records each on ACadSharp's R14, R2000 and R2004 saves and 4 on export_sample.dwg (R2018) error (#226).
-20.4.4	ATTRIB (2)	109	partial	src/entities/attrib.rs	#140	4 records each on ACadSharp's R14, R2000 and R2004 saves error (#226).
-20.4.5	ATTDEF (3)	110	partial	src/entities/attdef.rs	#140	5 records each on ACadSharp's R14, R2000 and R2004 saves error (#226).
-20.4.6	BLOCK (4)	111	closes	src/entities/block.rs	#141	
-20.4.7	ENDBLK (5)	111	closes	src/entities/endblk.rs	#141	
-20.4.8	SEQEND (6)	112	closes	src/entities/seqend.rs	#141	
-20.4.9	INSERT (7)	112	partial	src/entities/insert.rs	#141	All 12 R14 records error (#227).
-20.4.10	MINSERT (8)	113	decoder	src/entities/insert.rs	#141	No MINSERT in the corpus.
-20.4.11	VERTEX (2D) (10)	114	closes	src/entities/vertex.rs	#142	
-20.4.12	VERTEX (3D) (11)	115	closes	src/entities/vertex.rs	#142	
-20.4.13	VERTEX (MESH) (12)	115	closes	src/entities/vertex.rs	#142	
-20.4.14	VERTEX (PFACE) (13)	116	closes	src/entities/vertex.rs	#142	
-20.4.15	VERTEX (PFACE FACE) (14)	116	closes	src/entities/vertex.rs	#142	
-20.4.16	2D POLYLINE (15)	116	closes	src/entities/polyline.rs	#142	
-20.4.17	3D POLYLINE (16)	117	closes	src/entities/polyline.rs	#142	
-20.4.18	ARC (17)	118	closes	src/entities/arc.rs	#143	
+20.4.3	TEXT (1)	108	partial	src/entities/text.rs	#140	#62: three angles read BD where §20.4.3 types them RD. 29 records each on ACadSharp's R14, R2000 and R2004 saves and 4 on export_sample.dwg (R2018) error (#226). The spec's own example (§20.4.3.1) errors; §20.4.3's own field list closes on it (#226).
+20.4.4	ATTRIB (2)	109	partial	src/entities/attrib.rs	#140	4 records each on ACadSharp's R14, R2000 and R2004 saves error (#226). The spec's own example (§20.4.4.1) errors; §20.4.4's own field list closes on it (#226).
+20.4.5	ATTDEF (3)	110	partial	src/entities/attdef.rs	#140	5 records each on ACadSharp's R14, R2000 and R2004 saves error (#226). The spec's own example (§20.4.5.1) errors; §20.4.5's own field list closes on it (#226).
+20.4.6	BLOCK (4)	111	closes	src/entities/block.rs	#141	The spec's own example (§20.4.6.1) closes on the record's boundary (#107).
+20.4.7	ENDBLK (5)	111	closes	src/entities/endblk.rs	#141	The spec's own example (§20.4.7.1) closes on the record's boundary (#107).
+20.4.8	SEQEND (6)	112	closes	src/entities/seqend.rs	#141	The spec's own example (§20.4.8.1) closes on the record's boundary (#107).
+20.4.9	INSERT (7)	112	partial	src/entities/insert.rs	#141	All 12 R14 records error (#227). The spec's own example (§20.4.9.1) errors; §20.4.9's own field list closes on it (#227).
+20.4.10	MINSERT (8)	113	decoder	src/entities/insert.rs	#141	No MINSERT in the corpus. The spec's own example (§20.4.10.1) has no decoder to run (#107).
+20.4.11	VERTEX (2D) (10)	114	closes	src/entities/vertex.rs	#142	The spec's own example (§20.4.11.1) errors; §20.4.11's own field list closes on it (#272).
+20.4.12	VERTEX (3D) (11)	115	closes	src/entities/vertex.rs	#142	The spec's own example (§20.4.12.1) closes on the record's boundary (#107).
+20.4.13	VERTEX (MESH) (12)	115	closes	src/entities/vertex.rs	#142	The spec's own example (§20.4.13.1) closes on the record's boundary (#107).
+20.4.14	VERTEX (PFACE) (13)	116	closes	src/entities/vertex.rs	#142	The spec's own example (§20.4.14.1) closes on the record's boundary (#107).
+20.4.15	VERTEX (PFACE FACE) (14)	116	closes	src/entities/vertex.rs	#142	The spec's own example (§20.4.15.1) closes on the record's boundary (#107).
+20.4.16	2D POLYLINE (15)	116	closes	src/entities/polyline.rs	#142	The spec's own example (§20.4.16.1) closes on the record's boundary (#107).
+20.4.17	3D POLYLINE (16)	117	closes	src/entities/polyline.rs	#142	The spec's own example (§20.4.17.1) closes on the record's boundary (#107).
+20.4.18	ARC (17)	118	closes	src/entities/arc.rs	#143	The spec's own example (§20.4.18.1) closes on the record's boundary (#107).
 20.4.19	ARC_DIMENSION	119	missing		#144	
-20.4.20	CIRCLE (18)	119	closes	src/entities/circle.rs	#143	
-20.4.21	LINE (19)	120	closes	src/entities/line.rs	#143	
+20.4.20	CIRCLE (18)	119	closes	src/entities/circle.rs	#143	The spec's own example (§20.4.20.1) closes on the record's boundary (#107).
+20.4.21	LINE (19)	120	closes	src/entities/line.rs	#143	The spec's own example (§20.4.21.1) closes on the record's boundary (#107).
 20.4.22	Common dimension data	121	partial	src/entities/dimension.rs	#144	Every R14 dimension record errors, in all seven types (#227).
-20.4.23	DIMENSION (ORDINATE) (20)	122	partial	src/entities/dimension_ordinate.rs	#144	Both R14 records error (#227).
-20.4.24	DIMENSION (LINEAR) (21)	123	partial	src/entities/dimension_linear.rs	#144	All 3 R14 records error (#227).
-20.4.25	DIMENSION (ALIGNED) (22)	123	partial	src/entities/dimension_aligned.rs	#144	Both R14 records error (#227).
-20.4.26	DIMENSION (ANGULAR, 3-PT) (23)	124	partial	src/entities/dimension_angular_3p.rs	#144	The R14 record errors (#227).
+20.4.23	DIMENSION (ORDINATE) (20)	122	partial	src/entities/dimension_ordinate.rs	#144	Both R14 records error (#227). The spec's own example (§20.4.23.1) errors; §20.4.23's own field list closes on it (#227).
+20.4.24	DIMENSION (LINEAR) (21)	123	partial	src/entities/dimension_linear.rs	#144	All 3 R14 records error (#227). The spec's own example (§20.4.24.1) errors; §20.4.24's own field list closes on it (#227).
+20.4.25	DIMENSION (ALIGNED) (22)	123	partial	src/entities/dimension_aligned.rs	#144	Both R14 records error (#227). The spec's own example (§20.4.25.1) errors; §20.4.25's own field list closes on it (#227).
+20.4.26	DIMENSION (ANGULAR, 3-PT) (23)	124	partial	src/entities/dimension_angular_3p.rs	#144	The R14 record errors (#227). The spec's own example (§20.4.26.1) errors; §20.4.26's own field list closes on it (#227).
 20.4.27	DIMENSION (ANGULAR, 2-LINE) (24)	125	partial	src/entities/dimension_angular_2l.rs	#144	The R14 record errors (#227).
-20.4.28	DIMENSION (RADIUS) (25)	126	partial	src/entities/dimension_radial.rs	#144	The R14 record errors (#227).
-20.4.29	DIMENSION (DIAMETER) (26)	126	partial	src/entities/dimension_diameter.rs	#144	The R14 record errors (#227).
+20.4.28	DIMENSION (RADIUS) (25)	126	partial	src/entities/dimension_radial.rs	#144	The R14 record errors (#227). The spec's own example (§20.4.28.1) errors; it closes only with the BD leader length §20.4.28 omits (ARCHITECTURE §7k) (#227).
+20.4.29	DIMENSION (DIAMETER) (26)	126	partial	src/entities/dimension_diameter.rs	#144	The R14 record errors (#227). The spec's own example (§20.4.29.1) errors; §20.4.29's own field list closes on it (#227).
 20.4.30	LARGE_RADIAL_DIMENSION	127	missing		#144	
-20.4.31	POINT (27)	128	closes	src/entities/point.rs	#143	
-20.4.32	3DFACE (28)	128	partial	src/entities/three_d_face.rs	#145	The R14 record errors (#227).
-20.4.33	POLYLINE (PFACE) (29)	129	closes	src/entities/polyface_mesh.rs	#142	
-20.4.34	POLYLINE (MESH) (30)	130	closes	src/entities/polygon_mesh.rs	#142	
-20.4.35	SOLID (31)	131	closes	src/entities/solid.rs	#145	
-20.4.36	TRACE (32)	131	closes	src/entities/trace.rs	#145	
-20.4.37	SHAPE (33)	132	missing		#140	
-20.4.38	VIEWPORT ENTITY (34)	133	partial	src/entities/viewport.rs	#146	45 records error (#71): 6 on each of ACadSharp's R2000 to R2018 saves and 9 on export_sample.dwg; the decoder consumes 266 of a 1,125-bit budget.
-20.4.39	ELLIPSE (35)	136	closes	src/entities/ellipse.rs	#143	
-20.4.40	SPLINE (36)	136	closes	src/entities/spline.rs	#143	
-20.4.41	REGION (37), 3DSOLID (38), BODY (39)	139	partial	src/entities/region.rs, src/entities/three_d_solid.rs, src/entities/body.rs, src/entities/modeler.rs	#145	The ACIS envelope, wireframe block and R2013+ revision GUID close on all three corpus records; the SAT/SAB payload is carried, not interpreted (#68). 2 3DSOLID and 1 REGION record error on each of ACadSharp's R2004, R2007 and R2010 saves (#228).
-20.4.42	RAY (40)	146	closes	src/entities/ray.rs	#143	
-20.4.43	XLINE (41)	147	closes	src/entities/xline.rs	#143	
-20.4.44	DICTIONARY (42)	147	closes	src/objects/dictionary.rs	#149	
+20.4.31	POINT (27)	128	closes	src/entities/point.rs	#143	The spec's own example (§20.4.31.1) closes on the record's boundary (#107).
+20.4.32	3DFACE (28)	128	partial	src/entities/three_d_face.rs	#145	The R14 record errors (#227). The spec's own example (§20.4.32.1) errors; §20.4.32's own field list closes on it (#227).
+20.4.33	POLYLINE (PFACE) (29)	129	closes	src/entities/polyface_mesh.rs	#142	The spec's own example (§20.4.33.1) closes on the record's boundary (#107).
+20.4.34	POLYLINE (MESH) (30)	130	closes	src/entities/polygon_mesh.rs	#142	The spec's own example (§20.4.34.1) errors; §20.4.34's own field list closes on it (#273).
+20.4.35	SOLID (31)	131	closes	src/entities/solid.rs	#145	The spec's own example (§20.4.35.1) closes on the record's boundary (#107).
+20.4.36	TRACE (32)	131	closes	src/entities/trace.rs	#145	The spec's own example (§20.4.36.1) closes on the record's boundary (#107).
+20.4.37	SHAPE (33)	132	missing		#140	The spec's own example (§20.4.37.1) has no decoder to run (#107).
+20.4.38	VIEWPORT ENTITY (34)	133	partial	src/entities/viewport.rs	#146	45 records error (#71): 6 on each of ACadSharp's R2000 to R2018 saves and 9 on export_sample.dwg; the decoder consumes 266 of a 1,125-bit budget. The spec's own example (§20.4.38.1) closes on the record's boundary (#107).
+20.4.39	ELLIPSE (35)	136	closes	src/entities/ellipse.rs	#143	The spec's own example (§20.4.39.1) closes on the record's boundary (#107).
+20.4.40	SPLINE (36)	136	closes	src/entities/spline.rs	#143	The spec's own examples (§20.4.40.1) close on the record's boundary (#107).
+20.4.41	REGION (37), 3DSOLID (38), BODY (39)	139	partial	src/entities/region.rs, src/entities/three_d_solid.rs, src/entities/body.rs, src/entities/modeler.rs	#145	The ACIS envelope, wireframe block and R2013+ revision GUID close on all three corpus records; the SAT/SAB payload is carried, not interpreted (#68). 2 3DSOLID and 1 REGION record error on each of ACadSharp's R2004, R2007 and R2010 saves (#228). The spec's own examples (§20.4.41.1) close on the record's boundary (#107).
+20.4.42	RAY (40)	146	closes	src/entities/ray.rs	#143	The spec's own example (§20.4.42.1) closes on the record's boundary (#107).
+20.4.43	XLINE (41)	147	closes	src/entities/xline.rs	#143	The spec's own example (§20.4.43.1) closes on the record's boundary (#107).
+20.4.44	DICTIONARY (42)	147	closes	src/objects/dictionary.rs	#149	The spec's own example (§20.4.44.1) closes on the record's boundary (#107).
 20.4.45	DICTIONARYWDFLT	148	decoder	src/objects/dictionary.rs	#149	
-20.4.46	MTEXT (44)	148	partial	src/entities/mtext.rs	#140	R2018 tail and ATTRIB's embedded MTEXT (ARCHITECTURE §7g). 36 records each on ACadSharp's R14 and R2004 saves error (#226).
-20.4.47	LEADER (45)	150	partial	src/entities/leader.rs	#147	7 records error (#71), one on each of ACadSharp's saves: 12 bits left.
+20.4.46	MTEXT (44)	148	partial	src/entities/mtext.rs	#140	R2018 tail and ATTRIB's embedded MTEXT (ARCHITECTURE §7g). 36 records each on ACadSharp's R14 and R2004 saves error (#226). The spec's own example (§20.4.46.1) errors; §20.4.46's own field list closes on it (#226).
+20.4.47	LEADER (45)	150	partial	src/entities/leader.rs	#147	7 records error (#71), one on each of ACadSharp's saves: 12 bits left. The spec's own example (§20.4.47.1) errors; §20.4.47's own field list closes on it (#71).
 20.4.48	MLEADER	152	partial	src/entities/mleader.rs	#147	Closes on R2010 to R2018 (#58); the 60 records on ACadSharp's R14 to R2007 saves are never routed (#229).
-20.4.49	TOLERANCE (46)	155	partial	src/entities/tolerance.rs	#140	3 records each on ACadSharp's R14, R2000 and R2004 saves error (#226).
-20.4.50	MLINE (47)	156	closes	src/entities/mline.rs	#147	
-20.4.51	BLOCK CONTROL (48)	157	closes	src/objects/control.rs	#141	
-20.4.52	BLOCK HEADER (49)	158	closes	src/tables/block_record.rs	#141	Names resolve through the BLOCK sentinel (#70); R13/R14 stay unresolved (#84).
-20.4.53	LAYER CONTROL (50)	160	closes	src/objects/control.rs	#148	
-20.4.54	LAYER (51)	161	partial	src/tables/layer.rs	#148	#34: the pre-R2007 field list is not validated past the object header.
-20.4.55	SHAPEFILE CONTROL (52)	162	closes	src/objects/control.rs	#148	
-20.4.56	SHAPEFILE (53) (STYLE)	163	closes	src/tables/style.rs	#148	
-20.4.57	LINETYPE CONTROL (56)	164	closes	src/objects/control.rs	#148	
+20.4.49	TOLERANCE (46)	155	partial	src/entities/tolerance.rs	#140	3 records each on ACadSharp's R14, R2000 and R2004 saves error (#226). The spec's own example (§20.4.49.1) errors; it closes only with a TV text and one more leading BD than §20.4.49 lists (ARCHITECTURE §7k) (#226).
+20.4.50	MLINE (47)	156	closes	src/entities/mline.rs	#147	The spec's own example (§20.4.50.1) closes on the record's boundary (#107).
+20.4.51	BLOCK CONTROL (48)	157	closes	src/objects/control.rs	#141	The spec's own example (§20.4.51.1) closes on the record's boundary (#107).
+20.4.52	BLOCK HEADER (49)	158	closes	src/tables/block_record.rs	#141	Names resolve through the BLOCK sentinel (#70); R13/R14 stay unresolved (#84). The spec's own example (§20.4.52.1) closes on the record's boundary (#107).
+20.4.53	LAYER CONTROL (50)	160	closes	src/objects/control.rs	#148	The spec's own example (§20.4.53.1) closes on the record's boundary (#107).
+20.4.54	LAYER (51)	161	partial	src/tables/layer.rs	#148	#34: the pre-R2007 field list is not validated past the object header. The spec's own example (§20.4.54.1) closes on the record's boundary (#107).
+20.4.55	SHAPEFILE CONTROL (52)	162	closes	src/objects/control.rs	#148	The spec's own example (§20.4.55.1) closes on the record's boundary (#107).
+20.4.56	SHAPEFILE (53) (STYLE)	163	closes	src/tables/style.rs	#148	The spec's own example (§20.4.56.1) closes on the record's boundary (#107).
+20.4.57	LINETYPE CONTROL (56)	164	closes	src/objects/control.rs	#148	The spec's own example (§20.4.57.1) closes on the record's boundary (#107).
 20.4.58	LTYPE (57)	165	partial	src/tables/ltype.rs	#148	#34: R2004 description reads garbage; complex linetypes are not checked.
-20.4.59	VIEW CONTROL (60)	167	closes	src/objects/control.rs	#148	
-20.4.60	VIEW (61)	167	partial	src/tables/view.rs	#148	1 record each on ACadSharp's R14, R2000 and R2004 saves errors (#228).
-20.4.61	UCS CONTROL (62)	169	closes	src/objects/control.rs	#148	
-20.4.62	UCS (63)	170	closes	src/tables/ucs.rs	#148	
-20.4.63	TABLE (VPORT) (64)	172	closes	src/objects/control.rs	#148	
-20.4.64	VPORT (65)	172	closes	src/tables/vport.rs	#148	
-20.4.65	TABLE (APPID) (66)	175	closes	src/objects/control.rs	#148	
-20.4.66	APPID (67)	176	closes	src/tables/appid.rs	#148	
-20.4.67	DIMSTYLE CONTROL (68)	177	closes	src/objects/control.rs	#148	
-20.4.68	DIMSTYLE (69)	178	partial	src/tables/dimstyle.rs	#148	R13/R14 block order unmeasured (#74); 3 records each on ACadSharp's R2007 and R2010 saves error (#228).
-20.4.69	VIEWPORT ENTITY CONTROL (70)	182	decoder	src/objects/control.rs	#146	
-20.4.70	VIEWPORT ENTITY HEADER (71)	183	missing		#146	
+20.4.59	VIEW CONTROL (60)	167	closes	src/objects/control.rs	#148	The spec's own example (§20.4.59.1) closes on the record's boundary (#107).
+20.4.60	VIEW (61)	167	partial	src/tables/view.rs	#148	1 record each on ACadSharp's R14, R2000 and R2004 saves errors (#228). The spec's own example (§20.4.60.1) errors; §20.4.60's own field list closes on it (#256).
+20.4.61	UCS CONTROL (62)	169	closes	src/objects/control.rs	#148	The spec's own example (§20.4.61.1) closes on the record's boundary (#107).
+20.4.62	UCS (63)	170	closes	src/tables/ucs.rs	#148	The spec's own example (§20.4.62.1) errors; §20.4.62's own field list closes on it (#274).
+20.4.63	TABLE (VPORT) (64)	172	closes	src/objects/control.rs	#148	The spec's own example (§20.4.63.1) closes on the record's boundary (#107).
+20.4.64	VPORT (65)	172	closes	src/tables/vport.rs	#148	The spec's own example (§20.4.64.1) closes on the record's boundary (#107).
+20.4.65	TABLE (APPID) (66)	175	closes	src/objects/control.rs	#148	The spec's own example (§20.4.65.1) closes on the record's boundary (#107).
+20.4.66	APPID (67)	176	closes	src/tables/appid.rs	#148	The spec's own example (§20.4.66.1) closes on the record's boundary (#107).
+20.4.67	DIMSTYLE CONTROL (68)	177	closes	src/objects/control.rs	#148	The spec's own example (§20.4.67.1) closes on the record's boundary (#107).
+20.4.68	DIMSTYLE (69)	178	partial	src/tables/dimstyle.rs	#148	R13/R14 block order unmeasured (#74); 3 records each on ACadSharp's R2007 and R2010 saves error (#228). The spec's own example (§20.4.68.1) has no decoder to run (#107).
+20.4.69	VIEWPORT ENTITY CONTROL (70)	182	decoder	src/objects/control.rs	#146	The spec's own example (§20.4.69.1) closes on the record's boundary (#107).
+20.4.70	VIEWPORT ENTITY HEADER (71)	183	missing		#146	The spec's own example (§20.4.70.1) has no decoder to run (#107).
 20.4.71	AcDbAnnotScaleObjectContextData	184	missing		#149	
-20.4.72	GROUP (72)	184	closes	src/objects/acad_group.rs	#149	
-20.4.73	MLINESTYLE (73)	185	closes	src/objects/acad_mlinestyle.rs	#147	All 10 corpus records, four release bands (ARCHITECTURE §7d.3).
-20.4.74	DICTIONARYVAR	187	closes	src/objects/dictionary_var.rs	#149	#76.
-20.4.75	HATCH	188	partial	src/entities/hatch.rs	#147	Gradient block unconditional (ARCHITECTURE §7g). 1 record of export_sample.dwg (R2018) errors (#228); the 8 R14 records are never routed (#229).
+20.4.72	GROUP (72)	184	closes	src/objects/acad_group.rs	#149	The spec's own example (§20.4.72.1) closes on the record's boundary (#107).
+20.4.73	MLINESTYLE (73)	185	closes	src/objects/acad_mlinestyle.rs	#147	All 10 corpus records, four release bands (ARCHITECTURE §7d.3). The spec's own example (§20.4.73.1) closes on the record's boundary (#107).
+20.4.74	DICTIONARYVAR	187	closes	src/objects/dictionary_var.rs	#149	#76. The spec's own example (§20.4.74.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.75	HATCH	188	partial	src/entities/hatch.rs	#147	Gradient block unconditional (ARCHITECTURE §7g). 1 record of export_sample.dwg (R2018) errors (#228); the 8 R14 records are never routed (#229). The spec's own example (§20.4.75.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.76	FIELD	192	missing		#149	
 20.4.77	FIELDLIST	193	missing		#149	
 20.4.78	GEODATA	194	partial	src/entities/geodata.rs	#150	geoloc.dwg's one GEODATA record carries a class number and is never routed to the decoder, which dispatch keys on a fixed code (#229).
-20.4.79	IDBUFFER	196	missing		#149	
-20.4.80	IMAGE	197	decoder	src/entities/image.rs	#150	
-20.4.81	IMAGEDEF	199	decoder	src/entities/imagedef.rs	#150	
-20.4.82	IMAGEDEFREACTOR	200	missing		#150	
-20.4.83	LAYER_INDEX	201	missing		#149	
+20.4.79	IDBUFFER	196	missing		#149	The spec's own example (§20.4.79.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.80	IMAGE	197	decoder	src/entities/image.rs	#150	The spec's own example (§20.4.80.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.81	IMAGEDEF	199	decoder	src/entities/imagedef.rs	#150	The spec's own example (§20.4.81.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.82	IMAGEDEFREACTOR	200	missing		#150	The spec's own example (§20.4.82.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.83	LAYER_INDEX	201	missing		#149	The spec's own example (§20.4.83.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.84	LAYOUT	202	partial	src/objects/acad_layout.rs, src/objects/acad_plot_settings.rs	#146	Closes on R2004, R2010, R2013 and R2018; the 75 records on R14, R2000 and R2007 are never routed (#229).
-20.4.85	LWPLINE	204	partial	src/entities/lwpolyline.rs	#142	The 24 R14 records are never routed: R14 gives LWPOLYLINE a class number (#229).
+20.4.85	LWPLINE	204	partial	src/entities/lwpolyline.rs	#142	The 24 R14 records are never routed: R14 gives LWPOLYLINE a class number (#229). The spec's own example (§20.4.85.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.86	MLeaderAnnotContext	206	closes	src/entities/mleader.rs	#147	
 20.4.87	MLEADERSTYLE	209	closes	src/objects/acad_mleader_style.rs	#147	
 20.4.88	OLE2FRAME	211	decoder	src/entities/ole2_frame.rs	#150	
 20.4.89	AcDbObjectContextData	211	missing		#149	
 20.4.90	PROXY	211	partial	src/objects/proxy_object.rs, src/objects/proxy_entity.rs	#149	Carried as opaque bytes.
-20.4.91	RASTERVARIABLES	212	missing		#150	
+20.4.91	RASTERVARIABLES	212	missing		#150	The spec's own example (§20.4.91.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.92	SCALE	213	closes	src/objects/acad_scale.rs	#149	
-20.4.93	SORTENTSTABLE	213	missing		#149	
-20.4.94	SPATIAL_FILTER	214	missing		#149	
-20.4.95	SPATIAL_INDEX	216	missing		#149	
+20.4.93	SORTENTSTABLE	213	missing		#149	The spec's own example (§20.4.93.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.94	SPATIAL_FILTER	214	missing		#149	The spec's own example (§20.4.94.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
+20.4.95	SPATIAL_INDEX	216	missing		#149	The spec's own example (§20.4.95.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.96	TABLE	221	missing		#151	§20.4.96.1 until R21, §20.4.96.2 R24 and later.
 20.4.97	TABLECONTENT	229	missing		#151	#82.
 20.4.98	Cell content geometry	232	missing		#151	
@@ -128,7 +128,7 @@
 20.4.101	TABLESTYLE	233	partial	src/objects/	#151	#60: block structure measured, token sequence not pinned (10 records).
 20.4.102	CELLSTYLEMAP	237	missing		#151	
 20.4.103	TABLEGEOMETRY	238	missing		#151	
-20.4.104	XRECORD	238	closes	src/objects/xrecord.rs	#149	Closes on every XRECORD of the public corpus, R14 to R2018 (no R13 file). R14 gives XRECORD a class number from AcDb:Classes rather than the fixed code 0x4F, and is routed by class name (#149). The body is carried as bytes, not yet typed into group-code pairs.
+20.4.104	XRECORD	238	closes	src/objects/xrecord.rs	#149	Closes on every XRECORD of the public corpus, R14 to R2018 (no R13 file). R14 gives XRECORD a class number from AcDb:Classes rather than the fixed code 0x4F, and is routed by class name (#149). The body is carried as bytes, not yet typed into group-code pairs. The spec's own example (§20.4.104.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 21	AcDb:ObjFreeSpace	241	missing		#133	
 22	AcDb:Template	242	missing		#133	Named, not decoded.
 23	AcDb:Handles (object map)	243	closes	src/handle_map.rs	#137	Every map entry resolves on the R2018 file (STATUS.md).
