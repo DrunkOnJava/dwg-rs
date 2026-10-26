@@ -17,8 +17,9 @@
 //!   failure, because a variable AutoCAD omits must be omitted;
 //! - **omitted**: a variable the export writes and the converter does not. Each
 //!   needs a stated reason (`$ACADMAINTVER` and the local `$TDCREATE` and
-//!   `$TDUPDATE`, which the DWG does not hold; a true colour, which DXF writes
-//!   as an approximate index; a
+//!   `$TDUPDATE`, which the DWG does not hold; a name for a symbol record the
+//!   converter's output does not define, since it writes layer 0 and no other
+//!   symbol table; a true colour, which DXF writes as an approximate index; a
 //!   null `$INTERFEREOBJVS` or `$INTERFEREVPVS`, where the export names the
 //!   default visual style). One without a reason is a failure.
 //!
@@ -197,8 +198,24 @@ fn timers_advance_equally(ours: &DxfDocument, theirs: &DxfDocument) -> Result<()
 }
 
 /// Why the converter may leave out a variable the export writes, or `None`.
-fn omission_reason(name: &str, header: &HeaderVars) -> Option<&'static str> {
+fn omission_reason(name: &str, header: &HeaderVars, theirs: &DxfDocument) -> Option<&'static str> {
+    let named = theirs
+        .header_var(name)
+        .and_then(|g| g.first())
+        .and_then(|g| g.value.as_str())
+        .unwrap_or("");
     match name {
+        // The converter defines layer 0 and no other symbol record, so a name
+        // for anything else would point at nothing.
+        "$CLAYER" if named != "0" => Some("names a layer the output does not define"),
+        "$TEXTSTYLE" | "$CELTYPE" | "$DIMSTYLE" | "$DIMTXSTY" | "$DIMLDRBLK" | "$DIMBLK"
+        | "$DIMBLK1" | "$DIMBLK2" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2" | "$CMLSTYLE"
+        | "$UCSNAME" | "$PUCSNAME" | "$UCSBASE" | "$PUCSBASE" | "$UCSORTHOREF"
+        | "$PUCSORTHOREF"
+            if !named.is_empty() =>
+        {
+            Some("names a symbol record the output does not define")
+        }
         "$ACADMAINTVER" => Some(
             "not derivable: the file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or 329",
         ),
@@ -320,7 +337,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             continue;
         }
         o.tally.omitted += 1;
-        match omission_reason(&v.name, &header) {
+        match omission_reason(&v.name, &header, &theirs) {
             Some(why) => {
                 *o.omitted_reasons
                     .entry(format!("{} ({why})", v.name))

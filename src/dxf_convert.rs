@@ -111,15 +111,20 @@ pub fn convert_dxf_to_dwg(
 pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     let mut writer = DxfWriter::with_version(version);
 
+    // The one LAYER record this pipeline writes; the header names no other
+    // symbol record because none is defined (see crate::dxf_header).
+    let layers = [LayerEntry::default()];
+    let layer_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
+
     // HEADER — auto-emits $ACADVER from writer.version(); the rest is the
     // decoded AcDb:Header under the names and groups AutoCAD's export uses
     // (see crate::dxf_header).
-    let header_vars: Vec<HeaderEntry> = crate::dxf_header::header_entries(file, version);
+    let header_vars: Vec<HeaderEntry> =
+        crate::dxf_header::header_entries(file, version, &layer_names);
     write_header_section(&mut writer, &header_vars);
 
     // TABLES — at minimum a default "0" LAYER, which every DXF
     // reader requires to exist.
-    let layers = [LayerEntry::default()];
     write_tables_section(&mut writer, &layers);
 
     // BLOCKS — *Model_Space + *Paper_Space placeholders. Real block
