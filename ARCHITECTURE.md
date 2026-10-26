@@ -1562,10 +1562,14 @@ the view centres and view heights, and the ambient light colour
 71) and land on `0` and `1` as the DXF has them.
 
 What is not measured: the 15 records of the R14 save and
-`export_sample.dwg` close but have no DXF twin; no R13 file exists; and
+`export_sample.dwg` close but have no DXF twin; no R13 file exists;
 every viewport in the corpus has an empty style sheet name, so the `TV`
 is measured only as an empty string, inline before R2007 and from the
-string stream after.
+string stream after; every snap angle and view twist angle is `0`, so
+the two angle fields agree with the DXF trivially (the probe converts
+the record's radians to the degrees DXF writes, which no record
+exercises); and every ambient light colour is the true colour
+`0xC2333333`, so an indexed (`0xC3`) colour has not been seen.
 
 `examples/probe_viewport.rs` prints every VIEWPORT of a file with its
 values keyed by DXF group, and with a DXF twin as its second argument

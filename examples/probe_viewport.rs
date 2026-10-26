@@ -19,10 +19,13 @@
 //! ```
 //!
 //! Doubles are compared to 1e-9 relative; the DXF writes them with
-//! 16 significant digits. An ambient light colour stored as a true
-//! colour is compared through group 421, the group §20.4.75 pairs with
-//! a CMC's `BL` RGB word; the index AutoCAD writes beside it in group
-//! 63 is not stored in the record and is not compared.
+//! 16 significant digits. The snap and twist angles are stored in
+//! radians and converted to the degrees DXF writes for groups 50-58. An
+//! ambient light colour stored as a true colour is compared through
+//! group 421, the group §20.4.75 pairs with a CMC's `BL` RGB word (the
+//! index AutoCAD writes beside it in group 63 is not stored in the
+//! record and is not compared); an indexed colour is compared through
+//! group 63.
 //!
 //! ```sh
 //! cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
@@ -68,8 +71,10 @@ fn fields(v: &Viewport) -> Vec<(u16, String)> {
         (43, f(w.front_clip_z)),
         (44, f(w.back_clip_z)),
         (45, f(w.view_height)),
-        (50, f(w.snap_angle)),
-        (51, f(w.view_twist_angle)),
+        // The record stores radians; DXF writes angle groups (50-58)
+        // in degrees.
+        (50, f(w.snap_angle.to_degrees())),
+        (51, f(w.view_twist_angle.to_degrees())),
         (72, w.circle_zoom.to_string()),
         (90, w.status_flags.to_string()),
         (1, w.style_sheet.clone()),
@@ -101,15 +106,20 @@ fn fields(v: &Viewport) -> Vec<(u16, String)> {
             (141, f(l.brightness)),
             (142, f(l.contrast)),
         ]);
-        // A true colour (0xC2 in the RGB word's top byte) is compared
-        // through group 421, which §20.4.75 pairs with the `BL` RGB.
-        // Group 63 then holds whatever index AutoCAD chose to pair with
-        // it, which the record does not store, so it is not compared.
+        // The CMC's `BS` index is always 0 (§2.11); the colour is in
+        // the `BL` word, whose top byte says how to read it. A true
+        // colour (0xC2) is compared through group 421, which §20.4.75
+        // pairs with the `BL` RGB; group 63 then holds whatever index
+        // AutoCAD chose to pair with it, which the record does not
+        // store, so it is not compared. An indexed colour (0xC3) keeps
+        // its index in the low byte (`dwg::tables::layer::aci_from_cmc`)
+        // and is compared through group 63. Any other top byte is
+        // reported rather than guessed.
         let cmc = &l.ambient_light_color;
-        if cmc.rgb >> 24 == 0xC2 {
-            out.push((421, (cmc.rgb & 0xFF_FFFF).to_string()));
-        } else {
-            out.push((63, cmc.index.to_string()));
+        match cmc.rgb >> 24 {
+            0xC2 => out.push((421, (cmc.rgb & 0xFF_FFFF).to_string())),
+            0xC3 => out.push((63, dwg::tables::layer::aci_from_cmc(cmc.rgb).to_string())),
+            method => out.push((63, format!("unread colour method 0x{method:02X}"))),
         }
     }
     out
