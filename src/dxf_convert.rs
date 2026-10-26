@@ -111,10 +111,10 @@ pub fn convert_dxf_to_dwg(
 pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     let mut writer = DxfWriter::with_version(version);
 
-    // HEADER — auto-emits $ACADVER from writer.version().
-    // Future: enrich with $INSUNITS, $LIMMIN/$LIMMAX, $EXTMIN/$EXTMAX
-    // once HeaderVars → DXF-name mapping lands.
-    let header_vars: [HeaderEntry; 0] = [];
+    // HEADER — auto-emits $ACADVER from writer.version(); the rest is the
+    // decoded AcDb:Header under the names and groups AutoCAD's export uses
+    // (see crate::dxf_header).
+    let header_vars: Vec<HeaderEntry> = crate::dxf_header::header_entries(file, version);
     write_header_section(&mut writer, &header_vars);
 
     // TABLES — at minimum a default "0" LAYER, which every DXF
