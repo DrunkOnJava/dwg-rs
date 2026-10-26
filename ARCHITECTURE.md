@@ -56,16 +56,18 @@ src/
 ├── bitwriter.rs        — Inverse of bitcursor, round-trip tested
 ├── cipher.rs           — 108-byte magic sequence + Sec_Mask XOR
 ├── crc.rs              — CRC-8 (16-bit output) + CRC-32 (IEEE)
-├── r2007.rs            — R2007-specific two-layer Sec_Mask (partial)
 ├── reed_solomon.rs     — (255,239) FEC over GF(256), defensive recovery
+├── reed_solomon_encode.rs — Writer-side RS encoder
 │
 ├── lz77.rs             — Decompressor (the main read-path hot loop)
 ├── lz77_encode.rs      — Encoder (literal-only, correctness-first)
 │
 ├── header.rs           — 0x80-byte file header + R2004+ encrypted header
 ├── section.rs          — Section name enum + kind classification
-├── section_map.rs      — Page Map + Section Info parser
+├── section_map.rs      — R2004-family Page Map + Section Info parser
 ├── section_writer.rs   — Page emitter (inverse of section_map)
+├── r2007.rs            — R2007 container: RS de-interleave, page + section maps (§5.1-§5.4)
+├── r21_lz.rs           — R2007's own LZ variant (§5.10)
 │
 ├── handle_map.rs       — AcDb:Handles (object-stream index)
 ├── classes.rs          — AcDb:Classes (custom-type dispatch table)
@@ -73,21 +75,38 @@ src/
 ├── metadata.rs         — SummaryInfo + AppInfo + Preview + FileDepList
 │
 ├── object.rs           — Object-stream walker + RawObject type
-├── object_type.rs      — 80+ built-in type codes + Custom(N) fallback
-├── common_entity.rs    — Shared §19.4.1 preamble for every entity
+├── object_type.rs      — Built-in type codes + Custom(N) fallback
+├── common_entity.rs    — Shared common entity data preamble for every entity
+├── string_stream.rs    — R2007+ split string and handle streams (§19.1)
 │
-├── entities/           — Per-entity decoders (27 types)
-├── tables/             — Symbol-table entry decoders (9 tables)
-├── objects/            — Control / dictionary / xrecord decoders
+├── entities/           — Per-entity decoders + dispatch.rs (the boundary-checked dispatcher)
+├── tables/             — Symbol-table entry decoders
+├── objects/            — Non-entity objects: controls, DICTIONARY, XRECORD, styles, LAYOUT, ...
 │
 ├── reader.rs           — DwgFile — the primary public entry point
-├── file_writer.rs      — Scaffolded inverse of reader (Stages 1/5 shipped)
+├── api.rs / limits.rs  — Strict vs best-effort parsing; ParseLimits + WalkerLimits caps
+├── graph.rs            — Owner / reactor / layer / style resolution
+├── block_expansion.rs  — INSERT → block contents
+│
+├── streaming/          — no_std byte-demand header grammar + checkpoints (docs/streaming/)
+├── byte_source.rs      — Pausable byte delivery for the streaming grammar
+│
+├── geometry.rs / curve.rs / entity_geometry.rs — Rendering pipeline types
+├── dxf.rs / dxf_sections.rs / dxf_convert.rs   — DXF writer
+├── svg.rs / gltf.rs    — SVG and glTF exporters
+│
+├── file_writer.rs      — DWG writer: section assembly into a byte buffer
+├── element_encoder.rs / handle_allocator.rs — Entity encoders + handle allocation for the writer
+├── python_stubs.rs     — Placeholder for the Python bindings
 │
 ├── error.rs            — Error enum (thiserror)
 ├── version.rs          — Version enum + AC-magic mapping
 │
-└── bin/                — 4 CLI tools (dwg-info, dwg-corpus, dwg-dump, dwg-convert)
+└── bin/                — CLI tools behind the `cli` feature (the [[bin]] list in Cargo.toml)
 ```
+
+`src/lib.rs` and the `[[bin]]` entries in `Cargo.toml` are the
+authoritative module and binary lists.
 
 ## 3. The read pipeline
 
@@ -1544,27 +1563,40 @@ input to a full `DwgFile::to_bytes()` once Stages 2-5 are completed.
   XRECORDs ≤ 16 MB, spline control points ≤ 1M. These are orders
   of magnitude above any realistic drawing; their purpose is to
   bound the work a malformed file can force.
-- **`#![deny(unsafe_code)]`** in `lib.rs` — all code is safe Rust.
+- **`#![forbid(unsafe_code)]`** in `lib.rs` — all code is safe Rust.
   Reed-Solomon + LZ77 + GF(256) all implemented without `unsafe`.
 
 ## 10. Test strategy
 
-Four layers:
+Evidence comes from real executables run on real files. New work is
+shown on the corpus, not with new unit tests; the suites already in
+the tree stay and must keep passing.
 
-1. **Unit tests** (156) — co-located with each module; typically
-   one test per public function plus edge-case coverage.
-2. **Property tests** (9) — `tests/proptest_roundtrip.rs` uses
-   `proptest` for randomized round-trip of every bit-level
-   primitive. Each property runs 256 cases by default.
-3. **Corpus integration** (5) — `tests/corpus_roundtrip.rs`
-   verifies invariants across all 19 sample DWG files (opens,
-   section enumeration, metadata accessors never panic).
-4. **Per-sample assertions** (22) — `tests/samples.rs` asserts
-   specific values for specific sample files (version detection,
-   section counts, etc.).
+1. **Self-validating decoders.** Every entity and object decoder must
+   end exactly on its record's data-stream boundary (§7i), so a wrong
+   field list surfaces as an error on any file that contains the
+   type.
+2. **The real-file corpus.** `tests/samples.rs`, `block_names.rs`,
+   `corpus_roundtrip.rs` and `r2013_entity_values.rs` read the 19-file
+   corpus at `../../samples` relative to the crate and skip silently
+   when it is absent. `examples/coverage_report.rs` measures decoded,
+   skipped and errored records per file; its numbers are the ones the
+   README quotes.
+3. **CI gates on the committed canonical fixtures**
+   (`tests/fixtures/canonical/`, generated deterministically by
+   `examples/build_fixtures.rs`): the fixtures must match the
+   generator, the coverage report must stay above its floor, and the
+   class-census and reference-closure probes must pass. CI does not
+   read the real corpus yet (#95).
+4. **Property, golden and fuzz checks.** `tests/proptest_roundtrip.rs`
+   round-trips the bit-level primitives, `tests/integration_svg_goldens.rs`
+   pins SVG output, and `fuzz/` runs nightly against every byte-level
+   attack surface.
+5. **Streaming E2E.** `tools/streaming/verify.py` drives the built
+   `stream_header` example in separate processes under generated chunk
+   schedules (docs/streaming/README.md).
 
-`cargo test --release` must print `test result: ok` for every
-block before a PR is mergeable.
+`cargo test --release --all-features` must pass before a PR merges.
 
 ## 11. Legal posture
 

@@ -223,6 +223,16 @@ jobs:
             cargo +stable run --release --example probe_reference_closure -- "$f"
           done
 
+  spec-coverage:
+    name: Spec coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      # docs/spec-coverage.md must have a row for every section of ODA spec
+      # v5.4.1 and agree with docs/data/spec-coverage.tsv (#105).
+      - name: Every spec section has a row, and the page matches its data
+        run: python3 tools/ci/spec_coverage.py --check
+
   pii-guard:
     name: PII guard
     runs-on: ubuntu-latest

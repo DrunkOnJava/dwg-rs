@@ -21,7 +21,10 @@ maintainers do the same thing each time. The rules for contributors are in
   records it is measured on.
 - [`docs/spec-coverage.md`](spec-coverage.md) has one row for every section
   of ODA spec v5.4.1 with its state on `main`. A state changes only in the
-  pull request that brings its evidence.
+  pull request that brings its evidence: edit
+  `docs/data/spec-coverage.tsv`, then run
+  `python3 tools/ci/spec_coverage.py --write`. CI's Spec coverage job fails
+  when a section has no row or the page and its data disagree.
 - [`docs/release-1.0-criteria.md`](release-1.0-criteria.md) is the 1.0
   release decision. A milestone's completion percentage is not; it counts
   closed issues, not requirements met.
