@@ -53,9 +53,9 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.3 | Object types | 104 | `closes` | src/object_type.rs | #139 |  |
 | §20.4.1 | Common Entity Data | 106 | `closes` | src/common_entity.rs | #139 | Graphics-preview block (ARCHITECTURE §7f). |
 | §20.4.2 | Common Entity Handle Data | 107 | `closes` | src/common_entity.rs | #139 |  |
-| §20.4.3 | TEXT (1) | 108 | `closes` | src/entities/text.rs | #140 | Closes on all 224 TEXT records of the public corpus, R14 to R2018 (no R13 file), with the section's R13-R14 and R2000+ branches as printed; oblique, rotation and width factor are RD (#62). Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7n). |
-| §20.4.4 | ATTRIB (2) | 109 | `closes` | src/entities/attrib.rs | #140 | Closes on all 28 ATTRIB records of the public corpus, R14 to R2018. Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7n). |
-| §20.4.5 | ATTDEF (3) | 110 | `closes` | src/entities/attdef.rs | #140 | Closes on all 35 ATTDEF records of the public corpus, R14 to R2018; the prompt follows the ATTRIB fields, as printed. Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7n). |
+| §20.4.3 | TEXT (1) | 108 | `closes` | src/entities/text.rs | #140 | Closes on all 224 TEXT records of the public corpus, R14 to R2018 (no R13 file), with the section's R13-R14 and R2000+ branches as printed; oblique, rotation and width factor are RD (#62). Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7v). |
+| §20.4.4 | ATTRIB (2) | 109 | `closes` | src/entities/attrib.rs | #140 | Closes on all 28 ATTRIB records of the public corpus, R14 to R2018. Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7v). |
+| §20.4.5 | ATTDEF (3) | 110 | `closes` | src/entities/attdef.rs | #140 | Closes on all 35 ATTDEF records of the public corpus, R14 to R2018; the prompt follows the ATTRIB fields, as printed. Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7v). |
 | §20.4.6 | BLOCK (4) | 111 | `closes` | src/entities/block.rs | #141 |  |
 | §20.4.7 | ENDBLK (5) | 111 | `closes` | src/entities/endblk.rs | #141 |  |
 | §20.4.8 | SEQEND (6) | 112 | `closes` | src/entities/seqend.rs | #141 |  |

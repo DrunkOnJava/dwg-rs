@@ -46,7 +46,7 @@
 //! corpus elides those three fields, so nothing showed it.
 //!
 //! The public corpus does exercise them, and §20.4.3 as printed closes
-//! every TEXT record in it, from R14 to R2018. ARCHITECTURE.md §7n has
+//! every TEXT record in it, from R14 to R2018. ARCHITECTURE.md §7v has
 //! the table; `examples/probe_text.rs` compares the values with
 //! AutoCAD's DXF exports.
 
