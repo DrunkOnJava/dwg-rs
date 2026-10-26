@@ -2257,6 +2257,43 @@ Coverage of the public corpus moves only on those six records:
 `sample_AC1021.dwg` 834/76/15 → 837/76/12 and `sample_AC1024.dwg`
 851/57/15 → 854/57/12 (decoded/skipped/errored).
 
+## 7y. A HATCH spline edge without fit points has no tangents (2026-10-26, #228)
+
+§20.4.75 ends the R2010+ ("R24") spline edge of a HATCH boundary with
+`BL numfitpoints`, the fit points, and then `2RD` start and end tangents,
+with no condition. The corpus has one spline edge: HATCH `0xAA8` of
+ACadSharp's `export_sample.dwg` (R2018), a closed boundary of degree 3
+with 13 knots, 9 control points and 0 fit points. Read with the
+tangents, its `num_boundary_handles` decodes to 298,029,779 and the
+record errors. Without them it closes:
+
+| Field | Value |
+|---|---|
+| `numfitpoints` | 0 (then no tangents) |
+| `numboundaryobjhandles` | 1 |
+| style, pattern type | 1, 1 |
+| pattern angle, scale, double | 0, 1, false |
+| definition line | 45°, through (0, 0), offset (−0.0884, 0.0884): ANSI31's 0.125 spacing |
+| pixel size | 0.0177 (the path is derived, flag 4) |
+| seed point | (5.13, 2.59) |
+| end bit | 2827, the string-stream start; `"LINEAR"` and `"ANSI31"` both consumed |
+
+The boundary's control polygon starts and ends at (4.43, 2.59), the first
+and last of the 7 fit points SPLINE `0xA7F` of the same drawing decodes
+to, and the seed point lies inside that curve. So
+`hatch::decode_spline_edge` reads the tangents only when there are fit
+points, which keeps §20.4.75's order for that case. No corpus record has
+a spline edge with fit points, so that case is unmeasured.
+
+Reproduce both readings with the entity field-list probe from bit 2374,
+just after `numfitpoints` (0, at bit 2372):
+
+```sh
+D=../dwg-corpus/acadsharp/export_sample.dwg   # fetched by tools/corpus/fetch.py
+cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD,B,BS,BD,2BD,2BD,BS,BD,BL,2RD --at=2374   # delta 0
+cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
