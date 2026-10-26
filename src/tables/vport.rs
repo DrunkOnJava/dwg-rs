@@ -100,10 +100,10 @@ impl VportEntry {
     }
 }
 
-/// DXF group 71 from §20.4.64's four view-mode bits (first read first) and
-/// the `UCSFOLLOW` bit: bits 1, 2 and 4 as stored, 16 set when the fourth
+/// DXF group 71 from §20.4.64's (and §20.4.60's) four view-mode bits
+/// (first read first) and the `UCSFOLLOW` bit: bits 1, 2 and 4 as stored, 16 set when the fourth
 /// bit is clear, 8 from `UCSFOLLOW`.
-fn viewmode_from_bits(bits: u8, ucs_follow: bool) -> i16 {
+pub(crate) fn viewmode_from_bits(bits: u8, ucs_follow: bool) -> i16 {
     let mut mode = 0i16;
     if bits & 0b1000 != 0 {
         mode |= 1;
