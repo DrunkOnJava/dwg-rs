@@ -61,7 +61,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.8 | SEQEND (6) | 112 | `closes` | src/entities/seqend.rs | #141 | The spec's own example (§20.4.8.1) closes on the record's boundary (#107). |
 | §20.4.9 | INSERT (7) | 112 | `partial` | src/entities/insert.rs | #141 | All 12 R14 records error (#227). The spec's own example (§20.4.9.1) errors; §20.4.9's own field list closes on it (#227). |
 | §20.4.10 | MINSERT (8) | 113 | `decoder` | src/entities/insert.rs | #141 | No MINSERT in the corpus. The spec's own example (§20.4.10.1) has no decoder to run (#107). |
-| §20.4.11 | VERTEX (2D) (10) | 114 | `closes` | src/entities/vertex.rs | #142 | The spec's own example (§20.4.11.1) errors; §20.4.11's own field list closes on it (#272). |
+| §20.4.11 | VERTEX (2D) (10) | 114 | `closes` | src/entities/vertex.rs | #142 | The spec's own example (§20.4.11.1) closes on the record's boundary (#107). |
 | §20.4.12 | VERTEX (3D) (11) | 115 | `closes` | src/entities/vertex.rs | #142 | The spec's own example (§20.4.12.1) closes on the record's boundary (#107). |
 | §20.4.13 | VERTEX (MESH) (12) | 115 | `closes` | src/entities/vertex.rs | #142 | The spec's own example (§20.4.13.1) closes on the record's boundary (#107). |
 | §20.4.14 | VERTEX (PFACE) (13) | 116 | `closes` | src/entities/vertex.rs | #142 | The spec's own example (§20.4.14.1) closes on the record's boundary (#107). |
