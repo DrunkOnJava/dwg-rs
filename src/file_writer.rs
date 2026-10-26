@@ -455,7 +455,10 @@ fn build_system_page(page_type: u32, body: &[u8]) -> Result<Vec<u8>> {
     LittleEndian::write_u32(&mut header[4..8], decomp_size);
     LittleEndian::write_u32(&mut header[8..12], comp_size);
     LittleEndian::write_u32(&mut header[12..16], COMP_TYPE_LZ77);
-    LittleEndian::write_u32(&mut header[16..20], 0); // _checksum placeholder
+    // §4.3: the §4.2 checksum of the compressed data, seeded with the
+    // checksum of this header with the field still zero (#265).
+    let checksum = crc::section_page_checksum(crc::section_page_checksum(0, &header), &compressed);
+    LittleEndian::write_u32(&mut header[16..20], checksum);
     out.extend_from_slice(&header);
     out.extend_from_slice(&compressed);
     // Pad to 32-byte alignment to match data-page convention.
