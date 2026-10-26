@@ -13,6 +13,10 @@ concurrency:
   group: streaming-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # crates.io index or crate downloads that fail transiently are retried instead of failing the job
+  CARGO_NET_RETRY: "10"
+
 jobs:
   streaming:
     name: Streaming E2E
