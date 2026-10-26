@@ -1688,6 +1688,47 @@ the record; their values corroborate nothing.
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
+## 7n. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
+
+ACadSharp's R14 save (`sample_AC1014.dwg`, #225) is the corpus's only
+R14 drawing with INSERTs, dimensions or a 3DFACE, and every one of
+those 24 records errored. Each decoder read only the R2000+ branch of
+its section, and each section prints an R13-R14 branch of its own:
+
+| Section | R13-R14 branch | The decoder read |
+|---|---|---|
+| §20.4.9 INSERT | three `BD` scales | the R2000+ `BB` data flags and `RD` / `DD` scales |
+| §20.4.22 common dimension data | no attachment, line spacing style or factor, or actual measurement (those four are R2000+) | all four |
+| §20.4.32 3DFACE | four `3BD` corners and an unconditional `BS` of invisible edges | the R2000+ flag bits, `RD` first corner and `3DD` corners |
+
+Read as printed, all 24 records close: 12 INSERT, the 11 dimensions of
+all seven types, and the 3DFACE.
+
+R14 has no DXF export in the corpus. AutoCAD keeps handles across a
+save-as, so `examples/probe_cross_release.rs` compares each R14 record
+with the R2000 save of the same drawing, handle by handle. For the
+dimensions it is run with `--ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement`,
+the four fields R14 does not store:
+
+| Type | R14 records | Matched in the R2000 save | Equal |
+|---|---:|---:|---:|
+| INSERT | 14 | 10 | 10 |
+| 3DFACE | 1 | 1 | 1 |
+| DIMENSION, all types | 11 | 11 | 10 |
+
+Four R14 INSERT handles do not occur in the R2000 save. The one
+dimension that differs is the angular 2-line `0x516`, and only in the
+last digit of its 16-point's x: `528.6474703372945` against
+`528.6474703372946`. Both are read as exact raw doubles, so the two saves
+store doubles one unit in the last place apart. That is a property of
+what AutoCAD wrote, not a reading the bits leave open.
+
+```sh
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg INSERT
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg DIMENSION_LINEAR \
+    --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
