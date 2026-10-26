@@ -1058,6 +1058,7 @@ pub fn score(
         D::DataTable(t) => score_data_table(&mut c, t),
         D::TextObjectContextData(t) => score_text_context(&mut c, t),
         D::EvalGraph(g) => score_eval_graph(&mut c, g),
+        D::ShExtrusion(x) => score_sh_extrusion(&mut c, x),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
         _ => return Err("no scorer yet".into()),
@@ -1750,6 +1751,84 @@ fn score_eval_graph(c: &mut Ctx<'_>, g: &dwg::objects::eval_graph::EvalGraph) {
         for (k, v) in e.dxf_92_links.iter().enumerate() {
             c.int(&format!("edges[{i}].92 link[{k}]"), 92, i64::from(*v), None);
         }
+    }
+}
+
+// ACSH_EXTRUSION_CLASS, which v5.4.1 does not prescribe, as its probe maps
+// it (examples/probe_sh_extrusion.rs). Its subclasses (AcDbEvalExpr,
+// AcDbShHistoryNode, AcDbShPrimitive, AcDbShSweepBase, AcDbShExtrusion)
+// reuse codes, and the DXF lists the sweep base in a different order from
+// the data stream, so each value is taken by its code's next occurrence in
+// the whole record, in the order the probe pairs them: group 90 four times
+// (the node id, the history node, the sweep base, the profile bit count),
+// 40 to 55 once for the transform (50 to 55 in degrees) and then 42 to 45,
+// 48 and 49 again for the sweep scalars, 46 and 47 sixteen times more for
+// the two matrices. The export writes one byte more of group 310 than the
+// bit count holds, so the profile is compared up to its bit count.
+fn score_sh_extrusion(c: &mut Ctx<'_>, x: &dwg::objects::sh_history::ShExtrusion) {
+    c.int("eval.node_id", 90, i64::from(x.eval.node_id), None);
+    c.int("eval.98", 98, i64::from(x.eval.dxf_98), None);
+    c.int("eval.99", 99, i64::from(x.eval.dxf_99), None);
+    c.int("node.90", 90, i64::from(x.node_90), None);
+    c.int("node.91", 91, i64::from(x.node_91), None);
+    for (k, v) in (0u16..).zip(x.transform.iter()) {
+        let code = 40 + k;
+        if code >= 50 {
+            c.angle(&format!("node.transform[{k}]"), code, *v, None);
+        } else {
+            c.real(&format!("node.transform[{k}]"), code, *v, None);
+        }
+    }
+    let color = match x.color.word {
+        Some(w) if w >> 24 == 0xC0 => 256,
+        Some(w) => i64::from(w),
+        None => i64::from(x.color.index),
+    };
+    c.int("node.colour", 62, color, None);
+    c.int("node.92", 92, i64::from(x.node_92), None);
+    c.int("sweep.90", 90, i64::from(x.sweep_90), None);
+    c.int("sweep.91", 91, i64::from(x.sweep_91), None);
+    for (k, code) in [10u16, 20, 30].into_iter().enumerate() {
+        c.real(&format!("sweep.point[{k}]"), code, x.point[k], None);
+    }
+    c.int("sweep.92", 92, i64::from(x.dxf_92), None);
+    c.int("profile bit count", 90, 8 * x.profile.len() as i64, None);
+    let mut exported = Vec::new();
+    while let Some(v) = c.take(310) {
+        if let DxfValue::Binary(b) = v {
+            exported.extend_from_slice(b);
+        }
+    }
+    c.derived(
+        "profile (310, up to the bit count)",
+        "310",
+        exported.starts_with(&x.profile),
+        format!("{} bytes", x.profile.len()),
+        format!("{} bytes", exported.len()),
+    );
+    c.int("sweep.93", 93, i64::from(x.dxf_93), None);
+    for (k, code) in [42u16, 43, 44, 45, 48, 49].into_iter().enumerate() {
+        c.real(&format!("sweep.scalars[{k}]"), code, x.scalars[k], None);
+    }
+    c.int("sweep.290", 290, i64::from(x.dxf_290), None);
+    c.int("sweep.70", 70, i64::from(x.dxf_70), None);
+    c.int("sweep.71", 71, i64::from(x.dxf_71), None);
+    for (k, code) in [292u16, 293, 294, 295, 296].into_iter().enumerate() {
+        c.int(
+            &format!("sweep.flags[{k}]"),
+            code,
+            i64::from(x.flags[k]),
+            None,
+        );
+    }
+    for (k, code) in [11u16, 21, 31].into_iter().enumerate() {
+        c.real(&format!("sweep.vector[{k}]"), code, x.vector[k], None);
+    }
+    for k in 0..16 {
+        c.real(&format!("sweep.matrix_46[{k}]"), 46, x.matrix_46[k], None);
+    }
+    for k in 0..16 {
+        c.real(&format!("sweep.matrix_47[{k}]"), 47, x.matrix_47[k], None);
     }
 }
 
