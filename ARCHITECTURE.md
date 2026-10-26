@@ -2460,7 +2460,7 @@ comparison:
 cargo run --release --example probe_leader -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
-## 7ac. dwg-to-dxf: the TABLES section (2026-10-26, #126)
+## 7ad. dwg-to-dxf: the TABLES section (2026-10-26, #126)
 
 `src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, UCS, APPID, DIMSTYLE
 and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
