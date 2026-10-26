@@ -1,6 +1,6 @@
 # ODA spec v5.4.1 coverage
 
-Last measured 2026-10-26, on `main` at `2e9f7e20`, by the `Corpus (public DWG)` CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)).
+Last measured 2026-10-21, on `main` at `b268e884`.
 
 One row for every section of the *Open Design Specification for .dwg files* v5.4.1 (Open Design Alliance), the specification dwg-rs is built from, with its state on `main`, the code that implements it and the issue that tracks what is left. The data is in [`data/spec-coverage.tsv`](data/spec-coverage.tsv). The summary and the section table below are generated from it by `tools/ci/spec_coverage.py --write`, and CI fails when they differ or when a section of the spec has no row.
 
@@ -12,14 +12,14 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | `closes` | Ends on its exact boundary on every corpus record of the type. Values not yet checked against AutoCAD. |
 | `complete` | Closes on every release band, R13 to R2018, and every value equals AutoCAD's DXF export of the same drawing. |
 
-`closes` comes from that job's boundary checks on the 52 public drawings pinned in [`tools/corpus/pins.tsv`](../tools/corpus/pins.tsv): no corpus record of the type errors or is skipped. Each `partial` row names the records that fail and the issue. No row is `complete` until the DXF oracle exists. A state changes only in the pull request that brings its evidence ([`maintaining.md`](maintaining.md)).
+`closes` comes from the boundary checks on a local 19-file corpus (STATUS.md, 2026-08-30) and is re-measured in CI by the 0.2.0 measurement work; no row is `complete` until the DXF oracle exists. A state changes only in the pull request that brings its evidence ([`maintaining.md`](maintaining.md)).
 
 <!-- spec-coverage:begin -->
 
 ## Summary
 
-- All sections: 0 `complete`, 65 `closes`, 6 `decoder`, 33 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 46 `closes`, 6 `decoder`, 30 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 66 `closes`, 6 `decoder`, 32 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 47 `closes`, 6 `decoder`, 29 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -154,7 +154,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.101 | TABLESTYLE | 233 | `partial` | src/objects/ | #151 | #60: block structure measured, token sequence not pinned (10 records). |
 | §20.4.102 | CELLSTYLEMAP | 237 | `missing` |  | #151 |  |
 | §20.4.103 | TABLEGEOMETRY | 238 | `missing` |  | #151 |  |
-| §20.4.104 | XRECORD | 238 | `partial` | src/objects/xrecord.rs | #149 | Skipped on every R14 drawing (1154 records). |
+| §20.4.104 | XRECORD | 238 | `closes` | src/objects/xrecord.rs | #149 | Closes on every XRECORD of the public corpus, R14 to R2018 (no R13 file). R14 gives XRECORD a class number from AcDb:Classes rather than the fixed code 0x4F, and is routed by class name (#149). The body is carried as bytes, not yet typed into group-code pairs. |
 | §21 | AcDb:ObjFreeSpace | 241 | `missing` |  | #133 |  |
 | §22 | AcDb:Template | 242 | `missing` |  | #133 | Named, not decoded. |
 | §23 | AcDb:Handles (object map) | 243 | `closes` | src/handle_map.rs | #137 | Every map entry resolves on the R2018 file (STATUS.md). |

@@ -718,6 +718,13 @@ fn dispatch_object_class(
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ImageDef)
         }
+        // §20.4.104 types XRECORD `(varies)`: from R2000 it has the
+        // fixed code 0x4F, but R14 files give it a class number from
+        // AcDb:Classes. It is the same record either way.
+        "XRECORD" => {
+            crate::objects::xrecord::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::XRecord)
+        }
         _ => return None,
     };
     Some(match result {

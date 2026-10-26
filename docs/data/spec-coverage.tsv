@@ -128,7 +128,7 @@
 20.4.101	TABLESTYLE	233	partial	src/objects/	#151	#60: block structure measured, token sequence not pinned (10 records).
 20.4.102	CELLSTYLEMAP	237	missing		#151	
 20.4.103	TABLEGEOMETRY	238	missing		#151	
-20.4.104	XRECORD	238	partial	src/objects/xrecord.rs	#149	Skipped on every R14 drawing (1154 records).
+20.4.104	XRECORD	238	closes	src/objects/xrecord.rs	#149	Closes on every XRECORD of the public corpus, R14 to R2018 (no R13 file). R14 gives XRECORD a class number from AcDb:Classes rather than the fixed code 0x4F, and is routed by class name (#149). The body is carried as bytes, not yet typed into group-code pairs.
 21	AcDb:ObjFreeSpace	241	missing		#133	
 22	AcDb:Template	242	missing		#133	Named, not decoded.
 23	AcDb:Handles (object map)	243	closes	src/handle_map.rs	#137	Every map entry resolves on the R2018 file (STATUS.md).
