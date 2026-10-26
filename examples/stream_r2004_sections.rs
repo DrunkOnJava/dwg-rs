@@ -62,9 +62,16 @@ fn name(bytes: &[u8]) -> String {
     String::from_utf8_lossy(&bytes[..end]).into_owned()
 }
 
+/// A name as the body of a JSON string. The map walker admits only printable
+/// ASCII, so the quote and the backslash are all that need escaping.
+fn esc(name: &str) -> String {
+    name.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 fn done_line(index: u32, name: &str, size: u64, pages: u32, crc: u32) -> String {
     format!(
-        "{{\"section_done\":{{\"index\":{index},\"name\":\"{name}\",\"size\":{size},\"pages\":{pages},\"crc32\":{crc}}}}}"
+        "{{\"section_done\":{{\"index\":{index},\"name\":\"{}\",\"size\":{size},\"pages\":{pages},\"crc32\":{crc}}}}}",
+        esc(name)
     )
 }
 

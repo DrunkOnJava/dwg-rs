@@ -110,6 +110,7 @@ pub mod crc;
 pub mod curve;
 pub mod dxf;
 pub mod dxf_convert;
+pub mod dxf_header;
 #[cfg(feature = "dxf-reader")]
 pub mod dxf_reader;
 pub mod dxf_sections;
@@ -124,6 +125,7 @@ pub mod graph;
 pub mod handle_allocator;
 pub mod handle_map;
 pub mod header;
+pub mod header_table;
 pub mod header_vars;
 pub mod limits;
 pub mod lz77;
