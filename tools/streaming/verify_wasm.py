@@ -36,7 +36,7 @@ def main():
         tmp = Path(tmp)
         kernel = tmp / 'wasm_resume.wasm'
         built = subprocess.run(['rustc', '--edition=2024', '--crate-type', 'cdylib', '--target', 'wasm32-unknown-unknown',
-                                '-C', 'opt-level=2', '-C', 'panic=abort', 'tools/streaming/wasm_resume.rs', '-o', str(kernel)],
+                                '-C', 'opt-level=2', '-C', 'panic=abort', '-C', 'link-arg=-zstack-size=4194304', 'tools/streaming/wasm_resume.rs', '-o', str(kernel)],
                                capture_output=True, timeout=600)
         assert built.returncode == 0, built.stderr.decode()
         kernel_sha = hashlib.sha256(kernel.read_bytes()).hexdigest()
@@ -150,12 +150,13 @@ def main():
             stops = pick(name, 30, steps, around) if name != 'synthetic_2018.dwg' else list(range(steps + 1))
             if len(stops) > 90:
                 stops = sorted(set(random.Random(name + 's').sample(stops, 90)) | {0, steps})
-            jobs, native_resumed, kinds = [], {}, set()
+            jobs, native_resumed, kinds, stage_at = [], {}, set(), {}
             for stop in stops:
                 ck = tmp / f'sec-{name}-{stop}.bin'
                 paused = native(sections_bin, data, NATIVE_CHUNK, '--identity', identity, '--checkpoint-out', ck, '--stop-after', stop, name=name)
                 assert paused[0] == 0 and lines(paused[1])[-1] == vs.line({'checkpoint': True, 'steps': stop}), (name, stop)
-                kinds.add(ck.read_bytes()[vs.STAGE])
+                stage_at[stop] = ck.read_bytes()[vs.STAGE]
+                kinds.add(stage_at[stop])
                 resumed = native(sections_bin, data, NATIVE_CHUNK, '--identity', identity, '--resume', ck, name=name)
                 assert resumed[0] == 0, (name, stop, resumed[2])
                 assert lines(paused[1])[:-1] + lines(resumed[1]) == lines(full[1]), (name, stop)
@@ -168,10 +169,17 @@ def main():
                 assert result['code'] >= 0, (name, stop, result)
                 got = lines(result['out'])
                 assert got == native_resumed[stop][:len(got)], (name, stop, 'kernel output differs from the native resume')
-                if got:
-                    assert got[-1].startswith('{"section_done"') and got[-1] in done, (name, stop, 'kernel section differs from the independent assembly')
-                    finished += 1
+                if stage_at[stop] == 4:
+                    assert got == [], (name, stop, 'a finished section checkpoint produced output')
+                    continue
+                # Every other checkpoint is an unfinished section: the kernel
+                # must run it through its section_done, equal to the
+                # independent assembly's.
+                assert got and got[-1].startswith('{"section_done"') and got[-1] in done, \
+                    (name, stop, 'kernel did not finish the section, or finished it differently from the independent assembly')
+                finished += 1
             assert kinds >= ({0, 1, 2, 3} if name != 'synthetic_2018.dwg' else {0, 2, 3}), (name, kinds)
+            assert finished == sum(1 for v in stage_at.values() if v != 4) and finished > 0, (name, finished)
             receipts.append({'file': name, 'walk': 'data pages of a section', 'steps': steps, 'stops': len(stops),
                              'checkpoint_stages': sorted(kinds), 'sections_finished_by_the_kernel': finished,
                              'native_to_wasm': 'finished equal to the native resume and the independent assembly',
