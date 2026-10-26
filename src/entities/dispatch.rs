@@ -138,6 +138,7 @@ pub enum DecodedEntity {
     SortEntsTable(crate::objects::block_sortents_table::SortEntsTable),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
+    SpatialFilter(Box<crate::objects::clip_spatial_filter::SpatialFilter>),
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
@@ -254,6 +255,9 @@ impl DecodedEntity {
             // AcDb:Classes.
             Self::SortEntsTable(_) => 0,
             Self::MLineStyle(_) => OBJECT_TYPE_MLINESTYLE,
+            // SPATIAL_FILTER is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::SpatialFilter(_) => 0,
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
             // to consult the class map.
@@ -726,6 +730,12 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::PlotSettings),
+        "SPATIAL_FILTER" | "ACDBSPATIALFILTER" => {
+            crate::objects::clip_spatial_filter::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(|filter| DecodedEntity::SpatialFilter(Box::new(filter)))
+        }
         "MLEADERSTYLE" | "ACDBMLEADERSTYLE" => crate::objects::acad_mleader_style::decode_object(
             payload, body_start, inline_end, version,
         )
