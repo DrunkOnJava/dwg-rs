@@ -272,8 +272,7 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<DimStyleEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let c = &mut split.data;
     let dimscale = c.read_bd()?;
     let dimasz = c.read_bd()?;
@@ -442,11 +441,11 @@ mod tests {
     fn r2007_split_stream_dimstyle_reads_iso25_defaults() {
         let mut b = BitWriter::new();
         b.write_bs_u(0); // no EED
+        b.write_bl(0); // no reactors
         b.write_b(true); // no xdictionary
         b.write_b(false); // no binary data
         b.write_b(false); // 64-flag
         b.write_b(false); // xref dependent
-        b.write_bs(0); // xref index + 1
         b.write_bd(1.0); // dimscale
         b.write_bd(2.5); // dimasz
         b.write_bd(0.625); // dimexo
