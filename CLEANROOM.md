@@ -423,3 +423,102 @@ measured evidence: the spec lists `B 295` (property changed) before
 `nextgis/dwg_samples` and ACadSharp `samples/` drawings, compared record
 by record by the DXF value oracle (#99), shows the two bits stored in the
 reverse order. No other source was consulted.
+
+## 2026-10-26 — DXF reader for the value oracle (Autodesk public DXF Reference)
+
+The PR for #100 adds `src/dxf_reader.rs`, which reads AutoCAD's own ASCII
+DXF exports so the DWG decode can be compared with them (#99). Its grammar
+(group-code / value line pairs, `SECTION` / `ENDSEC` / `EOF`, `9 $NAME`
+header variables, `0`-records, group 5 as the handle and 105 on DIMSTYLE,
+330 as the owner, the `102 {...}` brackets) and the value type of every
+group-code range come from Autodesk's public *DXF Reference*, chiefly its
+"Group Code Value Types" table, as recalled. That is published
+documentation, not SDK or product source; no DXF library's code or comments
+were read. Two readings were measured on the `nextgis/dwg_samples` exports
+rather than taken from the document, and the module documents both: on a
+DIMSTYLE, group 5 is `DIMBLK` (text, written empty in the R12 exports), and a
+`102` bracket may close as `<name>}` as well as `}`. The exports are read as
+data from a cache outside the repository and are not vendored.
+
+## 2026-10-26 — The specification's worked examples as fixtures (#107)
+
+The PR for #107 commits the worked examples and printed tables of the
+freely-redistributable ODA *Open Design Specification for .dwg files*
+v5.4.1 (the PDF under "Allowed sources", sha256
+`973628f353535b81a0be8a31f965bca4fb88b989127b2c1029d28f33be0f504b`) to
+`tests/fixtures/spec-examples/`, and runs them through the crate in
+`examples/spec_examples.rs`. The bytes are short verbatim quotations of
+that document, each with its page numbers, attributed in `NOTICE`.
+`tools/spec/extract_examples.py` reads them out of the PDF with Poppler's
+`pdftotext` and audits every fixture against it; it checks each object
+dump against the dump's own printed CRC, so nothing in the fixtures is
+a reconstruction.
+
+No other source was consulted. Where the specification's own field list
+does not close on its own example (§20.4.28 RADIUS, §20.4.49 TOLERANCE),
+the corrected readings recorded in ARCHITECTURE.md §7k come from that
+example's bytes alone, and the unnamed extra `BD` of TOLERANCE is left
+unnamed for that reason.
+
+## 2026-10-26 — DXF value oracle: pairing and field scorers
+
+The PR for #101 and #102 adds `examples/dxf_oracle`, which pairs every DWG
+record with the record of the same handle in AutoCAD's own DXF export and
+compares each decoded field with the DXF group that carries it. For the
+types ODA spec v5.4.1 prescribes, the group of each field is the one the
+spec prints in its DXF column (§20.4.x, cited on every scorer). For the
+rest (MTEXT's chunked text, the attribute subclass, LAYOUT's subclass
+split, the defaults AutoCAD omits, the `^J` control-character notation,
+the lineweight values), the group codes and conventions are those of
+Autodesk's public *DXF Reference*, recalled; it is published
+documentation, not SDK or product source. Every convention the scorers
+apply is also measured on the exports and documented in `scorers.rs`.
+The exports read are `nextgis/dwg_samples` (no licence stated) and the
+`samples/` directory of `DomCR/ACadSharp` (MIT), fetched by pinned commit
+and sha256 into a cache outside the repository; only those data files
+were read, not ACadSharp's code or comments.
+
+## 2026-10-26 — Class layouts the specification never prints: derived from AutoCAD's own output (maintainer's decision)
+
+ODA spec v5.4.1 gives a field list for the fixed object types and for some
+custom classes (§20.4), and none for the rest (MATERIAL, the dynamic-block
+`BLOCK*` classes, `ACSH_*`, `DBCOLOR`, `SUN`, `DATATABLE`, `PDFDEFINITION` and
+others). By the maintainer's decision of 2026-10-26, a layout the spec does not
+print is learned from AutoCAD's own output, by this method and no other:
+
+- **What is observed.** An AutoCAD-written DWG and AutoCAD's own DXF export of
+  the same drawing: the pinned `nextgis/dwg_samples` and ACadSharp `samples/`
+  twins listed under "Public corpus" (data files, fetched by pinned hash), and,
+  once the project's agents have made them, controlled drawings made in
+  AutoCAD that vary one property at a time, with their exports. A record's DWG bits are
+  read against the DXF record of the same handle, paired by
+  `src/dxf_reader.rs` and `examples/dxf_oracle`.
+- **How a field is accepted.** A field list is kept only if both hold. It
+  closes every record of the class exactly on the record's data-stream
+  boundary on every release band in which the class occurs (the same
+  self-validation as every other decoder: a list that lands anywhere else is
+  wrong, never trimmed to fit). And each decoded value equals the DXF group that
+  carries it in the twin, compared by handle, by a probe under `examples/` that
+  exits non-zero on any disagreement or boundary miss. A field the DXF does not
+  show has only its width claimed, is named `unknown_*` or positionally, and is
+  recorded as unverified by value. A class whose layout cannot be closed on
+  every record stays undecoded; no partial decoder is shipped.
+- **What is never used.** Any third-party implementation of DWG or DXF: not
+  LibreDWG, the ODA or Teigha SDK, or any Autodesk SDK (all banned above), and
+  also not ACadSharp's or ezdxf's reading code, their comments, their tests or
+  their derived data, which the permissive-licence allowance above would
+  otherwise cover. The names of the DXF groups in the twin are observed data;
+  any further vocabulary taken from Autodesk's public *DXF Reference* is
+  disclosed on the class's own line and contributes names only.
+- **Record of derivation.** Each class gets its own dated entry below this one,
+  naming the drawings and the record counts per release it was derived from,
+  and the fields left unverified by value.
+
+## 2026-10-26 — DXF value oracle: VISUALSTYLE, MLEADERSTYLE and VIEW scorers
+
+The follow-up to #248 scores three more types the same way. MLEADERSTYLE
+and VIEW take each field's group from the DXF column of §20.4.87 and
+§20.4.60. VISUALSTYLE, which v5.4.1 does not prescribe, takes the group of
+each named property from Autodesk's public *DXF Reference* (VISUALSTYLE),
+recalled, and every one of them is measured on the exports and documented
+in `scorers.rs`. Only the same two corpora were read, as data.

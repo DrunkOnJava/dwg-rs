@@ -11,8 +11,9 @@ name: Measure
 #
 # On a pull request that changes the measurement itself, the PR is measured
 # against its merge-base with `main`. This is a report, not a gate: the
-# ratchet is the Corpus job in ci.yml. The DXF value oracle (#99) is not on
-# `main` yet, so its scores are reported as NOT MEASURED.
+# ratchet is the Corpus job in ci.yml. The DXF value oracle (#99) runs on
+# both commits when both have it, and every field whose agreeing count fell
+# or vanished is listed; a base older than the oracle reports the head alone.
 
 on:
   workflow_dispatch:
@@ -31,6 +32,8 @@ on:
       - examples/probe_class_census.rs
       - examples/probe_reference_closure.rs
       - tools/corpus/**
+      - examples/dxf_oracle/**
+      - tools/oracle/**
       - .github/workflows/measure.yml
 
 permissions:
@@ -41,6 +44,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # crates.io index or crate downloads that fail transiently are retried instead of failing the job
+  CARGO_NET_RETRY: "10"
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
 
@@ -135,6 +140,12 @@ jobs:
             python3 -I tools/corpus/measure.py run --corpus "$HOME/dwg-corpus" \
               --bin "$RUNNER_TEMP/bin-$side" --out "measure/$side.json" --logs "measure/$side-logs"
             echo "$?" > "measure/$side.status"
+            # The DXF value oracle, where this commit has it (#99).
+            if [ -f "$RUNNER_TEMP/$side/examples/dxf_oracle/main.rs" ]; then
+              (cd "$RUNNER_TEMP/$side" && CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
+                cargo +stable build --release --features dxf-reader --example dxf_oracle) \
+                && cp target/release/examples/dxf_oracle "$RUNNER_TEMP/bin-$side/"
+            fi
           done
           {
             echo "Head: \`$HEAD_SHA\`; base: \`$BASE_SHA\`."
@@ -152,11 +163,54 @@ jobs:
               echo "Base: NOT MEASURED. Its examples could not measure the corpus (a base older than"
               echo "\`coverage_report --tsv\` cannot); the head's measurement follows alone."
               echo
-              echo "DXF value oracle: NOT MEASURED (no scorer on main yet, #99)."
-              echo
             } >> "$GITHUB_STEP_SUMMARY"
             python3 -I tools/corpus/measure.py report --results measure/head.json \
               --summary "$GITHUB_STEP_SUMMARY"
+          fi
+          # A report, not a gate: drops against the base are listed, not fatal.
+          if [ -x "$RUNNER_TEMP/bin-head/dxf_oracle" ]; then
+            if [ -x "$RUNNER_TEMP/bin-base/dxf_oracle" ]; then
+              # A base run that failed (a pair it could not load, an output it
+              # could not write) left a partial TSV: comparing the head with
+              # it would compare different drawing sets, so the base is
+              # reported as not measured instead.
+              if "$RUNNER_TEMP/bin-base/dxf_oracle" "$HOME/dwg-corpus" --tsv measure/base-oracle.tsv \
+                > measure/base-oracle.log 2>&1; then
+                against=(--baseline measure/base-oracle.tsv)
+              else
+                {
+                  echo "DXF value oracle: the base's run failed, so the head is not compared with it (base NOT MEASURED):"
+                  echo
+                  echo '```'
+                  grep -E '^LOAD FAILED|^cannot ' measure/base-oracle.log | head -20
+                  echo '```'
+                } >> "$GITHUB_STEP_SUMMARY"
+                against=()
+              fi
+            else
+              echo "DXF value oracle: the base has none; the head's scores follow alone." >> "$GITHUB_STEP_SUMMARY"
+              against=()
+            fi
+            "$RUNNER_TEMP/bin-head/dxf_oracle" "$HOME/dwg-corpus" --tsv measure/head-oracle.tsv \
+              --summary measure/head-oracle.md "${against[@]}" > measure/head-oracle.log 2>&1
+            if grep -qE '^LOAD FAILED|^cannot ' measure/head-oracle.log; then
+              {
+                echo "DXF value oracle: the head's run did not load every pair; its scores below are incomplete:"
+                echo
+                echo '```'
+                grep -E '^LOAD FAILED|^cannot ' measure/head-oracle.log | head -20
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            cat measure/head-oracle.md >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo
+              echo '```'
+              sed -n '/== Pairing by handle/,/== Field agreement/p;/== Ratchet/,$p' measure/head-oracle.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "DXF value oracle: NOT MEASURED (the head has no examples/dxf_oracle)." >> "$GITHUB_STEP_SUMMARY"
           fi
       # Measurements and logs only; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
