@@ -34,6 +34,8 @@ git rev-parse origin/main > "$OUT/main.sha"
 [ -d "$TRAIN_WORKTREE" ] || git worktree add -q --detach "$TRAIN_WORKTREE" origin/main || exit 2
 cd "$TRAIN_WORKTREE" || exit 2
 git merge --abort > /dev/null 2>&1
+# The worktree is the train's own: a failed or dry refresh can leave regenerated files behind.
+git reset -q --hard
 git checkout -q --detach "origin/$B" || exit 2
 base=$(git rev-parse HEAD)
 map=$(python3 -I "$TRAIN_HERE/arch.py" renumber "$(git merge-base origin/main HEAD)" origin/main 2> "$OUT/renumber.log") || { say "REFUSED: section renumber failed: $(cat "$OUT/renumber.log")"; exit 4; }

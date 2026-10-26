@@ -143,7 +143,7 @@ Two 1.3 MB drawings from ACadSharp (`sample_AC1014.dwg` and
 stream below: 1,242 and 1,047 records, each equal to the independent parse and
 the legacy reader. They found that the walker refused the first object map
 chunk of both, 2,033 and 2,034 bytes: a chunk's size counts its own two bytes,
-so the spec's 2,032 bytes of entries make 2,034 (ARCHITECTURE.md §7aa), and the
+so the spec's 2,032 bytes of entries make 2,034 (ARCHITECTURE.md §7ac), and the
 limit is now that.
 
 Not measured: a real R13 file and any throughput. The companion DXFs in the
@@ -454,7 +454,7 @@ and the framer needs the section's bytes in order. A page of the object section
 that the page map lists out of order, or a hole in it, is refused with
 `ObjectsOrder` rather than buffered or reordered, since the state is fixed and
 no page index is kept. All 28 R2004-family drawings of the pinned corpus list
-the object section's pages in order and contiguously (ARCHITECTURE.md §7aa),
+the object section's pages in order and contiguously (ARCHITECTURE.md §7ac),
 while pages of other sections interleave freely with them (the verifier checks
 that on built files).
 
@@ -469,7 +469,12 @@ and length of the open record's payload so far. Restore requires a state the
 walk can reach: the framer's cursors against the record bytes it holds (its CRC
 is recomputed wherever those bytes are still held, and its `MC` is re-read from
 them), the section against the table, the unframed bytes against the section
-walker's cursor.
+walker's cursor. The file walker's table keeps no
+section names, so a checkpoint taken before the object section is described
+cannot be checked for a table that already holds it; a forged one restores and
+ends in `ObjectsMissing` or `SectionEntry` rather than `InvalidCheckpoint`. A forged
+CRC in a record whose payload is past the 32 bytes the framer holds ends in
+`RecordCrc` at the record's end for the same reason.
 
 `examples/stream_r2004_objects.rs` is the entry point. It prints one line per
 record (handle, section offset, `MS` size, type, payload length and the payload's
