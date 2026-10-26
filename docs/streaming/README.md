@@ -5,9 +5,11 @@ R2000 (AC1012/AC1014/AC1015), ODA v5.4.1: the complete **file header**
 (§3.2), and the **container walk** that continues from it through the
 header-variable and class sections, the object map and every mapped
 record's framing, type and handle (below). Neither decodes object bodies.
-For the R2004 family there is the **file header** (§4.1) and a bounded,
-resumable **LZ77 decoder** (§4.7), both below; the R2004+ page-map and
-section walk that would join them is not implemented.
+For the R2004 family there is the **file header** (§4.1), a bounded,
+resumable **LZ77 decoder** (§4.7), the **page map and section map walk**
+(§4.3–§4.5), the **data pages** that assemble each section (§4.6) and the
+**whole-file walk** that joins them behind one checkpoint, all below; object
+bodies and R2007 are not implemented.
 Those remain open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
 compiler is an upgrade after the hand-written baseline, tracked in
 [#208](https://github.com/DrunkOnJava/dwg-rs/issues/208).
@@ -243,8 +245,172 @@ the LZ77 stream and resealing the page. The local R2018 file (#96) was
 checked by hand. The fixtures pass only since #265 made the writer emit
 real page checksums.
 
-Not covered: data pages (§4.6) and sections assembled from them, R2007
-(§5), and throughput.
+Not covered here: the data pages (next section), R2007 (§5), and
+throughput.
+
+## R2004-family data pages and sections (§4.5–§4.6)
+
+`streaming::R2004SectionWalker` takes one section description (from the map
+walk) and then one page at a time from its caller: `demand()` answers
+`NextPage` between pages, and `begin_page(page_entry, reference)` hands it
+the page map's entry and the section map's reference for the next page of
+that section. The caller keeps the page index (the walker holds no map), so
+which page comes next and where it lives are the caller's, as the map
+walker's doc says. A page that the entry, the reference and the section do
+not agree on (page number, section id, an address that leaves no room for
+its header in the source, a start offset off a page boundary or not above
+the last) is refused with `SectionPageRef`, leaving the walker as it was.
+
+Each page is read twice, as the system pages are. The first pass reads the
+0x20-byte masked header (§4.6) and checks its own checksum, then every
+field against what the caller said (`DataPage`): type, section number,
+start offset, data size and page size, and that the stored bytes lie inside
+the page and the source. It then reads the stored bytes in chunks of at most
+256 and checks the data checksum, keeping nothing. Only then does the
+second pass run them through the §4.7 decoder (or copy them, for a stored
+section) and hand out section bytes. `demand()` gives source reads (at most
+64 bytes ahead of the decoder, at most 256 in the checksum pass), pumps of
+output already decoded, `NextPage` and `Done`. Steps are `Page` (header and
+both checksums verified), `Hole`, `Data { offset, len }` (up to 256 bytes,
+in `data()` until the next call), `PageEnd` and `Finished`. A page's bytes
+are handed out only after its checksums have passed, in section order; a
+byte past the section's size is decoded and dropped.
+
+The header layout and both checksum rules are a measured finding
+([ARCHITECTURE.md §7n](../../ARCHITECTURE.md)): `section_map::DataPageHeader`
+used to label three of its fields wrongly (now fixed), and its `page_size` is
+the page's size on disk, not the decompressed size. A compressed page decodes with a
+ceiling of the section's page size; it may end anywhere from
+`min(page size, bytes the section has left)` up to a whole page and no
+shorter (`DataPageLength`), and a stream that outgrows the page size is
+`Lz77Overrun`. Bytes of the section that no page covers (before a page that
+starts further on, after the last page, or all of a section that lists
+none) are handed out as `Hole` and read as zeros; a page that starts at or
+past the section's size (a zero page, §4.5) is walked and checked but gives
+nothing. An encrypted section (§4.5, flag 1) is refused (`SectionEncrypted`):
+its stored bytes are not its content. The legacy reader refuses it the
+same way (`Error::SectionEncrypted`), as it does an R2007 section whose
+encryption flag is set.
+
+State is the decoder, a 256-byte output stage and a few hundred bytes of
+cursors, bounded at `WINDOW + 1024` in the `no_std` kernel (native and
+wasm32). `R2004SectionCheckpoint` (`DWGS`) holds the section's fields, the
+page in hand, the cursors and, while an LZ77 page is being decoded, the
+decoder checkpoint; at most about 50 KB. Restore requires a state the walk
+can reach: the stage, the header (checksum included), the page's job against
+the section, the input position against the decoder's and the carried bytes,
+and the cursor against what has been handed out. Which section and which page
+of it come next, and the page index, are the caller's to save beside it.
+
+`examples/stream_r2004_sections.rs` is the entry point: it walks the maps,
+then every section, and prints one line per page, hole and section that does
+not depend on how the source was chunked (`page`, `hole`, `page_end` with
+the page's CRC-32, `section_done` with the whole section's CRC-32). `--out`
+writes each assembled section; `--legacy` assembles the same sections with
+`section_map::read_section_payload` and prints the same `section_done` lines
+and files. `--stop-after` and `--resume` count steps of the data-page walk
+and save the page index in `<checkpoint>.caller`. `tools/streaming/verify_sections.py`
+runs it on the four canonical R2004-family fixtures, the 21 pinned nextgis
+files and a file the verifier builds (holes, a zero page, a section that
+lists no page, padded and exact last pages, stored and compressed sections):
+every output line and every assembled byte equals an independent Python
+assembly (its own §4.7 decoder and checksums), and every section equals the
+legacy reader's; five fixed schedules and 128 proptest schedules on three
+files reproduce it. A fresh process resumes at every step of the canonical
+R2018 fixture and at about 80 stops of each of three real files and the built
+one, chosen around every page, hole and section end: the source reads and
+output of the two processes concatenate to the uninterrupted run's, the
+bytes written equal the section, and all six checkpoint kinds (idle, header,
+checksum pass, decoding LZ77, decoding stored, done) were among them. Bit
+flips at every byte and every truncation of a checksum-pass checkpoint are
+rejected, as are 120 sampled of each for a decoding one, a wrong identity
+and twenty resealed unreachable states; and pages the sidecar index lies
+about are refused by the walker. On the canonical R2004 fixture and one real
+file per release band nine corruptions end in their named error: both checksums, five
+header fields with the header resealed, a stream shorter than its place and
+one that outgrows the page size; on the built file, a short page, an
+encrypted section, a stored page's checksum and type and an overrun. One
+real file with a page moved past the section's end (rewriting a literal byte
+of the section map and resealing both pages) agrees with both oracles.
+
+Not covered here: object bodies, R2007, and throughput. The section walker
+needs the caller's page index; the whole-file walker (next section) does not.
+
+## The whole R2004-family file (§4.1, §4.3–§4.6)
+
+`streaming::R2004Walker` is the map walker and the section walker behind
+one state and one checkpoint, for a caller that has no page index and wants
+none. A walker with fixed state cannot hold the page index (page number to
+address, unbounded), so it does not walk in section order. Pass A is the map
+walk: the header, the page map and the section map. Each section description
+goes into a fixed table of at most 64 slots (`MAX_SECTIONS`; real drawings
+have 14 or fewer; one more is `SectionTableFull`) and is also handed to the
+caller as a `Section` step; each section's page references are counted and
+folded into a digest, not kept. Pass B reads the page map again, entry by
+entry, and walks each data page it lists, in the order the page map gives:
+the page's checksummed header names its section and its place in it, which
+is all the section walker needs, so no page index is passed in, and the page
+is then read, checked and decoded exactly as in the section walker. A page
+of a section the section map does not describe is `SectionPageUnknown`.
+Bytes come out tagged with their section and offset (`Data { section_id,
+offset, len }`) in page-map order, and the consumer scatters them; holes
+are whatever it never writes.
+
+At the end, for every section, the count and the digest of the page
+references the section map listed must equal the count and the digest of the
+pages the page map held (`SectionDigest`). The digest is the wrapping sum
+over pages of a splitmix64 mix of (page number, start offset, data size), so
+a listed page that is missing, one walked twice, one that is not listed and
+one in the wrong place each change it, whatever order the page map holds
+them in. The legacy reader accepts any order, and so does this walk. The
+digest is an integrity check on a file whose page headers are already
+checksummed, not a security boundary. A page's data size is the length of its
+stored bytes (a whole page for a stored section, the compressed length for
+an LZ77 one), so it cannot be bounded by the section's size and is not; what
+bounds a page is its start offset, a multiple of the section's page size, and
+the section's size: a padded last page's bytes past the end of the section are
+decoded, to reach the stream's end and its checksums, and dropped.
+
+The page map is read twice (passes A and B) and each data page three times:
+its 32-byte header to start the walk, then the checksum pass and the decoding
+pass of the section walker. State is the two walkers (two decoder windows)
+and the table, bounded at `2 * WINDOW + 8192` in the `no_std` kernel.
+`R2004WalkCheckpoint` (`DWGF`) holds the table, the map walker's checkpoint,
+and while a page is walked the section walker's; at most about 100 KB. It is
+self-contained: restore needs the source identity and nothing else, and what
+the caller keeps are the cursors over the bytes it was handed. Restore
+requires a state the walk can reach: both embedded walkers validated by their
+own restore, then the table (indexes in order, ids unique, references no more
+than the pages declared, pages seen no more than listed, a finished walk's
+digests equal), the stage against the map walker's mode and refs left, and
+the page in hand against the table.
+
+`examples/stream_r2004_file.rs` is the entry point. It prints a `section`
+line per section, a `page` and `page_end` line per page (the page's CRC-32)
+and the end of the walk, none of which depends on the chunking; with `--out`
+it writes each section sparsely to `<dir>/<index>.bin` and prints a
+`section_done` line (size and CRC-32 read back from the file) per section;
+`--legacy` assembles the same sections with `read_section_payload`.
+`--stop-after` and `--resume` take the checkpoint alone and keep the output
+cursors in `<checkpoint>.caller`. `tools/streaming/verify_file.py` runs it on
+the four canonical R2004-family fixtures, the 21 pinned nextgis files and a
+file it builds three ways (pages in section order, reversed and shuffled
+in the file and the page map): every line and every assembled byte equals an
+independent Python assembly and the legacy reader (321 pages, 306
+sections); five fixed and 128 proptest schedules; a fresh process resumes at
+every step of the R2018 fixture and about 80 stops of each of three real
+files and the built ones, with all six stages checkpointed and source reads and
+output concatenating exactly. Bit flips at every byte and every truncation of a
+small checkpoint, 100 sampled of each for a walking one, a wrong identity and
+50 resealed unreachable states are rejected. On the canonical R2004
+fixture and one real file per release band six corruptions end in their named
+error (both checksums, a page type, a section the map does not describe, a start
+offset the map does not list, a data size); on the built file a listed page the
+page map lacks, one it lists twice, an unlisted page of a known section, a page
+of an unknown section, 65 sections and an encrypted section.
+
+Not covered: object bodies, R2007, throughput, and R13 (no AC1012 drawing is
+available to walk).
 
 ## LZ77 decoder (R2004 family, §4.7)
 
@@ -322,6 +488,51 @@ them, was checked by hand (53 pages equal), and adding them to
 `lz77-corpus.json` is a follow-up. R2007 uses a different compression (§5.10) and is not
 covered.
 
+## Cross-runtime restore (R2004 walks)
+
+`tools/streaming/wasm_resume.rs` is a `#![no_std]` WebAssembly module built
+from the identical grammar files (`rustc --target wasm32-unknown-unknown`,
+no allocator). A host copies the source bytes, a checkpoint and the caller's
+cursors into its scratch memory, calls an export and reads back the JSON
+lines the native examples print: `resume_maps` restores a `DWGM`
+checkpoint and finishes the page map and section map walk, `resume_section`
+restores a `DWGS` checkpoint (given the section's rows of the caller's page
+index and the saved cursors) and finishes that section, and `run_maps` walks
+for a number of steps and leaves a `DWGM` checkpoint for the native build.
+`resume_file` restores a `DWGF` checkpoint of the whole-file walker, given
+only the saved page CRC-32, length and number, and finishes the whole walk;
+`run_file` walks for a number of steps and leaves a `DWGF` checkpoint.
+`tools/streaming/wasm_resume.mjs` drives it under node, a fresh instance per
+job, and `tools/streaming/verify_wasm.py` is the acceptance run.
+
+On the canonical R2018 fixture and `line_2004.dwg`, `line_2010.dwg` and
+`line_2013.dwg` (a file the verifier builds for the section walk): every
+native map-walk checkpoint (every step of the fixture, about 40 sampled of
+each real file) restored in the kernel finishes with exactly the lines the
+native resume prints, with the kernel reading at 1, 7, 64 or 256 bytes at a
+time; the kernel's own checkpoint at the same step is byte-identical to the
+native one in all of them, and the native build resumes it to the
+uninterrupted run's output. About 90 native data-page checkpoints of each
+file, around every page, hole and section end, restored in the kernel finish
+their section with the lines the native resume prints, and the section's
+CRC-32 equals the independent assembly of `verify_sections.py`. A bit flip
+anywhere sampled in a native checkpoint of either walk, and a wrong
+identity, are refused by the kernel as by the native build. The kernel runs
+under node (V8), not in a browser, and the section walk crosses runtimes in
+one direction only.
+
+The whole-file walker crosses both ways, from its checkpoint alone: about 60
+native `DWGF` checkpoints per file (the fixture, the three real files and a
+built file whose pages are shuffled in the file and the page map), around every
+section, page and the end of the walk, restored in the kernel with no page
+index and no section list, finish with the lines the native resume prints, at
+kernel read sizes of 1, 7, 64 and 256 bytes; the kernel's own `DWGF`
+checkpoint at the same step is byte-identical to the native one in every case
+(55, 61, 60, 61, 62 and 62 of as many), with equal output cursors, and the
+native build resumes it to the uninterrupted run's output. A sampled bit flip of
+a native checkpoint of each of the three walks, and a wrong identity, are
+refused by the kernel.
+
 ## Checkpoint contract
 
 A checkpoint contains the source identity and length, phase, byte position,
@@ -375,12 +586,15 @@ rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/str
 The R13–R2000 walk and the LZ77 decoder have their own drivers:
 
 ```sh
-cargo build --locked --example stream_walk --example stream_lz77 --example streaming_schedules
+cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example streaming_schedules
 python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
 python3 tools/streaming/verify_r2004.py target/debug/examples/stream_r2004 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_maps.py target/debug/examples/stream_r2004_maps target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_sections.py target/debug/examples/stream_r2004_sections target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_file.py target/debug/examples/stream_r2004_file target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_wasm.py target/debug/examples/stream_r2004_maps target/debug/examples/stream_r2004_sections target/debug/examples/stream_r2004_file
 ```
 
 Run these on the project's build host. The workflow uploads
@@ -393,8 +607,9 @@ resume positions, actual source-read continuity, pending delivery, corrupt
 and inconsistent checkpoints, source mismatch and failure-state restore.
 The real-file manifest records header fields, not object counts. No real R13
 file, multi-gigabyte model or independent object-count oracle has passed
-this reader. The kernel WASM compile does not establish browser runtime or
-cross-runtime checkpoint acceptance.
+this reader. The kernel WASM compile does not establish browser runtime;
+cross-runtime checkpoint acceptance is established only for the R2004 walks
+(below).
 
 ## Current evidence
 

@@ -62,9 +62,14 @@ pub struct DimensionCommon {
     pub horiz_dir: f64,
     pub ins_scale: Point3D,
     pub ins_rotation: f64,
+    /// `BS 71` attachment point; R2000+ (0 on R13/R14, which do not
+    /// store it).
     pub attachment: i16,
+    /// `BS 72` line spacing style; R2000+ (0 on R13/R14).
     pub line_spacing_style: i16,
+    /// `BD 41` line spacing factor; R2000+ (0.0 on R13/R14).
     pub line_spacing_factor: f64,
+    /// `BD 42` actual measurement; R2000+ (0.0 on R13/R14).
     pub actual_measurement: f64,
     pub def_point_12: Point2D,
     pub flip_arrow_1: bool,
@@ -105,10 +110,15 @@ fn read_common_with_strings(
     let horiz_dir = c.read_bd()?;
     let ins_scale = read_bd3(c)?;
     let ins_rotation = c.read_bd()?;
-    let attachment = c.read_bs()?;
-    let line_spacing_style = c.read_bs()?;
-    let line_spacing_factor = c.read_bd()?;
-    let actual_measurement = c.read_bd()?;
+    // §20.4.22: attachment, line spacing and the actual measurement are
+    // R2000+. R13/R14 store none of them, and the four fields are left 0
+    // rather than given defaults the record does not hold.
+    let (attachment, line_spacing_style, line_spacing_factor, actual_measurement) =
+        if version == Version::R14 {
+            (0, 0, 0.0, 0.0)
+        } else {
+            (c.read_bs()?, c.read_bs()?, c.read_bd()?, c.read_bd()?)
+        };
     let (flip_arrow_1, flip_arrow_2) = if version.is_r2007_plus() {
         let _unknown = c.read_b()?;
         (c.read_b()?, c.read_b()?)
