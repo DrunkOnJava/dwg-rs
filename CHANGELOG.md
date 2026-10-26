@@ -8,6 +8,28 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Fixed — Reed-Solomon uses §5.13's codes, as AutoCAD writes them (2026-10-26, closes #275)
+
+`reed_solomon` decoded R2007 system pages with `0x11D`, which §5.13 gives
+to data pages, and read each codeword back to front; no codeword of a real
+file verified. It now implements both §5.13 codes as `Code::SYSTEM_PAGE`
+((255, 239) over `0x169`) and `Code::DATA_PAGE` ((255, 251) over `0x11D`),
+with byte *i* the coefficient of x^i, roots α^1 … α^(n-k) and the message
+first, all measured: on the eight R2007 drawings of the pinned corpus,
+every one of 187 system and 4,425 data codewords verifies, re-encodes to
+AutoCAD's own parity bytes and is restored after (n-k)/2 injected errors
+(`examples/probe_r2007_rs.rs`, run by the Corpus job).
+
+- `reed_solomon::verify`, `syndromes`, `codewords_for_message` and the
+  `CODEWORD_BYTES` / `PARITY_BYTES` / `MESSAGE_BYTES` constants keep their
+  signatures and now mean the system-page code; `Code::verify` returns the
+  number of bytes corrected, and `Code::verify_interleaved` handles §5.13.2.
+- `reed_solomon_encode::encode_with(code, message)` encodes for either code.
+- **Removed:** `reed_solomon::verify_stream` and `decode_stream`, which
+  treated a block as back-to-back 255-byte codewords, a layout §5.13 does
+  not use (it interleaves, §5.13.2, or puts every data block before every
+  parity block, §5.13.1).
+
 ### Added — the roadmap to 1.0 as milestones, epics and a spec coverage matrix (2026-10-21)
 
 The plan is now on GitHub: seven milestones from 0.2.0 to 1.0.0, eighteen
