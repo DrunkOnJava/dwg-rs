@@ -2507,7 +2507,7 @@ and AutoCAD's first chunk in `sample_AC1014.dwg` is 2,033 and in
 `sample_AC1015.dwg` 2,034. The walk's evidence had been limited to files under
 160 KB, whose maps are one short chunk.
 
-## 7ad. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
+## 7ai. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
 
 §5.2 to §5.4 give R2007 a lot of integrity data and say how it was made, not
 what each value covers or how its seed is built: the legacy reader checks none
