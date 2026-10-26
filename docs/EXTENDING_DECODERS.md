@@ -92,75 +92,86 @@ promise of the whole crate.
 
 ## Step 3 — Register it in the dispatcher
 
-Open `src/entities/dispatch.rs` and add your entity to the match
-in `dispatch_entity`. The `ObjectType` enum value is in
-`src/object_type.rs`; if your entity isn't there yet, add it with
-the correct type code from spec §2.12.
+All registration lives in `src/entities/dispatch.rs`. For a
+fixed-code entity (type code below 500, from spec §2.12 and the
+type table in §5), make four edits:
+
+1. Add the type-code constant next to the others
+   (`const OBJECT_TYPE_POINT: u16 = 0x1B;`) and the `ObjectType`
+   variant in `src/object_type.rs` if it is missing.
+2. Add the variant to `DecodedEntity`, and its arm in
+   `DecodedEntity::type_code`.
+3. Name it in `fixed_entity_label`. This is the gate
+   `dispatch_fixed_code` consults *before* decoding: a code with no
+   label comes back `Unhandled` rather than tripping a boundary
+   check.
+4. Add the arm to `decode_fixed_entity_body`:
 
 ```rust
-// src/entities/dispatch.rs
-match object_type {
-    // ... existing arms ...
-    ObjectType::Point => {
-        let decoded = point::decode(&mut cursor)?;
-        DecodedEntity::Point(decoded)
-    }
-    // ... rest ...
-}
+// src/entities/dispatch.rs, fn decode_fixed_entity_body
+OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode(c)?),
 ```
 
-And add the variant to the `DecodedEntity` enum:
+`fixed_entity_label` and `decode_fixed_entity_body` must list the
+same codes; the existing `fixed_entity_label_covers_every_body_arm`
+check in that file fails when they drift.
 
-```rust
-pub enum DecodedEntity {
-    // ...
-    Point(Point),
-    // ...
-}
-```
+You do not call the boundary check yourself. `dispatch_fixed_code`
+runs every body through `checked_inline`, which reads the common
+entity preamble, calls your decoder, and then requires the cursor to
+sit **exactly** on the record's data-stream boundary (the string
+stream on R2010+, the `RL` object-data size on R2000-R2007, the size
+inside the common entity data on R13/R14). A field list that is wrong
+anywhere lands somewhere else and the record reports an error instead
+of plausible-looking geometry.
 
-## Step 4 — Write tests
+Other kinds of record take other routes in the same file:
 
-Every new decoder needs at least two tests:
+- **Custom classes** (type code 500 and up, such as IMAGE or
+  MULTILEADER) resolve through `AcDb:Classes` and dispatch on the DXF
+  class name in `decode_from_raw_with_class_map`
+  (`dispatch_split_stream_class` for entities, `dispatch_object_class`
+  for non-entities).
+- **Entities with `TV` fields** read their text from the R2007+ string
+  stream through `dispatch_split_stream_entity`; see
+  `src/string_stream.rs`.
+- **Symbol-table entries** go through `dispatch_table_entry`, and
+  **non-entity objects** (DICTIONARY, XRECORD, the controls) through
+  `dispatch_object`.
 
-1. **Synthetic round-trip.** Build a valid payload with
-   `BitWriter`, decode it, assert the struct matches:
+## Step 4 — Prove it on real files
 
-   ```rust
-   #[test]
-   fn roundtrip_point() {
-       let mut w = BitWriter::new();
-       w.write_bd(1.0);
-       w.write_bd(2.0);
-       w.write_bd(3.0);
-       w.write_b(true);  // thickness = default
-       w.write_b(true);  // extrusion = default
-       w.write_bd(0.0);  // x_axis_angle = 0
-       let bytes = w.into_bytes();
-       let mut c = BitCursor::new(&bytes);
-       let p = decode(&mut c).unwrap();
-       assert_eq!(p.position, Point3D::new(1.0, 2.0, 3.0));
-       assert_eq!(p.thickness, 0.0);
-   }
+The proof that a decoder is right is the corpus, not a synthetic
+payload you built to match your own reading of the spec. Do not add
+unit tests (the pull-request template asks for none).
+
+1. Measure before and after with the coverage report on real
+   drawings:
+
+   ```bash
+   cargo run --release --example coverage_report -- path/to/corpus/
    ```
 
-2. **Truncation test.** Feed a too-short byte slice and assert the
-   decoder returns `Err`, not panics:
+   Records of your type should move from the unhandled column to
+   decoded, with no new errors. A record that errors names the bit
+   it stopped at and the bit the boundary sits at; that delta is the
+   next thing to explain.
+2. Check the values, not just the count:
 
-   ```rust
-   #[test]
-   fn decode_errors_on_truncated_input() {
-       let bytes = [0x00u8; 2]; // way too short
-       let mut c = BitCursor::new(&bytes);
-       assert!(decode(&mut c).is_err());
-   }
+   ```bash
+   cargo run --release --example dump_decoded_entities -- path/to/file.dwg
    ```
 
-If you have a known real-world payload (e.g., from a public
-corpus file), commit it under
-`tests/fixtures/raw_entities/` with a `README.md` explaining the
-source — then add a test that decodes it and asserts expected
-field values.
+   Compare the decoded fields with what the drawing actually holds
+   (its DXF export, where the corpus has one).
+3. When a field list does not close, `probe_entity_budgets` and
+   `probe_decode_errors` show each record's bit budget and the error
+   per type.
+
+Paste the before and after coverage tables, the commands, and the
+corpus records you measured into the pull request. A new fact about
+the format also gets a probe under `examples/` and a dated section in
+`ARCHITECTURE.md` (see CONTRIBUTING.md).
 
 ## Step 5 — Defensive caps
 
@@ -193,13 +204,19 @@ This pattern is documented in
 `src/entities/lwpolyline.rs::MAX_VERTICES`; copy it for any
 count-driven decoder.
 
-## Step 6 — Run the tests + linter
+## Step 6 — Run the gate
 
 ```bash
-cargo test --release --lib entities::<name>::
+cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo fmt --all
+cargo test --release --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 ```
+
+The real-file integration tests (`tests/samples.rs` and its
+neighbours) look for the corpus at `../../samples` relative to the
+crate and skip silently when it is absent, so a passing run only
+covers real drawings if that directory exists.
 
 Then push your PR. The template at
 `.github/PULL_REQUEST_TEMPLATE.md` includes the source-provenance

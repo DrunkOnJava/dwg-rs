@@ -14,7 +14,7 @@ Do not open a public issue for security problems.
 `dwg-rs` is a parser that consumes potentially untrusted input — any DWG
 file from any source. The relevant threat classes are:
 
-- **Memory safety** — all code is safe Rust (`#![deny(unsafe_code)]` in
+- **Memory safety** — all code is safe Rust (`#![forbid(unsafe_code)]` in
   `lib.rs`). Out-of-bounds reads, integer overflows, and panic-on-malformed
   inputs are the primary concerns.
 - **Denial of service** — a crafted file that causes exponential runtime
