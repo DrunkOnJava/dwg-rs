@@ -2492,16 +2492,17 @@ same holds for the other 20 (`stream_walk`, each against `stream_walk --legacy`)
 
 | source | records | decoded | skipped | errored |
 |---|---|---|---|---|
-| `Cabin.dwg` | 3,590 | 3,345 | 1 | 244 |
-| Sovol, 21 drawings | 24,124 | 23,901 | 181 | 42 |
+| `Cabin.dwg` | 3,590 | 3,353 | 0 | 237 |
+| Sovol, 21 drawings | 24,124 | 23,901 | 21 | 202 |
 
-The 286 errors are ATTRIB and ATTDEF (187 and 57, `Cabin.dwg`) and LEADER (42,
-Sovol), the same families that error on the R14, R2000 and R2004 files of the
-corpus, and the 182 skipped are the R13/R14 DIMSTYLE block (161) and one `SUN`
-class record per Sovol file (21). Those decoders are other work; the next
-section is what R13 itself needs from them. MTEXT is the one that has landed:
-all 3,968 MTEXT records of the Sovol drawings error until the R13-R14 branch
-of its decoder asks `is_r13_r14()`, and close once it does.
+(Measured with main at 4ec356a merged in.) The 439 errors are ATTRIB and ATTDEF
+(179 and 57, `Cabin.dwg`), the R13/R14 DIMSTYLE block (161, one in `Cabin.dwg`)
+and LEADER (42, Sovol); the 21 skipped are one `SUN` class record per Sovol
+file. Each error is a decoder that reached main with its R13-R14 branch tested
+as `== Version::R14`, so R13 takes the R2000 branch and misses its boundary:
+on R14 and every later release the same decoders close all of them. MTEXT is the
+one that asked `is_r13_r14()`: all 3,968 MTEXT records of the Sovol drawings
+error until it does, and close once it does.
 
 ### Where R13 departs from the text
 
@@ -2529,15 +2530,16 @@ of its decoder asks `is_r13_r14()`, and close once it does.
    their `RL` boundary (by exactly 8 bits when the dictionary is empty); with the byte read
    only on R14 they all close.
 4. **§20.4.47 LEADER: `Endptproj` is "R14+", not "R13-R14".** R13 has no end
-   point projection. With a scratch tree carrying the open LEADER decoder, all
-   42 Sovol LEADER records error when the three `BD`s are read and all 42 close
-   when R13 skips them.
+   point projection. With the LEADER decoder as merged, all 42 Sovol LEADER
+   records error when the three `BD`s are read on R13, and all 42 close when
+   R13 skips them.
 5. **The R13-R14 branches other decoders wrote as `== Version::R14`.** MTEXT
-   and LWPOLYLINE are fixed here. With TEXT, ATTRIB, ATTDEF, LEADER and the
-   R13/R14 DIMSTYLE block (open work) applied in a scratch tree and each
-   `== Version::R14` read as `is_r13_r14()` (and point 4), **every one of the
-   27,714 R13 records decodes or is one of the 21 `SUN` records**: `Cabin.dwg` 3,590 decoded, 0 skipped, 0 errored; the 21
-   Sovol drawings 24,103 decoded, 21 skipped (the `SUN` class), 0 errored.
+   and LWPOLYLINE are fixed here. TEXT, ATTRIB, ATTDEF, LEADER and the R13/R14
+   DIMSTYLE block reached main as `== Version::R14`; with each read as
+   `is_r13_r14()` (and point 4), **every one of the 27,714 R13 records decodes
+   or is one of the 21 `SUN` records**: `Cabin.dwg` 3,590 decoded, 0 skipped, 0
+   errored; the 21 Sovol drawings 24,103 decoded, 21 skipped (the `SUN` class),
+   0 errored.
    Where a field is "R13-R14 Only" the two releases share it; no other R13
    difference turned up.
 
