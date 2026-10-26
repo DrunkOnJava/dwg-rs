@@ -13,9 +13,9 @@ verification receipts go to `docs/streaming/` or uploaded CI artifacts.
 | Review startup drift, health queue, Git and active jobs | complete | Counts reviewed; no Rust build; existing clients preserved; isolated clean worktree |
 | Audit current reader against requested invariants | complete | Whole-file reads in reader; whole-section buffers; WASM copies uploaded file |
 | File ordered gaps in GitHub, link existing issues | complete | Epic #204 and ordered gaps #205–#212 |
-| Hand-written byte-demand state machine | in progress | Header core passed remote E2E at 9a93736 (run 40234332022); full container/object migration #205 remains open |
+| Hand-written byte-demand state machine | in progress | Header core passed remote E2E at 9a93736 (run 40234332022). R13–R2000 container walk (sections, object map, record framing, type, handle) matches an independent parse and the legacy reader on 3,546 records in 15 files; object bodies, R2004+ containers and decompression remain #205 |
 | Transport abstraction | in progress | File/slice adapters and real-file E2E passed at 422dc67 (run 40234514166); network/worker adapters remain #206 |
-| Portable checkpointing | in progress | Header state passed fresh-process restore at 98 byte positions, failed-state restore and malformed checkpoint rejection at a6dc6ba (run 40234765141); decompression/object state remains #207 |
+| Portable checkpointing | in progress | Header state passed fresh-process restore at 98 byte positions, failed-state restore and malformed checkpoint rejection at a6dc6ba (run 40234765141). Walk state resumes at every feed of the canonical file and 66 per real file with no re-read or duplicate output; decompression and object-body state remain #207 |
 | Spec compiler upgrade | pending | Only after a working hand-written reader; never patch generated output |
 | WASM streaming API and native/WASM gate | pending | Existing full-buffer WASM is insufficient |
 | Boundary fuzzing through real entry point | pending | proptest-driven executable, one byte and random splits |

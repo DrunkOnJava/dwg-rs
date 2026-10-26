@@ -2,6 +2,7 @@
 //! transport handles. CRC detects corruption, not malicious forgery; source
 //! identity is verified by the caller against its trusted immutable source.
 
+use super::flat::{FlatWalker, MapCursor, Stage};
 use super::{CHUNK_BYTES, FlatHeaderParser, SourceIdentity, StreamError};
 
 const PREFIX: usize = 56;
@@ -109,5 +110,128 @@ impl FlatHeaderParser {
             return Err(StreamError::InvalidCheckpoint);
         }
         Ok(parser)
+    }
+}
+
+const WALK_FIXED: usize = 6;
+const WALK_BODY: usize = 87;
+
+/// Serialized container-walk state: a header checkpoint (validated by
+/// replay) followed by the walk cursors (validated against the verified
+/// locators). Fits one declared chunk.
+#[derive(Debug, Clone)]
+pub struct WalkCheckpoint {
+    bytes: [u8; CHUNK_BYTES],
+    len: usize,
+}
+
+impl WalkCheckpoint {
+    /// The canonical wire bytes, ready for storage or cross-runtime transfer.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl FlatWalker {
+    /// Serialize the walk between feeds. A failed walk is terminal and has
+    /// no checkpoint; its error is returned instead. Provisional payload
+    /// already handed out, and anything derived from it, is the caller's
+    /// to save alongside.
+    pub fn checkpoint(&self) -> Result<WalkCheckpoint, StreamError> {
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        let header = self.header.checkpoint()?;
+        let header = header.as_bytes();
+        let body = WALK_FIXED + header.len();
+        let mut result = WalkCheckpoint {
+            bytes: [0; CHUNK_BYTES],
+            len: body + WALK_BODY + TRAILER,
+        };
+        let b = &mut result.bytes;
+        b[..4].copy_from_slice(b"DWGW");
+        b[4] = 1;
+        b[5] = header.len() as u8;
+        b[WALK_FIXED..body].copy_from_slice(header);
+        let w = &mut b[body..body + WALK_BODY];
+        w[0] = self.stage as u8;
+        w[1..5].copy_from_slice(&self.done.to_le_bytes());
+        w[5..9].copy_from_slice(&self.size.to_le_bytes());
+        w[9..11].copy_from_slice(&self.crc.to_le_bytes());
+        w[11..15].copy_from_slice(&self.field);
+        w[15..31].copy_from_slice(&self.head);
+        w[31..39].copy_from_slice(&self.object.to_le_bytes());
+        w[39] = self.ms_len;
+        w[40] = self.words;
+        w[41..49].copy_from_slice(&self.map.chunk.to_le_bytes());
+        w[49..53].copy_from_slice(&self.map.len.to_le_bytes());
+        w[53..61].copy_from_slice(&self.map.at.to_le_bytes());
+        w[61..69].copy_from_slice(&self.map.handle.to_le_bytes());
+        w[69..77].copy_from_slice(&self.map.loc.to_le_bytes());
+        w[77..85].copy_from_slice(&self.map.mc.to_le_bytes());
+        w[85] = self.map.shift;
+        w[86] = self.map.field;
+        let end = result.len - TRAILER;
+        let checksum = crate::crc::crc32(0, &b[..end]);
+        b[end..result.len].copy_from_slice(&checksum.to_le_bytes());
+        Ok(result)
+    }
+
+    /// Restore against an independently supplied source identity. The
+    /// embedded header is replayed; the cursors must form a reachable
+    /// state over its locators. No source bytes are read or requested.
+    pub fn restore(input: &[u8], expected_source: SourceIdentity) -> Result<Self, StreamError> {
+        if input.len() < WALK_FIXED + WALK_BODY + TRAILER || input.len() > CHUNK_BYTES {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let body = WALK_FIXED + usize::from(input[5]);
+        if &input[..4] != b"DWGW" || input[4] != 1 || input.len() != body + WALK_BODY + TRAILER {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let end = input.len() - TRAILER;
+        if input[end..] != crate::crc::crc32(0, &input[..end]).to_le_bytes() {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let header = FlatHeaderParser::restore(&input[WALK_FIXED..body], expected_source)?;
+        let mut walker = Self::from_header(header);
+        let w = &input[body..end];
+        let u32_at = |at: usize| u32::from_le_bytes([w[at], w[at + 1], w[at + 2], w[at + 3]]);
+        let u64_at = |at: usize| {
+            let mut bytes = [0; 8];
+            bytes.copy_from_slice(&w[at..at + 8]);
+            u64::from_le_bytes(bytes)
+        };
+        walker.stage = match w[0] {
+            0 => Stage::Header,
+            1 => Stage::Vars,
+            2 => Stage::Classes,
+            3 => Stage::Chunk,
+            4 => Stage::Entry,
+            5 => Stage::Object,
+            6 => Stage::Done,
+            _ => return Err(StreamError::InvalidCheckpoint),
+        };
+        walker.done = u32_at(1);
+        walker.size = u32_at(5);
+        walker.crc = u16::from_le_bytes([w[9], w[10]]);
+        walker.field.copy_from_slice(&w[11..15]);
+        walker.head.copy_from_slice(&w[15..31]);
+        walker.object = u64_at(31);
+        walker.ms_len = w[39];
+        walker.words = w[40];
+        walker.map = MapCursor {
+            chunk: u64_at(41),
+            len: u32_at(49),
+            at: u64_at(53),
+            handle: u64_at(61),
+            loc: u64_at(69),
+            mc: u64_at(77),
+            shift: w[85],
+            field: w[86],
+        };
+        if !walker.consistent() {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        Ok(walker)
     }
 }
