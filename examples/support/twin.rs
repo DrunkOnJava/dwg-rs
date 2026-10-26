@@ -268,7 +268,8 @@ impl Tally {
 }
 
 /// What one probe measures: the records of `class` (a custom class) and of
-/// `kind` (a fixed type), the DXF record type they pair with, and the
+/// `kind` (a fixed type), the DXF record type they pair with (empty when the
+/// DXF exports hold none, so that only the boundary is checked), and the
 /// releases that must decode.
 pub struct Probe<'a> {
     pub tag: &'a str,
@@ -330,10 +331,13 @@ pub fn run(
                 }
                 _ => {
                     let mut tally = Tally::default();
-                    let rec = d
-                        .twin
-                        .as_ref()
-                        .map(|t| t.record(handle).filter(|r| r.kind == p.dxf_kind));
+                    let rec = if p.dxf_kind.is_empty() {
+                        None
+                    } else {
+                        d.twin
+                            .as_ref()
+                            .map(|t| t.record(handle).filter(|r| r.kind == p.dxf_kind))
+                    };
                     if matches!(rec, Some(None)) {
                         failed = true;
                         println!(
@@ -379,7 +383,7 @@ pub fn run(
         "total: {} values compared, {} differ, {} omitted by the DXF{}",
         total.compared, total.differ, total.omitted, p.note
     );
-    if failed || total.differ > 0 || total.compared == 0 {
+    if failed || total.differ > 0 || (total.compared == 0 && !p.dxf_kind.is_empty()) {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
