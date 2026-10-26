@@ -52,6 +52,7 @@
 //! §5.10-compressed stream this crate has no encoder for.
 
 use dwg::bitwriter::BitWriter;
+use dwg::crc;
 use dwg::element_encoder::ElementEncoder;
 use dwg::entities::arc::Arc;
 use dwg::entities::circle::Circle;
@@ -60,6 +61,7 @@ use dwg::entities::point::Point;
 use dwg::entities::{Point3D, Vec3D};
 use dwg::file_writer::{WriterScaffold, assemble_dwg_bytes, atomic_write};
 use dwg::handle_map::{HandleEntry, HandleMap, write_handle_map};
+use dwg::streaming::END_SENTINEL;
 use dwg::version::Version;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -366,7 +368,8 @@ fn build_fixture(version: Version) -> Result<Vec<u8>, String> {
 /// directly rather than assembled by [`WriterScaffold`].
 ///
 /// ```text
-/// 0x00  magic, codepage, locator count, three locator records
+/// 0x00  magic, codepage, locator count, three locator records,
+///       header CRC and end sentinel
 /// 0x100 AcDb:Header placeholder      -- locator 0
 /// 0x140 object records, back to back -- addressed by the object map
 /// ...   AcDb:Handles object map      -- locator 2
@@ -411,6 +414,11 @@ fn build_flat_fixture(version: Version) -> Result<Vec<u8>, String> {
         file[at + 1..at + 5].copy_from_slice(&seeker.to_le_bytes());
         file[at + 5..at + 9].copy_from_slice(&size.to_le_bytes());
     }
+    let crc_at = 0x19 + locators.len() * 9;
+    let seed = crc::r13_locator_seed(locators.len()).ok_or("no locator CRC seed")?;
+    let header_crc = crc::crc8(0, &file[..crc_at]) ^ seed;
+    file[crc_at..crc_at + 2].copy_from_slice(&header_crc.to_le_bytes());
+    file[crc_at + 2..crc_at + 18].copy_from_slice(&END_SENTINEL);
     file[OBJECTS_AT..map_at].copy_from_slice(&objects);
     file[map_at..].copy_from_slice(&handle_bytes);
     Ok(file)

@@ -1,0 +1,12 @@
+//! Compile the identical grammar with neither std nor an allocator available.
+//! This gate covers the new streaming module, not the legacy reader.
+#![no_std]
+#![forbid(unsafe_code)]
+
+#[path = "../../src/crc.rs"]
+pub mod crc;
+#[path = "../../src/streaming/mod.rs"]
+pub mod streaming;
+
+const _: () = assert!(core::mem::size_of::<streaming::FlatHeaderParser>() <= 512);
+const _: () = assert!(core::mem::size_of::<streaming::Checkpoint>() <= 272);
