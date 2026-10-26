@@ -149,26 +149,23 @@ fn output_is_valid_utf8_with_line_based_pairs() {
     let Some(dxf) = convert_or_skip("line_2013.dwg", DxfVersion::R2018) else {
         return;
     };
-    // DXF group-code lines are padded to 3 chars; every non-empty
-    // line that looks like a group code should parse as a small int.
+    // A DXF file is group-code / value line pairs, so the group codes are the
+    // even-numbered lines. (A value line such as `$TREEDEPTH`'s `3020` looks
+    // like a group code, so lines cannot be told apart by their shape.)
     // This catches accidental binary-sneaking-into-ASCII bugs.
+    let lines: Vec<&str> = dxf.lines().collect();
+    assert_eq!(lines.len() % 2, 0, "odd number of lines: not group pairs");
     let mut code_lines = 0usize;
-    for line in dxf.lines() {
-        let t = line.trim();
-        if t.is_empty() {
-            continue;
-        }
-        // A group-code line is at most 4 chars (pad to 3 plus sign).
-        if t.len() <= 4 && t.chars().all(|c| c.is_ascii_digit()) {
-            let n: i32 = t
-                .parse()
-                .unwrap_or_else(|_| panic!("group-code line not a valid int: {line:?}"));
-            assert!(
-                (0..=1071).contains(&n),
-                "group code {n} outside DXF range 0..=1071"
-            );
-            code_lines += 1;
-        }
+    for pair in lines.chunks(2) {
+        let t = pair[0].trim();
+        let n: i32 = t
+            .parse()
+            .unwrap_or_else(|_| panic!("group-code line not a valid int: {:?}", pair[0]));
+        assert!(
+            (0..=1071).contains(&n),
+            "group code {n} outside DXF range 0..=1071"
+        );
+        code_lines += 1;
     }
     assert!(
         code_lines >= 10,
