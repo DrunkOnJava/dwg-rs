@@ -44,9 +44,16 @@ jobs:
           workspaces: wasm -> target
           key: pages-wasm-${{ runner.os }}
 
+      # The installer downloads a release tarball from GitHub, which
+      # sometimes answers 5xx; retry a few times before failing the job.
       - name: Install wasm-pack
         run: |
-          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+          set -o pipefail
+          for attempt in 1 2 3 4 5; do
+            curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && break
+            [ "$attempt" = 5 ] && exit 1
+            sleep $((attempt * 15))
+          done
           wasm-pack --version
 
       - name: Build wasm

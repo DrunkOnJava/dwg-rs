@@ -554,10 +554,12 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         }
         DecodedEntity::Leader(l) => {
             println!(
-                "[{i}] LEADER  annot_type={} path_type={} points={}",
+                "[{i}] LEADER  annot_type={} path_type={} points={} box={:?} x {:?}",
                 l.annot_type,
                 l.path_type,
-                l.points.len()
+                l.points.len(),
+                l.box_height,
+                l.box_width
             );
         }
         DecodedEntity::Image(_) => {
@@ -569,8 +571,17 @@ fn print_entity(i: usize, e: &DecodedEntity) {
         DecodedEntity::MLeader(_) => {
             println!("[{i}] MLEADER (multileader custom class)");
         }
-        DecodedEntity::Viewport(_) => {
-            println!("[{i}] VIEWPORT (stub)");
+        DecodedEntity::Viewport(v) => {
+            println!(
+                "[{i}] VIEWPORT  center=({:.6}, {:.6}, {:.6}) {:.6} x {:.6}",
+                v.center.x, v.center.y, v.center.z, v.width, v.height
+            );
+            if let Some(view) = &v.view {
+                println!(
+                    "        view_center=({:.6}, {:.6}) view_height={:.6} status=0x{:X}",
+                    view.view_center.x, view.view_center.y, view.view_height, view.status_flags
+                );
+            }
         }
         DecodedEntity::SeqEnd(_) => {
             println!("[{i}] SEQEND");

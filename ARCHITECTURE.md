@@ -405,18 +405,20 @@ every split-stream decoder can check itself: `tables::modern::SplitStream::finis
 rejects the record unless the data cursor lands on the string-stream
 start bit. That converts a mis-read field layout from *silently wrong
 values* into an error naming the bit offset and the deviation — which
-is how the R2007+ VIEW ambient-colour form, the VPORT flag block, the
-DIMSTYLE `AcDs`-binary-data byte and TEXT's `RD` height were each
-found.
+is how the R2007+ VIEW ambient-colour form, the VPORT flag block and
+TEXT's `RD` height were each found. It also produced one false finding,
+a DIMSTYLE "`AcDs`-binary-data byte", which §7x shows was the table
+prefix's `BL num_reactors` read two bits late: a boundary check proves a
+field list's width, not which field holds which bits.
 
 ### Other findings that fell out of the same work
 
 | Finding | Evidence |
 |---|---|
-| Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard` |
+| ~~Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B`~~ Superseded by §7x: the prefix holds a `BL num_reactors` this reading skipped, and after it two bits remain, read as `B 64-flag, B Xdep` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard`. The `10` was the 64-flag and Xdep bits |
 | VIEW / VPORT / LAYER / DIMSTYLE colours use a full `CMC`: `BS` index + `BL` true colour + `RC` byte, unconditionally | VIEW `view_custom` ambient reads index 0 with no flags yet is followed by `BL = 0xC2333333`; LAYER `0` reads `0xC3000007` |
 | `BL` top byte selects the colour form: `0xC3` = ACI index in the low byte, `0xC2` = literal RGB | `Layer_color_80` reads ACI 80; `Layer_true_color` reads `0xC2…` |
-| The R2013+ "has AcDs binary data" bit is followed by an `RC` | The two DIMSTYLE records in `sample_AC1032.dwg` with the bit set need exactly 8 more prefix bits than the four with it clear |
+| ~~The R2013+ "has AcDs binary data" bit is followed by an `RC`~~ Superseded by §7x: no bits follow the flag; the `RC` was the reactor count | The two DIMSTYLE records in `sample_AC1032.dwg` "with the bit set" need exactly 8 more prefix bits than the four with it clear. They are the two with reactors (8 and 2), whose `BL` is the code `01` and a byte |
 | TEXT `height` is a raw `RD`, not a `BD` | With `DataFlags 0xFF`, object #236's remaining 66 bits are `BE` + `BT` + a 64-bit `1.0` at bit 220 |
 | LAYER `values` bits: `0x01` frozen, `0x02` off, `0x04` frozen-in-new, `0x08` locked, `0x10` plot, bits 5-9 lineweight index | `sample_AC1032.dwg` names its layers after their state and every one matches |
 
@@ -518,19 +520,18 @@ that, so each decoder writes its field list exactly once.
 EED chain
 BL   num_reactors
 B    no_xdictionary_handle   -- R2004+
-B    has_ds_binary_data      -- R2013+ (an RC follows when set)
+B    has_ds_binary_data      -- R2013+ (no further bits, §7h)
 ```
 
 Measured three independent ways: DICTIONARY's `BL numitems` decodes to
 the number of strings its string stream actually holds only with the
 `BL` consumed; ACDB_PLACEHOLDER, whose body is provably empty, closes
 exactly; and the nine one-field `*_CONTROL` records close on their
-`BL numentries`. Note that `tables/modern.rs` deliberately does *not*
-read this `BL` and compensates with a different flag order — the two
-readings sum to the same total for an APPID record, so both satisfy the
-boundary check, and which one assigns the right values to the right
-fields is not determinable from the 16 bits an APPID record spends
-there.
+`BL numentries`. `tables/modern.rs` used to skip this `BL` and
+compensate with a different flag order; both readings summed to the
+same total for an APPID record, so both satisfied the boundary check.
+§7x settles it against AutoCAD's DXF: the symbol-table prefix holds the
+`BL` too.
 
 **Every object decoder is self-validating.** `ObjectStream::finish`
 requires the data fields to end exactly on the record's data-stream
@@ -1227,9 +1228,9 @@ So the flag is a flag. The 16 bits LAYOUT needs are LAYOUT's own, and
 they moved to `src/objects/acad_layout.rs` as a two-byte data-store
 block at the head of its §20.4.84 list, still conditional on the flag
 and still closing all 31 corpus LAYOUT records. `tables/modern.rs`
-keeps its `RC` for now: that path also omits the `BL num_reactors`
-`objects/modern.rs` reads, so its bit accounting has a second unresolved
-variable and is out of scope here. Three record types needing three
+kept its `RC` at the time: that path also omitted the `BL num_reactors`
+`objects/modern.rs` reads, so its bit accounting had a second unresolved
+variable. §7x resolved both: the `RC` was that `BL`. Three record types needing three
 different widths is itself the argument that the width belongs to the
 record, not to the flag.
 
@@ -1303,9 +1304,9 @@ are fixed; three are not and are reported.
 | BLOCK | 45 (R2010/R2013/R2018) | +58 … +266 | the one `TV` was read inline; on R2010+ it lives in the string stream and the record's field budget is **0 bits** on all 33 R2010+ records measured | fixed — names now decode as `*Model_Space`, `_ArchTick`, `MyBlock`, matching the BLOCK_RECORD entries they pair with |
 | POLYLINE_PFACE | 1 (R2018) | +52 | five `BS` counts and two inline `H` handles, where the record holds `BS`, `BS`, `BL` in 30 bits | fixed — reads 5 vertices, 2 faces, 7 owned objects |
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
-| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported |
-| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported |
-| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
+| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7u) |
+| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported; closed 2026-10-26 by the DXF twin (§7w) |
+| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported; closed 2026-10-26 by the whole §20.4.47 list (§7ab) |
 
 The three fixes each meet the same bar as #58: `delta 0` **plus** a
 value that corroborates it independently of the bit count. BLOCK's
@@ -1366,7 +1367,7 @@ changed by this work; each waits on a second file.
 | MULTILEADER's 17 bits | §7g above, `entities/mleader.rs` | 17 bits between `B 293 is annotative` and the R2010+ `BS 271` that §20.4.48 does not list. Read as `MC` + `B`; `B` + `RS` and `B` + two `RC`s consume the same bits. The `MC` holds only `274`, `530`, `786` across 15 records and the `B` is `true` on all of them | one record whose value exceeds `RS` range, or whose `B` is false |
 | UNDERLAY clip-vertex encoding | `entities/underlay.rs` | whether a clip vertex is `2BD` or `2RD`. The single corpus record has a zero clip-vertex count, so no vertex is ever read | any UNDERLAY with a clip boundary |
 | LWPOLYLINE `0x200` | §7g table, `entities/lwpolyline.rs` | `0x200` is not one of §20.4.85's presence bits, and every record carrying it also carries no optional field, so it survives either reading. Treated as "closed" | a record with `0x200` set *and* an optional field present |
-| MESH's trailing `10` | `entities/mesh.rs` | `BS` 0, `BL` 0, `BD` 0.0 and "two spare bits" all encode identically | a MESH whose trailing value is non-zero |
+| ~~MESH's trailing `10`~~ | `entities/mesh.rs` | settled 2026-10-26 (§7w): the DXF twin writes a group `90` (`BL`) equal to 0 there | — |
 
 ### Measured effect
 
@@ -1754,7 +1755,7 @@ decodes or hands out a byte; `tools/streaming/verify_sections.py` walks the
 same pages and compares every assembled section with an independent
 parser and the legacy reader.
 
-## 7n. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
+## 7o. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
 
 ACadSharp's R14 save (`sample_AC1014.dwg`, #225) is the corpus's only
 R14 drawing with INSERTs, dimensions or a 3DFACE, and every one of
@@ -1795,7 +1796,7 @@ cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC
     --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
 ```
 
-## 7o. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
+## 7p. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
 
 §20.4.84 prescribes LAYOUT (and the plot-settings block it embeds) with
 three version branches the decoder had refused rather than read: a `TV`
@@ -1829,7 +1830,7 @@ cargo run --release --example probe_cross_release -- arc_R14.dwg arc_2004.dwg LA
     --ignore=shade_plot_mode,shade_plot_resolution_level,shade_plot_custom_dpi,viewport_count,trailing_strings
 ```
 
-## 7p. ACIS version-2 envelopes (2026-10-26, #228)
+## 7q. ACIS version-2 envelopes (2026-10-26, #228)
 
 §20.4.41 gives the ACIS envelope two forms. Version 1 is a loop of
 length-prefixed blocks; version 2 is "an acis file" written straight
@@ -1856,7 +1857,7 @@ A version-2 envelope that is not `ACIS BinaryFile` (a text SAT file) is
 refused with `Unsupported` rather than scanned for an end the spec says
 needs a parser.
 
-## 7q. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
+## 7r. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
 
 §20.4.85 types LWPLINE `(varies)` and §20.4.75 types HATCH `(varies)`:
 both entered AutoCAD with R14 as classes and got the fixed codes `0x4D`
@@ -1890,7 +1891,7 @@ and the R2000 `2DD` reading recover the same coordinates.
 cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg LWPOLYLINE
 ```
 
-## 7n. AcDb:Header: the variables, in three streams (2026-10-26, #126)
+## 7s. AcDb:Header: the variables, in three streams (2026-10-26, #126)
 
 `src/header_table.rs` holds §9 as one table, a row per slot in stream order
 with its bit code and the first and last release that carry it;
@@ -1985,7 +1986,7 @@ on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
 all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
 spec's R14 dump and in all eight R14 files, 64 from R2000.
 
-## 7r. MTEXT before R2007: the version branches (2026-10-26, #226)
+## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
 spacing on every release and stopped there. ACadSharp's saves of one
@@ -2021,7 +2022,395 @@ does not hold.
 cargo run --release --example probe_mtext -- sample_AC1018.dwg sample_AC1018_ascii.dxf
 ```
 
-## 7x. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7u. VIEWPORT: §20.4.38 is right as printed (2026-10-26, #71)
+
+§7i left VIEWPORT reported rather than fixed: six records of one
+shape on one file, a 1125-bit budget, and a decoder that stopped after
+the centre, width and height. The public corpus (#225) adds the same
+drawing saved by AutoCAD 2025 as R14, R2000, R2004, R2007, R2010 and
+R2013, each with its DXF export, and a second R2018 drawing whose nine
+viewports differ in size, centre and view height.
+
+The decoder now reads §20.4.38 field for field, with its version
+branches exactly as the section prints them: the R2000+ view block,
+the R2007+ `BS` grid major *between* the circle zoom and the R2000+
+frozen-layer count, the R2004+ `BS` shade plot mode, and the R2007+
+lighting block ending in a `CMC`. Nothing is measured against the
+spec; nothing is added to it.
+
+| File | Release | Records | Close (`delta 0`) | Values compared with the DXF twin | Differ |
+|---|---|---:|---:|---:|---:|
+| `sample_AC1014.dwg` | R14 | 6 | 6 | no twin | |
+| `sample_AC1015.dwg` | R2000 | 6 | 6 | 252 | 0 |
+| `sample_AC1018.dwg` | R2004 | 6 | 6 | 258 | 0 |
+| `sample_AC1021.dwg` | R2007 | 6 | 6 | 294 | 0 |
+| `sample_AC1024.dwg` | R2010 | 6 | 6 | 294 | 0 |
+| `sample_AC1027.dwg` | R2013 | 6 | 6 | 294 | 0 |
+| `sample_AC1032.dwg` | R2018 | 6 | 6 | 294 | 0 |
+| `export_sample.dwg` | R2018 | 9 | 9 | no twin | |
+
+Values are matched by handle (DXF group 5) against the `AcDbViewport`
+group of the twin and compared to 1e-9 relative. Among them are values
+no default could produce: the status word (`819232` and `819808`,
+group 90), the circle zoom (`1000`, 72), the lens length (`50`, 42),
+the view centres and view heights, and the ambient light colour
+`0xC2333333` — RGB 51/51/51, the true colour group 421 carries as
+`3355443`. The two `B` UCS flags are read in the spec's order (74, then
+71) and land on `0` and `1` as the DXF has them.
+
+What is not measured: the 15 records of the R14 save and
+`export_sample.dwg` close but have no DXF twin; no R13 file exists;
+every viewport in the corpus has an empty style sheet name, so the `TV`
+is measured only as an empty string, inline before R2007 and from the
+string stream after; every snap angle and view twist angle is `0`, so
+the two angle fields agree with the DXF trivially (the probe converts
+the record's radians to the degrees DXF writes, which no record
+exercises); and every ambient light colour is the true colour
+`0xC2333333`, so an indexed (`0xC3`) colour has not been seen.
+
+`examples/probe_viewport.rs` prints every VIEWPORT of a file with its
+values keyed by DXF group, and with a DXF twin as its second argument
+reports every disagreement:
+
+```sh
+cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
+```
+
+## 7v. TEXT, ATTRIB and ATTDEF before R2007: the data flags were inverted (2026-10-26, #226 / #62)
+
+The 19-file corpus held text only on R2018, so the R13-R2004 TEXT
+reader had never met a record. ACadSharp's saves of one drawing (#225)
+hold 29 TEXT, 4 ATTRIB and 5 ATTDEF records on every release, and on
+R14, R2000 and R2004 all 114 of them errored, with 4 more TEXT records
+on `export_sample.dwg` (R2018).
+
+Three defects, each fixed toward §20.4.3 as printed:
+
+| Defect | Was | §20.4.3 / §20.4.5 says | Where it showed |
+|---|---|---|---|
+| R2000+ data flags | a field read when its bit is **set** | "present if !(DataFlags & bit)": a set bit means absent | R2000 / R2004: the record with flags `0xFF` (every field absent) read every field |
+| R13-R14 | the R2000+ reader | its own branch: no data flags, `BD` elevation and angles, `2RD` points, `3BD` extrusion | all R14 text records |
+| oblique, rotation, width factor | `BD` on every release (#62) | `RD` (and the R2000-R2004 reader also read the height as `BD`) | the 4 R2018 records that write one of them |
+| ATTDEF prompt | read before the tag | after the ATTRIB fields ("Common ATTRIB Entity Data", then the prompt) | every R14 to R2004 ATTDEF |
+
+#62 had asked for a file that writes the three optional fields. That
+file is `export_sample.dwg`. Its four failing records describe their
+own values in their text, and the `RD` reading recovers those values
+exactly:
+
+| Handle | Data flags | Field written | `RD` value | The record's own text |
+|---|---|---|---|---|
+| `0x44A` | `0xFB` | oblique | 0.17453292519943295 (10°) | "Text obliquing = 10" |
+| `0x44B` | `0xF7` | rotation | 0.5235987755982988 (30°) | "Rotated text angle = 30" |
+| `0x454` | `0xEF` | width factor | 2.0 | "Text width = 2.0" |
+| `0x465` | `0xAD` | alignment point, width factor, horizontal alignment | — | "Justification fit" |
+
+A `BD` reading of the same bits ends 62 bits short or 2 bits long, or
+hits the reserved `11` code.
+
+With the three fixes, every TEXT, ATTRIB and ATTDEF record of the public
+corpus closes:
+
+| Type | Records | Close | Values compared with the DXF twin (R2000-R2018) | Differ |
+|---|---:|---:|---:|---:|
+| TEXT | 224 | 224 | 870 | 0 |
+| ATTRIB | 28 | 28 | 189 | 0 |
+| ATTDEF | 35 | 35 | 276 | 0 |
+
+The comparison matches records to the twin by handle. It covers
+insertion point and elevation, alignment point, height, width factor,
+rotation and oblique (in degrees in the DXF), thickness, the three
+alignments, the text, and for attributes the tag, flags, field length
+and prompt, wherever the DXF writes the group. In this drawing every
+TEXT the DXF twin covers leaves rotation, oblique and width factor at
+their defaults, so the `RD` reading rests on `export_sample.dwg`, which
+has no twin. The R14 save has no twin, so its 38 records are measured
+on the boundary only.
+
+`examples/probe_text.rs` prints the closure and the comparison:
+
+```sh
+cargo run --release --example probe_text -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
+## 7w. MESH: the DXF twin names the trailing bits, and MESH is on every release (2026-10-26, #71)
+
+§7i left MESH's last two bits, `10`, unread: the zero code of `BS`, `BL`
+and `BD` alike, on two records that both encode zero, so the bits alone
+could not say which field they were or whether they were a field at
+all. The public corpus (#225) holds the same two meshes in ACadSharp's
+saves of one drawing as R14, R2000, R2004, R2007, R2010, R2013 and
+R2018, with AutoCAD's DXF export of every save but R14.
+
+**The DXF says what the bits are.** Each `AcDbSubDMesh` group in the
+twins ends `95` (crease count), `140` once per crease, then one more
+`90` with the value `0`. AutoCAD writes every other `BL` of the record
+as a group 90 (the face-list entries and the edge endpoints), and in
+the same order the record holds them, so the two bits are a `BL`, and
+it is `0`. The decoder now reads it and refuses a non-zero value, whose
+contents nothing in the corpus shows.
+
+**MESH is not R2010-only.** AutoCAD 2025 writes the same record into
+its R14, R2000, R2004 and R2007 saves: same class name, same budget
+(93,941 bits for `0x343` on R2000, R2004 and R2010), not a proxy. The
+decoder refused every pre-R2010 MESH on the assumption that those
+releases never hold one. Without that gate:
+
+| Release | Records | Close (`delta 0`) | Values compared with the DXF twin | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 2 | 2 | no twin | |
+| R2000 | 2 | 2 | 926 + 904 | 0 |
+| R2004 | 2 | 2 | 926 + 904 | 0 |
+| R2007 | 2 | 2 | 926 + 904 | 0 |
+| R2010 | 2 | 2 | 926 + 904 | 0 |
+| R2013 | 2 | 2 | 926 + 904 | 0 |
+| R2018 | 2 | 2 | 926 + 904 | 0 |
+
+The comparison is complete, not sampled: version, blend crease,
+subdivision level, every vertex coordinate, every face-list entry, every
+edge endpoint, every crease and the trailing count, in DXF order (926
+values for the 62-vertex `0x343`, 904 for the 64-vertex `0x380`).
+
+Still undetermined: the `BS` widths of version, subdivision level and
+vertex count, since every value is below 256 and a `BS` and a `BL`
+spend the same bits there.
+
+```sh
+cargo run --release --example probe_mesh -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
+## 7x. The symbol-table prefix holds the reactor count (2026-10-26, #40 / #35)
+
+§20.4.x prints the same common data for every table entry, R2000 on:
+the EED chain, `BL Numreactors`, `B XDic Missing Flag` (R2004+), and the
+`B` §20.1 adds for AcDs binary data (R2013+). Then `TV name, B 64-flag,
+BS xrefindex+1, B Xdep`. The inline path (`tables::read_table_entry_header`,
+R2000 and R2004) reads that. The R2007+ split-stream path
+(`tables::modern`) skipped the `BL`, read the flags as `B, B, BS` in a
+release-dependent order, and on R2013+ read an `RC` after a set
+binary-data bit (§7a's table). Both closed on every entry that had no
+reactors, because the `BL` of 0 is the code `10` and the shifted reads
+consumed the same bits:
+
+| Release | Bits after the EED | Old reading | Measured |
+|---|---|---|---|
+| R2007, R2010 | `1 0` | `B` xdictionary-missing, `B` Xdep | `BL` 0 |
+| | next | `B` 64-flag | `B` xdictionary-missing |
+| | `1 0` | `BS xrefindex+1` 0 | `B` 64-flag, `B` Xdep |
+| R2013, R2018 | `1 0` | `B` xdictionary-missing, `B` binary data | `BL` 0 |
+| | next two | `B` 64-flag, `B` Xdep | `B` xdictionary-missing, `B` binary data |
+| | `1 0` | `BS xrefindex+1` 0 | `B` 64-flag, `B` Xdep |
+
+So the old 64-flag was the xdictionary-missing bit (clear on every entry
+that has an xdictionary), and on R2013+ the old Xdep was the binary-data
+bit. The "release-dependent order" was this shift, not the format. A
+reactor count above 0 is the code `01` and a byte. On R2013+ the old
+reading took the `01` for its two flags and the byte for its `RC`. On
+R2007 and R2010 nothing absorbed it, and DIMSTYLE `ISO-25` (`0x39A`, 8
+reactors), `custom_dim_style` (`0x994`, 2) and `custom_style_ltypes`
+(`0xC88`, 1) errored in ACadSharp's saves of both releases (#228).
+
+`tables::modern::skip_object_prefix` now reads the `BL`, the prefix
+`objects::modern` reads for every other non-entity object (§7d), and
+nothing after the binary-data bit. Two bits then remain on every R2007+
+table entry, read as `B 64-flag, B Xdep` with no `xrefindex+1`.
+
+### Measured against AutoCAD's DXF
+
+`examples/probe_table_prefix.rs` reads the prefix and the flags of every
+table entry and compares them, by handle, with AutoCAD's DXF export of
+the same drawing. Over the 32 R2000-R2018 drawings of the public corpus
+(#225) that have a twin, 1,078 table entries, 1,020 with a twin record:
+
+| Compared | Agree | Differ |
+|---|---:|---:|
+| `BL num_reactors` = the `330`s in `{ACAD_REACTORS` (18 non-zero) | 1,020 | 0 |
+| R2004+ xdictionary-missing = no `{ACAD_XDICTIONARY` (53 present) | 840 | 0 |
+| Xdep = bit 16 of group 70 (BLOCK_RECORD's 70 is its insertion units) | 786 | 0 |
+| R2000/R2004 inline name = group 2 | 360 | 0 |
+
+Three twins carry an xdictionary the drawing lacks: LTYPE `GAS_LINE`
+(`0x6B2`) in the R2004, R2007 and R2010 exports points at dictionary
+`0x1455` (`ACAD_XREC_ROUNDTRIP` holding an `ACAD_ROUNDTRIP_2011_LINETYPE`
+xrecord), which is not an object of those DWGs and is absent from the
+R2013 export. The export adds round-trip data when it writes an older
+release. The DWG bit says "missing" on all three, so the probe counts
+them apart rather than as differences.
+
+Every R2007-R2018 entry (676) reads the two flag bits `1, 0`, and every
+R2000/R2004 entry (402) reads 64-flag set, `xrefindex+1` 0 and Xdep
+clear. That also answers #35's labelling question for the inline path:
+the first inline bit cannot be Xdep, since it is set on all 402 entries
+and group 70 bit 16 is clear on all of them. For R2007+ the export rules
+out the swapped order for the same reason, but a lone `BS xrefindex+1`
+of 0 is the same two bits `1 0`. No drawing in either corpus has an
+xref-dependent table entry to tell them apart (#290).
+
+The six DIMSTYLE records decode to identical values on R2004, R2007,
+R2010, R2013 and R2018, in all fifteen fields `DimStyleEntry` surfaces. `ISO-25`'s ten non-default groups in the R2007
+export (`41` 2.5, `42` 0.625, `44` 1.25, `73` 0, `74` 0, `77` 1, `140`
+2.5, `141` 2.5, `143` 0.03937007874016, `283` 0) equal the decoded
+values, and the records the export writes no overrides for decode to
+the defaults.
+
+Coverage of the public corpus moves only on those six records:
+`sample_AC1021.dwg` 834/76/15 → 837/76/12 and `sample_AC1024.dwg`
+851/57/15 → 854/57/12 (decoded/skipped/errored).
+
+## 7y. A HATCH spline edge without fit points has no tangents (2026-10-26, #228)
+
+§20.4.75 ends the R2010+ ("R24") spline edge of a HATCH boundary with
+`BL numfitpoints`, the fit points, and then `2RD` start and end tangents,
+with no condition. The corpus has one spline edge: HATCH `0xAA8` of
+ACadSharp's `export_sample.dwg` (R2018), a closed boundary of degree 3
+with 13 knots, 9 control points and 0 fit points. Read with the
+tangents, its `num_boundary_handles` decodes to 298,029,779 and the
+record errors. Without them it closes:
+
+| Field | Value |
+|---|---|
+| `numfitpoints` | 0 (then no tangents) |
+| `numboundaryobjhandles` | 1 |
+| style, pattern type | 1, 1 |
+| pattern angle, scale, double | 0, 1, false |
+| definition line | 45°, through (0, 0), offset (−0.0884, 0.0884): ANSI31's 0.125 spacing |
+| pixel size | 0.0177 (the path is derived, flag 4) |
+| seed point | (5.13, 2.59) |
+| end bit | 2827, the string-stream start; `"LINEAR"` and `"ANSI31"` both consumed |
+
+The boundary's control polygon starts and ends at (4.43, 2.59), the first
+and last of the 7 fit points SPLINE `0xA7F` of the same drawing decodes
+to, and the seed point lies inside that curve. So
+`hatch::decode_spline_edge` reads the tangents only when there are fit
+points, which keeps §20.4.75's order for that case. No corpus record has
+a spline edge with fit points, so that case is unmeasured.
+
+Reproduce both readings with the entity field-list probe from bit 2374,
+just after `numfitpoints` (0, at bit 2372):
+
+```sh
+D=../dwg-corpus/acadsharp/export_sample.dwg   # fetched by tools/corpus/fetch.py
+cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD,B,BS,BD,2BD,2BD,BS,BD,BL,2RD --at=2374   # delta 0
+cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
+```
+
+## 7z. The R13/R14 DIMSTYLE block (2026-10-26, #74)
+
+§20.4.68 gives R13 and R14 their own DIMSTYLE layout. It starts with the
+flags, several of them `RC` where R2000 has `BS`. Then come the reals,
+five `T` strings (`DIMPOST`, `DIMAPOST` and the three arrow-block names,
+which R2000 moves to handles) and three `BS` colours. The dispatcher
+reported every R14 DIMSTYLE as unhandled, since the order had never been
+measured. `tables::dimstyle::decode_r13_r14` now reads the block as
+printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
+
+| Check | Result |
+|---|---|
+| `RL` boundary of the common object data | all 20 R14 records close: 6 in `sample_AC1014.dwg`, 2 in each of the 7 nextgis R14 drawings |
+| Without the trailing `B` | the records fail the check; `0x27` of `sample_AC1014.dwg` ends one bit short (delta −1) |
+| The 15 surfaced fields against the R2000 save, handle for handle | 20 / 20 equal. Only the names differ: R14 stores `STANDARD` where R2000 has `Standard` |
+| The spec's own example, §20.4.68.1 | closes; `r14-objects.tsv` moves from `unhandled` to `closes` |
+
+`DIMALTRND` has no slot in the R13/R14 block, so it reads 0 there.
+`examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
+`probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
+
+## 7aa. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
+
+GEODATA attaches a geographic coordinate system to the model-space
+block. §20.4.78 lists it among the objects: a class number from
+`AcDb:Classes` and the common object data of §20.1. The crate decoded it
+as an entity with an invented field list (an origin, two axis vectors,
+two scales, five strings) keyed on a fixed code, 0x4FB. The corpus's one
+record, handle `0x241` of ACadSharp's `geoloc.dwg` (R2018), carries a
+class number, so it never reached that decoder.
+
+`entities::geodata` now reads §20.4.78's field list after the common
+object data. The dispatcher routes the class name `GEODATA` to it, and
+the fixed code to the object path. Read that way, the record closes on
+its string stream with every string consumed, and all 77 values
+`examples/probe_geodata.rs` compares equal AutoCAD's DXF export of the
+drawing: object version 3, design coordinate type 1, the design and
+reference points, both unit scales and units (0.0254, inches), the up
+and north directions, the scale estimation, the sea-level fields, the
+projection radius 6,362,228.65, the 3,195-character MapGuide coordinate
+system definition, the GeoRSS tag, the three empty observation tags,
+and all 12 mesh points. There are 0 mesh faces.
+
+### Errata in the specification
+
+| Where | What the spec prints | What the record says |
+|---|---|---|
+| §20.4.78, p194 | `North direction 3RD` (object version 2 and later) | a `2RD`. At bit 566, `0x241`'s two `RD`s read (2.4e-16, 1.0), DXF `12`/`22`. The next 64 bits read as a third `RD` give −3.1e-151. They are the scale estimation `BL` (1, DXF `95`), the user scale factor `BD` (1.0, `141`), the sea-level `B` (0, `294`) and `BD` (0.0, `142`), and the first bits of the projection radius. Read as a `3RD`, the radius becomes −288,169,236 for DXF's 6,362,228.65, the mesh-point count 50 for DXF's 12, and the record overruns its 3,859-bit boundary. Read as a `2RD`, it ends exactly on it |
+
+The object version 1 (AutoCAD 2009) layout and the civil block §20.4.78
+adds to R2007 and earlier files are read as printed. The corpus has
+neither, so both are unmeasured. A record they do not fit fails the
+boundary check rather than decoding to invented values.
+
+```sh
+cargo run --release --example probe_geodata -- ../dwg-corpus/acadsharp/geoloc.dwg ../dwg-corpus/acadsharp/geoloc.dxf
+cargo run --release --example probe_field_list -- ../dwg-corpus/acadsharp/geoloc.dwg 577 BL,BS,3*BD,3*BD,BD,BL,BD,BL,3*BD,2*RD,BL,BD,B,BD,BD,TV,TV,TV,TV,TV,BL,48*RD,BL   # delta 0
+```
+
+## 7ab. LEADER: one `3BD` missed, and no text box from R2010 (2026-10-26, #71)
+
+§7i reported LEADER's twelve missing bits on its one R2018 record and
+stopped, because one record could not choose between the continuations
+that fit. The public corpus (#225) holds the same LEADER (handle
+`0x512`) in ACadSharp's saves of one drawing as R14, R2000, R2004,
+R2007, R2010, R2013 and R2018, and every save but R14 has AutoCAD's
+DXF export. Seven releases settle what one could not.
+
+The old field list read four `3BD`s after the points where §20.4.47 has
+five — origin, extrusion, x direction, offset to the block insertion
+point, then the R14+ end point projection — so the value it called the
+end projection was the origin, which equals the first point, the
+default the section gives it. With the fifth `3BD` read, §20.4.47's own
+branches close the record on every band but one:
+
+| Release | Delta before | Closes as | Box height / width |
+|---|---:|---|---|
+| R14 | −282 | the R13-R14 branch: `BD` dimgap, box, `B`, `B`, `BS` arrowhead type, `BD` dimasz, `B`, `B`, `BS`, `BS` byblock colour, `B`, `B` | 1.844821… / 16.374004… |
+| R2000 | −144 | the R2000+ branch: box, `B`, `B`, `BS`, `B`, `B` | 1.844821… / 16.374004… = DXF 40 / 41 |
+| R2004 | −144 | same | same, = DXF 40 / 41 |
+| R2007 | −144 | same | same, = DXF 40 / 41 |
+| R2010 | −12 | the R2000+ branch **without** the box | not in the record |
+| R2013 | −12 | same | not in the record |
+| R2018 | −12 | same | not in the record |
+
+**The departure is measured, not borrowed.** §20.4.47 files box height
+and box width under "Common". On R2010, R2013 and R2018 the record is
+exactly 132 bits shorter than on R2007 — two non-default `BD`s — and
+the six bits after the end point projection are `011000`, the same six
+bits that follow the box width on R2000-R2007: hook line on the x
+direction `0` (DXF 74 is `0`), arrowhead on `1`, then the R2000+ `BS`
+`0` and two `B`s `0`. The R2010+ DXF exports still write 40 and 41 with
+the R2007 values, so AutoCAD carries them somewhere else; this record
+does not.
+
+On R14 the two creation-time values corroborate the R13-R14 branch
+independently of the bit count: dimgap `0.625` and dimasz `2.5` are the
+DIMGAP (group 147) and DIMASZ (group 41) of the drawing's ISO-25
+DIMSTYLE, the style the leader names (DXF group 3). Both `BS`s that
+follow the `B`s read `256`; only the width is claimed for them.
+
+The DXF twins agree with every value they write: groups 73 and 74, the
+box on R2000-R2007, and the vertices. AutoCAD's export holds four
+vertices where the record holds three, because with a hook line (group
+75 `1`) it inserts the hook line's start, 2.5 (DIMASZ) before the last
+point; the record's first two points and last point equal the DXF's
+first two and last. The DXF omits groups 71 and 72, so the arrowhead
+flag and path type are compared with nothing.
+
+`examples/probe_leader.rs` prints each record and, given the twin, the
+comparison:
+
+```sh
+cargo run --release --example probe_leader -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
+## 7ac. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned
@@ -2103,16 +2492,17 @@ same holds for the other 20 (`stream_walk`, each against `stream_walk --legacy`)
 
 | source | records | decoded | skipped | errored |
 |---|---|---|---|---|
-| `Cabin.dwg` | 3,590 | 3,345 | 1 | 244 |
-| Sovol, 21 drawings | 24,124 | 23,901 | 181 | 42 |
+| `Cabin.dwg` | 3,590 | 3,353 | 0 | 237 |
+| Sovol, 21 drawings | 24,124 | 23,901 | 21 | 202 |
 
-The 286 errors are ATTRIB and ATTDEF (187 and 57, `Cabin.dwg`) and LEADER (42,
-Sovol), the same families that error on the R14, R2000 and R2004 files of the
-corpus, and the 182 skipped are the R13/R14 DIMSTYLE block (161) and one `SUN`
-class record per Sovol file (21). Those decoders are other work; the next
-section is what R13 itself needs from them. MTEXT is the one that has landed:
-all 3,968 MTEXT records of the Sovol drawings error until the R13-R14 branch
-of its decoder asks `is_r13_r14()`, and close once it does.
+(Measured with main at 4ec356a merged in.) The 439 errors are ATTRIB and ATTDEF
+(179 and 57, `Cabin.dwg`), the R13/R14 DIMSTYLE block (161, one in `Cabin.dwg`)
+and LEADER (42, Sovol); the 21 skipped are one `SUN` class record per Sovol
+file. Each error is a decoder that reached main with its R13-R14 branch tested
+as `== Version::R14`, so R13 takes the R2000 branch and misses its boundary:
+on R14 and every later release the same decoders close all of them. MTEXT is the
+one that asked `is_r13_r14()`: all 3,968 MTEXT records of the Sovol drawings
+error until it does, and close once it does.
 
 ### Where R13 departs from the text
 
@@ -2140,15 +2530,16 @@ of its decoder asks `is_r13_r14()`, and close once it does.
    their `RL` boundary (by exactly 8 bits when the dictionary is empty); with the byte read
    only on R14 they all close.
 4. **§20.4.47 LEADER: `Endptproj` is "R14+", not "R13-R14".** R13 has no end
-   point projection. With a scratch tree carrying the open LEADER decoder, all
-   42 Sovol LEADER records error when the three `BD`s are read and all 42 close
-   when R13 skips them.
+   point projection. With the LEADER decoder as merged, all 42 Sovol LEADER
+   records error when the three `BD`s are read on R13, and all 42 close when
+   R13 skips them.
 5. **The R13-R14 branches other decoders wrote as `== Version::R14`.** MTEXT
-   and LWPOLYLINE are fixed here. With TEXT, ATTRIB, ATTDEF, LEADER and the
-   R13/R14 DIMSTYLE block (open work) applied in a scratch tree and each
-   `== Version::R14` read as `is_r13_r14()` (and point 4), **every one of the
-   27,714 R13 records decodes or is one of the 21 `SUN` records**: `Cabin.dwg` 3,590 decoded, 0 skipped, 0 errored; the 21
-   Sovol drawings 24,103 decoded, 21 skipped (the `SUN` class), 0 errored.
+   and LWPOLYLINE are fixed here. TEXT, ATTRIB, ATTDEF, LEADER and the R13/R14
+   DIMSTYLE block reached main as `== Version::R14`; with each read as
+   `is_r13_r14()` (and point 4), **every one of the 27,714 R13 records decodes
+   or is one of the 21 `SUN` records**: `Cabin.dwg` 3,590 decoded, 0 skipped, 0
+   errored; the 21 Sovol drawings 24,103 decoded, 21 skipped (the `SUN` class),
+   0 errored.
    Where a field is "R13-R14 Only" the two releases share it; no other R13
    difference turned up.
 
@@ -2180,7 +2571,7 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7y. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
+## 7ad. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
 
 `probe_reference_closure` decides whether a class the walk reaches fewer of
 than `AcDb:Classes` declares is a missing record or an over-declaring file: it
