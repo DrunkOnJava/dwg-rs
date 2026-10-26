@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 65 `closes`, 6 `decoder`, 33 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 46 `closes`, 6 `decoder`, 30 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 66 `closes`, 6 `decoder`, 32 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 47 `closes`, 6 `decoder`, 29 `partial`, 22 `missing`.
 
 ## Sections
 
@@ -99,7 +99,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.46 | MTEXT (44) | 148 | `partial` | src/entities/mtext.rs | #140 | R2018 tail and ATTRIB's embedded MTEXT (ARCHITECTURE §7g). 36 records each on ACadSharp's R14 and R2004 saves error (#226). |
 | §20.4.47 | LEADER (45) | 150 | `partial` | src/entities/leader.rs | #147 | 7 records error (#71), one on each of ACadSharp's saves: 12 bits left. |
 | §20.4.48 | MLEADER | 152 | `partial` | src/entities/mleader.rs | #147 | Closes on R2010 to R2018 (#58); the 60 records on ACadSharp's R14 to R2007 saves are never routed (#229). |
-| §20.4.49 | TOLERANCE (46) | 155 | `partial` | src/entities/tolerance.rs | #140 | 3 records each on ACadSharp's R14, R2000 and R2004 saves error (#226). |
+| §20.4.49 | TOLERANCE (46) | 155 | `closes` | src/entities/tolerance.rs | #140 | Closes on all 21 TOLERANCE records of the public corpus, R14 to R2018 (no R13 file), with the unknown short, height and dimgap R13-R14 only as printed. Values equal the DXF twin on R2000 to R2018 (#226, ARCHITECTURE.md §7p). |
 | §20.4.50 | MLINE (47) | 156 | `closes` | src/entities/mline.rs | #147 |  |
 | §20.4.51 | BLOCK CONTROL (48) | 157 | `closes` | src/objects/control.rs | #141 |  |
 | §20.4.52 | BLOCK HEADER (49) | 158 | `closes` | src/tables/block_record.rs | #141 | Names resolve through the BLOCK sentinel (#70); R13/R14 stay unresolved (#84). |
