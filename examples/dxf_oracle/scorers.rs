@@ -766,6 +766,8 @@ pub fn section_of(label: &str) -> &'static str {
         "LWPOLYLINE" => "§20.4.85",
         "SCALE" => "§20.4.92",
         "TABLESTYLE" => "§20.4.101",
+        "IMAGEDEF_REACTOR" => "§20.4.82",
+        "RASTERVARIABLES" => "§20.4.91",
         "XRECORD" => "§20.4.104",
         _ => "-",
     }
@@ -1055,6 +1057,19 @@ pub fn score(
             );
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
+        // §20.4.82: the class version in 90; the IMAGE it serves is a handle.
+        D::ImageDefReactor(r) => {
+            c.subclass("AcDbRasterImageDefReactor");
+            c.int("class_version", 90, i64::from(r.class_version), None);
+        }
+        // §20.4.91: 90, 70 display frame, 71 display quality, 72 units.
+        D::RasterVariables(r) => {
+            c.subclass("AcDbRasterVariables");
+            c.int("class_version", 90, i64::from(r.class_version), None);
+            c.int("display_frame", 70, i64::from(r.display_frame), None);
+            c.int("display_quality", 71, i64::from(r.display_quality), None);
+            c.int("units", 72, i64::from(r.units), None);
+        }
         D::VisualStyle(v) => score_visualstyle(&mut c, v),
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::Layout(l) => score_layout(&mut c, l),
