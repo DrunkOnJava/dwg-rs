@@ -1100,13 +1100,12 @@ fn dispatch_table_entry(
             .map(DecodedEntity::DimStyle)
             .map_err(|e| e.to_string())
         }
-        // R13/R14 lay the dimension variables out in a different order
-        // and with different widths from R2000+ (§20.4.68 gives them
-        // their own block), and that order has not been matched against
-        // bytes; the record is reported unhandled rather than decoded
-        // from a list that cannot close.
+        // R13/R14 lay the dimension variables out in their own order and
+        // widths (§20.4.68's "R13 & R14 Only" block).
         ObjectType::DimStyle if matches!(version, Version::R14) => {
-            return DecodedEntity::Unhandled { type_code, kind };
+            crate::tables::dimstyle::decode_r13_r14(c, version)
+                .map(DecodedEntity::DimStyle)
+                .map_err(|e| e.to_string())
         }
         ObjectType::DimStyle => crate::tables::dimstyle::decode_r2000_inline(c, version)
             .map(DecodedEntity::DimStyle)
