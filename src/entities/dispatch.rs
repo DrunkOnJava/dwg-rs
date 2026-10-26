@@ -158,6 +158,10 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7v).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
+    /// ACSH_HISTORY_CLASS (§7w).
+    ShHistory(crate::objects::sh_history::ShHistory),
+    /// ACSH_BOX_CLASS (§7w).
+    ShBox(Box<crate::objects::sh_history::ShBox>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -278,6 +282,8 @@ impl DecodedEntity {
             | Self::DbColor(_)
             | Self::DynamicBlock(_)
             | Self::DimAssoc(_)
+            | Self::ShHistory(_)
+            | Self::ShBox(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -799,6 +805,14 @@ fn dispatch_object_class(
         "DIMASSOC" => {
             crate::objects::dim_assoc::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DimAssoc)
+        }
+        "ACSH_HISTORY_CLASS" => {
+            crate::objects::sh_history::decode_history(payload, body_start, inline_end, version)
+                .map(DecodedEntity::ShHistory)
+        }
+        "ACSH_BOX_CLASS" => {
+            crate::objects::sh_history::decode_box(payload, body_start, inline_end, version)
+                .map(|b| DecodedEntity::ShBox(Box::new(b)))
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)

@@ -260,7 +260,7 @@ fn read_point(c: &mut BitCursor<'_>) -> Result<[f64; 3]> {
     Ok([c.read_bd()?, c.read_bd()?, c.read_bd()?])
 }
 
-fn read_eval(c: &mut BitCursor<'_>) -> Result<EvalExpr> {
+pub(crate) fn read_eval(c: &mut BitCursor<'_>) -> Result<EvalExpr> {
     let unknown_a = c.read_bl()?;
     let dxf_98 = read_small(c, "evaluation group 98")?;
     let dxf_99 = c.read_bl_u()?;

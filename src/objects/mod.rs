@@ -24,6 +24,7 @@
 //! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
 //! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
 //! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
+//! | ACSH_HISTORY_CLASS, ACSH_BOX_CLASS | [`sh_history`]  | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -101,6 +102,7 @@ pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod sh_history;
 pub mod small_classes;
 pub mod xdata;
 pub mod xrecord;
