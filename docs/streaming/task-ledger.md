@@ -1,6 +1,8 @@
 # Streaming reader work ledger
 
-Owner: this Codex chat. Branch: `codex/streaming-core`, based on `ece6adf`.
+Owner: a Claude Code session since October 25, 2026, after #213 merged
+(handoff recorded on #204). The foundation was built by a Codex chat on
+`codex/streaming-core`, based on `ece6adf`.
 Exclusive edit scope: new `src/streaming/`, transport adapters, checkpoint codec,
 CLI probe, streaming CI gate, and streaming documentation. Existing parser and
 peer worktrees remain under their existing custody. Build artifacts go to CI;
@@ -21,7 +23,7 @@ verification receipts go to `docs/streaming/` or uploaded CI artifacts.
 | Spec change watcher and automatic invariant walls | pending | Fail closed; no vacuous gate |
 | Known prior prunable worktree | preserved peer artifact | Preserve; not owned by this work unit |
 
-Discovered: canonical `synthetic_2000.dwg` has zero header CRC and zero sentinel; the strict §3.2 core must reject it. Track under #205/#211; preserve the fixture until its writer is corrected and the corpus regenerated with proof.
+Discovered: canonical `synthetic_2000.dwg` had zero header CRC and zero sentinel, so the strict §3.2 core rejected it. Fixed under #214: the generator writes both, the fixture was regenerated, and the acceptance run reads it through the strict header entry point.
 
 Real inputs acquired read-only outside Git: nextgis `line_R14.dwg` (122353 bytes, SHA-256 `4ae12afb4052f1be913003b84021054c0e07b08e6aef5e430bf523c6f85c0903`) and `line_2000.dwg` (116899 bytes, `f1936ccc5e26dd1aae3f6a26bf5803bdf53d8e0b24f8c18bf3fb96fc540918e0`). Independent prefix CRC/sentinel checks agree with §3.2.6. Native parser measurement pending.
 
