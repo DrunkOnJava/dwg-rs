@@ -2294,7 +2294,7 @@ cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
 ```
 
-## 7z. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
+## 7aa. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
 
 GEODATA attaches a geographic coordinate system to the model-space
 block. §20.4.78 lists it among the objects: a class number from
