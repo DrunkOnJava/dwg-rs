@@ -1,7 +1,8 @@
 //! Bounded, pausable DWG grammar. It covers the complete R13–R2000 file
 //! header (ODA v5.4.1 §3.2) and the R13–R2000 container walk: header
 //! variables, classes, the object map and every mapped record's framing,
-//! type and handle. It also has a bounded, resumable decoder for the
+//! type and handle. For the R2004 family it verifies the §4.1 file header
+//! and has a bounded, resumable decoder for the
 //! R2004-family LZ77 dialect (§4.7). Object bodies and the R2004+
 //! container walk remain open; see issue #205.
 
@@ -10,11 +11,13 @@ use core::fmt;
 mod checkpoint;
 mod flat;
 mod lz77;
-pub use checkpoint::{Checkpoint, Lz77Checkpoint, WalkCheckpoint};
+mod r2004;
+pub use checkpoint::{Checkpoint, Lz77Checkpoint, R2004Checkpoint, WalkCheckpoint};
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
 };
 pub use lz77::{Lz77Decoder, Progress, WINDOW};
+pub use r2004::{R2004_HEADER_BYTES, R2004Header, R2004HeaderParser};
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -119,6 +122,15 @@ pub enum StreamError {
     /// A position or count would pass `u64::MAX`. No real input reaches
     /// this; a forged but CRC-valid checkpoint can.
     CounterOverflow,
+    /// §4.1: the R2004-family header field at this file offset is not what
+    /// the spec fixes (0x28, the file ID at 0x80, a fixed decrypted field,
+    /// the trailer at 0xEC) or points outside the source (0xD4, 0xB4).
+    R2004Field(u16),
+    /// §4.1: CRC-32 of the decrypted 0x6C-byte block.
+    R2004HeaderCrc {
+        expected: u32,
+        actual: u32,
+    },
 }
 
 impl fmt::Display for StreamError {
