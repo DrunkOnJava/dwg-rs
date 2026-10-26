@@ -141,6 +141,8 @@ pub enum DecodedEntity {
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
+    ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
+    RasterVariables(crate::objects::raster_variables::RasterVariables),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -253,6 +255,8 @@ impl DecodedEntity {
             Self::DictionaryVar(_)
             | Self::Scale(_)
             | Self::ImageDef(_)
+            | Self::ImageDefReactor(_)
+            | Self::RasterVariables(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -717,6 +721,16 @@ fn dispatch_object_class(
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ImageDef)
+        }
+        "IMAGEDEF_REACTOR" | "IMAGEDEFREACTOR" => crate::objects::image_def_reactor::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::ImageDefReactor),
+        "RASTERVARIABLES" | "ACDBRASTERVARIABLES" => {
+            crate::objects::raster_variables::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::RasterVariables)
         }
         // §20.4.104 types XRECORD `(varies)`: from R2000 it has the
         // fixed code 0x4F, but R14 files give it a class number from
