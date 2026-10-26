@@ -732,6 +732,13 @@ fn dispatch_object_class(
             crate::objects::xrecord::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::XRecord)
         }
+        // The spec lists ACDBPLACEHOLDER with the fixed codes (0x50), but
+        // R14 and R2000 files give it a class number from AcDb:Classes; it
+        // is the same body-less record either way.
+        "ACDBPLACEHOLDER" | "ACDB_PLACEHOLDER" | "PLACEHOLDER" => {
+            crate::objects::placeholder::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::Placeholder)
+        }
         _ => return None,
     };
     Some(match result {
