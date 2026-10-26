@@ -8,6 +8,29 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Changed — an encrypted section is refused with a typed error by every reader (2026-10-26, #205)
+
+The R2004-family section map carries an encryption flag (§4.5: 0 none, 1
+encrypted, 2 properties only). The legacy reader ignored it, so a
+password-protected section's ciphertext was decompressed and returned as if
+it were the section; the streaming walker (`R2004SectionWalker`) already
+refused it. `section_map::read_section_payload`, and so every
+`DwgFile::read_section` and the readers built on it, now returns the new
+`Error::SectionEncrypted { name }` for a section whose flag is 1, the same
+refusal as `streaming::StreamError::SectionEncrypted`. A flag of 2 marks only
+the properties (`AcDb:FileDepList`, `AcDb:AppInfo` in real files) and is
+still read. The R2007 refusal, which was `Error::Unsupported`, returns the
+same variant. No pinned drawing has the flag set to 1, so the corpus counts
+do not move; `tools/streaming/verify_sections.py` repackages the sections of
+four real drawings with one flagged (and a control without) and checks that
+both readers refuse the one and read the other equal to the drawing.
+
+- **Added:** `Error::SectionEncrypted { name: String }`.
+- **Changed:** a section with encryption flag 1 is `Err(SectionEncrypted)`
+  from `read_section_payload` instead of its undecrypted bytes, and an R2007
+  section with encryption other than 0 or 2 is `Err(SectionEncrypted)` instead
+  of `Err(Unsupported)` (its unit test is adapted).
+
 ### Changed (breaking) — `section_map::DataPageHeader` carries the measured §4.6 layout (2026-10-26, #205)
 
 The struct labelled its eight words after the §4.6 table, and from `0x14`

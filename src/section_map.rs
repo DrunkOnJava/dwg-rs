@@ -138,12 +138,20 @@ impl DataPageHeader {
 /// decompressed section bytes in `start_offset` order.
 ///
 /// `compressed` is taken from the owning SectionDescription (1 = no,
-/// 2 = LZ77). Returns a buffer of length `total_size`.
+/// 2 = LZ77). Returns a buffer of length `total_size`. A section whose
+/// encryption flag is 1 is refused with [`Error::SectionEncrypted`]: its
+/// stored bytes are ciphertext (a flag of 2 marks only the properties, and
+/// those sections are read).
 pub fn read_section_payload(
     file_bytes: &[u8],
     page_map: &[SectionPage],
     description: &SectionDescription,
 ) -> Result<Vec<u8>> {
+    if description.encrypted == 1 {
+        return Err(Error::SectionEncrypted {
+            name: description.name.clone(),
+        });
+    }
     let total_size = description.size as usize;
     let mut result = vec![0u8; total_size];
 

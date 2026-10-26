@@ -32,7 +32,7 @@
 //!
 //! Password-protected files are out of scope: a section descriptor with a
 //! non-zero `encryption` for its *data* is reported as
-//! [`Error::Unsupported`] rather than decoded incorrectly.
+//! [`Error::SectionEncrypted`] rather than decoded incorrectly.
 //!
 //! # Measured against the corpus
 //!
@@ -639,7 +639,7 @@ impl Container {
     /// Assemble a named section's decompressed bytes (§5.4).
     ///
     /// Returns [`Error::SectionMap`] when the section is absent and
-    /// [`Error::Unsupported`] when its descriptor declares encryption,
+    /// [`Error::SectionEncrypted`] when its descriptor declares encryption,
     /// which this crate does not implement.
     pub fn read_section(&self, bytes: &[u8], name: &str) -> Result<Vec<u8>> {
         self.read_section_with_limits(bytes, name, DecompressLimits::default())
@@ -676,12 +676,8 @@ pub fn read_section(
         // encryption == 2 marks "properties encrypted" on sections whose
         // *payload* is still in the clear (AcDb:FileDepList, AcDb:AppInfo).
         // Anything else means a password-protected file.
-        return Err(Error::Unsupported {
-            feature: format!(
-                "R2007 section {:?} declares encryption {} (password-protected files \
-                 are not supported)",
-                desc.name, desc.encryption
-            ),
+        return Err(Error::SectionEncrypted {
+            name: desc.name.clone(),
         });
     }
     let total = usize::try_from(desc.data_size)
@@ -879,6 +875,6 @@ mod tests {
         };
         let err =
             read_section(&[], &PageMap::default(), &desc, DecompressLimits::default()).unwrap_err();
-        assert!(matches!(err, Error::Unsupported { .. }));
+        assert!(matches!(err, Error::SectionEncrypted { .. }));
     }
 }
