@@ -33,7 +33,7 @@
 //! only, which the R2007+ split-stream reader below had already measured.
 //! As printed, the list closes on all 21 TOLERANCE records of the public
 //! corpus, R14 to R2018. On R2000 to R2018 the insertion point and text
-//! equal AutoCAD's DXF export of the same drawing (ARCHITECTURE.md §7p,
+//! equal AutoCAD's DXF export of the same drawing (ARCHITECTURE.md §7m,
 //! `examples/probe_tolerance.rs`). On R14 the three leading fields are
 //! the zero code on all three records, so only their widths are measured.
 

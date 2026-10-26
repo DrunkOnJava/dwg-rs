@@ -1527,7 +1527,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7p. TOLERANCE before R2007: the version branch was upside down (2026-10-26, #226)
+## 7m. TOLERANCE before R2007: the version branch was upside down (2026-10-26, #226)
 
 §20.4.49 gives TOLERANCE three leading fields — an unknown short, the
 height and the dimgap — under "R13-R14 Only", then the insertion point,
