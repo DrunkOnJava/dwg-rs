@@ -2075,6 +2075,63 @@ reports every disagreement:
 cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
 ```
 
+## 7v. TEXT, ATTRIB and ATTDEF before R2007: the data flags were inverted (2026-10-26, #226 / #62)
+
+The 19-file corpus held text only on R2018, so the R13-R2004 TEXT
+reader had never met a record. ACadSharp's saves of one drawing (#225)
+hold 29 TEXT, 4 ATTRIB and 5 ATTDEF records on every release, and on
+R14, R2000 and R2004 all 114 of them errored, with 4 more TEXT records
+on `export_sample.dwg` (R2018).
+
+Three defects, each fixed toward §20.4.3 as printed:
+
+| Defect | Was | §20.4.3 / §20.4.5 says | Where it showed |
+|---|---|---|---|
+| R2000+ data flags | a field read when its bit is **set** | "present if !(DataFlags & bit)": a set bit means absent | R2000 / R2004: the record with flags `0xFF` (every field absent) read every field |
+| R13-R14 | the R2000+ reader | its own branch: no data flags, `BD` elevation and angles, `2RD` points, `3BD` extrusion | all R14 text records |
+| oblique, rotation, width factor | `BD` on every release (#62) | `RD` (and the R2000-R2004 reader also read the height as `BD`) | the 4 R2018 records that write one of them |
+| ATTDEF prompt | read before the tag | after the ATTRIB fields ("Common ATTRIB Entity Data", then the prompt) | every R14 to R2004 ATTDEF |
+
+#62 had asked for a file that writes the three optional fields. That
+file is `export_sample.dwg`. Its four failing records describe their
+own values in their text, and the `RD` reading recovers those values
+exactly:
+
+| Handle | Data flags | Field written | `RD` value | The record's own text |
+|---|---|---|---|---|
+| `0x44A` | `0xFB` | oblique | 0.17453292519943295 (10°) | "Text obliquing = 10" |
+| `0x44B` | `0xF7` | rotation | 0.5235987755982988 (30°) | "Rotated text angle = 30" |
+| `0x454` | `0xEF` | width factor | 2.0 | "Text width = 2.0" |
+| `0x465` | `0xAD` | alignment point, width factor, horizontal alignment | — | "Justification fit" |
+
+A `BD` reading of the same bits ends 62 bits short or 2 bits long, or
+hits the reserved `11` code.
+
+With the three fixes, every TEXT, ATTRIB and ATTDEF record of the public
+corpus closes:
+
+| Type | Records | Close | Values compared with the DXF twin (R2000-R2018) | Differ |
+|---|---:|---:|---:|---:|
+| TEXT | 224 | 224 | 870 | 0 |
+| ATTRIB | 28 | 28 | 189 | 0 |
+| ATTDEF | 35 | 35 | 276 | 0 |
+
+The comparison matches records to the twin by handle. It covers
+insertion point and elevation, alignment point, height, width factor,
+rotation and oblique (in degrees in the DXF), thickness, the three
+alignments, the text, and for attributes the tag, flags, field length
+and prompt, wherever the DXF writes the group. In this drawing every
+TEXT the DXF twin covers leaves rotation, oblique and width factor at
+their defaults, so the `RD` reading rests on `export_sample.dwg`, which
+has no twin. The R14 save has no twin, so its 38 records are measured
+on the boundary only.
+
+`examples/probe_text.rs` prints the closure and the comparison:
+
+```sh
+cargo run --release --example probe_text -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
 ## 7w. MESH: the DXF twin names the trailing bits, and MESH is on every release (2026-10-26, #71)
 
 §7i left MESH's last two bits, `10`, unread: the zero code of `BS`, `BL`
