@@ -33,10 +33,37 @@ sections. It is not a full-crate streaming certification.
 `Ready(n)`, `Pending`, EOF or an adapter error. `poll_header()` performs at
 most one read into caller-owned bounded scratch. `FileSource` handles short
 reads, interrupted calls and absolute positioning without seeking to the
-end; `SliceSource` borrows immutable bytes. HTTP and worker implementations
-can satisfy the same requests without changing grammar. Their actual
-network/worker adapters are still open in #206. A forward-only transport
-for a complete DWG needs a spool/cache because indexes can follow objects.
+end; `SliceSource` borrows immutable bytes. `AsyncSource` is the adapter
+for a transport that answers later (a worker thread, a browser worker, an
+HTTP range fetcher, an event loop): it owns no thread, runtime or
+connection. A poll with nothing in flight posts one request of at most one
+chunk and returns `Pending`; the host takes it with `take_request()`,
+fetches it however it likes and hands the answer back with `complete()`,
+`complete_eof()` or `fail()`, then polls again. An answer for another
+offset, an empty one or one longer than the request is rejected and the
+request stays in flight. Bytes the caller's next scratch cannot take are
+held (at most one chunk) for the following polls, so nothing is fetched
+twice. A forward-only transport for a complete DWG needs a spool/cache
+because indexes can follow objects; `AsyncSource` posts absolute offsets,
+so its transport must be range-capable.
+
+`stream_walk --url http://host:port/path --length <bytes>` drives the
+container walk through `AsyncSource` and an HTTP/1.1 range worker thread
+(`examples/support/http_range.rs`, plain `http`, one keep-alive
+connection; an example, not a library client). `tools/streaming/verify_source.py`
+serves the canonical R2000 fixture and the pinned `line_R14.dwg` and
+`line_2000.dwg` from a local range server: under one fixed and one mixed
+chunk schedule the output equals the file-backed run, every poll that
+posts is answered on a later poll (9,206 fetches over the two schedules,
+each after a `Pending`),
+the bytes the server sent equal the bytes delivered to the grammar, in
+order and once, and with a fixed schedule every fetch is exactly the
+grammar's demand. A walk stopped and resumed in a fresh process over HTTP
+at four points fetches no range twice. A 416 past a short file ends in
+the walk's typed `Truncated`; a `Content-Range` for another offset and a
+body cut short are source errors; each leaves only a valid prefix of the
+output. Not measured: TLS, a remote host, latency or throughput, and a
+browser worker (#209).
 
 ## Container walk (R13–R2000)
 
@@ -237,6 +264,7 @@ The R13–R2000 walk and the LZ77 decoder have their own drivers:
 cargo build --locked --example stream_walk --example stream_lz77 --example streaming_schedules
 python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
 ```
 
 Run these on the project's build host. The workflow uploads

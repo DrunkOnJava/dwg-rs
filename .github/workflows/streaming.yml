@@ -39,6 +39,8 @@ jobs:
         run: python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
       - name: End-to-end R2004-family LZ77 decoder acceptance
         run: python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
+      - name: End-to-end asynchronous byte source acceptance
+        run: python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -50,4 +52,5 @@ jobs:
             walk-schedules-*.jsonl
             lz77-evidence.json
             lz77-schedules-*.jsonl
+            source-evidence.json
           if-no-files-found: error
