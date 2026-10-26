@@ -75,7 +75,7 @@
 //! string-stream start, with both strings consumed. The edge's 9
 //! control points form a closed degree-3 curve that starts and ends at
 //! (4.43, 2.59), the first and last fit point of SPLINE `0xA7F`, and the
-//! seed point lies inside it (ARCHITECTURE §7w). The tangents
+//! seed point lies inside it (ARCHITECTURE §7y). The tangents
 //! are therefore read only when there are fit points, which keeps the
 //! spec's order for that case. No corpus record has a spline edge with
 //! fit points, so that case is unmeasured.

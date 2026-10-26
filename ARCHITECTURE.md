@@ -1660,7 +1660,7 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
-## 7w. A HATCH spline edge without fit points has no tangents (2026-10-26, #228)
+## 7y. A HATCH spline edge without fit points has no tangents (2026-10-26, #228)
 
 §20.4.75 ends the R2010+ ("R24") spline edge of a HATCH boundary with
 `BL numfitpoints`, the fit points, and then `2RD` start and end tangents,
