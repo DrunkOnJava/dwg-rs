@@ -26,7 +26,7 @@
 //!
 //! # The matrices
 //!
-//! The spec calls each matrix "double [4][3], column major order". The 12
+//! The spec calls each matrix "double \[4\]\[3\], column major order". The 12
 //! values arrive as three rows of four, the fourth value of each row being
 //! the translation: the inverse block transformation of
 //! `sample_AC1018.dwg`'s filter reads `25.4 0 0 -1087.95`, `0 25.4 0 942.62`,
