@@ -1525,6 +1525,58 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
+## 7t. MULTILEADER before R2010 (2026-10-26, #229)
+
+§20.4.48 says MULTILEADER was introduced in version 21 (R2007), and the
+crate decoded it only from R2010. AutoCAD 2025 writes the record into
+every release it saves, as a class on R14 to R2004, so ACadSharp's
+saves of one drawing (#225) hold its 15 multileaders on R14, R2000,
+R2004 and R2007 too. All 60 were counted as skipped.
+
+§20.4.48 and its embedded §20.4.86 MLeaderAnnotContext print every
+version branch the earlier releases need:
+
+| Where | R2010+ only | Up to R2007 only |
+|---|---|---|
+| the record's start | `BS 270` class version | |
+| each leader line | `BS 170`, `CMC 92`, `BL 171`, `BD 40`, `BL 93` | |
+| each leader root | `BS 271` | |
+| the context's end | `BS 273`, `BS 272` | |
+| after `B 293` is annotative | `BS 271`, `BS 273`, `BS 272` (and the 17 unnamed bits of §7g) | `BL` arrow-head count with a `B` each, `BL` block-label count with a `TV`, `BS`, `BD` each, then `B 294`, `BS 178`, `BS 179`, `BD 45` |
+
+Two rules from elsewhere in the spec also apply: before R2004 a `CMC` is
+the bare `BS` index (§2.11), and before R2007 the `TV`s are inline. Read
+that way, all 105 MULTILEADER records of the public corpus close, R14 to
+R2018, with no change at all to how R2010 and later are read.
+
+`examples/probe_mleader.rs` compares the decoded values with the
+`AcDbMLeader` group of the DXF twin, part by part: the context, each
+leader root and line, and the entity's own fields.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 15 | 15 | no twin | |
+| R2000 | 15 | 15 | 1290 | 0 |
+| R2004 | 15 | 15 | 1365 | 0 |
+| R2007 | 15 | 15 | 1365 | 0 |
+| R2010 | 15 | 15 | 1305 | 0 |
+| R2013 | 15 | 15 | 1305 | 0 |
+| R2018 | 15 | 15 | 1305 | 0 |
+
+Colours are compared from R2004 on, so R2000 has fewer. The `-R2007`
+tail's four scalars (294, 178, 179, 45) are compared on R2000 to R2007.
+
+The releases do not store identical values. Record `0xB27` holds its
+content base point at x 527.42 with left/right attachments 4/0 on R2007
+and earlier, and at x 556.64 with 0/8 on R2010 and later. Each release's
+DXF agrees with its own record, so AutoCAD converts the leader when it
+saves the older format, and the probe compares each release with its
+own twin rather than across releases.
+
+```sh
+cargo run --release --example probe_mleader -- sample_AC1018.dwg sample_AC1018_ascii.dxf
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

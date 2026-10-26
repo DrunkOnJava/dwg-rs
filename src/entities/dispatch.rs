@@ -467,6 +467,13 @@ pub fn decode_from_raw_with_class_map(
                 wipeout::decode(c, v).map(DecodedEntity::Wipeout)
             })
         }
+        // MULTILEADER before R2007: AutoCAD writes the record into R14
+        // to R2004 saves too, with its `TV`s inline (#229).
+        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
+            checked_inline(raw, body_start, version, "MULTILEADER", |c, v, _, _| {
+                mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
+            })
+        }
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -761,17 +768,22 @@ fn dispatch_split_stream_class(
     kind: ObjectType,
     version: Version,
 ) -> Option<DecodedEntity> {
-    if !version.is_r2010_plus() {
+    if !version.is_r2007_plus() {
         return None;
     }
     let result = match dxf_class_name {
+        // §20.4.48: MULTILEADER exists from R2007 (version 21); its
+        // R2007 record has the `-R2007` tail in place of the R2010+
+        // fields (#229).
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(|m| DecodedEntity::MLeader(Box::new(m)))
         }
         // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
         "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
-        | "ACDBDGNUNDERLAY" => {
+        | "ACDBDGNUNDERLAY"
+            if version.is_r2010_plus() =>
+        {
             let kind = match dxf_class_name {
                 "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
                 "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
