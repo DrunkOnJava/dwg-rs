@@ -2790,10 +2790,10 @@ seeded 0xC0C1, and locator size = 38 + `RL`) and every §23.1 chunk's CRC with
 the map ending on its locator. All six pass on all 22 files. No three-locator
 (R13 C2) drawing is among the 22, so that layout, and the PRE-R13C3 image
 position, are untested here. Autodesk's own R13 drawings use three locators
-(older discs) or four (the C4 era, with a §26 tail ending `18 78 01 04`) and
-pass the same framing checks (#345). The US Forest Service set, pinned next,
-has four locators in all 122 drawings, so the three-locator layout reaches the
-corpus only with Autodesk's disc files.
+(67 of the 68 distinct drawings on its install discs) or four (one, with a §26
+tail ending `18 78 01 04`) and pass the same framing checks (#345; "Autodesk's
+discs" below). The US Forest Service set, pinned next, has four locators in all
+122 drawings, so the three-locator layout stays out of the pinned corpus.
 
 The §9 header variables decode strictly on all 22, to the stated size. The
 R13 rows of the table close `Cabin.dwg` as they are (195 slots, the R14
@@ -2811,9 +2811,10 @@ byte holding the last slot (`1010` in all 21) and one whole byte more (`00` in
 `ceil(bits / 8) + 1` (403 to 404 bytes, 395 to 396). The padding bits do not
 tell the writers apart: Autodesk's own R13 discs pad `0000` in 196 of 263
 headers and `1111` in 6, so `1111` is R14 evidence only (#345). What holds on
-every AutoCAD-written R13 header measured is 195 slots, without §9's four
-"R14+" shorts, in a section of exactly `ceil(bits / 8)`; the Sovol writer's
-four -1 shorts and extra byte break both. The decoder reads an AC1012 header with the R14
+every AutoCAD-written R13 header measured (263 on the discs, 122 of the Forest
+Service set) is 195 slots, without §9's four "R14+" shorts, in a section of
+exactly `ceil(bits / 8)`; the Sovol writer's four -1 shorts and extra byte
+break both. The decoder reads an AC1012 header with the R14
 rows when the R13 rows leave a whole byte or more, and lets that header end
 one byte before its data does. That early end is a tolerance for this
 writer's R13 variant, confined to AC1012: no AutoCAD-written R13 header has
@@ -2828,7 +2829,8 @@ header and 14 handle records follow, but the bytes after `AC1012` read
 `00 00 00 00 00 04` and the four fixed bytes `18 30 01 04`, where §26 prints
 `18 78 01 04` for R13. The byte after `18` varies on Autodesk's own
 three-locator files (`30`, `78`, `08`), so `Cabin.dwg`'s `18 30 01 04` is
-not evidence against AutoCAD. The 21 Sovol second headers do not follow the order §26
+not evidence against AutoCAD (the last byte is the locator count, 3 or 4). The
+21 Sovol second headers do not follow the order §26
 prints after the version string. The reader does not use this section.
 
 ### The walk
@@ -2901,6 +2903,34 @@ variables) as "R14+", so it is not R13's, and §20.4.58's text-area note ("first
 always 0 for R13 ... in R14 it is not a valid data start from byte 0") is a
 difference in content, not in framing; neither is measured here, and both
 belong to the decoders that read them.
+
+### Autodesk's discs: local evidence, never fetched or committed
+
+Autodesk's own R13, R13 C3, R13 C4 and R13 C4a install discs hold AC1012
+sample drawings (`ACADCOM/SAMPLE`, `ACADCOM/TUTORIAL`, `SAMP/ADCI/ACAD13`) that
+third parties uploaded to archive.org as disc images (items `auto-cad_202406`,
+`acadr13de` and `autocad.7z`, as the local hunt directories name them). Their
+licence is unclear, so Griffin decided on 2026-10-26 that they are local
+evidence only: measured here and cited, never pinned in `tools/corpus/pins.tsv`,
+never fetched by CI and never committed. `docs/data/r13-autodesk-discs.tsv`
+holds one row per distinct drawing (68, by sha256, out of 263 drawings on the
+five images) with what was read from it, so anyone with the discs can check it.
+Every one of the 68 reads through the crate's own probes with 0 container
+failures, its header variables close, and its handle map has 0 mismatches.
+
+| | the 68 distinct drawings |
+|---|---|
+| locator records | 67 with 3, one with 4 |
+| §26 tail (the four bytes after `AC1012`) | `18 30 01 03` (36), `18 78 01 03` (21), `18 08 01 03` (10), `18 78 01 04` (1) |
+| header slots | 195 in all (263 of 263 headers), none of §9's four "R14+" shorts |
+| header section size | exactly `ceil(bits / 8)`, no byte after the last slot (263 of 263) |
+| bits ending the last slot's byte | `0000` in 46 drawings (196 of 263 headers), `1111` in 2 (6 of 263), the rest mixed |
+| §14.2 preview bitmap | 1,230 to 16,024 bytes, real images (the Forest Service set: 2,276 to 16,592) |
+
+The byte after `18` takes the values `30`, `78` and `08` on three-locator
+files, so it names no writer; the last of the four is the locator count. The
+slot count, the section size, the locator count and a real preview are what
+every AutoCAD-written file shares and the Sovol files do not.
 
 ### What is not measured
 
