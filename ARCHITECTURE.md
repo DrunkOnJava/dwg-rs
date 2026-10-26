@@ -2075,7 +2075,6 @@ reports every disagreement:
 ```sh
 cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
 ```
-||||||| parent of cf06e58 (docs(streaming): the R2007 walk's design, evidence and measured checks (#205))
 
 ## 7v. TEXT, ATTRIB and ATTDEF before R2007: the data flags were inverted (2026-10-26, #226 / #62)
 
@@ -2315,7 +2314,6 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 `DIMALTRND` has no slot in the R13/R14 block, so it reads 0 there.
 `examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
 `probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
-||||||| parent of da3c1a0 (docs(streaming): number the R2007 section after main's last)
 
 ## 7aa. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
 
