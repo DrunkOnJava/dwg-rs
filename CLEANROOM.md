@@ -114,6 +114,23 @@ Discussion or email the maintainer. For legal questions about
 whether this project is safe for your specific use case, consult
 your own counsel.
 
+## 2026-04-19 — LZ77 offset encoding (ACadSharp algorithm comments, MIT)
+
+Commit 3300303 ("Phase B — LZ77 decompression") resolved an ambiguity in
+the spec's §4.7 description of compressed offsets. The spec text gives the
+long form as "+0x3FFF" and the short form as "+0"; files produced by
+AutoCAD decompress correctly only if every offset class is one larger:
++0x4000 for the long form, +1 for the short form, +1 for the 0x40-0xFF
+opcodes, with bit 3 of a 0x10-0x1F opcode supplying bit 14 of the offset.
+These rules were cross-checked against the algorithm-description comments
+of the MIT-licensed ACadSharp reader, which `src/lz77.rs` cites where they
+apply. No ACadSharp source code was copied, translated or structurally
+followed; the comments were used only to confirm the offset arithmetic.
+This is the one reading of another DWG implementation that the README,
+`src/lib.rs` and ARCHITECTURE.md refer to. It was not recorded here when
+it happened; this entry was added on 2026-10-26 from the commit and the
+code comments.
+
 ## 2026-08-30 — VISUALSTYLE property names (Autodesk public DXF Reference, recalled)
 
 PR #47 derives the R2010+ `VISUALSTYLE` field layout entirely from bytes: the
