@@ -28,7 +28,7 @@
 //! On R14 LWPOLYLINE carries a class number from AcDb:Classes rather
 //! than the fixed code `0x4D`; dispatch routes it by class name, and its
 //! 24 corpus records decode to the same values as the R2000 saves of the
-//! same drawings (ARCHITECTURE.md §7q, #229).
+//! same drawings (ARCHITECTURE.md §7n, #229).
 //!
 //! # Measured: the flag bits and the field order
 //!

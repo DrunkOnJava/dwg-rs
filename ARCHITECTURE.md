@@ -1527,7 +1527,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7q. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
+## 7n. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
 
 §20.4.85 types LWPLINE `(varies)` and §20.4.75 types HATCH `(varies)`:
 both entered AutoCAD with R14 as classes and got the fixed codes `0x4D`
