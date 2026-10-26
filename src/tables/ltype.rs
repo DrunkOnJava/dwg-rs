@@ -208,8 +208,7 @@ pub(crate) fn decode_modern_split_stream(
     }
 
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let pattern_length = split.data.read_bd()?;
     let alignment = split.data.read_rc()?;
     let num_dashes = split.data.read_rc()? as usize;
@@ -358,15 +357,15 @@ mod tests {
     #[test]
     fn r2018_split_stream_ltype_reads_name_and_description_from_string_stream() {
         let mut w = BitWriter::new();
-        // Common object prefix: EED terminator, xdictionary flag,
-        // AcDs binary-data flag.
+        // Common object prefix: EED terminator, reactor count,
+        // xdictionary flag, AcDs binary-data flag.
         w.write_bs_u(0);
+        w.write_bl(0);
         w.write_b(true);
         w.write_b(false);
-        // Common table-entry flags, in the measured `B, B, BS` order.
+        // Common table-entry flags.
         w.write_b(false); // 64 flag
         w.write_b(false); // xdep
-        w.write_bs(0); // xref index + 1
         w.write_bd(1.0); // pattern length
         w.write_rc(b'A'); // alignment
         w.write_rc(0); // no dashes

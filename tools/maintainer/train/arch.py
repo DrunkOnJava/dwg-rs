@@ -7,6 +7,8 @@ renumber MB MAIN   at the PR head: the `## 7X.` sections the PR adds (relative t
 resolve PATH       during a merge: each conflict hunk whose base side is empty (both sides appended
                    at the same place) becomes theirs, a blank line, then ours. Any other conflict
                    hunk exits 1 without writing.
+check [PATH]       the `## 7X.` sections of PATH (default ARCHITECTURE.md) run 7a, 7b, ... with no
+                   suffix repeated or skipped; exits 1 naming the first one that does not (CI).
 """
 import re
 import subprocess
@@ -128,8 +130,22 @@ def resolve(path):
         fh.write('\n'.join(out))
 
 
+def check(path):
+    with open(path, encoding='utf-8') as f:
+        suffixes = re.findall(r'^## 7([a-z]+)\.', f.read(), re.M)
+    for n, s in enumerate(suffixes, 1):
+        if ordinal(s) != n:
+            raise SystemExit(f'{path}: section 7{s} where 7{suffix(n)} belongs '
+                             f'(sections: {", ".join("7" + x for x in suffixes)})')
+
+
 if __name__ == '__main__':
-    if sys.argv[1] == 'renumber':
-        renumber(sys.argv[2], sys.argv[3])
+    args = sys.argv[1:]
+    if args[:1] == ['renumber'] and len(args) == 3:
+        renumber(args[1], args[2])
+    elif args[:1] == ['resolve'] and len(args) == 2:
+        resolve(args[1])
+    elif args[:1] == ['check'] and len(args) <= 2:
+        check(args[1] if len(args) == 2 else 'ARCHITECTURE.md')
     else:
-        resolve(sys.argv[2])
+        raise SystemExit(__doc__)

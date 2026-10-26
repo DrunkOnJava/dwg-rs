@@ -437,6 +437,10 @@ jobs:
       # v5.4.1 and agree with docs/data/spec-coverage.tsv (#105).
       - name: Every spec section has a row, and the page matches its data
         run: python3 tools/ci/spec_coverage.py --check
+      # Lanes land ARCHITECTURE.md sections in parallel with strict
+      # up-to-date off, so two PRs can each add the same `## 7x.`.
+      - name: ARCHITECTURE.md's numbered sections run in order
+        run: python3 tools/maintainer/train/arch.py check
 
   pii-guard:
     name: PII guard
