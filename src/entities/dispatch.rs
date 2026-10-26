@@ -686,6 +686,13 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::VisualStyle),
+        // §20.4.84 types LAYOUT `(varies)`: R14 and R2000 give it a
+        // class number from AcDb:Classes rather than the fixed code
+        // 0x52, and it is the same record (#229).
+        "LAYOUT" => {
+            crate::objects::acad_layout::decode_object(payload, body_start, inline_end, version)
+                .map(|layout| DecodedEntity::Layout(Box::new(layout)))
+        }
         // A standalone PLOTSETTINGS record carries exactly the block
         // §20.4.84 embeds in LAYOUT; the two share one field list.
         "PLOTSETTINGS" | "ACDBPLOTSETTINGS" => crate::objects::acad_plot_settings::decode_object(
@@ -1253,7 +1260,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
         OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
-        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c)?),
+        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
         // bit: when it is set the SAB stream lives in the data-storage
@@ -1448,28 +1455,6 @@ mod tests {
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Error { .. }));
         assert!(!decoded.is_decoded());
-    }
-
-    /// A release band whose LAYOUT layout is not determined comes back
-    /// `Unhandled`, never `Error` — "not determined" is not a broken
-    /// record.
-    #[test]
-    fn undetermined_layout_release_is_unhandled_not_error() {
-        let raw = RawObject {
-            stream_offset: 0,
-            size_bytes: 0,
-            type_code: 0x52,
-            kind: ObjectType::Layout,
-            handle: crate::bitcursor::Handle {
-                code: 0,
-                counter: 0,
-                value: 0,
-            },
-            raw: vec![0u8; 32],
-            obj_size_bits: None,
-        };
-        let decoded = decode_from_raw(&raw, Version::R2000);
-        assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
     }
 
     /// A DICTIONARY with no bytes reaches the object decoder and fails

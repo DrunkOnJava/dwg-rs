@@ -73,16 +73,32 @@ pub struct SectionPageRef {
 /// The 32-byte Sec_Mask-encrypted header that precedes every data section
 /// page (spec §4.6). Unlike the 20-byte plaintext system page header,
 /// this one XORs each 4-byte word against `0x4164_536B ^ file_offset`.
+///
+/// The layout is the one measured on every data page of the pinned corpus
+/// (`examples/probe_data_page_header.rs --strict`, 580 of 580 pages;
+/// ARCHITECTURE.md §7n): the field at `0x10` is an 8-byte start offset, so
+/// the header checksum is at `0x18` and the data checksum at `0x1C`.
 #[derive(Debug, Clone, Copy)]
 pub struct DataPageHeader {
+    /// `0x00`: [`DataPageHeader::PAGE_TYPE`].
     pub page_type: u32,
+    /// `0x04`: the id of the section the page belongs to.
     pub section_number: u32,
+    /// `0x08`: the stored bytes after the header (compressed for an LZ77
+    /// section, a whole padded page for a stored one); equal to the section
+    /// map's reference for the page.
     pub data_size: u32,
+    /// `0x0C`: the page's size in the page map, header and padding
+    /// included; not the decompressed size.
     pub page_size: u32,
-    pub start_offset: u32,
-    pub page_header_checksum: u32,
+    /// `0x10`: the page's offset in its section (8 bytes); equal to the
+    /// section map's reference for the page.
+    pub start_offset: u64,
+    /// `0x18`: §4.2 over these 0x20 bytes with this field zeroed, seeded
+    /// with [`DataPageHeader::data_checksum`].
+    pub header_checksum: u32,
+    /// `0x1C`: §4.2 over the stored bytes, seed 0.
     pub data_checksum: u32,
-    pub _unknown: u32,
 }
 
 impl DataPageHeader {
@@ -110,10 +126,9 @@ impl DataPageHeader {
             section_number: LittleEndian::read_u32(&hdr[4..8]),
             data_size: LittleEndian::read_u32(&hdr[8..12]),
             page_size: LittleEndian::read_u32(&hdr[12..16]),
-            start_offset: LittleEndian::read_u32(&hdr[16..20]),
-            page_header_checksum: LittleEndian::read_u32(&hdr[20..24]),
-            data_checksum: LittleEndian::read_u32(&hdr[24..28]),
-            _unknown: LittleEndian::read_u32(&hdr[28..32]),
+            start_offset: LittleEndian::read_u64(&hdr[16..24]),
+            header_checksum: LittleEndian::read_u32(&hdr[24..28]),
+            data_checksum: LittleEndian::read_u32(&hdr[28..32]),
         })
     }
 }
@@ -164,7 +179,7 @@ pub fn read_section_payload(
         let payload = &file_bytes[payload_start..payload_end];
         let decompressed = match description.compressed {
             1 => payload.to_vec(),
-            2 => lz77::decompress(payload, Some(hdr.page_size as usize))?,
+            2 => lz77::decompress(payload, Some(description.max_decomp_page_size as usize))?,
             other => {
                 return Err(Error::SectionMap(format!(
                     "section '{}' has unknown compression flag {}",

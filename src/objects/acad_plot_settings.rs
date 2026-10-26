@@ -77,11 +77,11 @@
 //! | Release | Status |
 //! |---|---|
 //! | R2004, R2010, R2013, R2018 | closes on all 31 corpus records |
-//! | R13 / R14 / R2000 | §20.4.84 inserts a `T plot_view_name` (6) here and omits the three shade-plot fields; no walkable corpus file, so [`Error::Unsupported`] |
-//! | R2007 | field list is presumably the R2004 one, but this crate cannot locate an R2007 object's string stream yet (`STATUS.md` #104), so [`Error::Unsupported`] |
+//! | R14 / R2000 | §20.4.84's `TV` plot view name (6) after the window, and no shade-plot fields; closes inside all 50 corpus LAYOUT records (2026-10-26, #229) |
+//! | R2007 | the R2004 field list with string-stream `TV`s; closes inside all 25 corpus LAYOUT records (2026-10-26, #229) |
 
 use crate::bitcursor::BitCursor;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::objects::modern::{self, ObjectStream};
 use crate::version::Version;
 
@@ -137,6 +137,8 @@ pub struct AcadPlotSettings {
     pub window_min: Point2D,
     /// Plot-window upper-right corner (groups 140, 141).
     pub window_max: Point2D,
+    /// Plot view name (group 6). R13-R2000 only; empty from R2004.
+    pub plot_view_name: String,
     /// Numerator of the custom print scale (group 142).
     pub real_world_units: f64,
     /// Denominator of the custom print scale (group 143).
@@ -150,12 +152,13 @@ pub struct AcadPlotSettings {
     pub scale_factor: f64,
     /// Paper image origin (groups 148, 149).
     pub paper_image_origin: Point2D,
-    /// Shade-plot mode (group 76). R2004+.
+    /// Shade-plot mode (group 76). R2004+; 0 before, where the record
+    /// does not store it.
     pub shade_plot_mode: i16,
-    /// Shade-plot resolution level (group 77). R2004+.
+    /// Shade-plot resolution level (group 77). R2004+; 0 before.
     pub shade_plot_resolution_level: i16,
-    /// Shade-plot custom DPI (group 78). R2004+; `300` on every corpus
-    /// record.
+    /// Shade-plot custom DPI (group 78). R2004+ (0 before); `300` on
+    /// every R2004+ corpus record.
     pub shade_plot_custom_dpi: i16,
 }
 
@@ -180,25 +183,6 @@ impl AcadPlotSettings {
         } else {
             Some(self.real_world_units / self.drawing_units)
         }
-    }
-}
-
-/// Reject the release bands whose plot-settings layout this crate has
-/// not matched against real bytes.
-pub(crate) fn check_version(version: Version, what: &str) -> Result<()> {
-    match version {
-        Version::R2004 | Version::R2010 | Version::R2013 | Version::R2018 => Ok(()),
-        Version::R2007 => Err(Error::Unsupported {
-            feature: format!(
-                "{what} on R2007: this crate cannot locate an R2007 object's string stream yet"
-            ),
-        }),
-        other => Err(Error::Unsupported {
-            feature: format!(
-                "{what} is only determined for R2004 and R2010+; got {}",
-                other.release()
-            ),
-        }),
     }
 }
 
@@ -229,6 +213,13 @@ pub(crate) fn read_fields(
     let plot_type = c.read_bs()?;
     let window_min = read_bd2(c)?;
     let window_max = read_bd2(c)?;
+    // §20.4.84: the plot view name is R13-R2000 only.
+    let plot_view_name = if version.is_r2004_plus() {
+        String::new()
+    } else {
+        modern::read_tv(&mut split.data, &mut split.strings, version)?
+    };
+    let c = &mut split.data;
     let real_world_units = c.read_bd()?;
     let drawing_units = c.read_bd()?;
     let current_style_sheet = modern::read_tv(&mut split.data, &mut split.strings, version)?;
@@ -236,9 +227,13 @@ pub(crate) fn read_fields(
     let standard_scale_type = c.read_bs()?;
     let scale_factor = c.read_bd()?;
     let paper_image_origin = read_bd2(c)?;
-    let shade_plot_mode = c.read_bs()?;
-    let shade_plot_resolution_level = c.read_bs()?;
-    let shade_plot_custom_dpi = c.read_bs()?;
+    // §20.4.84: the three shade-plot fields are R2004+.
+    let (shade_plot_mode, shade_plot_resolution_level, shade_plot_custom_dpi) =
+        if version.is_r2004_plus() {
+            (c.read_bs()?, c.read_bs()?, c.read_bs()?)
+        } else {
+            (0, 0, 0)
+        };
     Ok(AcadPlotSettings {
         page_setup_name,
         printer_config_name,
@@ -256,6 +251,7 @@ pub(crate) fn read_fields(
         plot_type,
         window_min,
         window_max,
+        plot_view_name,
         real_world_units,
         drawing_units,
         current_style_sheet,
@@ -271,16 +267,12 @@ pub(crate) fn read_fields(
 /// Decode a standalone PLOTSETTINGS object from its raw payload,
 /// taking its `TV` fields from the R2007+ string stream and checking
 /// that the data fields end exactly on the data-stream boundary.
-///
-/// Returns [`Error::Unsupported`] for the release bands listed in the
-/// module docs.
 pub fn decode_object(
     payload: &[u8],
     body_start: usize,
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<AcadPlotSettings> {
-    check_version(version, "PLOTSETTINGS")?;
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
     let settings = read_fields(&mut split, version)?;
     split.finish("PLOTSETTINGS")?;
@@ -370,17 +362,6 @@ pub(crate) mod tests {
         let bits = crate::string_stream::tests::bits_of(&body);
         let payload = crate::string_stream::tests::build_payload(&bits, &["", "x", "", ""]);
         assert!(decode_object(&payload, 8, None, Version::R2018).is_err());
-    }
-
-    #[test]
-    fn rejects_the_undetermined_release_bands() {
-        let payload = build_r2018();
-        for version in [Version::R14, Version::R2000, Version::R2007] {
-            let err = decode_object(&payload, 8, None, version).unwrap_err();
-            assert!(
-                matches!(&err, Error::Unsupported { feature } if feature.contains("PLOTSETTINGS"))
-            );
-        }
     }
 
     #[test]
