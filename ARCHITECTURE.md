@@ -1754,7 +1754,7 @@ decodes or hands out a byte; `tools/streaming/verify_sections.py` walks the
 same pages and compares every assembled section with an independent
 parser and the legacy reader.
 
-## 7n. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
+## 7o. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
 
 ACadSharp's R14 save (`sample_AC1014.dwg`, #225) is the corpus's only
 R14 drawing with INSERTs, dimensions or a 3DFACE, and every one of
@@ -1795,7 +1795,7 @@ cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC
     --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
 ```
 
-## 7o. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
+## 7p. LAYOUT before R2004 and on R2007 (2026-10-26, #229)
 
 §20.4.84 prescribes LAYOUT (and the plot-settings block it embeds) with
 three version branches the decoder had refused rather than read: a `TV`
@@ -1829,7 +1829,7 @@ cargo run --release --example probe_cross_release -- arc_R14.dwg arc_2004.dwg LA
     --ignore=shade_plot_mode,shade_plot_resolution_level,shade_plot_custom_dpi,viewport_count,trailing_strings
 ```
 
-## 7p. ACIS version-2 envelopes (2026-10-26, #228)
+## 7q. ACIS version-2 envelopes (2026-10-26, #228)
 
 §20.4.41 gives the ACIS envelope two forms. Version 1 is a loop of
 length-prefixed blocks; version 2 is "an acis file" written straight
@@ -1856,7 +1856,7 @@ A version-2 envelope that is not `ACIS BinaryFile` (a text SAT file) is
 refused with `Unsupported` rather than scanned for an end the spec says
 needs a parser.
 
-## 7q. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
+## 7r. LWPOLYLINE and HATCH on R14 are classes (2026-10-26, #229)
 
 §20.4.85 types LWPLINE `(varies)` and §20.4.75 types HATCH `(varies)`:
 both entered AutoCAD with R14 as classes and got the fixed codes `0x4D`
@@ -1890,7 +1890,7 @@ and the R2000 `2DD` reading recover the same coordinates.
 cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg LWPOLYLINE
 ```
 
-## 7n. AcDb:Header: the variables, in three streams (2026-10-26, #126)
+## 7s. AcDb:Header: the variables, in three streams (2026-10-26, #126)
 
 `src/header_table.rs` holds §9 as one table, a row per slot in stream order
 with its bit code and the first and last release that carry it;
@@ -1985,7 +1985,7 @@ on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
 all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
 spec's R14 dump and in all eight R14 files, 64 from R2000.
 
-## 7r. MTEXT before R2007: the version branches (2026-10-26, #226)
+## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
 spacing on every release and stopped there. ACadSharp's saves of one

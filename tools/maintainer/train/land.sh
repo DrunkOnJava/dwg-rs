@@ -3,8 +3,8 @@
 #
 # Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head, requires
 # zero unresolved review threads, and turns squash auto-merge on. If main moves in a path that can
-# change the generated files (src/ outside src/streaming/, tools/corpus/, docs/data/, the spec
-# example fixtures) between the refresh and the merge, it runs `DRY=1 refresh.sh` against the new
+# change the generated files or the PR's ARCHITECTURE.md section suffix (src/ outside
+# src/streaming/, tools/corpus/, docs/data/, the spec example fixtures, ARCHITECTURE.md) between the refresh and the merge, it runs `DRY=1 refresh.sh` against the new
 # main: when every generated file comes out unchanged the PR keeps its CI results and lands;
 # otherwise auto-merge goes off and it exits 8 for a real refresh.
 #
@@ -30,7 +30,7 @@ moved() {
   now=$(gh api "repos/$R/commits/main" --jq .sha 2>/dev/null) || return 1
   [ "$now" = "$base" ] && return 1
   gh api "repos/$R/compare/$base...$now" --jq '.files[].filename' 2>/dev/null \
-    | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/)'
+    | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/|ARCHITECTURE\.md$)'
 }
 still_valid() {
   [ -d "$OUT" ] || return 1
