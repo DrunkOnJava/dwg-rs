@@ -47,6 +47,7 @@
 
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
+use crate::version::Version;
 
 pub mod arc;
 pub mod attdef;
@@ -184,6 +185,26 @@ pub fn read_be(c: &mut BitCursor<'_>) -> Result<Vec3D> {
 /// one-bit flag is set; otherwise reads a BD.
 pub fn read_bt(c: &mut BitCursor<'_>) -> Result<f64> {
     if c.read_b()? { Ok(0.0) } else { c.read_bd() }
+}
+
+/// Read a BE (§2.8) as `version` stores it: a bare `3BD` on R13-R14, the
+/// flag-then-`3BD` form of [`read_be`] from R2000.
+pub fn read_be_for(c: &mut BitCursor<'_>, version: Version) -> Result<Vec3D> {
+    if version.is_r13_r14() {
+        read_bd3(c)
+    } else {
+        read_be(c)
+    }
+}
+
+/// Read a BT (§2.10) as `version` stores it: a bare `BD` on R13-R14, the
+/// flag-then-`BD` form of [`read_bt`] from R2000.
+pub fn read_bt_for(c: &mut BitCursor<'_>, version: Version) -> Result<f64> {
+    if version.is_r13_r14() {
+        c.read_bd()
+    } else {
+        read_bt(c)
+    }
 }
 
 #[cfg(test)]
