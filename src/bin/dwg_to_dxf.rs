@@ -37,7 +37,7 @@ use std::process::ExitCode;
 #[command(
     name = "dwg-to-dxf",
     about = "Convert a DWG file to ASCII DXF (R12..R2018)",
-    version
+    disable_version_flag = true
 )]
 struct Args {
     /// Path to a .dwg file.

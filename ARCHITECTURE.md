@@ -1306,7 +1306,7 @@ are fixed; three are not and are reported.
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
 | VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7u) |
 | MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported; closed 2026-10-26 by the DXF twin (§7w) |
-| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
+| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported; closed 2026-10-26 by the whole §20.4.47 list (§7ab) |
 
 The three fixes each meet the same bar as #58: `delta 0` **plus** a
 value that corroborates it independently of the bit count. BLOCK's
@@ -1986,6 +1986,56 @@ on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
 all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
 spec's R14 dump and in all eight R14 files, 64 from R2000.
 
+### dwg-to-dxf writes it back
+
+`src/dxf_header.rs` turns the decoded header into the `$VARIABLE` groups
+AutoCAD's own export writes for the same drawing, and nothing more: a variable
+the export omits is omitted (`$PELLIPSE`, `$FACETRES`, the unknown slots, the
+control-object handles), and so is one the DWG cannot give. The group codes and
+the first release of each variable are measured on the 50 AutoCAD exports of
+the corpus, which agree with each other (`$XCLIPFRAME` alone changes code, 290
+before R2010 and 280 after, and before R2010 a 2 is written false).
+`examples/probe_dxf_header.rs` converts each drawing that has an export, reads
+`dwg-to-dxf`'s output back with `dxf_reader` and compares every variable; the
+Corpus job runs it.
+
+| Release | Files | Written | Agree | Relation | Disagree | Extra | Omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 | 8 | 1,527 | 1,494 | 33 | 0 | 0 | 65 |
+| AC1018 | 8 | 1,622 | 1,589 | 33 | 0 | 0 | 66 |
+| AC1021 | 8 | 1,915 | 1,883 | 32 | 0 | 0 | 93 |
+| AC1024 | 8 | 1,923 | 1,890 | 33 | 0 | 0 | 93 |
+| AC1027 | 8 | 1,931 | 1,898 | 33 | 0 | 0 | 93 |
+| AC1032 | 2 | 479 | 470 | 9 | 0 | 0 | 27 |
+
+*Relation* is the later-save rule above for `$TDUUPDATE`, `$TDINDWG`,
+`$TDUSRTIMER`, `$HANDSEED` and `$VERSIONGUID`. *Extra* is a variable written that
+the export omits: none. Every *omitted* variable has a stated reason: the local
+`$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
+file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
+329), a true-colour `$CECOLOR`, `$CMATERIAL`, `$INTERFEREOBJVS` and `$INTERFEREVPVS`
+(handles to MATERIAL and VISUALSTYLE objects, which the converter exports as
+untyped placeholders, so the reference would point at the wrong thing), and every name for a symbol record the output does not
+define: the converter writes layer 0 and no other symbol table, so `$TEXTSTYLE`,
+`$CELTYPE`, `$DIMSTYLE`, `$CMLSTYLE`, a non-zero `$CLAYER` and the like are
+omitted until those tables are written (a DXF whose header names a style it never
+defines is not a valid reference); an empty name, from a null handle, is kept. Three variables live elsewhere in the DWG and are
+read from there: `$MEASUREMENT` (`AcDb:Template`, §22; from R2007 the description
+length counts UTF-16 units, AutoCAD writes a length of 1 and two bytes, where §22
+counts bytes), `$DWGCODEPAGE` (the file header's code page, 29 and 30 measured)
+and `$LASTSAVEDBY` (`AcDb:SummaryInfo`). A handle DXF writes as a name goes
+through the decoded symbol-table record; `$CMLSTYLE` takes the case of its
+`ACAD_MLINESTYLE` dictionary key and a standard arrowhead block `_BoxBlank` is
+`$DIMBLK` `BoxBlank` (only that name is measured; the list of standard arrowheads
+is AutoCAD's documented one, and any other block keeps its name, underscore
+included). `$ANGBASE` is radians in the database and degrees in DXF group 50, and
+before R2007 non-ASCII text is written as `\U+XXXX` escapes; the corpus holds a
+zero `$ANGBASE` and only ASCII header text, so neither is measured. Control
+characters and the caret are written in DXF's caret notation (a line feed is
+`^J`, a caret `^ `) so a value stays on its own line; no corpus header text has
+one. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
+export of either exists to measure the set against.
+
 ## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
@@ -2314,6 +2364,148 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 `DIMALTRND` has no slot in the R13/R14 block, so it reads 0 there.
 `examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
 `probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
+
+## 7aa. GEODATA, a non-entity object read as §20.4.78 prints it (2026-10-26, #229)
+
+GEODATA attaches a geographic coordinate system to the model-space
+block. §20.4.78 lists it among the objects: a class number from
+`AcDb:Classes` and the common object data of §20.1. The crate decoded it
+as an entity with an invented field list (an origin, two axis vectors,
+two scales, five strings) keyed on a fixed code, 0x4FB. The corpus's one
+record, handle `0x241` of ACadSharp's `geoloc.dwg` (R2018), carries a
+class number, so it never reached that decoder.
+
+`entities::geodata` now reads §20.4.78's field list after the common
+object data. The dispatcher routes the class name `GEODATA` to it, and
+the fixed code to the object path. Read that way, the record closes on
+its string stream with every string consumed, and all 77 values
+`examples/probe_geodata.rs` compares equal AutoCAD's DXF export of the
+drawing: object version 3, design coordinate type 1, the design and
+reference points, both unit scales and units (0.0254, inches), the up
+and north directions, the scale estimation, the sea-level fields, the
+projection radius 6,362,228.65, the 3,195-character MapGuide coordinate
+system definition, the GeoRSS tag, the three empty observation tags,
+and all 12 mesh points. There are 0 mesh faces.
+
+### Errata in the specification
+
+| Where | What the spec prints | What the record says |
+|---|---|---|
+| §20.4.78, p194 | `North direction 3RD` (object version 2 and later) | a `2RD`. At bit 566, `0x241`'s two `RD`s read (2.4e-16, 1.0), DXF `12`/`22`. The next 64 bits read as a third `RD` give −3.1e-151. They are the scale estimation `BL` (1, DXF `95`), the user scale factor `BD` (1.0, `141`), the sea-level `B` (0, `294`) and `BD` (0.0, `142`), and the first bits of the projection radius. Read as a `3RD`, the radius becomes −288,169,236 for DXF's 6,362,228.65, the mesh-point count 50 for DXF's 12, and the record overruns its 3,859-bit boundary. Read as a `2RD`, it ends exactly on it |
+
+The object version 1 (AutoCAD 2009) layout and the civil block §20.4.78
+adds to R2007 and earlier files are read as printed. The corpus has
+neither, so both are unmeasured. A record they do not fit fails the
+boundary check rather than decoding to invented values.
+
+```sh
+cargo run --release --example probe_geodata -- ../dwg-corpus/acadsharp/geoloc.dwg ../dwg-corpus/acadsharp/geoloc.dxf
+cargo run --release --example probe_field_list -- ../dwg-corpus/acadsharp/geoloc.dwg 577 BL,BS,3*BD,3*BD,BD,BL,BD,BL,3*BD,2*RD,BL,BD,B,BD,BD,TV,TV,TV,TV,TV,BL,48*RD,BL   # delta 0
+```
+
+## 7ab. LEADER: one `3BD` missed, and no text box from R2010 (2026-10-26, #71)
+
+§7i reported LEADER's twelve missing bits on its one R2018 record and
+stopped, because one record could not choose between the continuations
+that fit. The public corpus (#225) holds the same LEADER (handle
+`0x512`) in ACadSharp's saves of one drawing as R14, R2000, R2004,
+R2007, R2010, R2013 and R2018, and every save but R14 has AutoCAD's
+DXF export. Seven releases settle what one could not.
+
+The old field list read four `3BD`s after the points where §20.4.47 has
+five — origin, extrusion, x direction, offset to the block insertion
+point, then the R14+ end point projection — so the value it called the
+end projection was the origin, which equals the first point, the
+default the section gives it. With the fifth `3BD` read, §20.4.47's own
+branches close the record on every band but one:
+
+| Release | Delta before | Closes as | Box height / width |
+|---|---:|---|---|
+| R14 | −282 | the R13-R14 branch: `BD` dimgap, box, `B`, `B`, `BS` arrowhead type, `BD` dimasz, `B`, `B`, `BS`, `BS` byblock colour, `B`, `B` | 1.844821… / 16.374004… |
+| R2000 | −144 | the R2000+ branch: box, `B`, `B`, `BS`, `B`, `B` | 1.844821… / 16.374004… = DXF 40 / 41 |
+| R2004 | −144 | same | same, = DXF 40 / 41 |
+| R2007 | −144 | same | same, = DXF 40 / 41 |
+| R2010 | −12 | the R2000+ branch **without** the box | not in the record |
+| R2013 | −12 | same | not in the record |
+| R2018 | −12 | same | not in the record |
+
+**The departure is measured, not borrowed.** §20.4.47 files box height
+and box width under "Common". On R2010, R2013 and R2018 the record is
+exactly 132 bits shorter than on R2007 — two non-default `BD`s — and
+the six bits after the end point projection are `011000`, the same six
+bits that follow the box width on R2000-R2007: hook line on the x
+direction `0` (DXF 74 is `0`), arrowhead on `1`, then the R2000+ `BS`
+`0` and two `B`s `0`. The R2010+ DXF exports still write 40 and 41 with
+the R2007 values, so AutoCAD carries them somewhere else; this record
+does not.
+
+On R14 the two creation-time values corroborate the R13-R14 branch
+independently of the bit count: dimgap `0.625` and dimasz `2.5` are the
+DIMGAP (group 147) and DIMASZ (group 41) of the drawing's ISO-25
+DIMSTYLE, the style the leader names (DXF group 3). Both `BS`s that
+follow the `B`s read `256`; only the width is claimed for them.
+
+The DXF twins agree with every value they write: groups 73 and 74, the
+box on R2000-R2007, and the vertices. AutoCAD's export holds four
+vertices where the record holds three, because with a hook line (group
+75 `1`) it inserts the hook line's start, 2.5 (DIMASZ) before the last
+point; the record's first two points and last point equal the DXF's
+first two and last. The DXF omits groups 71 and 72, so the arrowhead
+flag and path type are compared with nothing.
+
+`examples/probe_leader.rs` prints each record and, given the twin, the
+comparison:
+
+```sh
+cargo run --release --example probe_leader -- sample_AC1015.dwg sample_AC1015_ascii.dxf
+```
+
+## 7ac. The object stream's records, framed from the stream (2026-10-26, #205)
+
+The streaming object walker (`src/streaming/records.rs`,
+`r2004_objects.rs`) frames an R2004-family object section without the
+`AcDb:Handles` map: after the four-byte `RL 0x0DCA` prologue, each record is
+`MS` size, on R2010 and later an `MC` handle-stream size, `MS` bytes of
+payload and a two-byte CRC, and the next record follows at once. Three
+properties of that framing were not on record before it was coded; each was
+measured on every object section of the 28 R2004-family drawings of the
+pinned corpus (21 nextgis saves from AutoCAD 2016, 7 from ACadSharp's
+AutoCAD 2025 samples) with an independent parse, and then enforced by the
+walker.
+
+| Property | R2004 | R2010 | R2013 | R2018 |
+|---|---|---|---|---|
+| Records walked | 2,417 | 2,188 | 1,787 | 1,615 |
+| The records end exactly at the section's size (no padding, no zero-length trailer) | 8 of 8 drawings | 8 of 8 | 8 of 8 | 4 of 4 |
+| The CRC (§2.14.1, seed `0xC0C1`) over the bytes from the `MS` through the last payload byte, `MC` included, equals the two bytes after the payload | 2,417 | 2,188 | 1,787 | 1,615 |
+| The `MC` handle-stream size is at most 8 times the record's payload bytes | n/a | 2,188 | 1,787 | 1,615 |
+
+The CRC rule is the same one §20.1 gives the R13 to R2000 records, and the
+`MC` is inside it. Three other readings were tried on the same 8,007 records
+and agree with none: a CRC over the `MS` alone, over the payload alone (the `MC`
+included, the `MS` not), and, on R2010 and later, over the `MS` and the payload
+without the `MC`. The legacy `ObjectWalker` never checked the CRC. Its comment that "trailing padding in some R2018 files" ends the
+stream at a zero `MS` describes no drawing of this corpus: the four ACadSharp
+R2018 saves, `empty.dwg`, `export_sample.dwg` and `geoloc.dwg` tile exactly;
+the streaming walker refuses a zero `MS` instead (`RecordSize`).
+
+Four larger drawings, `sample_AC1018`, `sample_AC1024`, `sample_AC1027` and
+`sample_AC1032`, hold object sections of 1.2 to 1.6 MB in 41 to 54
+`0x7400`-byte pages. 71 of their 3,644 records straddle a page boundary, 36 of
+those are larger than a page (the largest is 150,148 bytes) and the framing
+carries across them unchanged. The pages of the object section appear in
+section order in the page map of all 28 drawings, 28 of 28 contiguous from
+offset 0. `AcDb:AcDsPrototype_1b`, in the three saves that have one
+(`sample_AC1027`, `sample_AC1032` and `export_sample`), is the only section of
+any drawing whose pages the page map lists out of order: its two pages come
+second first.
+
+The same large drawings corrected a limit of the R13 to R2000 container walk:
+it refused an object map chunk of more than 2,032 bytes. A chunk's size counts
+its own two bytes, so the spec's 2,032 bytes of entries make a chunk of 2,034,
+and AutoCAD's first chunk in `sample_AC1014.dwg` is 2,033 and in
+`sample_AC1015.dwg` 2,034. The walk's evidence had been limited to files under
+160 KB, whose maps are one short chunk.
 
 ## 8. Write pipeline (current scope)
 
