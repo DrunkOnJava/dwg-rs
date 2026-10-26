@@ -55,7 +55,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<UcsEntry> {
     let origin = read_bd3(c)?;
     let x_axis = read_bd3(c)?;
     let y_axis = read_bd3(c)?;
-    if matches!(version, Version::R14) {
+    if version.is_r13_r14() {
         return Ok(UcsEntry {
             header,
             origin,

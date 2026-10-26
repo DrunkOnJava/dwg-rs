@@ -204,6 +204,7 @@ pub fn validate_section_name(name: &str) -> Result<()> {
 ///
 /// | Version      | Magic  |
 /// |--------------|--------|
+/// | R13          | AC1012 |
 /// | R14          | AC1014 |
 /// | R2000..R2002 | AC1015 |
 /// | R2004..R2006 | AC1018 |
@@ -213,6 +214,7 @@ pub fn validate_section_name(name: &str) -> Result<()> {
 /// | R2018+       | AC1032 |
 pub fn version_magic_bytes(version: Version) -> [u8; 6] {
     let s: &[u8; 6] = match version {
+        Version::R13 => b"AC1012",
         Version::R14 => b"AC1014",
         Version::R2000 => b"AC1015",
         Version::R2004 => b"AC1018",

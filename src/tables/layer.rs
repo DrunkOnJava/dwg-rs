@@ -89,7 +89,7 @@ impl Layer {
 /// reported `lineweight = -32765`, `colour = -31231`.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Layer> {
     let header = read_table_entry_header(c, version)?;
-    let flags = if matches!(version, Version::R14) {
+    let flags = if version.is_r13_r14() {
         // §20.4.54 gives R13-R14 four separate bits where R2000+ pack
         // the same states into `values`. Reassembled into the R2000+
         // word so `Layer::is_frozen` and friends mean one thing across

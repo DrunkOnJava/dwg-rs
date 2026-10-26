@@ -68,7 +68,7 @@ pub struct Tolerance {
 /// past the common entity preamble.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Tolerance> {
     // §20.4.49: the unknown short, height and dimgap are R13-R14 only.
-    let (unknown_short, height, dimgap) = if version == Version::R14 {
+    let (unknown_short, height, dimgap) = if version.is_r13_r14() {
         (c.read_bs()?, c.read_bd()?, c.read_bd()?)
     } else {
         (0, 0.0, 0.0)

@@ -307,7 +307,7 @@ pub fn read_common_object_data_full(
     // counterpart of the field R2000-R2007 put in the object prologue.
     // Measured plausible (`0 < RL <= payload bits` and past the cursor) on
     // all 285 non-entity records of every R14 corpus file.
-    let data_end_bits = if matches!(version, Version::R14) {
+    let data_end_bits = if version.is_r13_r14() {
         Some(c.read_rl()?)
     } else {
         None
@@ -364,7 +364,7 @@ pub fn read_common_entity_data(
     // match what every other release records for the same objects, and
     // skipping it leaves every field from `Entmode` on 32 bits out of
     // phase. `examples/probe_r13_r14_prefix.rs` prints both readings.
-    let data_end_bits = if matches!(version, Version::R14) {
+    let data_end_bits = if version.is_r13_r14() {
         Some(c.read_rl()?)
     } else {
         None
@@ -413,7 +413,7 @@ pub(crate) fn read_entity_mode_onwards(
     // R13/R14 carry a separate by-layer linetype marker before the modern
     // ltype_flags field existed. R2004+ does not; those releases encode this
     // in ltype_flags below, after linetype_scale.
-    let (is_on_layer, non_fixed_ltype) = if matches!(version, Version::R14) {
+    let (is_on_layer, non_fixed_ltype) = if version.is_r13_r14() {
         let is_by_layer_linetype = c.read_b()?;
         (true, !is_by_layer_linetype)
     } else {
@@ -423,7 +423,7 @@ pub(crate) fn read_entity_mode_onwards(
     // R13-R2000 carry a "nolinks" bit before color. The current public struct
     // has no stable place for it, but it must still be consumed on legacy
     // streams so color starts at the right bit.
-    if matches!(version, Version::R14 | Version::R2000) {
+    if version.is_r13_r15() {
         let _nolinks = c.read_b()?;
     }
 

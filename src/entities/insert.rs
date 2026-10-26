@@ -82,7 +82,7 @@ pub struct Insert {
 /// data.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
     let insertion_point = read_bd3(c)?;
-    let scale = if version == Version::R14 {
+    let scale = if version.is_r13_r14() {
         // §20.4.9: R13-R14 write the three scales as plain `BD`s.
         read_bd3(c)?
     } else {

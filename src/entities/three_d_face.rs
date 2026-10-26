@@ -52,7 +52,7 @@ fn read_dd3(c: &mut BitCursor<'_>, d: Point3D) -> Result<Point3D> {
 
 /// Decodes the `ThreeDFace` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ThreeDFace> {
-    if version == Version::R14 {
+    if version.is_r13_r14() {
         // §20.4.32: R13-R14 write four `3BD` corners and the invisible
         // edge flags unconditionally.
         let corners = [read_bd3(c)?, read_bd3(c)?, read_bd3(c)?, read_bd3(c)?];
