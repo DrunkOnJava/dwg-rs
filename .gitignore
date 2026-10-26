@@ -66,3 +66,5 @@ proptest-regressions/
 /r2004-schedules-*.jsonl
 /map-evidence.json
 /map-schedules-*.jsonl
+/sections-evidence.json
+/sections-schedules-*.jsonl

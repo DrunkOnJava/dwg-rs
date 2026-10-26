@@ -1687,6 +1687,112 @@ the record; their values corroborate nothing.
 ```sh
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
+||||||| parent of 7a7a6a5 (feat(streaming): assemble R2004 sections from their data pages with byte-demand states)
+
+## 7n. The R2004 data page header, as AutoCAD writes it (2026-10-26, #205)
+
+§4.6 gives every data page a 0x20-byte header, masked word by word with
+`0x4164536B` ^ the page's file offset. `section_map::DataPageHeader` names
+its eight words after that table, but two of its labels do not describe
+what the files hold, and the page-length fact it leans on is not the one it
+uses. After unmasking, on every data page of the pinned corpus:
+
+| Offset | Field | Equals |
+|---|---|---|
+| `0x00` | type | `0x4163043B` |
+| `0x04` | section number | the section's id |
+| `0x08` | data size | the stored bytes after the header; the section map's reference |
+| `0x0C` | page size | the page map's size for the page (header and padding included), **not** the decompressed size |
+| `0x10` | start offset | 8 bytes, not 4; the section map's reference |
+| `0x18` | header checksum | §4.2 over the 0x20 header bytes with this field zeroed, seeded with `0x1C` |
+| `0x1C` | data checksum | §4.2 over the stored bytes, seed 0 |
+
+`DataPageHeader` reads `0x14` as a page header checksum (it is the high
+half of the start offset, always zero), `0x18` as the data checksum (it is
+the header checksum) and `0x1C` as unknown (it is the data checksum).
+`read_section_payload` only uses the type, the data size and the page size,
+and treats the page size as a capacity hint, so no section read is wrong;
+the struct is left as it is.
+
+`examples/probe_data_page_header.rs` unmasks every data page of every
+R2004-family drawing it is given and counts agreement with each reading.
+On the 28 R2004-family drawings of the pinned corpus (21 nextgis saves from
+AutoCAD 2016, 7 from ACadSharp's AutoCAD 2025 samples) and, separately, the
+four canonical fixtures:
+
+| Reading | Corpus (580 pages) | Fixtures (12 pages) |
+|---|---|---|
+| type, section number, data size, page size, start offset as above | 580 | 12 |
+| data checksum at `0x1C`, seed 0, over the stored bytes | 580 | 12 |
+| header checksum at `0x18`, seeded with `0x1C` | 580 | 12 |
+| legacy label: checksum at `0x14` over the header, seed 0 | 0 | 0 |
+| legacy label: data checksum at `0x18`, seed 0 | 0 | 0 |
+| legacy label: page size at `0x0C` is the decompressed size | 0 | 0 |
+
+The checksum rule was found on the 54 data pages of `sample_AC1032.dwg` by
+trying §4.2 over the header (each checksum field zeroed or kept, seeded
+with 0, `0x18` or `0x1C`), over the stored bytes, and over the header
+followed by them, against both fields: one reading matched each, and the
+probe then confirmed them on all 580. The checks that make the walker's section assembly safe fall out of the
+same pages: a page's start offset is its index in the section times the
+section's page size (580 of 580); a compressed page written by AutoCAD
+decodes to a whole page, padding included (447 of 447), so the section
+keeps `min(page, bytes left)` of it; a stored page is padded to a whole
+page (133 of 133); and `AcDb:Template` in `sample_AC1018.dwg` declares four
+bytes and lists no page, which a reader must hand out as zeros, as the
+legacy reader's zero-filled buffer does. This crate's writer emits compressed
+pages that decode to exactly the bytes left (the fixtures' 12 pages), the
+same difference in LZ77 framing noted on #163, so the walker accepts any
+length from `min(page, bytes left)` up to a whole page.
+
+The Corpus job runs the probe with `--strict` on every pinned drawing. The
+streaming section walker (`src/streaming/r2004_sections.rs`) verifies the
+header checksum, then each field above against the page map entry and the
+section map reference it was given, then the data checksum, before it
+decodes or hands out a byte; `tools/streaming/verify_sections.py` walks the
+same pages and compares every assembled section with an independent
+parser and the legacy reader.
+
+## 7n. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
+
+ACadSharp's R14 save (`sample_AC1014.dwg`, #225) is the corpus's only
+R14 drawing with INSERTs, dimensions or a 3DFACE, and every one of
+those 24 records errored. Each decoder read only the R2000+ branch of
+its section, and each section prints an R13-R14 branch of its own:
+
+| Section | R13-R14 branch | The decoder read |
+|---|---|---|
+| §20.4.9 INSERT | three `BD` scales | the R2000+ `BB` data flags and `RD` / `DD` scales |
+| §20.4.22 common dimension data | no attachment, line spacing style or factor, or actual measurement (those four are R2000+) | all four |
+| §20.4.32 3DFACE | four `3BD` corners and an unconditional `BS` of invisible edges | the R2000+ flag bits, `RD` first corner and `3DD` corners |
+
+Read as printed, all 24 records close: 12 INSERT, the 11 dimensions of
+all seven types, and the 3DFACE.
+
+R14 has no DXF export in the corpus. AutoCAD keeps handles across a
+save-as, so `examples/probe_cross_release.rs` compares each R14 record
+with the R2000 save of the same drawing, handle by handle. For the
+dimensions it is run with `--ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement`,
+the four fields R14 does not store:
+
+| Type | R14 records | Matched in the R2000 save | Equal |
+|---|---:|---:|---:|
+| INSERT | 14 | 10 | 10 |
+| 3DFACE | 1 | 1 | 1 |
+| DIMENSION, all types | 11 | 11 | 10 |
+
+Four R14 INSERT handles do not occur in the R2000 save. The one
+dimension that differs is the angular 2-line `0x516`, and only in the
+last digit of its 16-point's x: `528.6474703372945` against
+`528.6474703372946`. Both are read as exact raw doubles, so the two saves
+store doubles one unit in the last place apart. That is a property of
+what AutoCAD wrote, not a reading the bits leave open.
+
+```sh
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg INSERT
+cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC1015.dwg DIMENSION_LINEAR \
+    --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
+```
 
 ## 7n. AcDb:Header: the variables, in three streams (2026-10-26, #126)
 

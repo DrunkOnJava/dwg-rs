@@ -5,7 +5,8 @@
 use super::flat::{FlatWalker, MapCursor, Stage};
 use super::lz77::{Ext, Lz77Decoder, Mode, WINDOW};
 use super::r2004::{R2004_HEADER_BYTES, R2004HeaderParser};
-use super::r2004_maps::{CARRY, R2004MapWalker, RECORD, Stage as MapStage, SystemKind};
+use super::r2004_maps::{CARRY, PageEntry, R2004MapWalker, RECORD, Stage as MapStage, SystemKind};
+use super::r2004_sections::{R2004SectionWalker, Stage as SectionStage};
 use super::{CHUNK_BYTES, FlatHeaderParser, SourceIdentity, StreamError};
 
 const PREFIX: usize = 56;
@@ -672,6 +673,186 @@ impl R2004MapWalker {
         };
         if r.at != end || (lz_len > 0) != (walker.stage == MapStage::Decode) || !walker.consistent()
         {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        Ok(walker)
+    }
+}
+
+const SEC_FIXED: usize = 248;
+const SEC_MAX: usize = SEC_FIXED + LZ_MAX + TRAILER;
+
+/// Serialized state of one section's data-page walk: the section's fields,
+/// the page in hand, the cursors and, while an LZ77 page is being decoded,
+/// the decoder checkpoint. At most about 50 KB, bounded by the decoder
+/// window. The caller's page index, and which page of which section comes
+/// next, are the caller's to save alongside.
+#[derive(Debug, Clone)]
+pub struct R2004SectionCheckpoint {
+    bytes: [u8; SEC_MAX],
+    len: usize,
+}
+
+impl R2004SectionCheckpoint {
+    /// The canonical wire bytes, ready for storage or cross-runtime transfer.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl R2004SectionWalker {
+    /// Serialize the walk between steps. A failed walk is terminal and has
+    /// no checkpoint; its error is returned instead. Section bytes already
+    /// handed out are the caller's.
+    pub fn checkpoint(&self) -> Result<R2004SectionCheckpoint, StreamError> {
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        let decoder = if self.stage == SectionStage::Decode && self.compressed == 2 {
+            Some(self.decoder.checkpoint()?)
+        } else {
+            None
+        };
+        let mut result = R2004SectionCheckpoint {
+            bytes: [0; SEC_MAX],
+            len: 0,
+        };
+        let mut w = Writer {
+            bytes: &mut result.bytes,
+            at: 0,
+        };
+        w.put(b"DWGS");
+        w.put(&[1, self.stage as u8]);
+        w.put(&self.source.length.to_le_bytes());
+        w.put(&self.source.digest);
+        w.put(&self.index.to_le_bytes());
+        w.put(&self.size.to_le_bytes());
+        for v in [
+            self.page_count,
+            self.max_page,
+            self.compressed,
+            self.section_id,
+            self.encrypted,
+        ] {
+            w.put(&v.to_le_bytes());
+        }
+        w.put(&self.page.number.to_le_bytes());
+        w.put(&self.page.size.to_le_bytes());
+        w.put(&self.page.address.to_le_bytes());
+        w.put(&self.reference.page_number.to_le_bytes());
+        w.put(&self.reference.data_size.to_le_bytes());
+        w.put(&self.reference.start_offset.to_le_bytes());
+        w.put(&self.head);
+        for v in [self.done, self.sum1, self.sum2, self.in_chunk] {
+            w.put(&v.to_le_bytes());
+        }
+        w.put(&[self.carry_len]);
+        w.put(&self.carry);
+        w.put(&self.cursor.to_le_bytes());
+        w.put(&self.refs_done.to_le_bytes());
+        w.put(&self.last_start.to_le_bytes());
+        w.put(&[u8::from(self.first_ref)]);
+        let lz = decoder.as_ref().map_or(&[][..], |d| d.as_bytes());
+        w.put(&(lz.len() as u32).to_le_bytes());
+        w.put(lz);
+        let end = w.at;
+        let checksum = crate::crc::crc32(0, &result.bytes[..end]);
+        result.bytes[end..end + TRAILER].copy_from_slice(&checksum.to_le_bytes());
+        result.len = end + TRAILER;
+        Ok(result)
+    }
+
+    /// Restore against an independently supplied source identity. The
+    /// decoder is validated and the cursors must form a state the walk can
+    /// reach. No source bytes are read or requested.
+    pub fn restore(input: &[u8], expected_source: SourceIdentity) -> Result<Self, StreamError> {
+        if input.len() < SEC_FIXED + TRAILER || input.len() > SEC_MAX {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let end = input.len() - TRAILER;
+        if &input[..4] != b"DWGS"
+            || input[4] != 1
+            || input[end..] != crate::crc::crc32(0, &input[..end]).to_le_bytes()
+        {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let mut r = Reader {
+            bytes: &input[..end],
+            at: 5,
+        };
+        let stage = match r.u8()? {
+            0 => SectionStage::Idle,
+            1 => SectionStage::Header,
+            2 => SectionStage::Check,
+            3 => SectionStage::Decode,
+            4 => SectionStage::Done,
+            _ => return Err(StreamError::InvalidCheckpoint),
+        };
+        let length = r.u64()?;
+        let mut digest = [0; 32];
+        digest.copy_from_slice(r.get(32)?);
+        let source = SourceIdentity { digest, length };
+        if source != expected_source {
+            return Err(StreamError::SourceMismatch);
+        }
+        let mut walker = Self::new(
+            source,
+            super::SectionEntry {
+                index: 0,
+                size: 0,
+                page_count: 0,
+                max_page_size: 1,
+                compressed: 1,
+                section_id: 0,
+                encrypted: 0,
+                name: [0; 64],
+            },
+        )?;
+        walker.stage = stage;
+        walker.index = r.u32()?;
+        walker.size = r.u64()?;
+        walker.page_count = r.u32()?;
+        walker.max_page = r.u32()?;
+        walker.compressed = r.u32()?;
+        walker.section_id = r.u32()?;
+        walker.encrypted = r.u32()?;
+        walker.page = PageEntry {
+            number: r.u32()? as i32,
+            size: r.u32()?,
+            address: r.u64()?,
+        };
+        let in_page = matches!(
+            stage,
+            SectionStage::Header | SectionStage::Check | SectionStage::Decode
+        );
+        walker.reference = super::SectionPage {
+            section_id: if in_page { walker.section_id } else { 0 },
+            page_number: r.u32()?,
+            data_size: r.u32()?,
+            start_offset: r.u64()?,
+        };
+        walker.head.copy_from_slice(r.get(32)?);
+        walker.done = r.u32()?;
+        walker.sum1 = r.u32()?;
+        walker.sum2 = r.u32()?;
+        walker.in_chunk = r.u32()?;
+        walker.carry_len = r.u8()?;
+        walker.carry.copy_from_slice(r.get(CARRY)?);
+        walker.cursor = r.u64()?;
+        walker.refs_done = r.u32()?;
+        walker.last_start = r.u64()?;
+        walker.first_ref = match r.u8()? {
+            0 => false,
+            1 => true,
+            _ => return Err(StreamError::InvalidCheckpoint),
+        };
+        let lz_len = r.u32()? as usize;
+        let lz = r.get(lz_len)?;
+        if lz_len > 0 {
+            walker.decoder = Lz77Decoder::restore(lz)?;
+        }
+        let decoding = walker.stage == SectionStage::Decode && walker.compressed == 2;
+        if r.at != end || (lz_len > 0) != decoding || !walker.consistent() {
             return Err(StreamError::InvalidCheckpoint);
         }
         Ok(walker)
