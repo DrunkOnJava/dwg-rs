@@ -144,6 +144,16 @@ pub enum DecodedEntity {
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7s).
     Material(Box<crate::objects::acad_material::Material>),
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7t).
+    WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7t).
+    DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7t).
+    BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
+    /// PDFDEFINITION (§7t).
+    PdfDefinition(crate::objects::small_classes::PdfDefinition),
+    /// DBCOLOR (§7t).
+    DbColor(crate::objects::small_classes::DbColor),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -257,6 +267,11 @@ impl DecodedEntity {
             | Self::Scale(_)
             | Self::ImageDef(_)
             | Self::Material(_)
+            | Self::WipeoutVariables(_)
+            | Self::DynamicBlockPurgePreventer(_)
+            | Self::BlockRepresentationData(_)
+            | Self::PdfDefinition(_)
+            | Self::DbColor(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -737,6 +752,30 @@ fn dispatch_object_class(
         "MATERIAL" => {
             crate::objects::acad_material::decode_object(payload, body_start, inline_end, version)
                 .map(|material| DecodedEntity::Material(Box::new(material)))
+        }
+        "WIPEOUTVARIABLES" => crate::objects::small_classes::decode_wipeout_variables(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::WipeoutVariables),
+        "ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION" => {
+            crate::objects::small_classes::decode_dynamic_block_purge_preventer(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::DynamicBlockPurgePreventer)
+        }
+        "ACDB_BLOCKREPRESENTATION_DATA" => {
+            crate::objects::small_classes::decode_block_representation_data(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::BlockRepresentationData)
+        }
+        "PDFDEFINITION" => crate::objects::small_classes::decode_pdf_definition(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PdfDefinition),
+        "DBCOLOR" => {
+            crate::objects::small_classes::decode_db_color(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DbColor)
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)

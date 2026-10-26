@@ -21,6 +21,7 @@
 //! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
 //! | ACAD_PROPERTYSET_DATA    | [`acad_property_set_data`]| §19.6.11 (L7-07) |
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
+//! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -96,5 +97,6 @@ pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod small_classes;
 pub mod xdata;
 pub mod xrecord;

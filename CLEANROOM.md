@@ -553,3 +553,22 @@ groups 72, 77, 171, 175 and 179 (map sources) and 94 (a bit per map with a
 file) were checked against the records by the probe, not taken from it. No
 other source was consulted: no third-party DWG or DXF implementation, and
 none of the ObjectARX or Teigha documentation.
+
+## 2026-10-26 — WIPEOUTVARIABLES, ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA, PDFDEFINITION, DBCOLOR: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never
+prints. The five field lists in `src/objects/small_classes.rs` were derived
+from the data bits of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013, R2018; one WIPEOUTVARIABLES, one
+ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, two ACDB_BLOCKREPRESENTATION_DATA, one
+PDFDEFINITION and one DBCOLOR per release, 42 records) and AutoCAD's DXF export
+of the same handles (R2000 to R2018). Accepted: all 42 close on the data-stream
+boundary, from R2007 on a fully consumed string stream, and 50 values (groups
+70, 1, 2, 420, 430 and the xdata integer 1071) equal the decoded fields with 0
+differences (`examples/probe_wipeout_variables.rs`, `probe_purge_preventer.rs`,
+`probe_block_representation.rs`, `probe_pdf_definition.rs`, `probe_dbcolor.rs`).
+Unverified by value: the R14 and R2000 DBCOLOR index (no twin shows it), the
+leading `BS` of the R2004+ DBCOLOR (reads 0, group 62 says 42), and the width of
+every integer beyond the one value each holds. No vocabulary beyond the DXF
+group codes seen in the twins and the class names in `AcDb:Classes` was used, and
+no third-party DWG or DXF implementation was consulted.
