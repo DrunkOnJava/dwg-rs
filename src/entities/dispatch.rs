@@ -507,6 +507,19 @@ pub fn decode_from_raw_with_class_map(
         "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
             hatch::decode(c, v).map(DecodedEntity::Hatch)
         }),
+        // UNDERLAY family (not in the v5.4.1 spec; see `entities::underlay`).
+        // No `TV` field, so it belongs on every release, not only on R2010+.
+        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
+        | "ACDBDGNUNDERLAY" => {
+            let kind = match name {
+                "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
+                "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
+                _ => underlay::UnderlayKind::Pdf,
+            };
+            checked_inline(raw, body_start, version, "UNDERLAY", move |c, _, _, _| {
+                underlay::decode(c, kind).map(DecodedEntity::Underlay)
+            })
+        }
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -868,23 +881,6 @@ fn dispatch_split_stream_class(
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(|m| DecodedEntity::MLeader(Box::new(m)))
-        }
-        // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
-        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
-        | "ACDBDGNUNDERLAY" => {
-            let kind = match dxf_class_name {
-                "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
-                "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
-                _ => underlay::UnderlayKind::Pdf,
-            };
-            checked_inline(
-                raw,
-                object_body_start,
-                version,
-                "UNDERLAY",
-                move |c, v, _ce, _s| underlay::decode(c, kind, v),
-            )
-            .map(DecodedEntity::Underlay)
         }
         _ => return None,
     };

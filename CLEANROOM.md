@@ -626,3 +626,25 @@ leading `BS` of the R2004+ colour; the handles (347, 360) are not decoded and
 ACSH_EXTRUSION_CLASS is not decoded. No vocabulary beyond the DXF group codes and
 subclass markers in the twins was used, and no third-party DWG or DXF implementation
 was consulted.
+
+## 2026-10-26 — PDFUNDERLAY: the field list checked against AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/entities/underlay.rs` predates the method: it was read from
+the one R2018 record of `sample_AC1032.dwg` alone. This entry records its check
+against the method's acceptance rule, on the data bits of the seven PDFUNDERLAY
+records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14, R2000, R2004, R2007,
+R2010, R2013 and R2018; one per release, handle 0xD07) and AutoCAD's DXF export of
+the same handle (R2000 to R2018). The check found two faults, neither in the field
+order. The dispatcher routed the class on R2010 and later only, so the R14, R2000,
+R2004 and R2007 records were never decoded; and the decoder read the definition
+handle inline before R2007, which overshot the data-stream boundary on R14, R2000
+and R2004 by 8, 8 and 16 bits, because the handle is in the handle stream on every
+release. Accepted: all seven records close on the data-stream boundary on every
+release, and 36 values (groups 10, 20, 30, 280, 281 and 282) equal the decoded
+fields with 0 differences (`examples/probe_underlay.rs`). Unverified by value: the
+scale, the rotation and the normal (the DXF omits groups 41 to 43, 50 and 210 to
+230 at their defaults, so no twin shows them) and the encoding of a clip vertex (no
+record in the corpus has one). The definition handle (group 340) is not decoded. No
+vocabulary beyond the DXF group codes in the twins was used, and no third-party DWG
+or DXF implementation was consulted.

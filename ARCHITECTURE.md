@@ -2385,6 +2385,46 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sh_history -- ../dwg-corpus
 ```
 
+## 7x. PDFUNDERLAY on every release (2026-10-26, #152)
+
+`src/entities/underlay.rs` has read the underlay reference since before the
+CLEANROOM.md method of 2026-10-26, from one R2018 record. Held to the method's rule
+(a field list closes every record on every release, and every value the DXF shows
+equals it by handle) it needed two repairs and no change of field order.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 1 | 1 | 0 (no twin) | 0 |
+| R2000 | 1 | 1 | 6 | 0 |
+| R2004 | 1 | 1 | 6 | 0 |
+| R2007 | 1 | 1 | 6 | 0 |
+| R2010 | 1 | 1 | 6 | 0 |
+| R2013 | 1 | 1 | 6 | 0 |
+| R2018 | 1 | 1 | 6 | 0 |
+| Total | 7 | 7 | 36 | 0 |
+
+- **Routing.** The arm sat in `dispatch_split_stream_class`, which returns nothing
+  before R2010, so the four records of R14 to R2007 were skipped. The class has no `TV`
+  field and so no business in the split-stream path: it now sits beside IMAGE and
+  WIPEOUT in `decode_from_raw_with_class_map` and runs on every release.
+- **The handle.** With the routing repaired, the R14, R2000 and R2004 records ended 8,
+  8 and 16 bits past their data-stream boundary: the decoder read the definition
+  handle inline before R2007. The boundary is the end of the data fields and the
+  handles follow it, as IMAGE's and WIPEOUT's decoders already assume on every release,
+  so the read is gone and `Underlay` no longer carries `definition_handle`. Every
+  record then closes with a delta of 0.
+- **What the twin shows.** The DXF `PDFUNDERLAY` carries the definition handle (340),
+  the insertion point (10, 20, 30), the flags (280), the contrast (281) and the fade
+  (282). The scale (41 to 43), rotation (50), normal (210 to 230) and clip vertices (11,
+  21) are omitted at their defaults, so the corpus never shows them: they are
+  unverified by value, as is the encoding of a clip vertex (`2BD` as written, where
+  IMAGE's boundary uses `2RD`).
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_underlay -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
