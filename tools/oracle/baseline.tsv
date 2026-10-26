@@ -362,7 +362,7 @@ R2000	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
 R2000	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
 R2000	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
 R2000	§20.4.60	VIEW	view_height	40	1	0	0	0
-R2000	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2000	§20.4.60	VIEW	view_mode	71	1	0	0	0
 R2000	§20.4.60	VIEW	view_width	41	1	0	0	0
 R2000	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2000	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
@@ -932,7 +932,7 @@ R2004	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
 R2004	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
 R2004	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
 R2004	§20.4.60	VIEW	view_height	40	1	0	0	0
-R2004	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2004	§20.4.60	VIEW	view_mode	71	1	0	0	0
 R2004	§20.4.60	VIEW	view_width	41	1	0	0	0
 R2004	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2004	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
@@ -1503,7 +1503,7 @@ R2007	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
 R2007	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
 R2007	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
 R2007	§20.4.60	VIEW	view_height	40	1	0	0	0
-R2007	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2007	§20.4.60	VIEW	view_mode	71	1	0	0	0
 R2007	§20.4.60	VIEW	view_width	41	1	0	0	0
 R2007	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2007	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
@@ -2102,7 +2102,7 @@ R2010	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
 R2010	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
 R2010	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
 R2010	§20.4.60	VIEW	view_height	40	1	0	0	0
-R2010	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2010	§20.4.60	VIEW	view_mode	71	1	0	0	0
 R2010	§20.4.60	VIEW	view_width	41	1	0	0	0
 R2010	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2010	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
@@ -2758,7 +2758,7 @@ R2013	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
 R2013	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
 R2013	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
 R2013	§20.4.60	VIEW	view_height	40	1	0	0	0
-R2013	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2013	§20.4.60	VIEW	view_mode	71	1	0	0	0
 R2013	§20.4.60	VIEW	view_width	41	1	0	0	0
 R2013	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2013	§20.4.61	UCS_CONTROL	num_entries	70	8	0	0	0
@@ -3416,7 +3416,7 @@ R2018	§20.4.60	VIEW	view_direction.x	11	1	0	0	0
 R2018	§20.4.60	VIEW	view_direction.y	21	1	0	0	0
 R2018	§20.4.60	VIEW	view_direction.z	31	1	0	0	0
 R2018	§20.4.60	VIEW	view_height	40	1	0	0	0
-R2018	§20.4.60	VIEW	view_mode (stored bits, as group 71)	71	1	0	0	0
+R2018	§20.4.60	VIEW	view_mode	71	1	0	0	0
 R2018	§20.4.60	VIEW	view_width	41	1	0	0	0
 R2018	§20.4.60	VIEW	xref_index_plus_1	-	0	0	0	1
 R2018	§20.4.61	UCS_CONTROL	num_entries	70	2	0	0	0
