@@ -407,7 +407,7 @@ start bit. That converts a mis-read field layout from *silently wrong
 values* into an error naming the bit offset and the deviation — which
 is how the R2007+ VIEW ambient-colour form, the VPORT flag block and
 TEXT's `RD` height were each found. It also produced one false finding,
-a DIMSTYLE "`AcDs`-binary-data byte", which §7v shows was the table
+a DIMSTYLE "`AcDs`-binary-data byte", which §7x shows was the table
 prefix's `BL num_reactors` read two bits late: a boundary check proves a
 field list's width, not which field holds which bits.
 
@@ -415,10 +415,10 @@ field list's width, not which field holds which bits.
 
 | Finding | Evidence |
 |---|---|
-| ~~Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B`~~ Superseded by §7v: the prefix holds a `BL num_reactors` this reading skipped, and after it two bits remain, read as `B 64-flag, B Xdep` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard`. The `10` was the 64-flag and Xdep bits |
+| ~~Shared table-entry fields read `B 64-flag`, `B xdep`, `BS xrefindex+1` — not `B, BS, B`~~ Superseded by §7x: the prefix holds a `BL num_reactors` this reading skipped, and after it two bits remain, read as `B 64-flag, B Xdep` | Only that order keeps the `BS` on a 2-bit `10` code across every STYLE record in `sample_AC1032.dwg`; the alternative yields xref index 83 for `Standard`. The `10` was the 64-flag and Xdep bits |
 | VIEW / VPORT / LAYER / DIMSTYLE colours use a full `CMC`: `BS` index + `BL` true colour + `RC` byte, unconditionally | VIEW `view_custom` ambient reads index 0 with no flags yet is followed by `BL = 0xC2333333`; LAYER `0` reads `0xC3000007` |
 | `BL` top byte selects the colour form: `0xC3` = ACI index in the low byte, `0xC2` = literal RGB | `Layer_color_80` reads ACI 80; `Layer_true_color` reads `0xC2…` |
-| ~~The R2013+ "has AcDs binary data" bit is followed by an `RC`~~ Superseded by §7v: no bits follow the flag; the `RC` was the reactor count | The two DIMSTYLE records in `sample_AC1032.dwg` "with the bit set" need exactly 8 more prefix bits than the four with it clear. They are the two with reactors (8 and 2), whose `BL` is the code `01` and a byte |
+| ~~The R2013+ "has AcDs binary data" bit is followed by an `RC`~~ Superseded by §7x: no bits follow the flag; the `RC` was the reactor count | The two DIMSTYLE records in `sample_AC1032.dwg` "with the bit set" need exactly 8 more prefix bits than the four with it clear. They are the two with reactors (8 and 2), whose `BL` is the code `01` and a byte |
 | TEXT `height` is a raw `RD`, not a `BD` | With `DataFlags 0xFF`, object #236's remaining 66 bits are `BE` + `BT` + a 64-bit `1.0` at bit 220 |
 | LAYER `values` bits: `0x01` frozen, `0x02` off, `0x04` frozen-in-new, `0x08` locked, `0x10` plot, bits 5-9 lineweight index | `sample_AC1032.dwg` names its layers after their state and every one matches |
 
@@ -530,7 +530,7 @@ exactly; and the nine one-field `*_CONTROL` records close on their
 `BL numentries`. `tables/modern.rs` used to skip this `BL` and
 compensate with a different flag order; both readings summed to the
 same total for an APPID record, so both satisfied the boundary check.
-§7v settles it against AutoCAD's DXF: the symbol-table prefix holds the
+§7x settles it against AutoCAD's DXF: the symbol-table prefix holds the
 `BL` too.
 
 **Every object decoder is self-validating.** `ObjectStream::finish`
@@ -1230,7 +1230,7 @@ block at the head of its §20.4.84 list, still conditional on the flag
 and still closing all 31 corpus LAYOUT records. `tables/modern.rs`
 kept its `RC` at the time: that path also omitted the `BL num_reactors`
 `objects/modern.rs` reads, so its bit accounting had a second unresolved
-variable. §7v resolved both: the `RC` was that `BL`. Three record types needing three
+variable. §7x resolved both: the `RC` was that `BL`. Three record types needing three
 different widths is itself the argument that the width belongs to the
 record, not to the flag.
 
@@ -1661,7 +1661,7 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
-## 7v. The symbol-table prefix holds the reactor count (2026-10-26, #40 / #35)
+## 7x. The symbol-table prefix holds the reactor count (2026-10-26, #40 / #35)
 
 §20.4.x prints the same common data for every table entry, R2000 on:
 the EED chain, `BL Numreactors`, `B XDic Missing Flag` (R2004+), and the

@@ -48,7 +48,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §17 | AcDb:FileDepList | 95 | `closes` | src/metadata.rs | #137 |  |
 | §18 | AcDb:RevHistory | 97 | `missing` |  | #133 | Named, not decoded. |
 | §19 | AcDb:Security | 98 | `missing` |  | #122 | Named, not decoded; password-protected R2007 files are refused. |
-| §20.1 | Common non-entity object format | 100 | `closes` | src/objects/modern.rs, src/object.rs | #139 | Measured: EED, BL num_reactors, B no_xdictionary, B has_ds_binary_data; the symbol-table path reads the same prefix (#40, ARCHITECTURE §7v). §20.1 states no seed for the record CRC; all 78 §20.4 examples use 0xC0C1 (#107). |
+| §20.1 | Common non-entity object format | 100 | `closes` | src/objects/modern.rs, src/object.rs | #139 | Measured: EED, BL num_reactors, B no_xdictionary, B has_ds_binary_data; the symbol-table path reads the same prefix (#40, ARCHITECTURE §7x). §20.1 states no seed for the record CRC; all 78 §20.4 examples use 0xC0C1 (#107). |
 | §20.2 | Common entity format | 101 | `closes` | src/common_entity.rs | #139 |  |
 | §20.3 | Object types | 104 | `closes` | src/object_type.rs | #139 |  |
 | §20.4.1 | Common Entity Data | 106 | `closes` | src/common_entity.rs | #139 | Graphics-preview block (ARCHITECTURE §7f). |

@@ -357,7 +357,7 @@ These have genuine open scope requiring focused work, not stubs.
   R2007/R2010 DIMSTYLE records with reactors now close. Open: whether
   the two bits after the prefix are `B 64-flag, B Xdep` or a lone
   `BS xrefindex+1`, which needs a drawing with an xref-dependent entry
-  (#290). Evidence: ARCHITECTURE.md §7v,
+  (#290). Evidence: ARCHITECTURE.md §7x,
   `examples/probe_table_prefix.rs`.
 
 - **#103 remaining real-file decoder alignment** (P0, unchanged scope,

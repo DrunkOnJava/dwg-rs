@@ -78,7 +78,7 @@ fn locate_stream(payload: &[u8], version: Version) -> Result<StringStream> {
 /// and `B` has-AcDs-binary-data (R2013+). It is the prefix
 /// [`crate::objects::modern`] reads for every other non-entity object.
 ///
-/// # Measured (#40, ARCHITECTURE §7v)
+/// # Measured (#40, ARCHITECTURE §7x)
 ///
 /// This function used to skip the `BL`, so the reads after it started
 /// two bits early. With no reactors the `BL` is the code `10`, and
@@ -122,7 +122,7 @@ pub(crate) fn skip_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Res
 /// has moved to the string stream, returned as `(64-flag, xrefindex+1,
 /// Xdep)`.
 ///
-/// # Measured (#40, ARCHITECTURE §7v)
+/// # Measured (#40, ARCHITECTURE §7x)
 ///
 /// §20.4.x prints `TV name, B 64-flag, BS xrefindex+1, B Xdep` for every
 /// release, and R2000 and R2004 records hold exactly that. From R2007,

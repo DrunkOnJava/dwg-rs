@@ -75,7 +75,7 @@
 //! symbol-table variant, used to skip this `BL` and compensate with a
 //! different flag order. It reads the same prefix now: the `BL` equals
 //! the reactor count of AutoCAD's DXF export on every table entry of the
-//! corpus (#40, ARCHITECTURE §7v).
+//! corpus (#40, ARCHITECTURE §7x).
 //!
 //! # The R2013+ AcDs binary-data flag carries no further bits
 //!
