@@ -68,7 +68,7 @@
 //!
 //! # Safety
 //!
-//! The entire crate is `#![deny(unsafe_code)]`. All parsing returns
+//! The entire crate is `#![forbid(unsafe_code)]`. All parsing returns
 //! `Result<T, Error>` — no panics on malformed input. Defensive caps
 //! bound runaway allocations from adversarial files. See
 //! [`SECURITY.md`](https://github.com/DrunkOnJava/dwg-rs/blob/main/SECURITY.md)

@@ -36,13 +36,28 @@ Two soft gates you will also hit:
   touching `src/bitcursor.rs`, `src/bitwriter.rs`, or `src/lz77*.rs`.
 
 Coverage numbers in `README.md` / `STATUS.md` are *measured*, never
-estimated. If your change moves them, re-run the report on a real corpus
-and paste the table into the PR:
+estimated, and come from the `Corpus (public DWG)` CI job. It fetches the
+public drawings pinned in `tools/corpus/pins.tsv` (nothing is committed),
+runs the real-file tests on them, and fails when any drawing's
+measurement differs from `tools/corpus/baseline.tsv`, in either
+direction. A change that moves a number updates the baseline in the same
+PR. The job's `corpus-measurement` artifact holds the `baseline.tsv` it
+measured; or reproduce it locally:
 
 ```sh
-git clone --depth 1 https://github.com/nextgis/dwg_samples ../dwg_samples
-cargo run --release --example coverage_report -- ../dwg_samples
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus --legacy-samples ../../samples
+cargo build --release --example coverage_report \
+    --example probe_class_census --example probe_reference_closure
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus \
+    --bin target/release/examples --out corpus-results.json
+python3 -I tools/corpus/measure.py check --results corpus-results.json
+python3 -I tools/corpus/measure.py baseline --results corpus-results.json   # record a change
 ```
+
+`--legacy-samples ../../samples` places the 19 drawings that
+`tests/samples.rs` and its siblings are written against where they look
+for them (they skip silently without it). To compare a branch against
+`main` on GitHub's runners: `gh workflow run measure.yml -f ref=<branch> -f base=main`.
 
 The plan is [`ROADMAP.md`](ROADMAP.md) and its milestones; every section of
 ODA spec v5.4.1 and its state on `main` is in
@@ -83,9 +98,11 @@ squash-merge only, so one PR is one commit; keep them small.
   `examples/`.
 - **Documentation improvements.** The README, ARCHITECTURE, and
   inline doc comments are fair game.
-- **Tests.** More coverage is always welcome, especially for
-  edge-case file layouts, R2004+ Sec_Mask handling, and R2007's
-  compressed-section-info variants.
+- **Corpus files.** Public DWG files with a licence that lets CI
+  fetch them, ideally with AutoCAD's DXF export of the same drawing,
+  are as valuable as code (#153). Edge-case file layouts, R2004+
+  Sec_Mask variants and R2007 compressed-section-info variants are
+  especially wanted.
 
 ## What needs discussion first
 
@@ -95,9 +112,9 @@ Open an issue (or a draft PR) before starting work on any of:
   side work is subtle; please align on the plan first.
 - R2007 full-decompression path — this is the most complex
   container variant and benefits from design discussion.
-- Any modifying-writer path. The project is currently read-only by
-  design; write support is a major scope expansion.
-- Unsafe code — the library declares `#![deny(unsafe_code)]`. If
+- The DWG writer. It is experimental, and making AutoCAD open its
+  output is the 0.4.0 milestone (#159); align on the plan first.
+- Unsafe code — the library declares `#![forbid(unsafe_code)]`. If
   you genuinely need it (e.g. for a performance-critical SIMD
   decoder), open an issue first.
 
@@ -131,7 +148,8 @@ Conventional Commits format:
 
 Scopes that appear frequently: `container`, `sections`, `lz77`,
 `rs-fec`, `object-types`, `handle-map`, `class-map`, `entities`,
-`readme`, `arch`, `ci`.
+`objects`, `tables`, `streaming`, `writer`, `fixtures`, `readme`,
+`arch`, `ci`.
 
 ## Reverse-engineering findings
 
@@ -141,8 +159,9 @@ When you discover something new about the file format:
    the finding from bytes. One self-contained file.
 2. Add a dated section to `ARCHITECTURE.md` with an evidence table
    (byte offsets, observed values, variant count across versions).
-3. If the finding is a decoding rule, also add a unit test that
-   pins the byte pattern.
+3. If the finding is a decoding rule, show it on real files: name
+   the corpus records it changes and paste the coverage report from
+   before and after into the pull request. Don't add unit tests.
 
 This keeps every claim independently verifiable, which is the
 whole point of open reverse-engineering work.

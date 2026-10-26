@@ -61,7 +61,7 @@ use dwg::entities::point::Point;
 use dwg::entities::{Point3D, Vec3D};
 use dwg::file_writer::{WriterScaffold, assemble_dwg_bytes, atomic_write};
 use dwg::handle_map::{HandleEntry, HandleMap, write_handle_map};
-use dwg::streaming::END_SENTINEL;
+use dwg::streaming::{CLASS_SENTINELS, END_SENTINEL, HEADER_VARS_SENTINELS};
 use dwg::version::Version;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -137,13 +137,13 @@ fn write_common_entity_preamble(w: &mut BitWriter, version: Version) {
     w.write_rc(0);
 }
 
-/// Build one `AcDb:AcDbObjects` record: `MS size` + payload + 2-byte CRC
-/// slot, where the payload is the object header (R2010+ handle-stream MC,
+/// Build one `AcDb:AcDbObjects` record: `MS size` + payload + 2-byte CRC,
+/// where the payload is the object header (R2010+ handle-stream MC,
 /// object type, handle), the common entity preamble, and the entity body.
 ///
 /// Mirrors `dwg::object::ObjectWalker::read_one_at_pos` field-for-field.
-/// The 2 trailing bytes are the record CRC-16 slot; the reader skips over
-/// it without verifying, so zeros are a faithful placeholder.
+/// The CRC is little-endian, seeded 0xC0C1, over the `MS` bytes and the
+/// payload (§20.1), as on real R14 through R2013 records.
 ///
 /// # R2010+ record framing (#77)
 ///
@@ -219,7 +219,9 @@ fn build_object_record<E: ElementEncoder>(
     header.write_ms((payload.len() - mc_width) as u64);
     let mut record = header.into_bytes();
     record.extend_from_slice(&payload);
-    record.extend_from_slice(&[0x00, 0x00]);
+    // §20.1: the CRC covers the size bytes too.
+    let crc = crc::crc8(0xC0C1, &record);
+    record.extend_from_slice(&crc.to_le_bytes());
     record
 }
 
@@ -370,17 +372,24 @@ fn build_fixture(version: Version) -> Result<Vec<u8>, String> {
 /// ```text
 /// 0x00  magic, codepage, locator count, three locator records,
 ///       header CRC and end sentinel
-/// 0x100 AcDb:Header placeholder      -- locator 0
-/// 0x140 object records, back to back -- addressed by the object map
-/// ...   AcDb:Handles object map      -- locator 2
+/// 0x80  §9 header-variable section       -- locator 0
+/// 0xC0  §10.1 class section, no classes  -- locator 1
+/// 0x140 object records, back to back     -- addressed by the object map
+/// ...   AcDb:Handles object map          -- locator 2
 /// ```
+///
+/// Both sections carry their sentinels, size and CRC; the variables
+/// themselves are placeholder zero bytes.
 fn build_flat_fixture(version: Version) -> Result<Vec<u8>, String> {
-    /// Where the placeholder header block starts.
-    const HEADER_AT: usize = 0x100;
-    /// Size of that placeholder.
-    const HEADER_LEN: usize = 64;
+    /// Where the header-variable section starts.
+    const VARS_AT: usize = 0x80;
+    /// Placeholder variable bytes; with its 38 framing bytes the
+    /// section fills 64.
+    const VARS_DATA: usize = 26;
+    /// Where the class section starts.
+    const CLASSES_AT: usize = VARS_AT + 38 + VARS_DATA;
     /// Where the first object record starts.
-    const OBJECTS_AT: usize = HEADER_AT + HEADER_LEN;
+    const OBJECTS_AT: usize = 0x140;
 
     let records = build_object_records(version);
     let mut objects = Vec::new();
@@ -396,6 +405,8 @@ fn build_flat_fixture(version: Version) -> Result<Vec<u8>, String> {
     let handle_bytes = write_handle_map(&handles, &mut BitWriter::new(), version)
         .map_err(|e| format!("write_handle_map: {e}"))?;
 
+    let vars = framed_section(&HEADER_VARS_SENTINELS, &[0; VARS_DATA]);
+    let classes = framed_section(&CLASS_SENTINELS, &[]);
     let map_at = OBJECTS_AT + objects.len();
     let mut file = vec![0u8; map_at + handle_bytes.len()];
     file[..6].copy_from_slice(&version.magic());
@@ -404,8 +415,8 @@ fn build_flat_fixture(version: Version) -> Result<Vec<u8>, String> {
     file[0x13..0x15].copy_from_slice(&30u16.to_le_bytes()); // DWGCODEPAGE
     file[0x15..0x19].copy_from_slice(&3u32.to_le_bytes());
     let locators: [(u8, u32, u32); 3] = [
-        (0, HEADER_AT as u32, HEADER_LEN as u32),
-        (1, 0, 0),
+        (0, VARS_AT as u32, vars.len() as u32),
+        (1, CLASSES_AT as u32, classes.len() as u32),
         (2, map_at as u32, handle_bytes.len() as u32),
     ];
     for (i, (number, seeker, size)) in locators.iter().enumerate() {
@@ -419,9 +430,23 @@ fn build_flat_fixture(version: Version) -> Result<Vec<u8>, String> {
     let header_crc = crc::crc8(0, &file[..crc_at]) ^ seed;
     file[crc_at..crc_at + 2].copy_from_slice(&header_crc.to_le_bytes());
     file[crc_at + 2..crc_at + 18].copy_from_slice(&END_SENTINEL);
+    file[VARS_AT..VARS_AT + vars.len()].copy_from_slice(&vars);
+    file[CLASSES_AT..CLASSES_AT + classes.len()].copy_from_slice(&classes);
     file[OBJECTS_AT..map_at].copy_from_slice(&objects);
     file[map_at..].copy_from_slice(&handle_bytes);
     Ok(file)
+}
+
+/// A §9 / §10.1 section: start sentinel, `RL` data size, data, `RS` CRC
+/// (seed 0xC0C1, over size and data), end sentinel.
+fn framed_section(sentinels: &[[u8; 16]; 2], data: &[u8]) -> Vec<u8> {
+    let mut out = sentinels[0].to_vec();
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend_from_slice(data);
+    let crc = crc::crc8(0xC0C1, &out[16..]);
+    out.extend_from_slice(&crc.to_le_bytes());
+    out.extend_from_slice(&sentinels[1]);
+    out
 }
 
 /// Canonical corpus directory, resolved relative to the crate root so
