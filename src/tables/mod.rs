@@ -22,6 +22,7 @@
 pub mod appid;
 pub mod block_record;
 pub mod dimstyle;
+pub mod handles;
 pub mod layer;
 pub mod ltype;
 pub(crate) mod modern;

@@ -460,8 +460,8 @@ impl Names {
 
     /// The name a variable holds, if the output defines the record it names.
     ///
-    /// A name that is not empty is kept only for a layer, text style or
-    /// linetype the written tables define: a DXF whose `$DIMSTYLE` names a
+    /// A name that is not empty is kept only for a layer, text style,
+    /// linetype or block the written tables define: a DXF whose `$DIMSTYLE` names a
     /// style it never defines is not one.
     fn resolve(&self, var: &str, handle: u64) -> Option<String> {
         let name = self.record_name(var, handle)?;
@@ -469,6 +469,13 @@ impl Names {
             "$CLAYER" => &self.defined.layers,
             "$TEXTSTYLE" | "$DIMTXSTY" => &self.defined.styles,
             "$CELTYPE" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2" => &self.defined.ltypes,
+            "$DIMBLK" | "$DIMBLK1" | "$DIMBLK2" | "$DIMLDRBLK" => {
+                let defined =
+                    self.defined.blocks.iter().any(|n| {
+                        n == &name || n.strip_prefix('_').is_some_and(|rest| rest == name)
+                    });
+                return (name.is_empty() || defined).then_some(name);
+            }
             _ => return name.is_empty().then_some(name),
         };
         (name.is_empty() || set.iter().any(|n| n == &name)).then_some(name)

@@ -2367,37 +2367,92 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 
 ## 7aa. dwg-to-dxf: the TABLES section (2026-10-26, #126)
 
-`src/dxf_tables.rs` writes the LAYER, STYLE, LTYPE and APPID tables from the
-decoded symbol-table records, each `TABLE` block under its control object's
-handle with its records under their own and owned by the table, in the group
-order of AutoCAD's exports. The header then names a layer, text style or
-linetype only if a written table defines it
+`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, UCS, APPID and
+BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
+under its control object's handle with its records under their own and owned by
+the table, in the group order of AutoCAD's exports (VPORT, LTYPE, LAYER, STYLE,
+VIEW, UCS, APPID, DIMSTYLE, BLOCK_RECORD). The header then names a layer, text
+style, linetype or block only if a written table defines it
 (§7s, "dwg-to-dxf writes it back"). `examples/probe_dxf_tables.rs`
 converts each drawing that has an AutoCAD export, reads the output back and pairs
 every record written with the export's record of the same handle; the Corpus job
 runs it.
 
-| Release | Records written | Paired | Groups written | Agree | Disagree | Extra | Groups omitted | Records omitted |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| AC1015 | 154 | 154 | 608 | 608 | 0 | 0 | 166 | 4 |
-| AC1018 | 154 | 154 | 605 | 605 | 0 | 0 | 173 | 4 |
-| AC1021 | 142 | 142 | 581 | 581 | 0 | 0 | 201 | 4 |
-| AC1024 | 132 | 132 | 557 | 557 | 0 | 0 | 182 | 4 |
-| AC1027 | 131 | 131 | 555 | 555 | 0 | 0 | 208 | 4 |
-| AC1032 | 76 | 76 | 277 | 277 | 0 | 0 | 166 | 4 |
+| Table | Written | Paired | Groups written | Agree | Relation | Disagree | Extra | Groups omitted | Records omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| VPORT | 42 | 42 | 2226 | 2224 | 2 | 0 | 0 | 110 | 0 |
+| LTYPE | 132 | 132 | 804 | 804 | 0 | 0 | 0 | 0 | 24 |
+| LAYER | 156 | 156 | 1092 | 1092 | 0 | 0 | 0 | 368 | 0 |
+| STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
+| UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
+| BLOCK_RECORD | 270 | 270 | 1117 | 1114 | 3 | 0 | 0 | 154 | 0 |
+| All | 1101 | 1101 | 6997 | 6992 | 5 | 0 | 0 | 864 | 24 |
 
-Every group written has the export's code and value. What is omitted has a
-reason the probe checks, and an unexplained omission fails it: a LAYER's linetype
-name (6), plot-style handle (390) and R2013 material and visual style handles
-(347, 348), and the extension dictionary (102, 360), all of which are in the
-handle stream the decoder does not read for a table record; a true-colour layer's
-420 and the 62 beside it, because the DWG stores no index for it; the extended
-data (1000 to 1071) of a record, which the decoder does not read; and a LTYPE
-record with a shape or text dash (four in the corpus, written by none). A record
-the export registers again under another handle (an APPID, a layer) pairs by name.
-`ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that application on all
-four drawings that hold it. DIMSTYLE, BLOCK_RECORD, VPORT, VIEW and UCS are not
-written yet, so a header name that points at one of them is still omitted.
+Every group written has the export's code and value, over the 42 drawings of the
+public corpus that have an AutoCAD export of the same release (R2000 to R2018).
+What is omitted has a reason the probe checks, and an unexplained omission fails
+it: the extended data (1000 to 1071) of a record, which the decoder does not read;
+a true-colour layer's 420 and the 62 beside it, and a viewport's 63 beside its
+421, because the DWG stores no index for a true colour; a layer's colour name
+(430); a record the export registers again under another handle (an APPID, a
+layer, a block), which pairs by name; a LTYPE with a shape or text dash (four in
+the corpus, written by none), and the 6 of a layer that uses one; and the
+`{BLKREFS` bracket of a block, because ENTITIES does not carry the INSERT handles
+it lists. `ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that
+application on all four drawings that hold it. VIEW and DIMSTYLE are not written
+yet, so a header name that points at a DIMSTYLE is still omitted. UCS is written
+as AutoCAD's empty table when the drawing has no UCS record, which is every
+drawing of the corpus; a drawing with UCS records gets no UCS table, because the
+decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
+that `tables::ucs` does not read).
+
+### The handle stream of a table entry
+
+`tables::handles::refs` reads what the other decoders leave: the handle stream.
+Every entry starts with the table's control object (soft pointer, the owner), one
+soft pointer per reactor (the `BL` of the common object data), and the extension
+dictionary (always on R2000, unless the `XDic Missing Flag` is set from R2004).
+The entry's own handles follow, as §20.4.x lists them, and this is what was
+measured against the exports' handle groups:
+
+- **LAYER**: the xref block (NULL), the plot style (390), from R2007 the material
+  (347), the linetype (6, written by name) and, from R2013, a visual style (348,
+  written as `348 0` when NULL). That is 3, 4 and 5 handles on R2000 and R2004,
+  R2007 and R2010, R2013 and R2018.
+- **VPORT**: the xref block, then from R2007 the background (332), visual style
+  (348) and sun (361), then the named UCS (345) and base UCS (346): 3 handles on
+  R2000, 6 from R2007. Only 348 is ever set in the corpus.
+- **BLOCK_RECORD**: a NULL, the `BLOCK` entity, on R2000 the first and last entity
+  (unless an xref), on R2004 and later the owned entities (their count is in the
+  data stream), the `ENDBLK` entity, one handle per non-zero `RC` of the insert
+  count, and last the layout (340, `0` for a block that is not a layout). A list
+  whose length is not what that order gives is not read. The layout handle equals
+  the export's 340 on all 270 records.
+
+A handle group is written only when the output defines the object it names: the
+OBJECTS section writes the dictionaries, layouts, plot styles, materials and
+visual styles, so 340, 347, 348, 390, 360 and the xdictionary bracket are written
+(a NULL as `0`), while the entities that react to a record or insert a block are
+not written with their handles yet, so a record whose reactors or inserts name one
+has no such bracket. The probe lists each of these as an omission with its
+reason.
+
+### What the exports do that is not the DWG's doing
+
+Three differences are relations the probe names, not disagreements:
+
+- The export of `geoloc.dwg` is a later save (its `$TDUUPDATE` is 1.94 days later,
+  `$HANDSEED` 0x249 against 0x243), and the `*Active` viewport of the later save has a
+  different view height (40) and centre (22).
+- AutoCAD loads the dynamic block `my-dynamic-block` of the R2000, R2004 and R2007
+  saves as the anonymous block `*U17`; the R2010 to R2018 saves keep the name.
+- The R2000 save holds an extension dictionary on three true or book colour
+  layers (`Layer_true_color`, `Layer_color_book`, `color_125_33_79`) that
+  AutoCAD's export drops. They are written, with the dictionary, which OBJECTS
+  writes.
+
+The probe also prints the numbers per release.
 
 ## 8. Write pipeline (current scope)
 

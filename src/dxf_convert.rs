@@ -117,7 +117,9 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     // first but names only records these tables define.
     let layers = [LayerEntry::default()];
     let tables = match file.header_vars() {
-        Some(Ok(h)) if h.closed => crate::dxf_tables::build(file, version, &h),
+        Some(Ok(h)) if h.closed => {
+            crate::dxf_tables::build(file, version, &h, &written_object_handles(file))
+        }
         _ => Vec::new(),
     };
     let defined = if tables.is_empty() {
@@ -198,6 +200,18 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
 
     writer.finish();
     Ok(writer.take_output())
+}
+
+/// The handles of the objects [`collect_decoded_objects`] writes to OBJECTS.
+fn written_object_handles(file: &DwgFile) -> std::collections::HashSet<u64> {
+    match file.all_objects() {
+        Some(Ok(raws)) => raws
+            .iter()
+            .filter(|r| raw_to_decoded_object(r).is_some())
+            .map(|r| r.handle.value)
+            .collect(),
+        _ => Default::default(),
+    }
 }
 
 /// Walk `file`'s object stream and synthesize a list of
