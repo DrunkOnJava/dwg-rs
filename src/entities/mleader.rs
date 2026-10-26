@@ -14,7 +14,7 @@
 //! bare `BS` index (§2.11), and before R2007 the `TV`s are inline. With
 //! that, all 105 MULTILEADER records of the public corpus close, R14 to
 //! R2018, and on R2000 to R2018 every value compared equals AutoCAD's DXF
-//! export of the same drawing (ARCHITECTURE.md §7t,
+//! export of the same drawing (ARCHITECTURE.md §7ah,
 //! `examples/probe_mleader.rs`).
 //!
 //! # Where the fields actually live

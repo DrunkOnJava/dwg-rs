@@ -1525,7 +1525,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7t. MULTILEADER before R2010 (2026-10-26, #229)
+## 7ah. MULTILEADER before R2010 (2026-10-26, #229)
 
 §20.4.48 says MULTILEADER was introduced in version 21 (R2007), and the
 crate decoded it only from R2010. AutoCAD 2025 writes the record into
