@@ -36,7 +36,7 @@ jobs:
           rustc --edition=2024 --crate-type rlib tools/streaming/no_std.rs --out-dir streaming-build
           rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/streaming/no_std.rs --out-dir streaming-build
       - name: Build actual streaming entry point
-        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example streaming_schedules
+        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example streaming_schedules
       - name: End-to-end header boundary acceptance
         run: python3 tools/streaming/verify.py target/debug/examples/stream_header target/debug/examples/streaming_schedules
       - name: End-to-end R13-R2000 container walk acceptance
@@ -45,6 +45,12 @@ jobs:
         run: python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
       - name: End-to-end asynchronous byte source acceptance
         run: python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
+      - name: End-to-end R2004-family file header acceptance
+        run: python3 tools/streaming/verify_r2004.py target/debug/examples/stream_r2004 target/debug/examples/streaming_schedules
+      - name: End-to-end R2004-family page map and section map acceptance
+        run: python3 tools/streaming/verify_maps.py target/debug/examples/stream_r2004_maps target/debug/examples/streaming_schedules
+      - name: End-to-end R2004-family data page and section assembly acceptance
+        run: python3 tools/streaming/verify_sections.py target/debug/examples/stream_r2004_sections target/debug/examples/streaming_schedules
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -57,4 +63,10 @@ jobs:
             lz77-evidence.json
             lz77-schedules-*.jsonl
             source-evidence.json
+            r2004-evidence.json
+            r2004-schedules-*.jsonl
+            map-evidence.json
+            map-schedules-*.jsonl
+            sections-evidence.json
+            sections-schedules-*.jsonl
           if-no-files-found: error
