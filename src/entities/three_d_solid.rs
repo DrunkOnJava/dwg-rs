@@ -30,10 +30,20 @@
 //!     RC  data[block size]
 //! ```
 //!
-//! Version 2 is followed by a raw ACIS file with no length field
-//! ("SAT files must be parsed to find the end"), which cannot be
-//! stepped without an ACIS parser — the envelope reader refuses it
-//! rather than guessing.
+//! Version 2 is followed by a raw ACIS file with no length field. A
+//! binary (SAB) one opens with `ACIS BinaryFile` and ends with
+//! `End\x0E\x02of\x0E\x04ACIS\x0D\x04data` (§20.4.41), so the envelope
+//! reader reads it byte by byte up to that terminator. A text (SAT) one
+//! "must be parsed to find the end", and is refused rather than guessed.
+//!
+//! Measured 2026-10-26 (#228): AutoCAD 2025's R2004, R2007 and R2010
+//! saves of one drawing hold their two 3DSOLIDs and one REGION as
+//! version-2 SAB envelopes. Read to the terminator, all nine records
+//! close exactly on their data-stream boundary, and the §20.4.41 tail
+//! after each envelope (wireframe point, isolines, wires, silhouettes)
+//! is identical across the three releases; the SAB files themselves
+//! differ only as AutoCAD writes a different ACIS file version for each
+//! target release (ARCHITECTURE.md §7p).
 //!
 //! # Where the R2013+ payload actually lives
 //!
@@ -141,10 +151,11 @@ pub fn decode_record(
 ///
 /// # Errors
 ///
-/// - [`Error::SectionMap`] if the envelope reports version 2 (a raw
-///   ACIS file with no length field), if the accumulated blob exceeds
-///   [`MAX_SAT_BLOB_BYTES`], or if a declared block size exceeds the
-///   remaining bytes in the cursor.
+/// - [`Error::Unsupported`] if a version-2 envelope holds a text (SAT)
+///   file rather than a binary (SAB) one.
+/// - [`Error::SectionMap`] if the envelope reports a version other than
+///   1 or 2, if the accumulated blob exceeds [`MAX_SAT_BLOB_BYTES`], or
+///   if a declared block size exceeds the remaining bytes in the cursor.
 /// - Any [`BitCursor`] read error propagated from an underlying field.
 pub(crate) fn read_sat_blob(c: &mut BitCursor<'_>) -> Result<(bool, Option<u16>, Option<Vec<u8>>)> {
     let acis_empty = c.read_b()?;
@@ -157,18 +168,30 @@ pub(crate) fn read_sat_blob(c: &mut BitCursor<'_>) -> Result<(bool, Option<u16>,
     Ok((false, Some(version), Some(blob)))
 }
 
-/// Read the version-1 block loop of an ACIS envelope (§20.4.41).
+/// The bytes a version-2 SAB stream ends with (§20.4.41).
+const SAB_END: &[u8] = b"End\x0E\x02of\x0E\x04ACIS\x0D\x04data";
+
+/// The header a version-2 binary (SAB) stream opens with (§20.4.41).
+const SAB_HEADER: &[u8] = b"ACIS BinaryFile";
+
+/// Read the data of an ACIS envelope (§20.4.41).
 ///
-/// The loop reads a `BL` block size and that many `RC`s, and ends when
-/// the block size is `0`. Version 2 has no length prefix at all and is
-/// refused.
+/// Version 1 is a loop of a `BL` block size and that many `RC`s, ending
+/// at a block size of `0`. Version 2 is an ACIS file written straight
+/// into the stream with no length: a binary (SAB) one opens with
+/// `ACIS BinaryFile` and ends with `End\x0E\x02of\x0E\x04ACIS\x0D\x04data`,
+/// so it is read byte by byte up to that terminator. A version-2 text
+/// (SAT) file "must be parsed to find the end", which this crate does
+/// not do, so it is refused.
 pub(crate) fn read_sat_blocks(c: &mut BitCursor<'_>, version: u16) -> Result<Vec<u8>> {
-    if version != 1 {
-        return Err(Error::SectionMap(format!(
-            "ACIS envelope reports version {version}; only the \
-             length-prefixed version 1 form can be stepped without an \
-             ACIS parser (§20.4.41)"
-        )));
+    match version {
+        1 => {}
+        2 => return read_sab_file(c),
+        _ => {
+            return Err(Error::SectionMap(format!(
+                "ACIS envelope reports version {version}; §20.4.41 knows 1 and 2"
+            )));
+        }
     }
     let mut blob: Vec<u8> = Vec::new();
     loop {
@@ -210,6 +233,33 @@ pub(crate) fn read_sat_blocks(c: &mut BitCursor<'_>, version: u16) -> Result<Vec
         for _ in 0..block_size {
             blob.push(c.read_rc()?);
         }
+    }
+}
+
+/// Read a version-2 ACIS envelope's binary (SAB) file up to and
+/// including its terminator (§20.4.41).
+fn read_sab_file(c: &mut BitCursor<'_>) -> Result<Vec<u8>> {
+    let mut blob: Vec<u8> = Vec::new();
+    while blob.len() < SAB_HEADER.len() {
+        blob.push(c.read_rc()?);
+    }
+    if blob != SAB_HEADER {
+        return Err(Error::Unsupported {
+            feature: "a version-2 ACIS envelope holding a text (SAT) file, which §20.4.41 \
+                      says must be parsed to find its end"
+                .into(),
+        });
+    }
+    loop {
+        if blob.ends_with(SAB_END) {
+            return Ok(blob);
+        }
+        if blob.len() >= MAX_SAT_BLOB_BYTES {
+            return Err(Error::SectionMap(format!(
+                "SAB stream exceeds the {MAX_SAT_BLOB_BYTES}-byte cap without its terminator"
+            )));
+        }
+        blob.push(c.read_rc()?);
     }
 }
 
@@ -275,22 +325,6 @@ mod tests {
         let s = decode(&mut c).unwrap();
         assert_eq!(s.version, Some(1));
         assert_eq!(s.sat_blob.as_deref(), Some(&b"hello, world!"[..]));
-    }
-
-    #[test]
-    fn version_two_is_refused() {
-        // Version 2 embeds a raw ACIS file with no length field.
-        let mut w = BitWriter::new();
-        w.write_b(false);
-        w.write_b(false);
-        w.write_bs_u(2);
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let err = decode(&mut c).unwrap_err();
-        match err {
-            Error::SectionMap(msg) => assert!(msg.contains("version 2"), "msg: {msg}"),
-            other => panic!("expected SectionMap, got {other:?}"),
-        }
     }
 
     #[test]

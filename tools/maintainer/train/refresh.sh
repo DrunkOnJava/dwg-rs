@@ -65,7 +65,12 @@ if ! git merge --no-edit -q origin/main > "$OUT/merge.log" 2>&1; then
 fi
 
 say "build"
-cargo build --release --all-features --examples > "$OUT/build.log" 2>&1 || { say "build FAILED ($OUT/build.log)"; exit 1; }
+if ! cargo build --release --all-features --examples > "$OUT/build.log" 2>&1; then
+  # The machine-wide governor (when present) refuses a build while memory or CPU is under pressure:
+  # that is not this PR's failure, so the train retries it later.
+  grep -qs "governor: no lease" "$OUT/build.log" && { say "DEFERRED: no build lease while the machine is under pressure"; exit 75; }
+  say "build FAILED ($OUT/build.log)"; exit 1
+fi
 say "corpus run"
 python3 -I tools/corpus/fetch.py --dest "$C" > "$OUT/fetch.log" 2>&1 || { say "fetch FAILED"; exit 1; }
 python3 -I tools/corpus/measure.py run --corpus "$C" --bin "$CARGO_TARGET_DIR/release/examples" --out "$OUT/r.json" > "$OUT/run.log" 2>&1 || { say "run FAILED"; exit 1; }
@@ -80,10 +85,10 @@ say "vs main: $(grep -c '^- IMPROVED' "$OUT/vs-main.log") improved row(s), 0 reg
 python3 -I tools/corpus/measure.py baseline --results "$OUT/r.json" > "$OUT/baseline.log" 2>&1 || { say "baseline FAILED"; exit 1; }
 python3 -I tools/corpus/measure.py check --results "$OUT/r.json" > "$OUT/check.log" 2>&1 || { say "check FAILED after baseline"; exit 1; }
 if [ -f examples/spec_examples.rs ]; then
-  if ! cargo run -q --release --all-features --example spec_examples > "$OUT/spec-examples.log" 2>&1; then
+  if ! "$CARGO_TARGET_DIR/release/examples/spec_examples" > "$OUT/spec-examples.log" 2>&1; then
     F=tests/fixtures/spec-examples/r14-objects.tsv
     cp "$F" "$OUT/r14-objects.before.tsv"
-    cargo run -q --release --all-features --example spec_examples -- --update > "$OUT/spec-examples-update.log" 2>&1 || { say "spec_examples --update FAILED"; exit 1; }
+    "$CARGO_TARGET_DIR/release/examples/spec_examples" --update > "$OUT/spec-examples-update.log" 2>&1 || { say "spec_examples --update FAILED"; exit 1; }
     worse=$(python3 -I - "$OUT/r14-objects.before.tsv" "$F" <<'EOF'
 import csv, sys
 def rows(p):
@@ -96,7 +101,7 @@ print(' '.join(f'{k}:{a[k]}->{b.get(k)}' for k in a if a[k] == 'closes' and b.ge
 EOF
 )
     [ -n "$worse" ] && { say "REFUSED: spec example regression: $worse"; git merge --abort > /dev/null 2>&1; exit 6; }
-    cargo run -q --release --all-features --example spec_examples > "$OUT/spec-examples.log" 2>&1 || { say "spec_examples still failing after --update"; exit 1; }
+    "$CARGO_TARGET_DIR/release/examples/spec_examples" > "$OUT/spec-examples.log" 2>&1 || { say "spec_examples still failing after --update"; exit 1; }
     say "spec_examples --update applied (no closes row lost)"
     git add tests/fixtures/spec-examples
   fi

@@ -1687,7 +1687,6 @@ the record; their values corroborate nothing.
 ```sh
 cargo run --release --example probe_tolerance -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
-||||||| parent of 7a7a6a5 (feat(streaming): assemble R2004 sections from their data pages with byte-demand states)
 
 ## 7n. The R2004 data page header, as AutoCAD writes it (2026-10-26, #205)
 
@@ -1827,6 +1826,33 @@ is empty on every record, so it is measured only as an empty `TV`.
 cargo run --release --example probe_cross_release -- arc_R14.dwg arc_2004.dwg LAYOUT \
     --ignore=shade_plot_mode,shade_plot_resolution_level,shade_plot_custom_dpi,viewport_count,trailing_strings
 ```
+
+## 7p. ACIS version-2 envelopes (2026-10-26, #228)
+
+§20.4.41 gives the ACIS envelope two forms. Version 1 is a loop of
+length-prefixed blocks; version 2 is "an acis file" written straight
+into the stream with no length: a binary (SAB) file opens with
+`ACIS BinaryFile` and "SAB files will end with
+`End\x0E\x02of\x0E\x04ACIS\x0D\x04data`", while a text (SAT) file
+"must be parsed to find the end". The decoder refused version 2
+outright. ACadSharp's R2004, R2007 and R2010 saves of one drawing (#225)
+write their two 3DSOLIDs and one REGION as version-2 SAB envelopes, so
+all nine records errored. (R2013 and later move the SAB stream into the
+data-storage section, §7h.)
+
+The envelope is now read byte by byte up to the SAB terminator. All
+nine records then close exactly on their data-stream boundary, and the
+§20.4.41 tail that follows each one is identical across the three saves:
+the same wireframe point per handle (`0xD65` at (17.78, −220.85, 2.5),
+`0xD69` at (24.99, −220.40, 0), `0xD6A` at (31.69, −220.11, 2.19)), 4
+isolines, no wires and no silhouettes. The SAB files differ between
+releases only in their ACIS file-version bytes and length (7,620 bytes
+for `0xD65` on R2004, 7,660 on R2007 and R2010). AutoCAD writes the ACIS
+version each target release reads.
+
+A version-2 envelope that is not `ACIS BinaryFile` (a text SAT file) is
+refused with `Unsupported` rather than scanned for an end the spec says
+needs a parser.
 
 ## 8. Write pipeline (current scope)
 
