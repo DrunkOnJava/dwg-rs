@@ -5,13 +5,15 @@
 //! it (docs/streaming/audit.md, decision 7). Locators 3–5, the second
 //! header and image data are not walked.
 
+use super::records::{RecordFormat, prologue};
 use super::{FlatHeader, FlatHeaderParser, Locator, Phase, Request, SourceIdentity, StreamError};
 use crate::crc::crc8;
 
 const SEED: u16 = 0xc0c1;
 const FRAME: u64 = 38;
-/// §23.1 cuts a chunk at 2032 bytes. The count is the entries: the size field also
-/// counts its own two bytes, and real AC1012, AC1014 and AC1015 drawings reach 2034.
+/// A map chunk's size counts its own two bytes: AutoCAD fills the 2,032 bytes
+/// of entries the spec allows (§23.1), so the largest size is 2,034 (measured
+/// on the first chunk of two 1.3 MB drawings, 2,033 and 2,034).
 const MAX_MAP_CHUNK: u32 = 2034;
 pub(super) const HEAD: usize = 16;
 /// Start and end sentinels of the §9 header-variable section.
@@ -569,10 +571,14 @@ impl FlatWalker {
                 actual,
             });
         }
-        let r2000 = self.top().magic == *b"AC1015";
+        let format = if self.top().magic == *b"AC1015" {
+            RecordFormat::R2000
+        } else {
+            RecordFormat::R14
+        };
         let len = (self.size as usize).min(HEAD);
         let (type_code, record) =
-            prologue(&self.head[..len], r2000).ok_or(StreamError::ObjectHeader(handle))?;
+            prologue(&self.head[..len], format, 0).ok_or(StreamError::ObjectHeader(handle))?;
         if record != handle {
             return Err(StreamError::ObjectHandle {
                 map: handle,
@@ -704,41 +710,4 @@ fn sentinels(part: u8) -> &'static [[u8; 16]; 2] {
     } else {
         &CLASS_SENTINELS
     }
-}
-
-/// Object type (`BS`), the R2000 `RL` bit size and the handle (§20.1),
-/// read MSB-first from the record's first bytes.
-fn prologue(head: &[u8], r2000: bool) -> Option<(u16, u64)> {
-    let mut at = 0usize;
-    let mut take = |n: usize| -> Option<u64> {
-        let mut value = 0u64;
-        for _ in 0..n {
-            let byte = *head.get(at / 8)?;
-            value = (value << 1) | u64::from((byte >> (7 - at % 8)) & 1);
-            at += 1;
-        }
-        Some(value)
-    };
-    let type_code = match take(2)? {
-        0 => {
-            let low = take(8)?;
-            (take(8)? << 8 | low) as u16
-        }
-        1 => take(8)? as u16,
-        2 => 0,
-        _ => 256,
-    };
-    if r2000 {
-        take(32)?;
-    }
-    take(4)?;
-    let counter = take(4)?;
-    if counter > 8 {
-        return None;
-    }
-    let mut handle = 0u64;
-    for _ in 0..counter {
-        handle = handle << 8 | take(8)?;
-    }
-    Some((type_code, handle))
 }

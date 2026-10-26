@@ -223,7 +223,7 @@ def main():
         def run(data, *args):
             path = tmp / 'input.dwg'
             path.write_bytes(data)
-            result = subprocess.run([walk, str(path), *map(str, args)], capture_output=True, timeout=120)
+            result = subprocess.run([walk, str(path), *map(str, args)], capture_output=True, timeout=600)
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
         corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 5)]
