@@ -31,8 +31,8 @@
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
-//! | SPATIAL_FILTER           | [`spatial_filter`]        | §20.4.94         |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
+//! | SPATIAL_FILTER           | [`clip_spatial_filter`]        | §20.4.94         |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
 //!
 //! # Reachability and the R2007+ split stream
@@ -89,6 +89,7 @@ pub mod acad_scale;
 pub mod acad_section_view_style;
 pub mod acad_visual_style;
 pub mod class_map_extension;
+pub mod clip_spatial_filter;
 pub mod color;
 pub mod control;
 pub mod custom_dict_entry;
@@ -98,6 +99,5 @@ pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
-pub mod spatial_filter;
 pub mod xdata;
 pub mod xrecord;

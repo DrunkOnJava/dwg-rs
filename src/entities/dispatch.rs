@@ -137,7 +137,7 @@ pub enum DecodedEntity {
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
-    SpatialFilter(Box<crate::objects::spatial_filter::SpatialFilter>),
+    SpatialFilter(Box<crate::objects::clip_spatial_filter::SpatialFilter>),
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
@@ -688,8 +688,10 @@ fn dispatch_object_class(
         )
         .map(DecodedEntity::PlotSettings),
         "SPATIAL_FILTER" | "ACDBSPATIALFILTER" => {
-            crate::objects::spatial_filter::decode_object(payload, body_start, inline_end, version)
-                .map(|filter| DecodedEntity::SpatialFilter(Box::new(filter)))
+            crate::objects::clip_spatial_filter::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(|filter| DecodedEntity::SpatialFilter(Box::new(filter)))
         }
         "MLEADERSTYLE" | "ACDBMLEADERSTYLE" => crate::objects::acad_mleader_style::decode_object(
             payload, body_start, inline_end, version,
