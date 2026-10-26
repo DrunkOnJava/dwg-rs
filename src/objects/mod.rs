@@ -12,6 +12,7 @@
 //!
 //! | Object                   | Module                    | Spec             |
 //! |--------------------------|---------------------------|------------------|
+//! | CELLSTYLEMAP             | [`acad_cell_style_map`]   | §20.4.102        |
 //! | ACDBDETAILVIEWSTYLE      | [`acad_detail_view_style`]| none — measured  |
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
 //! | LAYOUT                   | [`acad_layout`]           | §20.4.84         |
@@ -21,7 +22,8 @@
 //! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
 //! | ACAD_PROPERTYSET_DATA    | [`acad_property_set_data`]| §19.6.11 (L7-07) |
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
-//! | TABLESTYLE (until R2007) | [`acad_table_style`]      | §20.4.101.1      |
+//! | TABLESTYLE               | [`acad_table_style`]      | §20.4.101        |
+//! | cell styles              | [`table_cell_style`]      | §20.4.101.3-4    |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -62,9 +64,9 @@
 //! [`acad_material`] restricts itself to the strings and the budget
 //! precisely because its data-field layout is not among them.
 //!
-//! TABLESTYLE is decoded from §20.4.101.1 on R14 to R2007 ([`acad_table_style`]);
-//! its R2010+ record is §20.4.101.2's different layout and stays
-//! `Unhandled`.
+//! TABLESTYLE is decoded from §20.4.101.1 on R14 to R2007 and from
+//! §20.4.101.2 on R2010 and later ([`acad_table_style`]), CELLSTYLEMAP from
+//! §20.4.102 ([`acad_cell_style_map`]).
 //!
 //! PLOTSETTINGS has no §20.4 prescription of its own either, but it
 //! does not need one: §20.4.84 LAYOUT opens with the whole
@@ -72,6 +74,7 @@
 //! share a single field list and one of them is measured on 31 real
 //! records.
 
+pub mod acad_cell_style_map;
 pub mod acad_detail_view_style;
 pub mod acad_group;
 pub mod acad_layout;
@@ -94,5 +97,6 @@ pub(crate) mod modern;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod table_cell_style;
 pub mod xdata;
 pub mod xrecord;

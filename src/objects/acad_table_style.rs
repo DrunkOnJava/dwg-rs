@@ -60,15 +60,17 @@
 //!
 //! # Releases
 //!
-//! R2000 to R2007 close on their data-stream boundary on every corpus record.
-//! R2010 and later store the record in §20.4.101.2's different layout, which
-//! is [`crate::error::Error::Unsupported`] here, so the dispatcher leaves it
-//! `Unhandled`.
+//! R14 to R2007 follow the layout above and close on every corpus record.
+//! R2010 and later store §20.4.101.2's different layout, decoded by
+//! [`decode_object_modern`] into [`AcadTableStyleModern`]: the table's own
+//! cell style and the cell styles of the title, header and data rows, in the
+//! shape `crate::objects::table_cell_style` reads.
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
 use crate::objects::color::{self, ObjectColor};
 use crate::objects::modern;
+use crate::objects::table_cell_style::{NamedCellStyle, read_named_cell_style};
 use crate::string_stream::StringReader;
 use crate::version::Version;
 
@@ -202,21 +204,96 @@ fn read_body(
 /// Decode a TABLESTYLE straight from its raw object payload (§20.4.101.1),
 /// taking the description and format strings from the R2007 string stream
 /// when the file has one and checking the data fields end exactly on the
-/// data-stream boundary. R2010 and later use §20.4.101.2's layout and return
-/// [`Error::Unsupported`].
+/// data-stream boundary. R2010 and later use §20.4.101.2's layout, read by
+/// [`decode_object_modern`].
 pub(crate) fn decode_object(
     payload: &[u8],
     body_start: usize,
     inline_data_end: Option<usize>,
     version: Version,
 ) -> Result<AcadTableStyle> {
-    if version.is_r2010_plus() {
-        return Err(Error::Unsupported {
-            feature: "TABLESTYLE in the R2010+ layout of §20.4.101.2".into(),
-        });
-    }
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
     let out = read_body(&mut split.data, &mut split.strings, version)?;
+    split.finish("TABLESTYLE")?;
+    Ok(out)
+}
+
+/// Most cell styles a TABLESTYLE of the R2010 layout claims.
+const MAX_CELL_STYLES: u32 = 4096;
+
+/// A cell style of the R2010 TABLESTYLE, with the `BL` that leads it.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct TableStyleCellStyle {
+    /// `BL` before the cell style; it equals the cell style id after it on
+    /// every corpus record.
+    pub leading_id: u32,
+    /// The cell style with its id, class and name.
+    pub style: NamedCellStyle,
+}
+
+/// A decoded TABLESTYLE in the R2010 layout of §20.4.101.2.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct AcadTableStyleModern {
+    /// `RC` unknown, 0 on every corpus record.
+    pub unknown_byte: u8,
+    /// `TV` description, DXF 3.
+    pub description: String,
+    /// `BL` unknown, 0 on every corpus record.
+    pub unknown_a: u32,
+    /// `BL` unknown, 101 on every corpus record: the first custom cell
+    /// style id.
+    pub unknown_b: u32,
+    /// The cell style named "Table", id 4.
+    pub table: NamedCellStyle,
+    /// The cell styles of the title, header and data rows, in that order.
+    pub cell_styles: Vec<TableStyleCellStyle>,
+}
+
+fn read_body_modern(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+) -> Result<AcadTableStyleModern> {
+    let unknown_byte = c.read_rc()?;
+    let description = modern::read_tv(c, strings, version)?;
+    let unknown_a = c.read_bl_u()?;
+    let unknown_b = c.read_bl_u()?;
+    let table = read_named_cell_style(c, strings, version)?;
+    let count = c.read_bl_u()?;
+    if count > MAX_CELL_STYLES || count as usize > c.remaining_bits() {
+        return Err(Error::SectionMap(format!(
+            "TABLESTYLE claims {count} cell styles in {} remaining bits",
+            c.remaining_bits()
+        )));
+    }
+    let mut cell_styles = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        cell_styles.push(TableStyleCellStyle {
+            leading_id: c.read_bl_u()?,
+            style: read_named_cell_style(c, strings, version)?,
+        });
+    }
+    Ok(AcadTableStyleModern {
+        unknown_byte,
+        description,
+        unknown_a,
+        unknown_b,
+        table,
+        cell_styles,
+    })
+}
+
+/// Decode a TABLESTYLE of the R2010 layout (§20.4.101.2) straight from its
+/// raw object payload, taking every `TV` from the string stream and checking
+/// that the data fields end exactly on the data-stream boundary.
+pub(crate) fn decode_object_modern(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<AcadTableStyleModern> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let out = read_body_modern(&mut split.data, &mut split.strings, version)?;
     split.finish("TABLESTYLE")?;
     Ok(out)
 }
