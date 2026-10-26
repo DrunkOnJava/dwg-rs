@@ -1,7 +1,7 @@
 //! The DXF `TABLES` section from the decoded symbol tables.
 //!
-//! [`build`] turns the decoded LAYER, STYLE, LTYPE and APPID records of a
-//! drawing into the `TABLE` blocks AutoCAD's own DXF export writes for it, and
+//! [`build`] turns the decoded VPORT, LTYPE, LAYER, STYLE, APPID, DIMSTYLE and
+//! BLOCK_RECORD records of a drawing into the `TABLE` blocks AutoCAD's own DXF export writes for it, and
 //! [`write()`] emits them. Each record carries its handle and its owner (the
 //! table's control object, from `AcDb:Header`), then the groups of its
 //! `AcDb...TableRecord` subclass that the decoder surfaces, under the codes and
@@ -10,12 +10,11 @@
 //! # What is written, and what is not
 //!
 //! - LAYER: name (2), flags (70: frozen 1, frozen in new viewports 2, locked 4,
-//!   Xdep 16), colour (62, negative when the layer is off), plot flag (290, only
-//!   when it is off: AutoCAD omits the default) and lineweight (370). The linetype
-//!   name (6), plot-style handle (390) and, from R2013, the material and visual
-//!   style handles (347, 348) are not written: the decoder does not read the
-//!   handle stream of a layer. A layer whose colour is a true colour (the DWG
-//!   stores no index for it) has no 62 written either.
+//!   Xdep 16), colour (62, negative when the layer is off), linetype name (6,
+//!   from the handle stream), plot flag (290, only when it is off: AutoCAD omits
+//!   the default), lineweight (370) and the plot style handle (390). A layer
+//!   whose colour is a true colour (the DWG stores no index for it) has no 62
+//!   written; its material and visual style handles (347, 348) are not written.
 //! - STYLE: name, flags (70: shape file 1, vertical 4, Xdep 16), 40, 41, 50
 //!   (degrees), 71, 42, 3, 4.
 //! - LTYPE: name, flags (70), description (3), alignment (72), dash count (73),
@@ -36,6 +35,11 @@
 //!   gets no UCS table: no corpus drawing holds one, so the UCS decoder has
 //!   never read a real record, and §20.4.62 lists a second orthographic `BS` it
 //!   does not read.
+//! - DIMSTYLE: every dimension variable of the record (`tables::dimstyle`'s
+//!   `decode_with_vars`) whose value is not the imperial default AutoCAD leaves
+//!   out, the colours as indexes, the text style and linetypes by handle (the
+//!   arrowhead blocks only when BLOCKS writes them), and the table header's `71`
+//!   and `340` list.
 //! - BLOCK_RECORD: the name the record's `BLOCK` entity gives (anonymous blocks
 //!   carry their number there), the layout handle (340), insert units,
 //!   explodability and scaling (70, 280, 281; R2007) and the preview bitmap
@@ -52,8 +56,8 @@
 //! such bracket.
 //!
 //! Records the export itself creates while saving (their handles are at or
-//! above the DWG's `$HANDSEED`) are not in the DWG and not written. VIEW and
-//! DIMSTYLE are not written yet.
+//! above the DWG's `$HANDSEED`) are not in the DWG and not written. VIEW is not
+//! written yet.
 //!
 //! Targets before R2000 have no subclass markers and are not written: the
 //! converter keeps its default layer for them.
