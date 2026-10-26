@@ -85,9 +85,9 @@ pub enum TableValueData {
     #[default]
     Absent,
     /// Data type 0: a `BL`.
-    Unknown(u32),
-    /// Data type 1: a `BL`.
-    Long(u32),
+    Unknown(i32),
+    /// Data type 1: a `BL`, signed as the DXF's group 91.
+    Long(i32),
     /// Data type 2: a `BD`.
     Double(f64),
     /// Data type 4: a `TV`.
@@ -356,8 +356,8 @@ fn read_value(c: &mut BitCursor<'_>, strings: Strings, version: Version) -> Resu
     let has_data = flags.is_none_or(|f| f & 1 == 0);
     let data = match data_type {
         _ if !has_data => TableValueData::Absent,
-        0 => TableValueData::Unknown(c.read_bl_u()?),
-        1 => TableValueData::Long(c.read_bl_u()?),
+        0 => TableValueData::Unknown(c.read_bl()?),
+        1 => TableValueData::Long(c.read_bl()?),
         2 => TableValueData::Double(c.read_bd()?),
         4 if modern_value => TableValueData::String(utf16_value(c)?),
         4 => TableValueData::String(modern::read_tv(c, strings, version)?),

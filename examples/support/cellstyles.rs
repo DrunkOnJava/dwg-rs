@@ -358,6 +358,11 @@ pub fn compare_content(ours: &TableContent, rec: &Record, t: &mut Tally) {
                     TableCellContentKind::Unknown => {}
                 }
                 s.int(t, "attributes", content.attributes.len() as i64, 91);
+                for a in &content.attributes {
+                    s.handle(t, "attribute handle", 330);
+                    s.text(t, "attribute value", &a.value, 301);
+                    s.int(t, "attribute index", i64::from(a.index), 92);
+                }
                 s.marker(t, 309, "CELLCONTENT_END");
                 s.marker(t, 1, "FORMATTEDCELLCONTENT_BEGIN");
                 s.int(
