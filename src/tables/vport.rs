@@ -246,7 +246,8 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<VportEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) =
+        modern::read_entry_flags(&mut split.data, version)?;
     let c = &mut split.data;
     let view_height = c.read_bd()?;
     let aspect_ratio = c.read_bd()?;
@@ -316,9 +317,9 @@ pub(crate) fn decode_modern_split_stream(
     Ok(VportEntry {
         header: TableEntryHeader {
             name,
-            is_xref_dependent,
+            flag_64: flag64,
             xref_index_plus_1,
-            is_xref_resolved: flag64,
+            is_xref_dependent,
         },
         view_height,
         aspect_ratio,
