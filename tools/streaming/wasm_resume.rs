@@ -90,7 +90,7 @@ impl Write for Lines<'_> {
 /// `run_r2007` wrote; 10, 11 and 12 the page CRC-32, page length and page
 /// number the last `run_file` ended on (for `run_objects`, the payload CRC-32
 /// and length; for `run_r2007`, the page CRC-32, page length and section
-/// index), 13 the page id of the last `run_r2007`.
+/// index). The page id of the last `run_r2007` is `r2007_page_id`.
 #[unsafe(no_mangle)]
 pub extern "C" fn layout(which: u32) -> u32 {
     match which {
@@ -107,7 +107,6 @@ pub extern "C" fn layout(which: u32) -> u32 {
         10 => unsafe { CURSORS[0] as u32 },
         11 => unsafe { CURSORS[1] as u32 },
         12 => unsafe { CURSORS[2] as u32 },
-        13 => unsafe { CURSORS[3] as u32 },
         _ => 0,
     }
 }
@@ -724,6 +723,12 @@ fn walk_r2007(
     0
 }
 
+/// The signed 64-bit id of the page the last `run_r2007` stopped in.
+#[unsafe(no_mangle)]
+pub extern "C" fn r2007_page_id() -> i64 {
+    unsafe { CURSORS[3] as i64 }
+}
+
 /// Restore a `DWGR` checkpoint, with the page CRC-32, length, section index
 /// and page id the native caller saved, and finish the whole walk. Same codes
 /// as `resume_maps`.
@@ -735,7 +740,7 @@ pub extern "C" fn resume_r2007(
     page_crc: u32,
     page_len: u32,
     section: u32,
-    id: i32,
+    id: i64,
 ) -> i32 {
     let file_len = file_len as usize;
     let mem = scratch();
@@ -749,7 +754,7 @@ pub extern "C" fn resume_r2007(
         crc: page_crc,
         len: u64::from(page_len),
         section,
-        id: i64::from(id),
+        id,
     };
     match walk_r2007(&mut walker, mem.file, file_len, chunk as usize, None, &mut out, &mut cursor) {
         0 => out.at as i32,
@@ -759,8 +764,8 @@ pub extern "C" fn resume_r2007(
 
 /// Walk the whole R2007 file from the start for `stop` steps, print what it
 /// committed and leave the walker's checkpoint at the checkpoint offset (its
-/// length is `layout(9)`, the cursors `layout(10..=13)`). Same codes as
-/// `resume_maps`.
+/// length is `layout(9)`, the cursors `layout(10..=12)` and `r2007_page_id`).
+/// Same codes as `resume_maps`.
 #[unsafe(no_mangle)]
 pub extern "C" fn run_r2007(file_len: u32, stop: u32, chunk: u32) -> i32 {
     let file_len = file_len as usize;

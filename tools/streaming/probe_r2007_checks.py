@@ -47,10 +47,17 @@ def main():
         clen = struct.unpack_from('<i', msg, 0x18)[0]
         tally['header: codewords with zero syndromes (of 3)'] += sum(r.intact(c, 16) for c in cws)
         tally['header: checking sequence CRC, normal, UpdateSeed1(0, 16)'] += r.crc64(struct.pack('<QQ', key, r.rol(key, key)), r.seed1(0, 16), False) == crc0
-        tally['header: compressed data CRC, normal, UpdateSeed2(0, length)'] += r.crc64(msg[0x20:0x20 + clen], r.seed2(0, clen), False) == ccrc
-        tally['header: compressed data CRC under any other reading'] += sum(1 for x in readings(msg[0x20:0x20 + clen], ccrc, clen, 0)
-                                                                          if x != ('normal', 'UpdateSeed2', 'blocks of 8'))
-        plain = r.lz(msg[0x20:0x20 + clen], 0x110)
+        if clen < 0:
+            # Stored, not compressed (negative ComprLen): the walker reads the 0x110 bytes as they are and checks
+            # no compressed-data CRC.
+            tally['header: stored, not compressed (negative ComprLen)'] += 1
+            plain = msg[0x20:0x20 + 0x110]
+        else:
+            tally['header: compressed'] += 1
+            tally['header: compressed data CRC, normal, UpdateSeed2(0, length)'] += r.crc64(msg[0x20:0x20 + clen], r.seed2(0, clen), False) == ccrc
+            tally['header: compressed data CRC under any other reading'] += sum(1 for x in readings(msg[0x20:0x20 + clen], ccrc, clen, 0)
+                                                                              if x != ('normal', 'UpdateSeed2', 'blocks of 8'))
+            plain = r.lz(msg[0x20:0x20 + clen], 0x110)
         tally['header: header CRC, normal, UpdateSeed2(0, 0x110), CRC field zeroed'] += r.crc64(plain[:0x108] + bytes(8), r.seed2(0, 0x110), False) == f[33]
         tally['header: header CRC under any other reading'] += sum(1 for x in readings(plain[:0x108] + bytes(8), f[33], 0x110, 0)
                                                                  if x != ('normal', 'UpdateSeed2', 'blocks of 8'))

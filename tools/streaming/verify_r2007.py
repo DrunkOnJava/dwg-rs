@@ -82,7 +82,7 @@ def checkpoint_readers(state):
         at += 9 + state[at + 8]
         at += 11 + state[at + 10]
         at += max(r['have'], r['msg'])
-        r['lz'] = state[at]
+        r['lz'], r['lz_at'] = state[at], at
         produced = struct.unpack_from('<Q', state, at + 98)[0]
         at += 98 + 16 + min(produced, 0x10000)
         readers[name] = r
@@ -147,12 +147,13 @@ def constructed():
         {'name': 'A', 'data': b'', 'encoding': 4, 'size': 0, 'pages': []},
         {'name': 'AcDb:Nil', 'data': b'', 'encoding': 1, 'size': 0, 'pages': [{'start': 0, 'len': 0, 'compress': False}]},
         {'name': 'AcDb:' + 'L' * 57, 'data': sample(30000, 31), 'encoding': 4, 'pages': [{'start': 0, 'len': 30000, 'compress': False}]},
-        {'name': 'AcDb:Bare', 'data': sample(20000, 32), 'encoding': 1, 'pages': [{'start': 0, 'len': 20000, 'compress': True}]},
+        {'name': 'AcDb:Bare', 'data': sample(20000, 32), 'encoding': 1,
+         'pages': [{'start': 0, 'len': 20000, 'compress': True, 'id': 4294967299}]},
         {'name': 'AcDb:Two', 'data': sample(5000, 33), 'encoding': 1,
          'pages': [{'start': 0, 'len': 2500, 'compress': False}, {'start': 2500, 'len': 2500, 'compress': True}]},
     ]}
     out.append(('constructed_b.dwg', ref.build(b), 'system pages and header stored, repeat factor 1, a compressed bare page, a bare page of zero bytes in a '
-                'zero-sized page map slot, a 126-byte section name that straddles a codeword'))
+                'zero-sized page map slot, a page id past 32 bits (4294967299), a 126-byte section name that straddles a codeword'))
     return out
 
 
@@ -288,6 +289,23 @@ def main():
             assert holed, 'no file has a hole'
             receipts.append({'timing_example': len(corpus), 'section_bytes': 'equal to the assembled sections',
                              'files_with_holes': holed})
+        # The integrity probe reads a stored header (negative ComprLen) as well as a compressed one, and agrees with
+        # the walk's rules on every built file and one pinned drawing.
+        probed = [tmp / name for name in ('tiny.dwg', 'constructed_a.dwg', 'constructed_b.dwg', 'arc_2007.dwg')]
+        for path in probed:
+            path.write_bytes(files[path.name])
+        result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve().parent / 'probe_r2007_checks.py'),
+                                 *map(str, probed)], capture_output=True, timeout=600)
+        assert result.returncode == 0, result.stderr.decode()
+        tally = {line[8:]: int(line[:6]) for line in result.stdout.decode().splitlines()[1:]}
+        stored, packed = tally.get('header: stored, not compressed (negative ComprLen)', 0), tally.get('header: compressed', 0)
+        assert stored >= 1 and packed >= 1 and stored + packed == len(probed), tally
+        assert tally['header: header CRC, normal, UpdateSeed2(0, 0x110), CRC field zeroed'] == len(probed), tally
+        assert tally['header: compressed data CRC, normal, UpdateSeed2(0, length)'] == packed, tally
+        for rule in ('stored CRC, mirrored, UpdateSeed1(CrcSeed, compressed)', 'checksum over the decompressed bytes, seed 0'):
+            assert tally[f'data pages: {rule}'] == tally['data pages'], (rule, tally)
+        receipts.append({'probe_r2007_checks': [p.name for p in probed], 'stored_headers': stored, 'compressed_headers': packed,
+                         'data_pages_agreeing': tally['data pages']})
         biggest = max(p['uncompressed'] for parsed, *_ in expectations.values() for s in parsed['sections'] for p in s['pages'])
         widest = max(p['codewords'] for parsed, *_ in expectations.values() for s in parsed['sections'] for p in s['pages'])
         assert biggest > 65536 and widest > 255, (biggest, widest)
@@ -418,7 +436,10 @@ def main():
                 (f'stage {stage}: unknown encoding', state, [(CUR_SIZES + 32, p64(3))]),
                 (f'stage {stage}: encrypted section', state, [(CUR_SIZES + 16, p64(1))]),
                 (f'stage {stage}: more pages done than listed', state, [(CUR_SIZES + 48, p64(1 << 30))]),
+                (f'stage {stage}: section index at u32::MAX', state, [(CUR, p32(0xFFFFFFFF))]),
             ]
+        forgeries.append(('sections: a section ending at index u32::MAX', by_stage[2][1],
+                          [(REC_KIND, b'\x00'), (PENDING, b'\x02'), (PENDING + 1, p64(0xFFFFFFFF)), (CUR, p32(0xFFFFFFFF))]))
         for stage in (3, 4):
             state = by_stage[stage][1]
             forgeries += [
@@ -459,9 +480,29 @@ def main():
                 result = run(data, 256, '--identity', identity, '--resume', checkpoint, name=name)
                 assert 'panicked' not in result[2] and result[0] in (0, 1), (stage, at, result[2][:300])
                 fuzz += 1
+        # Every numeric field set to its largest value, resealed, never panics (a debug build checks overflow).
+        fixed = [(DESCRIBED, 4), (SECTIONS, 4), (PAGES, 4), (EMITTED, 8), (PENDING + 1, 8), (PENDING + 9, 8), (HAVE, 2),
+                 (ENTRY_HAVE, 1), (REC_HAVE, 1), (FACTS, 8), (FACTS + 8, 8), (FACTS + 16, 8), (FLAGS + 1, 8), (CUR, 4),
+                 (CUR + 4, 1), (CUR + 5, 1)] + [(CUR_SIZES + 8 * k, 8) for k in range(8)] + [(REF + 8 * k, 8) for k in range(9)]
+        in_reader = [(R_CW, 8), (R_CW + 8, 8), (R_HAVE, 2), (R_MSG, 2), (R_TAKE, 2), (R_FED, 8), (R_PRODUCED, 8), (39, 8)]
+        in_lz = [(1, 1), (2, 1), (3, 1), (8, 1), (9, 1), (10, 8), (18, 8), (26, 4), (62, 1), (63, 1), (96, 1), (97, 1), (98, 8), (106, 8)]
+        maxed = 0
+        for stage in sorted(stages):
+            state = by_stage[stage][1]
+            prepare(stage)
+            _, readers = checkpoint_readers(state)
+            fields = list(fixed)
+            for r in readers.values():
+                fields += [(r['at'] + o, w) for o, w in in_reader] + [(r['lz_at'] + o, w) for o, w in in_lz]
+            for at, width in fields:
+                checkpoint.write_bytes(reseal(state, [(at, b'\xff' * width)]))
+                result = run(data, 256, '--identity', identity, '--resume', checkpoint, name=name)
+                assert 'panicked' not in result[2] and result[0] in (0, 1), (stage, at, width, result[2][:300])
+                maxed += 1
         receipts.append({'file': name, 'checkpoint_stages': sorted(stages), 'bit_flips_rejected': len(small) + 100,
                          'truncations_rejected': len(small) + 100, 'identity_mismatch': 'rejected',
                          'resealed_forgeries_rejected': len(rejected), 'resealed_mutations_without_panic': fuzz,
+                         'resealed_maximal_fields_without_panic': maxed,
                          'checkpointed_decoder_modes': modes})
 
         problems = []

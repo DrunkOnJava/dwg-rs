@@ -1675,7 +1675,7 @@ impl R2007Walker {
                         && c.done == c.pages
                         && covered == c.end.min(c.size)
                         && self.rec_have == 0
-                        && c.index + 1 == self.sections
+                        && c.index.checked_add(1) == Some(self.sections)
                 }
                 Pending::Hole { .. } => false,
             },
@@ -1693,7 +1693,7 @@ impl R2007Walker {
                 named
                     && trimmed
                     && c.name_len > 0
-                    && c.index + 1 == self.sections
+                    && c.index.checked_add(1) == Some(self.sections)
                     && c.done < c.pages
                     && self.rec_have < REFERENCE
                     && matches!(self.pending, Pending::None | Pending::Hole { .. })

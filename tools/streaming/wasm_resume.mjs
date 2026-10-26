@@ -9,7 +9,8 @@
 // native `checkpoint` and the cursors `digest` and `len`, and "objects-run"
 // takes `stop` and `checkpoint_out`; "r2007-run" takes `stop` and
 // `checkpoint_out` and "r2007-resume" a native `checkpoint` and the cursors
-// `page_crc`, `page_len`, `section` and `id`.
+// `page_crc`, `page_len`, `section` and `id` (a 64-bit page id, as a decimal
+// string; "r2007-run" returns it the same way).
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const [wasmPath, jobsPath] = process.argv.slice(2);
@@ -89,7 +90,7 @@ for (const job of jobs) {
   } else if (job.kind === 'r2007-resume') {
     const state = readFileSync(job.checkpoint);
     mem().set(state, at(2));
-    code = x.resume_r2007(file.length, state.length, job.chunk, job.page_crc, job.page_len, job.section, job.id);
+    code = x.resume_r2007(file.length, state.length, job.chunk, job.page_crc, job.page_len, job.section, BigInt(job.id));
   } else if (job.kind === 'r2007-run') {
     code = x.run_r2007(file.length, job.stop, job.chunk);
     if (code >= 0) {
@@ -111,7 +112,7 @@ for (const job of jobs) {
   const out = code > 0 ? Buffer.from(mem().slice(at(7), at(7) + code)).toString('utf8') : '';
   const cursors = job.kind === 'file-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0]
     : job.kind === 'objects-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0]
-    : job.kind === 'r2007-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0, x.layout(13) | 0] : null;
+    : job.kind === 'r2007-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0, x.r2007_page_id().toString()] : null;
   results.push({ code, out, cursors });
 }
 process.stdout.write(JSON.stringify(results));

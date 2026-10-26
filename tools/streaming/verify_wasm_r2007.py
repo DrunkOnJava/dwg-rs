@@ -94,7 +94,10 @@ def main():
                 crc, length, section, page_id = cursors[stop]
                 jobs.append({'kind': 'r2007-resume', 'file': str(path), 'digest': identity, 'checkpoint': str(ck),
                              'chunk': KERNEL_CHUNKS[stop % len(KERNEL_CHUNKS)], 'page_crc': crc, 'page_len': length,
-                             'section': section, 'id': page_id})
+                             'section': section, 'id': str(page_id)})
+            if name == 'constructed_b.dwg':
+                # A page id past 32 bits (4294967299) crosses the runtimes as a cursor.
+                assert any(c[3] > 0xFFFFFFFF for c in cursors.values()), (name, 'no stop holds the 33-bit page id')
             results = kernel_jobs(jobs)
             for stop, result in zip(stops, results):
                 assert result['code'] >= 0, (name, stop, result)
@@ -109,8 +112,8 @@ def main():
                 assert result['out'].splitlines() == paused_lines[stop], (name, stop, 'kernel output before its checkpoint differs')
                 ck = tmp / f'wasm-{name}-{stop}.bin'
                 identical += ck.read_bytes() == native_ckpts[stop]
-                assert tuple(result['cursors']) == cursors[stop], (name, stop, 'cursors differ', result['cursors'], cursors[stop])
-                crc, length, section, page_id = result['cursors']
+                assert tuple(int(c) for c in result['cursors']) == cursors[stop], (name, stop, 'cursors differ', result['cursors'], cursors[stop])
+                crc, length, section, page_id = (int(c) for c in result['cursors'])
                 Path(str(ck) + '.caller').write_text(f'{stop} {crc} {length} {section} {page_id}\n')
                 resumed = native(data, NATIVE_CHUNK, '--identity', identity, '--resume', ck, name=name)
                 assert resumed[0] == 0, (name, stop, resumed[2])

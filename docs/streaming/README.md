@@ -576,7 +576,9 @@ checking sequence of §5.2.1, the five check values at `0x3D8`, the header's own
 CRC and its fixed fields), and the page map's entries must account for the
 header's counts and name the page map and the section map. Every rule was
 measured on the pinned drawings before it was enforced, and the probe that
-reproduces the table is `tools/streaming/probe_r2007_checks.py` (§7aj). Where the
+reproduces the table is `tools/streaming/probe_r2007_checks.py` (§7aj; it reads a
+stored header as well as a compressed one, and `verify_r2007.py` runs it on the
+built files and `arc_2007.dwg`). Where the
 legacy reader stops quietly on a stream that ends before its size, this walk
 reports `Lz77Truncated`; where it ignores a section name that is empty or an
 unnamed descriptor with pages, this walk accepts the first and refuses the
@@ -611,9 +613,9 @@ from the spec's text, with shapes the corpus lacks (a page of 70,912 bytes and
 273 codewords, holes, a zero-length page, a page past its section, a section
 short of its size, a page map out of file order with free pages, a non-zero CRC
 seed, system pages and header stored, repeat factor 1, a compressed bare page, a
-bare page of zero bytes in a zero-sized page map slot, a 126-byte section name
-that straddles a codeword, so a checkpoint holds 107 bytes of a name that
-`restore` must accept).
+bare page of zero bytes in a zero-sized page map slot, a page id past 32 bits
+(4294967299), a 126-byte section name that straddles a codeword, so a checkpoint
+holds 107 bytes of a name that `restore` must accept).
 `tools/streaming/r2007_ref.py` is an independent reader and writer written from
 the spec's text and sharing no code with the crate (its Reed-Solomon encoder
 reproduces AutoCAD's parity on every codeword it is given, and its compressor
@@ -795,8 +797,9 @@ refused by the kernel.
 
 The R2007 walker crosses both ways from its checkpoint alone too: `run_r2007`
 walks for a number of steps and leaves a `DWGR` checkpoint, `resume_r2007`
-restores one given the saved page CRC-32, page length, section index and page id
-and finishes the whole walk, printing the lines `stream_r2007` prints. The
+restores one given the saved page CRC-32, page length, section index and 64-bit
+page id (`r2007_page_id` returns the one `run_r2007` stopped in) and finishes the
+whole walk, printing the lines `stream_r2007` prints. The
 grammar compiles unchanged to `wasm32-unknown-unknown` with no allocator; the
 kernel reads a gather one byte at a time from its copy of the file.
 `tools/streaming/verify_wasm_r2007.py` is its acceptance run: on `tiny.dwg`, `constructed_a.dwg` and
@@ -805,7 +808,7 @@ kernel reads a gather one byte at a time from its copy of the file.
 smallest, and 32 to 102 steps of each of the others, around every section, page,
 hole and the end of the walk, covering all six stages) restored in the kernel
 finish with exactly the lines the native resume prints, at kernel read sizes of
-1, 7, 64 and 256 bytes; the kernel's own checkpoint at the same step is
+1, 7, 64 and 256 bytes (the page id 4294967299 among the cursors); the kernel's own checkpoint at the same step is
 byte-identical to the native one in all 349 and the native build resumes it to
 the uninterrupted run's output; and the kernel refuses 80 sampled bit flips of a
 native checkpoint, its first and last byte and a wrong identity (83 refusals), as
