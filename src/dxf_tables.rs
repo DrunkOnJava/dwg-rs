@@ -213,9 +213,13 @@ fn handle_or_null(g: &mut Vec<HeaderGroup>, code: i32, h: Option<u64>, defined: 
 fn layer_groups(
     l: &crate::tables::layer::Layer,
     refs: &LayerRefs,
+    file_version: crate::version::Version,
     version: DxfVersion,
     defined: &HashSet<u64>,
 ) -> Vec<HeaderGroup> {
+    // R13 and R14 store no plot flag and no lineweight: the decoder leaves them
+    // clear, which is not the drawing saying the layer does not plot.
+    let stored = !matches!(file_version, crate::version::Version::R14);
     let mut flags = xdep(&l.header);
     if l.flags & 1 != 0 {
         flags |= 1;
@@ -238,12 +242,13 @@ fn layer_groups(
     if let Some(name) = &refs.linetype {
         g.push(HeaderGroup::Text(6, name.clone()));
     }
-    if !l.plot_flag {
+    if stored && !l.plot_flag {
         g.push(HeaderGroup::Int(290, 0));
     }
     if let Some(w) = u8::try_from(l.lineweight)
         .ok()
         .and_then(lineweight_hundredths)
+        .filter(|_| stored)
     {
         g.push(HeaderGroup::Int(370, i64::from(w)));
     }
@@ -870,7 +875,7 @@ pub fn build(
                     (
                         "LAYER",
                         l.header.name.clone(),
-                        Some(layer_groups(&l, &lr, version, &defined)),
+                        Some(layer_groups(&l, &lr, file_version, version, &defined)),
                     )
                 }
                 DecodedEntity::Style(s) => ("STYLE", s.header.name.clone(), style_groups(&s)),
