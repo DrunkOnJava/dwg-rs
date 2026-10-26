@@ -50,6 +50,15 @@ four independently authored drawings. All remain explicit migration gaps.
    after their CRC, sentinel and handle checks pass. A failed check is
    a terminal error; the caller discards uncommitted payload.
 
+8. LZ77 decoder state (October 26, 2026). **The window is bounded by the
+   format, not by the page.** §4.7 distances reach at most `0xBFFF` with
+   the crate's measured distance rules, so a `0xC000`-byte window decodes
+   any page, including system pages whose declared size has no fixed cap.
+   Output is produced into caller slices of any size and is provisional
+   until the caller's own commit point, as in decision 7. A mid-page
+   checkpoint must carry the window; it is bounded by
+   `min(produced, 0xC000)` and never re-reads compressed bytes.
+
 ## Core failure cases to exercise before implementation
 
 - EOF at every byte of a field, locator, CRC and sentinel.
@@ -102,3 +111,78 @@ seeded 0xC0C1 over the `MS` bytes and data.
 - Committed records equal the legacy reader's handle-map walk (count,
   handle, offset, size, type, payload CRC-32) and an independent
   Python framing parse on every real file in the pinned manifest.
+
+## LZ77 decoder failure cases (§4.7, written before the decoder)
+
+- Reserved opcode `0x00`–`0x0F` where an opcode must stand (a byte in
+  that range where a literal length may stand is a literal length).
+- Back-reference distance of zero or beyond the output produced so far.
+- Literal run, copy or `0x00` extension run passing the declared size.
+- Input ending inside a literal run, an extension, a two-byte offset, an
+  `0x40`–`0xFF` opcode's second byte, or before the `0x11` terminator.
+- Copies longer than their distance (the run repeats its own output).
+- Every input and output slice schedule (one byte, odd sizes, random,
+  with Pending polls) produces the same output and consumption.
+- Checkpoint between any two calls, in every mode, restored in a fresh
+  process: source reads and output of the two processes concatenate to
+  the uninterrupted run's.
+- Corrupt, truncated, oversized, wrong-version and resealed but
+  unreachable decoder checkpoints are rejected before use.
+- A resealed checkpoint whose counters sit at the top of their range:
+  the next byte is a typed error, never an overflow; a run ending exactly
+  at the largest limit still decodes.
+- Output equals the legacy whole-buffer decoder and an independent parse
+  on every compressed page of every real file in the pinned manifest.
+
+## Asynchronous source failure cases (#206, written before the adapter)
+
+- A poll with a read in flight returns `Pending` and changes nothing; a
+  different request while one is in flight is an error, never a second
+  fetch.
+- An answer for another offset, an empty answer or one longer than the
+  request is rejected and leaves the request in flight.
+- More bytes than the caller's next scratch takes are held and delivered
+  on the following polls; a request that does not continue them is an
+  error.
+- An answer of "no byte here" becomes `Eof` at exactly that offset, and
+  the grammar turns it into its typed truncation.
+- A transport failure surfaces as the source error on the next poll.
+- Output through the adapter equals the file-backed run; every fetched
+  byte is delivered once, in order; a fresh-process resume fetches no
+  byte twice, including bytes the adapter held at the checkpoint.
+- A transport answer that ignores the range or is longer than the request
+  is refused before its body is read.
+
+## R2004-family header failure cases (§4.1, written before the parser)
+
+- EOF at every byte of the 0x100-byte header.
+- Unknown magic; flat (AC1012/AC1014/AC1015) or R2007 (AC1021) magic.
+- Plain 0x28 not 0x80; decrypted file ID wrong; CRC-32 of the decrypted
+  block (CRC field zeroed) wrong; a fixed decrypted field (0x0C, 0x10,
+  0x14, 0x44, 0x48, 0x4C) wrong after resealing the CRC.
+- The 0x14 bytes at 0xEC not the magic sequence continued.
+- Page map address off a 0x20 boundary or its header past the source;
+  a non-zero second-header address past the source.
+- Every chunk schedule produces the same header; checkpoint at every
+  byte resumes in a fresh process reading each byte once; corrupt,
+  truncated and wrong-identity checkpoints are rejected; a failure
+  snapshot restores the same failure.
+
+## R2004 page map and section map failure cases (§4.3–§4.5, written before the walker)
+
+- System page: wrong type tag, compression type not 2, zero sizes, data
+  past the source, the section map larger than its page; checksum wrong.
+- Page map: entry number 0, size zero or off 0x20, address overflow, no
+  entry of its own at the header's address or one too small for it, no
+  entry for the section map id, a gap entry cut short.
+- Section map: header constants other than (2, 0x7400, 0); a description
+  with a compression flag other than 1 or 2, an encryption flag above 2,
+  a zero page size or a non-printable name; page start offsets that do
+  not rise or are not whole pages.
+- Either page decoding to more or less than declared, or ending inside a
+  record; a section count that leaves decoded output after the last
+  record.
+- Every chunk schedule produces the same steps; a checkpoint at every
+  step resumes in a fresh process with reads and output concatenating to
+  the uninterrupted run's; corrupt, truncated, wrong-identity and resealed
+  unreachable checkpoints are rejected.

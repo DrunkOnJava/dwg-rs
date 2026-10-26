@@ -19,12 +19,17 @@
 //!                          0x40 3D polygon mesh vertex,
 //!                          0x80 polyface mesh vertex
 //! BD3  location
-//! BD   start_width
-//! BD   end_width
+//! BD   start_width      -- negative: |start| is both widths, no end_width follows
+//! BD   end_width        -- only if start_width >= 0
 //! BD   bulge
 //! BL   vertex_id        -- R2010+
-//! BD   tangent_direction  -- only if (flag & 0x02)
+//! BD   tangent_direction  -- every release
 //! ```
+//!
+//! That is §20.4.11 as printed. Its own R14 example (§20.4.11.1, flags 0)
+//! closes on its `RL` boundary only with the tangent present, which an
+//! earlier reading made conditional on flag `0x02` (#272;
+//! `tests/fixtures/spec-examples/r14-objects.tsv`).
 
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point3D, read_bd3};
@@ -39,6 +44,8 @@ pub struct Vertex {
     pub end_width: f64,
     pub bulge: f64,
     pub vertex_id: Option<u32>,
+    /// §20.4.11 `Tangent dir BD 50`: every decoded record carries it;
+    /// `None` only on vertices this crate builds itself.
     pub tangent_direction: Option<f64>,
 }
 
@@ -47,18 +54,20 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Vertex> {
     let flag = c.read_rc()?;
     let location = read_bd3(c)?;
     let start_width = c.read_bd()?;
-    let end_width = c.read_bd()?;
+    // §20.4.11: a negative start width stands for both widths, and then no
+    // end width is stored.
+    let (start_width, end_width) = if start_width < 0.0 {
+        (-start_width, -start_width)
+    } else {
+        (start_width, c.read_bd()?)
+    };
     let bulge = c.read_bd()?;
     let vertex_id = if version.is_r2010_plus() {
         Some(c.read_bl()? as u32)
     } else {
         None
     };
-    let tangent_direction = if flag & 0x02 != 0 {
-        Some(c.read_bd()?)
-    } else {
-        None
-    };
+    let tangent_direction = Some(c.read_bd()?);
     Ok(Vertex {
         flag,
         location,
@@ -195,6 +204,7 @@ mod tests {
         w.write_bd(0.0); // start width
         w.write_bd(0.0); // end width
         w.write_bd(0.0); // bulge
+        w.write_bd(0.0); // tangent dir: §20.4.11 stores it on every vertex
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let v = decode(&mut c, Version::R2000).unwrap();
@@ -207,7 +217,7 @@ mod tests {
             }
         );
         assert!(v.vertex_id.is_none());
-        assert!(v.tangent_direction.is_none());
+        assert_eq!(v.tangent_direction, Some(0.0));
     }
 
     #[test]

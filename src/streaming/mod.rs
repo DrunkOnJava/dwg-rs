@@ -1,16 +1,28 @@
 //! Bounded, pausable DWG grammar. It covers the complete R13–R2000 file
 //! header (ODA v5.4.1 §3.2) and the R13–R2000 container walk: header
 //! variables, classes, the object map and every mapped record's framing,
-//! type and handle. Object bodies, decompression and the R2004+
-//! containers remain open; see issue #205.
+//! type and handle. For the R2004 family it verifies the §4.1 file header
+//! and has a bounded, resumable decoder for the
+//! R2004-family LZ77 dialect (§4.7). Object bodies and the R2004+
+//! container walk remain open; see issue #205.
 
 use core::fmt;
 
 mod checkpoint;
 mod flat;
-pub use checkpoint::{Checkpoint, WalkCheckpoint};
+mod lz77;
+mod r2004;
+mod r2004_maps;
+pub use checkpoint::{
+    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, WalkCheckpoint,
+};
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
+};
+pub use lz77::{Lz77Decoder, Progress, WINDOW};
+pub use r2004::{R2004_HEADER_BYTES, R2004Header, R2004HeaderParser};
+pub use r2004_maps::{
+    MapDemand, MapStep, PageEntry, R2004MapWalker, SectionEntry, SectionPage, SystemKind,
 };
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
@@ -95,6 +107,62 @@ pub enum StreamError {
         map: u64,
         record: u64,
     },
+    /// §4.7: an opcode in the reserved range 0x00–0x0F, at input byte `at`.
+    Lz77Opcode {
+        at: u64,
+        opcode: u8,
+    },
+    /// §4.7: a back-reference reaching before the first output byte.
+    Lz77Offset {
+        at: u64,
+        distance: u32,
+    },
+    /// Output would pass the declared decompressed size.
+    Lz77Overrun {
+        limit: u64,
+    },
+    /// The compressed bytes ended before the 0x11 terminator.
+    Lz77Truncated {
+        consumed: u64,
+    },
+    /// A position or count would pass `u64::MAX`. No real input reaches
+    /// this; a forged but CRC-valid checkpoint can.
+    CounterOverflow,
+    /// §4.1: the R2004-family header field at this file offset is not what
+    /// the spec fixes (0x28, the file ID at 0x80, a fixed decrypted field,
+    /// the trailer at 0xEC) or points outside the source (0xD4, 0xB4).
+    R2004Field(u16),
+    /// §4.1: CRC-32 of the decrypted 0x6C-byte block.
+    R2004HeaderCrc {
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.3: the system page at this address has the wrong type or
+    /// compression, an empty size, or lies outside the source or its page.
+    SystemPage(u64),
+    /// §4.3: the system page's checksum.
+    SystemPageChecksum {
+        address: u64,
+        expected: u32,
+        actual: u32,
+    },
+    /// §4.4: page map entry `n` has number 0 or a size that is zero, not a
+    /// multiple of 0x20, or overflows the address.
+    PageEntry(u32),
+    /// §4.4: the page map does not list itself at the header's address, or
+    /// its own entry is smaller than the page.
+    PageMapSelf,
+    /// §4.4: the page map has no entry for the header's section map id.
+    SectionMapMissing,
+    /// §4.5: the section map header is not (count, 2, 0x7400, 0, ...).
+    SectionMapHeader,
+    /// §4.5: section description `n` or one of its page references is
+    /// malformed (compression or encryption flag, page size, name, or a
+    /// start offset that is not a rising multiple of the page size).
+    SectionEntry(u32),
+    /// A system page decoded to a size other than declared, or ended
+    /// inside a record.
+    MapLength(u64),
 }
 
 impl fmt::Display for StreamError {

@@ -8,17 +8,33 @@
 //! `--length <bytes>` takes the source length from a trusted manifest
 //! instead of the file, so a short transport ends in a typed EOF.
 //! `--legacy` prints the legacy reader's handle-map walk in the same shape.
+//! `--url http://host:port/path` reads through `byte_source::AsyncSource`
+//! and an HTTP range worker instead of the file (the file argument is then
+//! only a label, and `--length` is required); on completion it prints the
+//! Pending polls and fetches to stderr. With `--url`, a checkpoint also
+//! saves the adapter's fetched but undelivered bytes in `<path>.source`,
+//! which `--resume` restores, so nothing is fetched twice.
 
-use dwg::byte_source::{ByteSource, FileSource, SourcePoll, WalkPoll, poll_walk};
+#[path = "support/http_range.rs"]
+mod http_range;
+
+use dwg::byte_source::{AsyncSource, ByteSource, FileSource, SourcePoll, WalkPoll, poll_walk};
 use dwg::crc::crc32;
 use dwg::reader::DwgFile;
 use dwg::streaming::{CHUNK_BYTES, FlatWalker, Part, Request, SourceIdentity, Step};
+use http_range::{Answer, HttpWorker};
 use std::fs::{self, File};
 use std::io::{self, Write};
 
 #[derive(Debug)]
+enum Inner {
+    File(FileSource<File>),
+    Remote(Box<AsyncSource>),
+}
+
+#[derive(Debug)]
 struct TracedSource {
-    file: FileSource<File>,
+    inner: Inner,
     trace: Option<File>,
     inject_pending: bool,
     pending: bool,
@@ -32,7 +48,10 @@ impl ByteSource for TracedSource {
             return Ok(SourcePoll::Pending);
         }
         self.pending = false;
-        let result = self.file.poll_read(request, output)?;
+        let result = match &mut self.inner {
+            Inner::File(file) => file.poll_read(request, output)?,
+            Inner::Remote(remote) => remote.poll_read(request, output)?,
+        };
         if let (SourcePoll::Ready(n), Some(trace)) = (result, self.trace.as_mut()) {
             writeln!(trace, "{{\"offset\":{},\"bytes\":{n}}}", request.offset)?;
         }
@@ -151,6 +170,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut digest = None;
     let mut inject_pending = false;
     let mut length = None;
+    let mut url = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--legacy" => return legacy(&path),
@@ -164,6 +184,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--trace" => trace = Some(args.next().ok_or("missing trace path")?),
             "--pending" => inject_pending = true,
             "--length" => length = Some(args.next().ok_or("missing length")?.parse::<u64>()?),
+            "--url" => url = Some(args.next().ok_or("missing URL")?),
             "--chunks" => {
                 let value = args.next().ok_or("missing chunk schedule")?;
                 if value.len() > 1024 {
@@ -198,13 +219,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if stop_after.is_some() && checkpoint_out.is_none() {
         return Err("--stop-after requires --checkpoint-out".into());
     }
-    let file = File::open(&path)?;
+    let worker = url.as_deref().map(HttpWorker::spawn).transpose()?;
+    let held = match (&worker, &resume) {
+        (Some(_), Some(path)) => {
+            let text = fs::read_to_string(format!("{path}.source"))?;
+            let (offset, hex) = text
+                .trim()
+                .split_once(' ')
+                .ok_or("malformed source state")?;
+            if hex.len() > 2 * CHUNK_BYTES || hex.len() % 2 != 0 && hex != "-" {
+                return Err("malformed source state".into());
+            }
+            let bytes = if hex == "-" {
+                Vec::new()
+            } else {
+                (0..hex.len())
+                    .step_by(2)
+                    .map(|i| u8::from_str_radix(&hex[i..i + 2], 16))
+                    .collect::<Result<Vec<u8>, _>>()?
+            };
+            AsyncSource::with_held(offset.parse()?, &bytes)?
+        }
+        _ => AsyncSource::new(),
+    };
+    let (inner, file_length) = match &worker {
+        Some(_) => (Inner::Remote(Box::new(held)), None),
+        None => {
+            let file = File::open(&path)?;
+            let len = file.metadata()?.len();
+            (Inner::File(FileSource::new(file)), Some(len))
+        }
+    };
     let identity = SourceIdentity {
         digest: digest.unwrap_or([0; 32]),
-        length: match length {
-            Some(length) => length,
-            None => file.metadata()?.len(),
-        },
+        length: length
+            .or(file_length)
+            .ok_or("--url needs --length from a trusted manifest")?,
     };
     let (mut walker, mut caller) = match resume {
         Some(path) => {
@@ -220,18 +270,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => (FlatWalker::new(identity), Caller::default()),
     };
     let mut source = TracedSource {
-        file: FileSource::new(file),
+        inner,
         trace: trace.map(File::create).transpose()?,
         inject_pending,
         pending: false,
     };
     let mut scratch = [0; CHUNK_BYTES];
     let mut poll = 0;
+    let (mut pending_polls, mut fetches) = (0u64, 0u64);
     loop {
         if stop_after == Some(caller.feeds) {
             let out = checkpoint_out.as_deref().ok_or("missing checkpoint path")?;
             fs::write(out, walker.checkpoint()?.as_bytes())?;
             caller.save(&format!("{out}.caller"))?;
+            if let Inner::Remote(remote) = &source.inner {
+                if remote.in_flight() {
+                    return Err("a fetch is in flight; no checkpoint".into());
+                }
+                let (offset, bytes) = remote.held();
+                let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+                fs::write(
+                    format!("{out}.source"),
+                    format!("{offset} {}\n", if hex.is_empty() { "-" } else { &hex }),
+                )?;
+            }
             println!("{{\"checkpoint\":true,\"feeds\":{}}}", caller.feeds);
             return Ok(());
         }
@@ -239,10 +301,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         poll += 1;
         let request_before = walker.request();
         match poll_walk(&mut walker, &mut source, &mut scratch[..n])? {
-            WalkPoll::Complete => return Ok(()),
+            WalkPoll::Complete => {
+                if worker.is_some() {
+                    eprintln!("{{\"pending_polls\":{pending_polls},\"fetches\":{fetches}}}");
+                }
+                return Ok(());
+            }
             WalkPoll::Pending => {
                 if walker.request() != request_before {
                     return Err("pending source mutated grammar".into());
+                }
+                pending_polls += 1;
+                if let (Some(worker), Inner::Remote(remote)) = (&worker, &mut source.inner) {
+                    if let Some(request) = remote.take_request() {
+                        worker.fetch(request)?;
+                        fetches += 1;
+                    }
+                    if remote.in_flight() {
+                        // The host's wake-up: block until the worker answers.
+                        let delivered = match worker.wait() {
+                            Answer::Bytes(offset, bytes) => remote.complete(offset, &bytes),
+                            Answer::Eof(offset) => remote.complete_eof(offset),
+                            Answer::Failed(error) => Err(error),
+                        };
+                        if let Err(error) = delivered {
+                            remote.fail(error);
+                        }
+                    }
                 }
             }
             WalkPoll::Fed { step, len, .. } => {
