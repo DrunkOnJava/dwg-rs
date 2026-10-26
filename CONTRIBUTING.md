@@ -98,9 +98,11 @@ squash-merge only, so one PR is one commit; keep them small.
   `examples/`.
 - **Documentation improvements.** The README, ARCHITECTURE, and
   inline doc comments are fair game.
-- **Tests.** More coverage is always welcome, especially for
-  edge-case file layouts, R2004+ Sec_Mask handling, and R2007's
-  compressed-section-info variants.
+- **Corpus files.** Public DWG files with a licence that lets CI
+  fetch them, ideally with AutoCAD's DXF export of the same drawing,
+  are as valuable as code (#153). Edge-case file layouts, R2004+
+  Sec_Mask variants and R2007 compressed-section-info variants are
+  especially wanted.
 
 ## What needs discussion first
 
@@ -110,9 +112,9 @@ Open an issue (or a draft PR) before starting work on any of:
   side work is subtle; please align on the plan first.
 - R2007 full-decompression path — this is the most complex
   container variant and benefits from design discussion.
-- Any modifying-writer path. The project is currently read-only by
-  design; write support is a major scope expansion.
-- Unsafe code — the library declares `#![deny(unsafe_code)]`. If
+- The DWG writer. It is experimental, and making AutoCAD open its
+  output is the 0.4.0 milestone (#159); align on the plan first.
+- Unsafe code — the library declares `#![forbid(unsafe_code)]`. If
   you genuinely need it (e.g. for a performance-critical SIMD
   decoder), open an issue first.
 
@@ -146,7 +148,8 @@ Conventional Commits format:
 
 Scopes that appear frequently: `container`, `sections`, `lz77`,
 `rs-fec`, `object-types`, `handle-map`, `class-map`, `entities`,
-`readme`, `arch`, `ci`.
+`objects`, `tables`, `streaming`, `writer`, `fixtures`, `readme`,
+`arch`, `ci`.
 
 ## Reverse-engineering findings
 
@@ -156,8 +159,9 @@ When you discover something new about the file format:
    the finding from bytes. One self-contained file.
 2. Add a dated section to `ARCHITECTURE.md` with an evidence table
    (byte offsets, observed values, variant count across versions).
-3. If the finding is a decoding rule, also add a unit test that
-   pins the byte pattern.
+3. If the finding is a decoding rule, show it on real files: name
+   the corpus records it changes and paste the coverage report from
+   before and after into the pull request. Don't add unit tests.
 
 This keeps every claim independently verifiable, which is the
 whole point of open reverse-engineering work.
