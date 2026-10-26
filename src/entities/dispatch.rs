@@ -135,6 +135,7 @@ pub enum DecodedEntity {
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
+    SortEntsTable(crate::objects::block_sortents_table::SortEntsTable),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
@@ -249,6 +250,9 @@ impl DecodedEntity {
             Self::Placeholder(_) => OBJECT_TYPE_ACDB_PLACEHOLDER,
             Self::Group(_) => OBJECT_TYPE_GROUP,
             Self::Layout(_) => OBJECT_TYPE_LAYOUT,
+            // SORTENTSTABLE is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::SortEntsTable(_) => 0,
             Self::MLineStyle(_) => OBJECT_TYPE_MLINESTYLE,
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
@@ -690,6 +694,12 @@ fn dispatch_object_class(
         "SCALE" | "ACDBSCALE" => {
             crate::objects::acad_scale::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::Scale)
+        }
+        "SORTENTSTABLE" | "ACDBSORTENTSTABLE" => {
+            crate::objects::block_sortents_table::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::SortEntsTable)
         }
         "VISUALSTYLE" | "ACDBVISUALSTYLE" => crate::objects::acad_visual_style::decode_object(
             payload, body_start, inline_end, version,

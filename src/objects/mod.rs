@@ -36,6 +36,7 @@
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
+//! | SORTENTSTABLE            | [`block_sortents_table`]        | §20.4.93         |
 //!
 //! # Reachability and the R2007+ split stream
 //!
@@ -86,6 +87,7 @@ pub mod acad_scale;
 pub mod acad_section_view_style;
 pub mod acad_table_style;
 pub mod acad_visual_style;
+pub mod block_sortents_table;
 pub mod class_map_extension;
 pub mod color;
 pub mod control;
