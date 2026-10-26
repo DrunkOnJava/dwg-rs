@@ -1660,6 +1660,25 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
+## 7z. The R13/R14 DIMSTYLE block (2026-10-26, #74)
+
+§20.4.68 gives R13 and R14 their own DIMSTYLE layout. It starts with the
+flags, several of them `RC` where R2000 has `BS`. Then come the reals,
+five `T` strings (`DIMPOST`, `DIMAPOST` and the three arrow-block names,
+which R2000 moves to handles) and three `BS` colours. The dispatcher
+reported every R14 DIMSTYLE as unhandled, since the order had never been
+measured. `tables::dimstyle::decode_r13_r14` now reads the block as
+printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
+
+| Check | Result |
+|---|---|
+| `RL` boundary of the common object data | all 20 R14 records close: 6 in `sample_AC1014.dwg`, 2 in each of the 7 nextgis R14 drawings |
+| Without the trailing `B` | the records fail the check; `0x27` of `sample_AC1014.dwg` ends one bit short (delta −1) |
+| The 15 surfaced fields against the R2000 save, handle for handle | 20 / 20 equal. Only the names differ: R14 stores `STANDARD` where R2000 has `Standard` |
+| The spec's own example, §20.4.68.1 | closes; `r14-objects.tsv` moves from `unhandled` to `closes` |
+
+`DIMALTRND` has no slot in the R13/R14 block, so it reads 0 there.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
