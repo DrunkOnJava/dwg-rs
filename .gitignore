@@ -68,3 +68,4 @@ proptest-regressions/
 /map-schedules-*.jsonl
 /sections-evidence.json
 /sections-schedules-*.jsonl
+/wasm-evidence.json
