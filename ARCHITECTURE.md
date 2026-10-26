@@ -1303,7 +1303,7 @@ are fixed; three are not and are reported.
 | BLOCK | 45 (R2010/R2013/R2018) | +58 … +266 | the one `TV` was read inline; on R2010+ it lives in the string stream and the record's field budget is **0 bits** on all 33 R2010+ records measured | fixed — names now decode as `*Model_Space`, `_ArchTick`, `MyBlock`, matching the BLOCK_RECORD entries they pair with |
 | POLYLINE_PFACE | 1 (R2018) | +52 | five `BS` counts and two inline `H` handles, where the record holds `BS`, `BS`, `BL` in 30 bits | fixed — reads 5 vertices, 2 faces, 7 owned objects |
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
-| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported |
+| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7u) |
 | MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported |
 | LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
 
@@ -2019,6 +2019,60 @@ does not hold.
 
 ```sh
 cargo run --release --example probe_mtext -- sample_AC1018.dwg sample_AC1018_ascii.dxf
+```
+
+## 7u. VIEWPORT: §20.4.38 is right as printed (2026-10-26, #71)
+
+§7i left VIEWPORT reported rather than fixed: six records of one
+shape on one file, a 1125-bit budget, and a decoder that stopped after
+the centre, width and height. The public corpus (#225) adds the same
+drawing saved by AutoCAD 2025 as R14, R2000, R2004, R2007, R2010 and
+R2013, each with its DXF export, and a second R2018 drawing whose nine
+viewports differ in size, centre and view height.
+
+The decoder now reads §20.4.38 field for field, with its version
+branches exactly as the section prints them: the R2000+ view block,
+the R2007+ `BS` grid major *between* the circle zoom and the R2000+
+frozen-layer count, the R2004+ `BS` shade plot mode, and the R2007+
+lighting block ending in a `CMC`. Nothing is measured against the
+spec; nothing is added to it.
+
+| File | Release | Records | Close (`delta 0`) | Values compared with the DXF twin | Differ |
+|---|---|---:|---:|---:|---:|
+| `sample_AC1014.dwg` | R14 | 6 | 6 | no twin | |
+| `sample_AC1015.dwg` | R2000 | 6 | 6 | 252 | 0 |
+| `sample_AC1018.dwg` | R2004 | 6 | 6 | 258 | 0 |
+| `sample_AC1021.dwg` | R2007 | 6 | 6 | 294 | 0 |
+| `sample_AC1024.dwg` | R2010 | 6 | 6 | 294 | 0 |
+| `sample_AC1027.dwg` | R2013 | 6 | 6 | 294 | 0 |
+| `sample_AC1032.dwg` | R2018 | 6 | 6 | 294 | 0 |
+| `export_sample.dwg` | R2018 | 9 | 9 | no twin | |
+
+Values are matched by handle (DXF group 5) against the `AcDbViewport`
+group of the twin and compared to 1e-9 relative. Among them are values
+no default could produce: the status word (`819232` and `819808`,
+group 90), the circle zoom (`1000`, 72), the lens length (`50`, 42),
+the view centres and view heights, and the ambient light colour
+`0xC2333333` — RGB 51/51/51, the true colour group 421 carries as
+`3355443`. The two `B` UCS flags are read in the spec's order (74, then
+71) and land on `0` and `1` as the DXF has them.
+
+What is not measured: the 15 records of the R14 save and
+`export_sample.dwg` close but have no DXF twin; no R13 file exists;
+every viewport in the corpus has an empty style sheet name, so the `TV`
+is measured only as an empty string, inline before R2007 and from the
+string stream after; every snap angle and view twist angle is `0`, so
+the two angle fields agree with the DXF trivially (the probe converts
+the record's radians to the degrees DXF writes, which no record
+exercises); and every ambient light colour is the true colour
+`0xC2333333`, so an indexed (`0xC3`) colour has not been seen.
+
+`examples/probe_viewport.rs` prints every VIEWPORT of a file with its
+values keyed by DXF group, and with a DXF twin as its second argument
+reports every disagreement:
+
+```sh
+cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
 ```
 
 ## 8. Write pipeline (current scope)
