@@ -288,7 +288,9 @@ starts further on, after the last page, or all of a section that lists
 none) are handed out as `Hole` and read as zeros; a page that starts at or
 past the section's size (a zero page, §4.5) is walked and checked but gives
 nothing. An encrypted section (§4.5, flag 1) is refused (`SectionEncrypted`):
-its stored bytes are not its content. The legacy reader ignores the flag.
+its stored bytes are not its content. The legacy reader refuses it the
+same way (`Error::SectionEncrypted`), as it does an R2007 section whose
+encryption flag is set.
 
 State is the decoder, a 256-byte output stage and a few hundred bytes of
 cursors, bounded at `WINDOW + 1024` in the `no_std` kernel (native and
