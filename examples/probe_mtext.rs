@@ -183,7 +183,9 @@ fn main() -> ExitCode {
         let mut check = |code: u16, ours: &str, theirs: Option<&str>| match theirs {
             Some(v) => {
                 compared += 1;
-                if !same(ours, v) {
+                // Group 1 is text: "001" and "1" differ, so it is compared exactly.
+                let equal = if code == 1 { ours == v } else { same(ours, v) };
+                if !equal {
                     differ += 1;
                     println!(
                         "{name} ({version}) MTEXT 0x{handle:X} {code}: dwg {ours:?} dxf {v:?}"
