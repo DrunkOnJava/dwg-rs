@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 66 `closes`, 6 `decoder`, 32 `partial`, 34 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 47 `closes`, 6 `decoder`, 29 `partial`, 22 `missing`.
+- All sections: 0 `complete`, 67 `closes`, 6 `decoder`, 31 `partial`, 34 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 48 `closes`, 6 `decoder`, 28 `partial`, 22 `missing`.
 
 ## Sections
 
