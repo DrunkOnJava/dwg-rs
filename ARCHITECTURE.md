@@ -1527,7 +1527,7 @@ releases, so `LAYER "0"` must decode to colour 7 in all of them, `VPORT
 "*Active"` to view height 288.065353, and `DIMSTYLE "ISO-25"` to the
 published ISO-25 defaults. It now does, from R14 through R2018.
 
-## 7r. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
+## 7n. INSERT, the dimensions and 3DFACE on R14: the R13-R14 branches (2026-10-26, #227)
 
 ACadSharp's R14 save (`sample_AC1014.dwg`, #225) is the corpus's only
 R14 drawing with INSERTs, dimensions or a 3DFACE, and every one of

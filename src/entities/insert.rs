@@ -32,7 +32,7 @@
 //!
 //! R14 writes the three scales as plain `BD`s (§20.4.9 "R13-R14
 //! Only"); reading them through the data flags failed all 12 R14
-//! INSERTs of the public corpus (ARCHITECTURE.md §7r, #227).
+//! INSERTs of the public corpus (ARCHITECTURE.md §7n, #227).
 //!
 //! The previous reading of this entity used `BD` scale components, a
 //! `BE` extrusion and no owned-object count. On `sample_AC1032.dwg`
