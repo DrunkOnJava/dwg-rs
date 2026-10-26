@@ -81,13 +81,22 @@ fn compare(decoded: &DecodedEntity, rec: Option<&Record>, t: &mut Tally) -> bool
         i64::from(ours.back_clip.is_some()),
         rec.first(73).and_then(Group::int),
     );
-    let mut mine: Vec<f64> = ours.front_clip.into_iter().chain(ours.back_clip).collect();
+    let mut mine: Vec<f64> = ours.front_clip.into_iter().collect();
     mine.extend(ours.inverse_block_transform);
     mine.extend(ours.clip_boundary_transform);
     let theirs = reals(40);
     t.int("groups 40", mine.len() as i64, Some(theirs.len() as i64));
     for (i, v) in mine.iter().enumerate() {
         t.real(&format!("group 40 #{i}"), *v, theirs.get(i).copied());
+    }
+    let back = reals(41);
+    t.int(
+        "groups 41",
+        i64::from(ours.back_clip.is_some()),
+        Some(back.len() as i64),
+    );
+    if let Some(b) = ours.back_clip {
+        t.real("back clip distance", b, back.first().copied());
     }
     true
 }
