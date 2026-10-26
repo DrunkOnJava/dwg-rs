@@ -2317,7 +2317,7 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 `probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
 ||||||| parent of da3c1a0 (docs(streaming): number the R2007 section after main's last)
 
-## 7z. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
+## 7aa. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
 
 §5.2 to §5.4 give R2007 a lot of integrity data and say how it was made, not
 what each value covers or how its seed is built: the legacy reader checks none
