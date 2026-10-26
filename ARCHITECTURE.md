@@ -1306,7 +1306,7 @@ are fixed; three are not and are reported.
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
 | VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7u) |
 | MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported; closed 2026-10-26 by the DXF twin (§7w) |
-| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported; closed 2026-10-26 by the whole §20.4.47 list (§7l) |
+| LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported; closed 2026-10-26 by the whole §20.4.47 list (§7z) |
 
 The three fixes each meet the same bar as #58: `delta 0` **plus** a
 value that corroborates it independently of the bit count. BLOCK's
@@ -2294,7 +2294,7 @@ cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
 ```
 
-## 7l. LEADER: one `3BD` missed, and no text box from R2010 (2026-10-26, #71)
+## 7z. LEADER: one `3BD` missed, and no text box from R2010 (2026-10-26, #71)
 
 §7i reported LEADER's twelve missing bits on its one R2018 record and
 stopped, because one record could not choose between the continuations
