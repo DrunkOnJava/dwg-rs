@@ -856,6 +856,10 @@ a 52-bit header admits thousands of parses over `B/BS/BL/BD/RC/CMC`.
 Measured budgets, for whoever picks this up: R2004 1849, R2010 6836,
 R2013 6844, R2018 5820. The records stay `Unhandled`.
 
+*Superseded:* §20.4.101 prints TABLESTYLE after all, and its
+until-R21 layout closes on every record of R14 to R2007 (§7ad); the
+R2010+ record is §20.4.101.2's different layout.
+
 ## 7e. `AcDb:Classes` — where the class list actually starts
 
 `Custom(N)` object type codes (≥ 500) resolve through the class table,
@@ -2506,6 +2510,58 @@ its own two bytes, so the spec's 2,032 bytes of entries make a chunk of 2,034,
 and AutoCAD's first chunk in `sample_AC1014.dwg` is 2,033 and in
 `sample_AC1015.dwg` 2,034. The walk's evidence had been limited to files under
 160 KB, whose maps are one short chunk.
+
+## 7ad. TABLESTYLE until R2007: the spec prints it (2026-10-26, #151)
+
+The notes above call TABLESTYLE "declined" (§7d) because "§20.4 has no
+entry" for it. It has: §20.4.101 prints the object, in two layouts.
+§20.4.101.1 is the one "until R21", and it is the one a record on R14 to
+R2007 follows; §20.4.101.2 is R2010's, a different object, and stays
+`Unhandled` here (the next section's job). The corpus holds one TABLESTYLE,
+`Standard`, per drawing, so the 32 records of R14 to R2007 are every one
+there is, and each closes on its data-stream boundary.
+
+The field list is the spec's: `TV` description, `BS` flow direction, `BS`
+flags, two `BD` margins, two `B` suppress flags, then three row styles
+(data, title, header) of `BD` text height, `BS` alignment, two colours, `B`
+background and six borders of `BS` line weight, `B` visible and a colour.
+Two readings are not in the spec's table and are read from the bits:
+
+| Where | What the spec prints | What the bytes say |
+|---|---|---|
+| §20.4.101.1, p233-234 | `Data type BL`, `Data unit type BL` under "R2007+", then `Format string TV` with no gate | all three are R2007+. `arc_2004.dwg` handle `0x65`: 1849 bits of data, 220 of header and 3 x 543 of rows, with every row ending on its sixth border colour; the title row's `BD 6.0` starts at bit 842, exactly where a `TV` would. `arc_2007.dwg` handle `0x65`: 1875 bits, 138 of header and 3 x 579, the extra 36 per row being `BL 512`, `BL 0` and a `TV` that costs no data-stream bits (`unread strings: []`) |
+| §2 key, `TC`; §20.4.101.1 on R2000 | `Text color CMC`, `Fill color CMC`, `Border color CMC`, and a `CMC` is one `BS` before R2004 | on R2000 the colours are the 44-bit `TC` (`BS`, `BL`, `RC`) of R2004: `arc_2000.dwg` handle `0x65` has the same 1849-bit budget as R2004's and closes only so. Read as a one-`BS` `CMC`, the second colour lands on `BS 0`, then `BS 2054`, which is the tail of `0xC1000000` and the zero `RC` |
+
+The colours are `TC` on R14 too: the eight R14 records close with the
+R2000 reading. R14's boundary is the `RL` inside the common object data.
+
+Against AutoCAD's DXF export of the same drawings (R2000 to R2007, matched
+by the handle in group 5), every decoded value equals the group that carries
+it: 76 values per record on R2000 and R2004 and 85 on R2007 (the data type,
+unit type and format string), 1896 in all, none differing and none missing
+from the DXF. A colour is compared as the index its `TC` stands for (`0xC1`
+by block is 0, `0xC3` carries the index, `0xC0` by layer is 256), which is
+what groups 62 to 69 hold. The row order is the DXF's order of its groups
+7: data, title, header. The text style of each row (group 7) is an object
+handle in the handle stream, which the decoder does not read; the DXF
+writes the style's name, so that group is not compared. R14 has no twin
+(nextgis exported it to R12 DXF, ACadSharp has no AC1014 export), so its 8
+records are boundary-only evidence.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_tablestyle -- ../dwg-corpus
+```
+
+| Release | Records | Close | Not decoded (§20.4.101.2) | Values compared | Differ |
+|---|---|---|---|---|---|
+| R14 | 8 | 8 | 0 | no twin | 0 |
+| R2000 | 8 | 8 | 0 | 608 | 0 |
+| R2004 | 8 | 8 | 0 | 608 | 0 |
+| R2007 | 8 | 8 | 0 | 680 | 0 |
+| R2010, R2013, R2018 | 20 | 0 | 20 | - | - |
+
+The oracle (`examples/dxf_oracle`) does not score TABLESTYLE yet.
 
 ## 8. Write pipeline (current scope)
 

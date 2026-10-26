@@ -140,6 +140,7 @@ pub enum DecodedEntity {
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
+    TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -257,7 +258,8 @@ impl DecodedEntity {
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
             | Self::DetailViewStyle(_)
-            | Self::SectionViewStyle(_) => 0,
+            | Self::SectionViewStyle(_)
+            | Self::TableStyle(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -718,6 +720,10 @@ fn dispatch_object_class(
             )
             .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
         }
+        "TABLESTYLE" | "ACDBTABLESTYLE" => crate::objects::acad_table_style::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|style| DecodedEntity::TableStyle(Box::new(style))),
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
