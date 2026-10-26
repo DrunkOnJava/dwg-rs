@@ -10,7 +10,9 @@ use crate::crc::crc8;
 
 const SEED: u16 = 0xc0c1;
 const FRAME: u64 = 38;
-const MAX_MAP_CHUNK: u32 = 2032;
+/// §23.1 cuts a chunk at 2032 bytes. The count is the entries: the size field also
+/// counts its own two bytes, and real AC1012, AC1014 and AC1015 drawings reach 2034.
+const MAX_MAP_CHUNK: u32 = 2034;
 pub(super) const HEAD: usize = 16;
 /// Start and end sentinels of the §9 header-variable section.
 pub const HEADER_VARS_SENTINELS: [[u8; 16]; 2] = [

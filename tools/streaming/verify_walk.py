@@ -9,6 +9,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import urllib.request
 import zlib
 
@@ -162,8 +163,8 @@ def corruptions(data):
     forged('vars size with valid crc', section_size, 'SectionSize(0)')
 
     def oversized_chunk(bad):
-        struct.pack_into('>H', bad, map_at, 2033)
-    forged('map chunk over 2032 bytes', oversized_chunk, f'MapChunk({map_at})')
+        struct.pack_into('>H', bad, map_at, 2035)
+    forged('map chunk over 2034 bytes', oversized_chunk, f'MapChunk({map_at})')
 
     def handle_mismatch(bad):
         # The handle's last byte sits 8 counter bits after the type and RL.
@@ -226,13 +227,14 @@ def main():
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
         corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 5)]
-        manifest = json.loads(Path('tools/streaming/walk-corpus.json').read_text())
-        for item in manifest['files']:
-            url = f"{manifest['source'].replace('github.com', 'raw.githubusercontent.com')}/{manifest['commit']}/{item['name']}"
-            with urllib.request.urlopen(url, timeout=30) as src:
-                data = src.read(item['bytes'] + 1)
-            assert len(data) == item['bytes'] and hashlib.sha256(data).hexdigest() == item['sha256'], item['name']
-            corpus.append((item['name'], data, item['objects']))
+        for path in sorted(Path('tools/streaming').glob('walk-*corpus.json')):
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+            for item in manifest['files']:
+                url = f"{manifest['source'].replace('github.com', 'raw.githubusercontent.com')}/{manifest['commit']}/{urllib.parse.quote(item['name'])}"
+                with urllib.request.urlopen(url, timeout=30) as src:
+                    data = src.read(item['bytes'] + 1)
+                assert len(data) == item['bytes'] and hashlib.sha256(data).hexdigest() == item['sha256'], item['name']
+                corpus.append((Path(item['name']).name, data, item['objects']))
 
         for name, data, objects in corpus:
             expected = oracle(data)

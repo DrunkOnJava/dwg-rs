@@ -40,7 +40,7 @@ four independently authored drawings. All remain explicit migration gaps.
    **Index bytes are verified before anything is derived from them;
    payload bytes are delivered provisionally and committed by a verdict.**
    The file header fits in one chunk and is verified whole. An object-map
-   chunk (up to 2032 bytes) does not, so the walker reads it twice: a
+   chunk (up to 2034 bytes) does not, so the walker reads it twice: a
    CRC-only pass with no storage, then a decoding pass that visits
    objects. No object is visited from an unverified chunk; the second
    pass costs one extra read of the map, which is small next to the
@@ -92,7 +92,7 @@ seeded 0xC0C1 over the `MS` bytes and data.
 - EOF inside every fixed field, payload run, map entry and record.
 - Wrong start or end sentinel; locator size not 38 plus the data size;
   zero-size class locator; section CRC mismatch.
-- Map chunk size below 2 or above 2032, running past the map locator,
+- Map chunk size below 2 or above 2034, running past the map locator,
   final chunk not ending exactly at the locator end, chunk CRC mismatch.
 - Map entry crossing its chunk end, `MC` longer than a `u64` holds,
   handle or offset overflow, negative absolute offset.

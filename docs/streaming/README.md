@@ -89,7 +89,7 @@ The framing it enforces was read from the spec and confirmed on 14 real
 files before coding (audit.md): sections are start sentinel, `RL` size,
 data, `RS` CRC seeded 0xC0C1 over size and data, end sentinel, and the
 locator size must equal 38 plus the data size; map chunks are a
-big-endian size counting its own two bytes, 2 to 2032, entries, and a
+big-endian size counting its own two bytes, 2 to 2034 (2032 bytes of entries), entries, and a
 big-endian CRC over size and entries, ending with a size-2 chunk exactly
 at the locator's end; records are `MS` size (at most two words, so under
 2^30 bytes), data and a little-endian CRC over the `MS` bytes and data.
