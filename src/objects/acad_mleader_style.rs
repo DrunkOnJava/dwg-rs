@@ -31,13 +31,23 @@
 //! BD   block_content_scale_z         B    enable_block_content_scale
 //! BD   block_content_rotation        B    enable_block_content_rotation
 //! BS   block_content_connection      BD   scale
-//! B    overwrite_property_value      B    is_annotative
+//! B    is_annotative                 B    overwrite_property_value
 //! BD   break_gap_size
 //! BS   text_attachment_direction     -- R2010+ only
 //! BS   bottom_text_attachment_dir    -- R2010+ only
 //! BS   top_text_attachment_dir       -- R2010+ only
 //! B    extended_flag                 -- R2013+ only
 //! ```
+//!
+//! The two bits after `scale` depart from §20.4.87, which lists `B 295`
+//! ("property changed", its meaning "not totally clear") before `B 296`
+//! (is annotative). AutoCAD's DXF export of the same drawings (the DXF
+//! value oracle, #99) shows the stored order is the reverse: on every
+//! MLEADERSTYLE where the two differ (14 of 49 records, R2000 to R2018),
+//! the first bit is the export's 296 and the second its 295. Every other
+//! field agrees with the export under its own DXF group. §20.4.87 also
+//! lists the R2010+ attachments as 271, 273 (top), 272 (bottom); every
+//! corpus record holds 9 in both, so that order is not measured here.
 //!
 //! `H` fields (leader linetype, arrow head, text style, block content)
 //! live in the handle stream and cost no data-stream bits, so they do
@@ -175,9 +185,11 @@ pub struct AcadMLeaderStyle {
     pub block_content_connection_type: i16,
     /// Overall style scale.
     pub scale: f64,
-    /// Overwrite-property flag (positional name).
+    /// Overwrite-property flag (DXF 295). Stored after
+    /// [`is_annotative`](Self::is_annotative): see the module docs.
     pub overwrite_property_value: bool,
-    /// Annotative flag (positional name).
+    /// Annotative flag (DXF 296). Stored first of the two flags that
+    /// follow the scale.
     pub is_annotative: bool,
     /// Break gap size.
     pub break_gap_size: f64,
@@ -238,8 +250,10 @@ pub fn decode_object(
     let enable_block_content_rotation = s.data.read_b()?;
     let block_content_connection_type = s.data.read_bs()?;
     let scale = s.data.read_bd()?;
-    let overwrite_property_value = s.data.read_b()?;
+    // Measured against AutoCAD's DXF (#99): the first of the two bits is
+    // the annotative flag (296), the second the overwrite flag (295).
     let is_annotative = s.data.read_b()?;
+    let overwrite_property_value = s.data.read_b()?;
     let break_gap_size = s.data.read_bd()?;
     let (
         text_attachment_direction,

@@ -405,3 +405,21 @@ files, the repository `LICENSE`, the commit history of
 script that contains no DWG or DXF implementation. Nothing under its
 `src/` and none of its reader-derived test data (the `*_tree.json` files)
 was opened.
+
+## 2026-10-26 — correction to the 2026-08-30 MLEADERSTYLE entry
+
+The 2026-08-30 entry for #55 says ODA spec v5.4.1 §20.4 carries no
+prescription for `MLEADERSTYLE`. It does: **§20.4.87 MLEADERSTYLE
+(AcDbMLeaderStyle)** of the freely-redistributable specification gives the
+whole record with a DXF group for every field, and those groups are the
+ones `objects::acad_mleader_style`'s names correspond to. The field names
+recalled from the *DXF Reference* there therefore have a prescribed source
+as well. (The entry's statement about `ACDBDETAILVIEWSTYLE` and
+`ACDBSECTIONVIEWSTYLE` stands; §20.4 has no section for either.)
+
+The PR for this correction departs from §20.4.87 in one place, on
+measured evidence: the spec lists `B 295` (property changed) before
+`B 296` (is annotative), and AutoCAD's own DXF export of the
+`nextgis/dwg_samples` and ACadSharp `samples/` drawings, compared record
+by record by the DXF value oracle (#99), shows the two bits stored in the
+reverse order. No other source was consulted.
