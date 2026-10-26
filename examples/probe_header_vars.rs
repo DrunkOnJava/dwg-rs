@@ -450,7 +450,7 @@ fn probe_file(
     }
     tally.closed += 1;
     tally.pad_ones += usize::from(h.pad_ones);
-    tally.vars += h.entries.len();
+    tally.vars += h.entries().len();
     for e in h.unknowns() {
         tally.unknown += 1;
         report
@@ -482,7 +482,7 @@ fn probe_file(
     else {
         println!(
             "{name:28} {release}  closed, {} slots, CRC ok, no DXF twin: frame and boundary only",
-            h.entries.len()
+            h.entries().len()
         );
         return Ok(());
     };
@@ -494,7 +494,7 @@ fn probe_file(
     let (mut agree, mut dis, mut rel, mut dwg_only) = (0usize, 0usize, 0usize, 0usize);
     let mut matched: BTreeSet<&str> = BTreeSet::new();
     let mut relations: BTreeSet<&'static str> = BTreeSet::new();
-    for e in &h.entries {
+    for e in h.entries() {
         let var = e.var;
         if var.is_unknown() {
             dwg_only += 1;
@@ -622,7 +622,7 @@ fn probe_file(
     tally.dxf_only += dxf_only;
     println!(
         "{name:28} {release}  closed, {} slots, CRC ok, twin {}: agree {agree}, relation {rel}, disagree {dis}, DWG-only {dwg_only}, DXF-only {dxf_only}",
-        h.entries.len(),
+        h.entries().len(),
         twin.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
     );
     if verbose && dis > 0 {

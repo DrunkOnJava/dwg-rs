@@ -235,9 +235,9 @@ pub struct HeaderVars {
     pub body: Vec<u8>,
     /// Decoded format version.
     pub version: Version,
-    /// Every slot the release carries, in stream order. Short when a
-    /// lossy parse stopped on a failure.
-    pub entries: Vec<Entry>,
+    /// Every slot the release carries, in stream order (read it through
+    /// [`Self::entries`]; it is private so the name index cannot go stale).
+    entries: Vec<Entry>,
     /// Bit offset in [`Self::body`] at which the data stream ended.
     pub end_bit: usize,
     /// From R2007, the bit at which the handle stream ended.
@@ -753,7 +753,7 @@ impl HeaderVars {
                 ));
                 closes = false;
             }
-            if string_pos != strings_end {
+            if plan.strings.is_some() && string_pos != strings_end {
                 self.diagnostics.push(format!(
                     "the strings end at bit {string_pos}, the string stream at {strings_end}"
                 ));
@@ -832,6 +832,12 @@ impl HeaderVars {
     /// the release carries it.
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.index.get(name).map(|&i| &self.entries[i].value)
+    }
+
+    /// Every slot the release carries, in stream order. Short when a lossy
+    /// parse stopped on a failure.
+    pub fn entries(&self) -> &[Entry] {
+        &self.entries
     }
 
     /// Every slot, in stream order.

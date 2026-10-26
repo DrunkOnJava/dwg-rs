@@ -547,13 +547,13 @@ fn r14_header(r: &mut Report) {
         &format!("{id} §9 decode"),
         vars.as_ref().is_ok_and(|v| {
             v.closed
-                && v.entries.len() == dwg::header_table::rows_for(dwg::header_table::R14).count()
+                && v.entries().len() == dwg::header_table::rows_for(dwg::header_table::R14).count()
         }),
         || {
             format!(
                 "every slot of the R14 table must read and the data end on the last byte: {:?}",
                 vars.as_ref()
-                    .map(|v| (v.entries.len(), v.closed, &v.diagnostics))
+                    .map(|v| (v.entries().len(), v.closed, &v.diagnostics))
             )
         },
     );
@@ -580,7 +580,7 @@ fn r14_header(r: &mut Report) {
             .collect();
         println!(
             "§9 R14 header values    {} slots decoded, data ends on its last byte: {}",
-            v.entries.len(),
+            v.entries().len(),
             verdict(r.failures.iter().all(|f| !f.contains("§9")))
         );
         println!(
