@@ -1794,7 +1794,7 @@ cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC
     --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
 ```
 
-## 7x. SPATIAL_FILTER (2026-10-26, #149)
+## 7ah. SPATIAL_FILTER (2026-10-26, #149)
 
 §20.4.94 prints the clip of an xref or block insert as `BS` numpts, that many
 `2RD` boundary points, an extrusion and an origin (`3BD` each), three `BS`
