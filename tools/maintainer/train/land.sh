@@ -30,7 +30,7 @@ moved() {
   now=$(gh api "repos/$R/commits/main" --jq .sha 2>/dev/null) || return 1
   [ "$now" = "$base" ] && return 1
   gh api "repos/$R/compare/$base...$now" --jq '.files[].filename' 2>/dev/null \
-    | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/)'
+    | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/|ARCHITECTURE\.md$)'
 }
 still_valid() {
   [ -d "$OUT" ] || return 1
