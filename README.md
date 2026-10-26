@@ -137,7 +137,7 @@ passed.
 
 | Layer | Status | Notes |
 |-------|--------|-------|
-| File identification (AC1014 → AC1032) | ✓ shipped | All 8 versions recognized |
+| File identification (AC1012 → AC1032) | ✓ shipped | All 8 versions recognized |
 | R13–R15 header parsing | ✓ shipped | Plain + XOR-encrypted variants |
 | R18 / R21 / R24 / R27 / R32 header parsing | ✓ shipped | All shipped variants |
 | LZ77 decompression + output-limit caps | ✓ shipped | 256 MiB default, configurable |
@@ -166,7 +166,7 @@ passed.
 
 The container layer is the most mature part of the crate and is covered by the test suite (run `cargo test` for the current count; 649 lib tests plus integration suites and 10 doctests as of 2026-04-29):
 
-- Version identification across AC1014 (R14, 1997) → AC1032 (2018, 2024+)
+- Version identification across AC1012 (R13, 1994) → AC1032 (2018, 2024+)
 - R13–R15 simple file header + R2004+ XOR-encrypted header
 - Section Page Map + Section Info parsing
 - LZ77 decompression — the ODA spec's offset-encoding description is ambiguous in one place; this crate's implementation was cross-checked against the algorithm-description comments in the MIT-licensed [ACadSharp](https://github.com/DomCR/ACadSharp) source (no executable code imported, comments-only). See [`CLEANROOM.md`](./CLEANROOM.md) for the specific scope of what was and wasn't consulted.
