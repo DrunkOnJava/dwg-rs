@@ -2981,8 +2981,6 @@ ATTRIB and ATTDEF both call `text::decode` for their TEXT part, so the
 one change in `text.rs` is what moves them; all 244 of those records are
 `Cabin.dwg`'s. `coverage_report` over the 74 pinned drawings:
 
-`coverage_report` over the 74 pinned drawings:
-
 | Release | Decoded before | Decoded after | Skipped | Errored before | Errored after |
 |---|---:|---:|---:|---:|---:|
 | R13 | 27,254 | 27,693 | 21 | 439 | 0 |
@@ -3002,12 +3000,35 @@ read on R13 as on every other release it closes none of the four LEADERs
 of `JXHMP4602-01005-b`: three stop on a reserved `11` BD tag and one runs
 out of bits (6 remain, 8 wanted).
 
-**Not measured on R13.** The 22 drawings hold no TEXT entity and no
-VIEWPORT record (`probe_r13_census`). TEXT's field list is measured on R13
-anyway, through the 244 ATTRIB and ATTDEF records that read it with the
-same function; VIEWPORT's swap follows §20.4.38, which files every field after the height
-under "R2000+" and the entity header handle under "R13-R14 Only"; it is
-measured on R14 only (6 VIEWPORT records in one drawing, all closing).
+**The same swaps on AutoCAD-written R13 drawings.** The 22 drawings hold no
+TEXT, VIEWPORT or TRACE record. Two other sets do: the US Forest Service R6
+library (122 drawings, public domain, "created in AutoCad Ver 13"; pinned by a
+later PR and measured here on lower-cased copies, because `coverage_report`
+skipped `.DWG` until #353) and Autodesk's own install-disc drawings (68
+distinct, local evidence only, §7aj).
+
+| | Forest Service, 122 drawings | Autodesk discs, 68 distinct drawings |
+|---|---:|---:|
+| decoded, before the swaps | 337,778 | 97,549 |
+| decoded, after | 345,132 | 110,731 |
+| skipped (no decoder, both runs) | 104 (`VP_ENT_HDR`) | 57 (`VP_ENT_HDR` 52, a custom `OBJECT_PTR` 3, MINSERT 2) |
+| errored, before | 7,354 | 13,182 |
+| errored, after | 0 | 0 |
+
+Errored before on the Forest Service set, by type: TEXT 7,016 (of 7,066 in all
+122 drawings), DIMSTYLE 126 (of 126), LEADER 116 (of 116, 21 drawings), VIEWPORT
+52 (of 52, 52 drawings), ATTDEF 41 (of 41) and TRACE 3 (of 165, 5 drawings). On
+the discs the kinds are ATTRIB, TEXT, ATTDEF, DIMSTYLE and VIEWPORT. So TEXT,
+VIEWPORT and TRACE are now measured on R13 directly, not only through ATTRIB
+and ATTDEF (the VIEWPORT swap is §20.4.38's "R2000+" on every field after the
+height).
+
+**TRACE reads BT and BE in their R13-R14 form too.** `trace::decode` never took
+the version, so TRACE kept the R2000+ flag-then-value forms of thickness and
+extrusion on R13 and R14, the bug §7aj fixed for SOLID, ARC, CIRCLE, POINT and
+the polylines. TRACE shares SOLID's stream (§20.4.36), so `trace::decode_for`
+calls SOLID's. It moves the 3 TRACE records of the Forest Service set that
+errored; the other 162 closed before and still do.
 
 The remaining `Version::R14` tests in `src/` are R14-only on purpose:
 DICTIONARY's unknown byte (§20.4.44), the R14 header variable table, and
@@ -3028,6 +3049,7 @@ cargo build --release --features dxf-reader --example coverage_report \
 python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
 python3 -I tools/corpus/measure.py check --results r.json
 for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"; done
+# the Forest Service set, once pinned, on lower-cased copies (before #353): coverage_report DIR
 target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
 ```
 
