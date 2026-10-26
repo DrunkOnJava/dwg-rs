@@ -27,9 +27,18 @@
 //!   that cannot be resolved omits the variable rather than guessing.
 //! - If a record's fields do not all decode (an R2007 `DIMSTYLE` with a custom
 //!   dimension variable), its name is still the first string of its string stream.
+//! - A name is kept only if the output defines the record. The converter writes
+//!   the LAYER records it is given and no other symbol table, so `$CLAYER` is
+//!   kept for a written layer, an empty name (a null handle) is always kept, and
+//!   every other name (`$TEXTSTYLE`, `$DIMSTYLE`, `$CELTYPE`, ...) is omitted
+//!   until those tables are written.
+//! - An angle is degrees in DXF group 50 (`$ANGBASE`), radians in the database.
+//!   Before R2007 text that is not ASCII is written as `\U+XXXX` escapes, since
+//!   those releases read bytes in `$DWGCODEPAGE`.
 //! - `$CMLSTYLE` is written under the key the style has in the
 //!   `ACAD_MLINESTYLE` dictionary (`Standard`), the record holds it in capitals.
-//! - A standard arrowhead block `_BoxBlank` is `$DIMBLK` `BoxBlank`.
+//! - A standard arrowhead block `_BoxBlank` is `$DIMBLK` `BoxBlank`; a block with any
+//!   other name keeps its name verbatim.
 //! - A handle variable holding the null handle (`$INTERFEREOBJVS` in an R2013
 //!   file) is omitted: AutoCAD's export names the default visual style there,
 //!   which the DWG does not hold.
@@ -371,11 +380,16 @@ struct Names {
     blocks: BTreeMap<u64, String>,
     mlines: BTreeMap<u64, String>,
     mline_keys: Vec<String>,
+    /// The LAYER records the output defines; no other symbol record is written.
+    layers_out: Vec<String>,
 }
 
 impl Names {
-    fn build(file: &DwgFile, mline_dictionary: Option<u64>) -> Self {
-        let mut names = Names::default();
+    fn build(file: &DwgFile, mline_dictionary: Option<u64>, layers_out: &[&str]) -> Self {
+        let mut names = Names {
+            layers_out: layers_out.iter().map(|l| (*l).to_string()).collect(),
+            ..Names::default()
+        };
         let Some(Ok(objects)) = file.all_objects() else {
             return names;
         };
@@ -437,7 +451,19 @@ impl Names {
         names
     }
 
+    /// The name a variable holds, if the output defines the record it names.
+    ///
+    /// The converter writes the LAYER records it is given and no other symbol
+    /// record, so a name that is not empty is kept only for a defined layer:
+    /// a DXF whose `$TEXTSTYLE` names a style it never defines is not one.
     fn resolve(&self, var: &str, handle: u64) -> Option<String> {
+        let name = self.record_name(var, handle)?;
+        let defined =
+            name.is_empty() || (var == "$CLAYER" && self.layers_out.iter().any(|l| l == &name));
+        defined.then_some(name)
+    }
+
+    fn record_name(&self, var: &str, handle: u64) -> Option<String> {
         if handle == 0 {
             return Some(String::new());
         }
@@ -460,12 +486,66 @@ impl Names {
             }
             "$DIMBLK" | "$DIMBLK1" | "$DIMBLK2" | "$DIMLDRBLK" => {
                 let name = self.blocks.get(&handle)?;
-                return Some(name.strip_prefix('_').unwrap_or(name).to_string());
+                let builtin = BUILTIN_ARROWHEADS
+                    .iter()
+                    .any(|b| b.eq_ignore_ascii_case(name));
+                return Some(if builtin {
+                    name.strip_prefix('_').unwrap_or(name).to_string()
+                } else {
+                    name.clone()
+                });
             }
             _ => return None,
         };
         table.get(&handle).cloned()
     }
+}
+
+/// AutoCAD's standard arrowhead blocks, which `$DIMBLK` names without the
+/// leading underscore. Only `_BoxBlank` is measured on the corpus; a block with
+/// any other name keeps it, underscore and all, because a user's block may
+/// start with one.
+const BUILTIN_ARROWHEADS: &[&str] = &[
+    "_ARCHTICK",
+    "_BOXBLANK",
+    "_BOXFILLED",
+    "_CLOSED",
+    "_CLOSEDBLANK",
+    "_DATUMBLANK",
+    "_DATUMFILLED",
+    "_DOT",
+    "_DOTBLANK",
+    "_DOTSMALL",
+    "_INTEGRAL",
+    "_NONE",
+    "_OBLIQUE",
+    "_OPEN",
+    "_OPEN30",
+    "_OPEN90",
+    "_ORIGIN",
+    "_ORIGIN2",
+    "_SMALL",
+];
+
+/// Text for a target release: DXF before R2007 reads bytes in `$DWGCODEPAGE`,
+/// not UTF-8, so what that code page cannot be assumed to hold is written as
+/// `\U+XXXX` escapes, which every release reads. From R2007 it is UTF-8.
+fn text_for(target: Rel, s: &str) -> String {
+    if target >= R2007 || s.is_ascii() {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len() * 2);
+    let mut units = [0u16; 2];
+    for c in s.chars() {
+        if c.is_ascii() {
+            out.push(c);
+        } else {
+            for u in c.encode_utf16(&mut units) {
+                out.push_str(&format!("\\U+{u:04X}"));
+            }
+        }
+    }
+    out
 }
 
 fn is_handle_group(code: u16) -> bool {
@@ -481,6 +561,10 @@ fn groups(
 ) -> Option<Vec<HeaderGroup>> {
     let code = |i: usize| codes.get(i).map(|c| i32::from(*c));
     let real = |i: usize, v: f64| match code(i) {
+        // Angles are radians in the database and degrees in DXF groups 50 to 58.
+        Some(c) if v.is_finite() && (50..=58).contains(&c) => {
+            Some(HeaderGroup::Real(c, v.to_degrees()))
+        }
         Some(c) if v.is_finite() => Some(HeaderGroup::Real(c, v)),
         _ => None,
     };
@@ -498,7 +582,7 @@ fn groups(
         Value::Double(v) => vec![real(0, *v)?],
         Value::Point3(p) => vec![real(0, p[0])?, real(1, p[1])?, real(2, p[2])?],
         Value::Point2(p) => vec![real(0, p[0])?, real(1, p[1])?],
-        Value::Text(t) => vec![HeaderGroup::Text(code(0)?, t.clone())],
+        Value::Text(t) => vec![HeaderGroup::Text(code(0)?, text_for(target, t))],
         // Text in the drawing's code page, which the crate does not apply.
         Value::RawText(_) => return None,
         Value::Color(c) => vec![HeaderGroup::Int(code(0)?, i64::from(c.aci()?))],
@@ -510,7 +594,10 @@ fn groups(
                 }
                 vec![HeaderGroup::Handle(code(0)?, h.value)]
             } else {
-                vec![HeaderGroup::Text(code(0)?, names.resolve(name, h.value)?)]
+                vec![HeaderGroup::Text(
+                    code(0)?,
+                    text_for(target, &names.resolve(name, h.value)?),
+                )]
             }
         }
     })
@@ -523,7 +610,16 @@ fn groups(
 /// Returns nothing for [`DxfVersion::R12`] and [`DxfVersion::R14`] (no
 /// export of either is in the corpus to measure the set against), and when the
 /// file has no readable header.
-pub fn header_entries(file: &DwgFile, version: DxfVersion) -> Vec<HeaderEntry> {
+///
+/// `layers_out` names the LAYER records the output defines. A variable that
+/// names any other symbol record is omitted, since the converter writes none
+/// (a `$CLAYER` or `$TEXTSTYLE` pointing at nothing is not a valid reference);
+/// an empty name (a null handle) is always kept.
+pub fn header_entries(
+    file: &DwgFile,
+    version: DxfVersion,
+    layers_out: &[&str],
+) -> Vec<HeaderEntry> {
     let Some(target) = target_release(version) else {
         return Vec::new();
     };
@@ -538,6 +634,7 @@ pub fn header_entries(file: &DwgFile, version: DxfVersion) -> Vec<HeaderEntry> {
         header
             .get_handle("DICTIONARY_ACAD_MLINESTYLE")
             .map(|h| h.value),
+        layers_out,
     );
     let mut out = Vec::new();
     if let Some(page) = code_page_name(file) {
@@ -550,7 +647,7 @@ pub fn header_entries(file: &DwgFile, version: DxfVersion) -> Vec<HeaderEntry> {
         if let Some(Ok(info)) = file.summary_info() {
             out.push(HeaderEntry::groups(
                 "$LASTSAVEDBY",
-                vec![HeaderGroup::Text(1, info.last_saved_by)],
+                vec![HeaderGroup::Text(1, text_for(target, &info.last_saved_by))],
             ));
         }
     }

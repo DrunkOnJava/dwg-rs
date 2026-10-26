@@ -2001,28 +2001,37 @@ Corpus job runs it.
 
 | Release | Files | Written | Agree | Relation | Disagree | Extra | Omitted |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| AC1015 | 8 | 1,568 | 1,535 | 33 | 0 | 0 | 24 |
-| AC1018 | 8 | 1,663 | 1,630 | 33 | 0 | 0 | 25 |
-| AC1021 | 8 | 1,983 | 1,951 | 32 | 0 | 0 | 25 |
-| AC1024 | 8 | 1,991 | 1,958 | 33 | 0 | 0 | 25 |
-| AC1027 | 8 | 1,985 | 1,952 | 33 | 0 | 0 | 39 |
-| AC1032 | 2 | 497 | 488 | 9 | 0 | 0 | 9 |
+| AC1015 | 8 | 1,527 | 1,494 | 33 | 0 | 0 | 65 |
+| AC1018 | 8 | 1,622 | 1,589 | 33 | 0 | 0 | 66 |
+| AC1021 | 8 | 1,939 | 1,907 | 32 | 0 | 0 | 69 |
+| AC1024 | 8 | 1,947 | 1,914 | 33 | 0 | 0 | 69 |
+| AC1027 | 8 | 1,941 | 1,908 | 33 | 0 | 0 | 83 |
+| AC1032 | 2 | 483 | 474 | 9 | 0 | 0 | 23 |
 
 *Relation* is the later-save rule above for `$TDUUPDATE`, `$TDINDWG`,
 `$TDUSRTIMER`, `$HANDSEED` and `$VERSIONGUID`. *Extra* is a variable written that
 the export omits: none. Every *omitted* variable has a stated reason: the local
 `$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
 file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
-329), a true-colour `$CECOLOR`, and `$INTERFEREOBJVS` and `$INTERFEREVPVS` where
-the DWG holds the null handle. Three variables live elsewhere in the DWG and are
+329), a true-colour `$CECOLOR`, `$INTERFEREOBJVS` and `$INTERFEREVPVS` where the
+DWG holds the null handle, and every name for a symbol record the output does not
+define: the converter writes layer 0 and no other symbol table, so `$TEXTSTYLE`,
+`$CELTYPE`, `$DIMSTYLE`, `$CMLSTYLE`, a non-zero `$CLAYER` and the like are
+omitted until those tables are written (a DXF whose header names a style it never
+defines is not a valid reference); an empty name, from a null handle, is kept. Three variables live elsewhere in the DWG and are
 read from there: `$MEASUREMENT` (`AcDb:Template`, §22; from R2007 the description
 length counts UTF-16 units, AutoCAD writes a length of 1 and two bytes, where §22
 counts bytes), `$DWGCODEPAGE` (the file header's code page, 29 and 30 measured)
 and `$LASTSAVEDBY` (`AcDb:SummaryInfo`). A handle DXF writes as a name goes
 through the decoded symbol-table record; `$CMLSTYLE` takes the case of its
-`ACAD_MLINESTYLE` dictionary key and an arrowhead block `_BoxBlank` is
-`$DIMBLK` `BoxBlank`. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
+`ACAD_MLINESTYLE` dictionary key and a standard arrowhead block `_BoxBlank` is
+`$DIMBLK` `BoxBlank` (only that name is measured; the list of standard arrowheads
+is AutoCAD's documented one, and any other block keeps its name, underscore
+included). `$ANGBASE` is radians in the database and degrees in DXF group 50, and
+before R2007 non-ASCII text is written as `\U+XXXX` escapes; the corpus holds a
+zero `$ANGBASE` and only ASCII header text, so neither is measured. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
 export of either exists to measure the set against.
+
 ## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
