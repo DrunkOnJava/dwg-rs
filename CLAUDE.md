@@ -42,7 +42,10 @@ cargo run --release --example coverage_report -- <dir-of-dwg>      # decoded / s
 cargo run --release --example build_fixtures                        # regenerate tests/fixtures/canonical/*.dwg
 cargo run --release --example probe_class_census -- <file> --strict # walk reaches every instance AcDb:Classes declares
 cargo run --release --example probe_reference_closure -- <file>     # no gaps between records, no dangling hard handles
+cargo run --release --example spec_examples                         # the spec's own worked examples (#107); CI's Test job runs it
 ```
+
+`tests/fixtures/spec-examples/` quotes the spec PDF verbatim; `python3 tools/spec/extract_examples.py --pdf <spec.pdf> --check` audits it against the PDF. When a decoder change moves a §20.4 example's outcome, the step fails; `cargo run --release --example spec_examples -- --update` rewrites the moved `expect` cells in `r14-objects.tsv` and their notes in `docs/data/spec-coverage.tsv` and `docs/spec-coverage.md`, and lists them. Commit those in the same PR. A record that newly errors is written `error #?` and keeps failing until its tracking issue is filled in.
 
 Fixture generation is byte-deterministic and CI diffs the committed canonical fixtures against `build_fixtures` output, so any change to the writer or the synthetic entities means regenerating and committing the fixtures in the same PR.
 
