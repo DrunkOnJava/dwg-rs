@@ -57,3 +57,5 @@ proptest-regressions/
 /streaming-build/
 /streaming-evidence.json
 /streaming-schedules-*.jsonl
+/walk-evidence.json
+/walk-schedules-*.jsonl

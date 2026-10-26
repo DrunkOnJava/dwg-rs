@@ -1,10 +1,13 @@
 # Streaming core
 
-The first implemented scope is the complete **file header** of R13, R14 and
-R2000 (AC1012/AC1014/AC1015), ODA v5.4.1 §3.2. It is a hand-written pure
-state machine. It does not parse drawing objects or the newer containers.
-Those remain open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205).
-The spec compiler is an upgrade after the hand-written baseline, tracked in
+Two hand-written pure state machines are implemented for R13, R14 and
+R2000 (AC1012/AC1014/AC1015), ODA v5.4.1: the complete **file header**
+(§3.2), and the **container walk** that continues from it through the
+header-variable and class sections, the object map and every mapped
+record's framing, type and handle (below). Neither decodes object bodies,
+and the R2004+ containers and decompression are not covered; those remain
+open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
+compiler is an upgrade after the hand-written baseline, tracked in
 [#208](https://github.com/DrunkOnJava/dwg-rs/issues/208).
 
 `streaming::FlatHeaderParser::request()` declares the exact remaining byte
@@ -33,6 +36,73 @@ end; `SliceSource` borrows immutable bytes. HTTP and worker implementations
 can satisfy the same requests without changing grammar. Their actual
 network/worker adapters are still open in #206. A forward-only transport
 for a complete DWG needs a spool/cache because indexes can follow objects.
+
+## Container walk (R13–R2000)
+
+`streaming::FlatWalker` starts at byte 0, runs the header grammar above,
+then visits, in order: the §9 header-variable section (locator 0), the
+§10.1 class section (locator 1) and the §23.1 object map (locator 2),
+following each map entry to its §20.1 record. Locators 3–5, the second
+header (§26) and image data are not walked. Each `feed` returns a `Step`
+naming what its bytes were: `Framing`, provisional `Payload` of a section
+or record, or a committed `Header`, `Section` or `Object`, then
+`Finished` after the map's final chunk.
+
+The framing it enforces was read from the spec and confirmed on 14 real
+files before coding (audit.md): sections are start sentinel, `RL` size,
+data, `RS` CRC seeded 0xC0C1 over size and data, end sentinel, and the
+locator size must equal 38 plus the data size; map chunks are a
+big-endian size counting its own two bytes, 2 to 2032, entries, and a
+big-endian CRC over size and entries, ending with a size-2 chunk exactly
+at the locator's end; records are `MS` size (at most two words, so under
+2^30 bytes), data and a little-endian CRC over the `MS` bytes and data.
+After a record's CRC passes, its type (`BS`), the R2000 `RL` and its
+handle are read from the first 16 data bytes, and the handle must equal
+the map's. Every mismatch is a typed terminal `StreamError`; a zero-size
+class locator, an entry crossing its chunk, a record overlapping the
+file header or the map are rejected rather than guessed around.
+
+Commit contract (audit.md, decision 7): index bytes are verified before
+anything is derived from them, so each map chunk is read twice, once to
+check its CRC with no storage and once to decode entries and visit their
+records. Payload is handed to the caller as it arrives and is committed
+only by the `Section` or `Object` step after its checks; on failure the
+caller discards uncommitted payload. A step stays committed even when
+the next unit is malformed; that failure is returned by the next request.
+
+State is fixed-size: the walker holds the header parser, a 16-byte
+record prefix and a few counters, under 512 bytes, with no allocation;
+the `no_std`/wasm32 kernel build includes it. Requests jump between
+absolute offsets, so the source must be range-capable or spooled. The
+walk does not hold the map: handle-to-offset lookup after the walk is
+the caller's.
+
+`WalkCheckpoint` (at most 256 bytes) is the header checkpoint, replayed
+on restore, followed by the walk cursors, which must form a state the
+walk can reach over the verified locators. Corrupt, truncated, resealed
+but inconsistent, wrong-version and wrong-identity checkpoints are
+rejected. A failed walk has no checkpoint. The digest of uncommitted
+payload and anything else derived from emitted bytes is caller state:
+`stream_walk` saves its own beside the checkpoint.
+
+`examples/stream_walk.rs` is the entry point; `--legacy` prints the
+legacy reader's handle-map walk in the same shape, and `--length` takes
+the source length from a trusted manifest. `tools/streaming/verify_walk.py`
+drives it on the canonical R2000 fixture and every R14 and R2000 file in
+the pinned `nextgis/dwg_samples` commit (`walk-corpus.json`, fetched by
+hash, never committed): 3,546 records. For each file the walk's entire
+output equals an independent Python framing parse, its records equal the
+legacy reader's (handle, offset, size, type, payload CRC-32), and seven
+fixed chunk schedules reproduce it; 128 proptest schedules run on three
+files. Fresh-process resume is checked at every feed of the canonical
+file and 66 sampled feeds of two real files: the two processes' source
+reads and outputs concatenate to the uninterrupted run's. Twenty-five
+corruptions per file (flipped, resealed, truncated and short-transport)
+must end in the named error with only the valid prefix committed.
+
+Not measured: a real R13 file, files larger than about 160 KB, and any
+throughput. The companion DXFs in the sample repository renumber handles
+on save, so they are not used as a handle oracle.
 
 ## Checkpoint contract
 
