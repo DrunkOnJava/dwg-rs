@@ -142,7 +142,7 @@ pub enum DecodedEntity {
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
-    RasterVariables(crate::objects::raster_variables::RasterVariables),
+    RasterVariables(crate::objects::image_raster_variables::RasterVariables),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -727,7 +727,7 @@ fn dispatch_object_class(
         )
         .map(DecodedEntity::ImageDefReactor),
         "RASTERVARIABLES" | "ACDBRASTERVARIABLES" => {
-            crate::objects::raster_variables::decode_object(
+            crate::objects::image_raster_variables::decode_object(
                 payload, body_start, inline_end, version,
             )
             .map(DecodedEntity::RasterVariables)
