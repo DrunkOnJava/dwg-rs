@@ -19,7 +19,7 @@
 //! | 12    | lens_length        | BD (mm for 35mm equivalent) |
 //! | 13    | front_clip         | BD   |
 //! | 14    | back_clip          | BD   |
-//! | 15    | view_mode          | 4 bits (§20.4.60) |
+//! | 15    | view_mode          | 4 bits (§20.4.60), as DXF 71 |
 //! | 16    | render_mode        | RC (0..=6 visual style) |
 //! | 17    | is_paperspace      | B    |
 //! | 18    | is_associated_ucs  | B    |
@@ -33,6 +33,7 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Point3D, read_bd3};
 use crate::error::Result;
+use crate::tables::vport::viewmode_from_bits;
 use crate::tables::{TableEntryHeader, modern, read_table_entry_header};
 use crate::version::Version;
 
@@ -48,6 +49,9 @@ pub struct ViewEntry {
     pub lens_length: f64,
     pub front_clip: f64,
     pub back_clip: f64,
+    /// DXF group 71 (§20.4.60): of the four stored bits, the first three
+    /// are 71's bits 1, 2 and 4 and the fourth is the opposite of its bit
+    /// 16; bit 8 "can not be specified" on a VIEW and is never set.
     pub view_mode: i16,
     pub render_mode: u8,
     pub is_paperspace: bool,
@@ -80,7 +84,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = modern::read_4bits(c)? as i16;
+    let view_mode = viewmode_from_bits(modern::read_4bits(c)?, false);
     let r2000_plus = !matches!(version, Version::R14);
     let render_mode = if r2000_plus { c.read_rc()? } else { 0 };
     let is_paperspace = c.read_b()?;
@@ -171,7 +175,7 @@ pub(crate) fn decode_modern_split_stream(
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = modern::read_4bits(c)? as i16;
+    let view_mode = viewmode_from_bits(modern::read_4bits(c)?, false);
     let render_mode = c.read_rc()?;
     let _use_default_lights = c.read_b()?;
     let _default_lighting_type = c.read_rc()?;
@@ -253,7 +257,7 @@ mod tests {
         body.write_bd(0.0); // front clip
         body.write_bd(0.0); // back clip
         for bit in [false, false, false, true] {
-            body.write_b(bit); // 4BITS view mode = 1
+            body.write_b(bit); // 4BITS view mode 0001: group 71 = 0
         }
         body.write_rc(0); // render mode
         body.write_b(true); // use default lights
@@ -285,7 +289,7 @@ mod tests {
         assert_eq!(v.view_width, 234.25);
         assert_eq!(v.view_center, Point2D { x: 65.5, y: 15.5 });
         assert_eq!(v.lens_length, 50.0);
-        assert_eq!(v.view_mode, 1);
+        assert_eq!(v.view_mode, 0);
         assert_eq!(v.render_mode, 0);
         assert!(!v.is_paperspace);
         assert!(v.is_associated_ucs);
@@ -318,7 +322,7 @@ mod tests {
         w.write_bd(0.0); // front
         w.write_bd(0.0); // back
         for bit in [false, false, false, true] {
-            w.write_b(bit); // 4BITS view mode = 1
+            w.write_b(bit); // 4BITS view mode 0001: group 71 = 0
         }
         w.write_rc(0x04); // render mode — gouraud
         w.write_b(false); // not paperspace
@@ -333,7 +337,7 @@ mod tests {
         assert_eq!(v.header.name, "SW-Iso");
         assert_eq!(v.view_width, 20.0);
         assert_eq!(v.lens_length, 50.0);
-        assert_eq!(v.view_mode, 1);
+        assert_eq!(v.view_mode, 0);
         assert_eq!(v.render_mode, 0x04);
         assert!(!v.is_paperspace);
         assert!(v.is_associated_ucs);
