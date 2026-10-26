@@ -57,6 +57,7 @@ pub enum DecodedEntity {
     Ray(ray::Ray),
     XLine(xline::XLine),
     Solid(solid::Solid),
+    Shape(crate::entities::shape::Shape),
     /// 3DSOLID (§20.4.41) — an ACIS solid body.
     ThreeDSolid(three_d_solid::ThreeDSolid),
     /// REGION (§20.4.41) — an ACIS planar bounded face.
@@ -175,6 +176,7 @@ impl DecodedEntity {
             Self::Ray(_) => OBJECT_TYPE_RAY,
             Self::XLine(_) => OBJECT_TYPE_XLINE,
             Self::Solid(_) => OBJECT_TYPE_SOLID,
+            Self::Shape(_) => OBJECT_TYPE_SHAPE,
             Self::ThreeDSolid(_) => OBJECT_TYPE_3DSOLID,
             Self::Region(_) => OBJECT_TYPE_REGION,
             Self::Body(_) => OBJECT_TYPE_BODY,
@@ -1212,12 +1214,9 @@ fn fixed_entity_label(type_code: u16) -> Option<&'static str> {
         //   0x14 ORDINATE, 0x15 LINEAR, 0x16 ALIGNED, 0x17 ANG_3PT,
         //   0x18 ANG_2LN, 0x19 RADIUS, 0x1A DIAMETER.
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => "DIMENSION",
-        // SHAPE has no field list matched against real bytes yet — the
-        // one record in the corpus has a 160-bit budget and nothing to
-        // spend it on, so it stays `Unhandled` rather than being fed a
-        // guess. IMAGE and MLEADER are custom classes whose codes vary
-        // per file and resolve through `decode_from_raw_with_class_map`.
-        OBJECT_TYPE_SHAPE => return None,
+        OBJECT_TYPE_SHAPE => "SHAPE",
+        // IMAGE and MLEADER are custom classes whose codes vary per file
+        // and resolve through `decode_from_raw_with_class_map`.
         _ => return None,
     })
 }
@@ -1250,6 +1249,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_RAY => DecodedEntity::Ray(ray::decode(c)?),
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
+        OBJECT_TYPE_SHAPE => DecodedEntity::Shape(crate::entities::shape::decode(c)?),
         OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
         OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
@@ -1658,6 +1658,7 @@ mod tests {
             OBJECT_TYPE_POLYLINE_PFACE,
             OBJECT_TYPE_POLYLINE_MESH,
             OBJECT_TYPE_SOLID,
+            OBJECT_TYPE_SHAPE,
             OBJECT_TYPE_TRACE,
             OBJECT_TYPE_VIEWPORT,
             OBJECT_TYPE_ELLIPSE,
@@ -1687,9 +1688,7 @@ mod tests {
                 "0x{code:04X} decodes but has no label, so it would be reported Unhandled"
             );
         }
-        // SHAPE has a code but no field list; the reserved range has
-        // neither.
-        assert!(fixed_entity_label(OBJECT_TYPE_SHAPE).is_none());
+        // The reserved range has neither a code nor a field list.
         for code in [0x00u16, 0x08, 0x09, 0x1FF, 0xFFFF] {
             assert!(fixed_entity_label(code).is_none(), "0x{code:04X}");
         }
