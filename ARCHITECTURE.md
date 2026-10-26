@@ -1304,7 +1304,7 @@ are fixed; three are not and are reported.
 | POLYLINE_PFACE | 1 (R2018) | +52 | five `BS` counts and two inline `H` handles, where the record holds `BS`, `BS`, `BL` in 30 bits | fixed — reads 5 vertices, 2 faces, 7 owned objects |
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
 | VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7u) |
-| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported; closed 2026-10-26 by the DXF twin (§7m) |
+| MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported; closed 2026-10-26 by the DXF twin (§7w) |
 | LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
 
 The three fixes each meet the same bar as #58: `delta 0` **plus** a
@@ -1366,7 +1366,7 @@ changed by this work; each waits on a second file.
 | MULTILEADER's 17 bits | §7g above, `entities/mleader.rs` | 17 bits between `B 293 is annotative` and the R2010+ `BS 271` that §20.4.48 does not list. Read as `MC` + `B`; `B` + `RS` and `B` + two `RC`s consume the same bits. The `MC` holds only `274`, `530`, `786` across 15 records and the `B` is `true` on all of them | one record whose value exceeds `RS` range, or whose `B` is false |
 | UNDERLAY clip-vertex encoding | `entities/underlay.rs` | whether a clip vertex is `2BD` or `2RD`. The single corpus record has a zero clip-vertex count, so no vertex is ever read | any UNDERLAY with a clip boundary |
 | LWPOLYLINE `0x200` | §7g table, `entities/lwpolyline.rs` | `0x200` is not one of §20.4.85's presence bits, and every record carrying it also carries no optional field, so it survives either reading. Treated as "closed" | a record with `0x200` set *and* an optional field present |
-| ~~MESH's trailing `10`~~ | `entities/mesh.rs` | settled 2026-10-26 (§7m): the DXF twin writes a group `90` (`BL`) equal to 0 there | — |
+| ~~MESH's trailing `10`~~ | `entities/mesh.rs` | settled 2026-10-26 (§7w): the DXF twin writes a group `90` (`BL`) equal to 0 there | — |
 
 ### Measured effect
 
@@ -2075,7 +2075,7 @@ reports every disagreement:
 cargo run --release --example probe_viewport -- sample_AC1032.dwg sample_AC1032_ascii.dxf
 ```
 
-## 7m. MESH: the DXF twin names the trailing bits, and MESH is on every release (2026-10-26, #71)
+## 7w. MESH: the DXF twin names the trailing bits, and MESH is on every release (2026-10-26, #71)
 
 §7i left MESH's last two bits, `10`, unread: the zero code of `BS`, `BL`
 and `BD` alike, on two records that both encode zero, so the bits alone
