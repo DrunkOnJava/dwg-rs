@@ -4,6 +4,7 @@
 
 use super::flat::{FlatWalker, MapCursor, Stage};
 use super::lz77::{Ext, Lz77Decoder, Mode, WINDOW};
+use super::r2004::{R2004_HEADER_BYTES, R2004HeaderParser};
 use super::{CHUNK_BYTES, FlatHeaderParser, SourceIdentity, StreamError};
 
 const PREFIX: usize = 56;
@@ -355,5 +356,104 @@ impl Lz77Decoder {
             return Err(StreamError::InvalidCheckpoint);
         }
         Ok(decoder)
+    }
+}
+
+const R4_MAX: usize = PREFIX + R2004_HEADER_BYTES + TRAILER;
+
+/// Serialized §4.1 header state: the same layout as [`Checkpoint`] with a
+/// `DWG4` marker and room for the whole 0x100-byte header, at most 316
+/// bytes. Restore replays the retained bytes; no source byte is read.
+#[derive(Debug, Clone)]
+pub struct R2004Checkpoint {
+    bytes: [u8; R4_MAX],
+    len: usize,
+}
+
+impl R2004Checkpoint {
+    /// The canonical wire bytes, ready for storage or cross-runtime transfer.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl R2004HeaderParser {
+    /// Serialize all current §4.1 state, including a partial field or failure.
+    pub fn checkpoint(&self) -> R2004Checkpoint {
+        let mut result = R2004Checkpoint {
+            bytes: [0; R4_MAX],
+            len: PREFIX + self.filled + TRAILER,
+        };
+        let b = &mut result.bytes;
+        b[..4].copy_from_slice(b"DWG4");
+        b[4] = 1;
+        b[5] = u8::from(self.done);
+        b[9] = u8::from(self.failure.is_some());
+        b[10..12].copy_from_slice(&(self.filled as u16).to_le_bytes());
+        b[12..14].copy_from_slice(&(self.target as u16).to_le_bytes());
+        b[14..16].copy_from_slice(&(R2004_HEADER_BYTES as u16).to_le_bytes());
+        b[16..24].copy_from_slice(&self.source.length.to_le_bytes());
+        b[24..56].copy_from_slice(&self.source.digest);
+        b[PREFIX..PREFIX + self.filled].copy_from_slice(&self.bytes[..self.filled]);
+        let end = result.len - TRAILER;
+        let checksum = crate::crc::crc32(0, &b[..end]);
+        b[end..result.len].copy_from_slice(&checksum.to_le_bytes());
+        result
+    }
+
+    /// Restore against an independently supplied source identity by
+    /// replaying the bytes inside the checkpoint, then requiring the replayed
+    /// state to equal the recorded one.
+    pub fn restore(input: &[u8], expected_source: SourceIdentity) -> Result<Self, StreamError> {
+        if input.len() < PREFIX + TRAILER || input.len() > R4_MAX {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        if &input[..4] != b"DWG4"
+            || input[4] != 1
+            || input[6..9] != [0, 0, 0]
+            || input[14..16] != (R2004_HEADER_BYTES as u16).to_le_bytes()
+        {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let filled = usize::from(u16::from_le_bytes([input[10], input[11]]));
+        if filled > R2004_HEADER_BYTES || input.len() != PREFIX + filled + TRAILER {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let end = input.len() - TRAILER;
+        if input[end..] != crate::crc::crc32(0, &input[..end]).to_le_bytes() {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let mut length_bytes = [0; 8];
+        length_bytes.copy_from_slice(&input[16..24]);
+        let mut digest = [0; 32];
+        digest.copy_from_slice(&input[24..56]);
+        let source = SourceIdentity {
+            digest,
+            length: u64::from_le_bytes(length_bytes),
+        };
+        if source != expected_source {
+            return Err(StreamError::SourceMismatch);
+        }
+        let mut parser = Self::new(source);
+        let mut at = 0;
+        while at < filled {
+            let request = parser
+                .request()
+                .map_err(|_| StreamError::InvalidCheckpoint)?
+                .ok_or(StreamError::InvalidCheckpoint)?;
+            let n = request.len.min(filled - at);
+            let result = parser.feed(request.offset, &input[PREFIX + at..PREFIX + at + n]);
+            at += n;
+            if result.is_err() && at != filled {
+                return Err(StreamError::InvalidCheckpoint);
+            }
+        }
+        if u8::from(parser.done) != input[5]
+            || u8::from(parser.failure.is_some()) != input[9]
+            || parser.target != usize::from(u16::from_le_bytes([input[12], input[13]]))
+        {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        Ok(parser)
     }
 }

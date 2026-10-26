@@ -133,3 +133,37 @@ seeded 0xC0C1 over the `MS` bytes and data.
   at the largest limit still decodes.
 - Output equals the legacy whole-buffer decoder and an independent parse
   on every compressed page of every real file in the pinned manifest.
+
+## Asynchronous source failure cases (#206, written before the adapter)
+
+- A poll with a read in flight returns `Pending` and changes nothing; a
+  different request while one is in flight is an error, never a second
+  fetch.
+- An answer for another offset, an empty answer or one longer than the
+  request is rejected and leaves the request in flight.
+- More bytes than the caller's next scratch takes are held and delivered
+  on the following polls; a request that does not continue them is an
+  error.
+- An answer of "no byte here" becomes `Eof` at exactly that offset, and
+  the grammar turns it into its typed truncation.
+- A transport failure surfaces as the source error on the next poll.
+- Output through the adapter equals the file-backed run; every fetched
+  byte is delivered once, in order; a fresh-process resume fetches no
+  byte twice, including bytes the adapter held at the checkpoint.
+- A transport answer that ignores the range or is longer than the request
+  is refused before its body is read.
+
+## R2004-family header failure cases (§4.1, written before the parser)
+
+- EOF at every byte of the 0x100-byte header.
+- Unknown magic; flat (AC1012/AC1014/AC1015) or R2007 (AC1021) magic.
+- Plain 0x28 not 0x80; decrypted file ID wrong; CRC-32 of the decrypted
+  block (CRC field zeroed) wrong; a fixed decrypted field (0x0C, 0x10,
+  0x14, 0x44, 0x48, 0x4C) wrong after resealing the CRC.
+- The 0x14 bytes at 0xEC not the magic sequence continued.
+- Page map address off a 0x20 boundary or its header past the source;
+  a non-zero second-header address past the source.
+- Every chunk schedule produces the same header; checkpoint at every
+  byte resumes in a fresh process reading each byte once; corrupt,
+  truncated and wrong-identity checkpoints are rejected; a failure
+  snapshot restores the same failure.

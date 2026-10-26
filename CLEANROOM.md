@@ -423,3 +423,19 @@ measured evidence: the spec lists `B 295` (property changed) before
 `nextgis/dwg_samples` and ACadSharp `samples/` drawings, compared record
 by record by the DXF value oracle (#99), shows the two bits stored in the
 reverse order. No other source was consulted.
+
+## 2026-10-26 — DXF reader for the value oracle (Autodesk public DXF Reference)
+
+The PR for #100 adds `src/dxf_reader.rs`, which reads AutoCAD's own ASCII
+DXF exports so the DWG decode can be compared with them (#99). Its grammar
+(group-code / value line pairs, `SECTION` / `ENDSEC` / `EOF`, `9 $NAME`
+header variables, `0`-records, group 5 as the handle and 105 on DIMSTYLE,
+330 as the owner, the `102 {...}` brackets) and the value type of every
+group-code range come from Autodesk's public *DXF Reference*, chiefly its
+"Group Code Value Types" table, as recalled. That is published
+documentation, not SDK or product source; no DXF library's code or comments
+were read. Two readings were measured on the `nextgis/dwg_samples` exports
+rather than taken from the document, and the module documents both: on a
+DIMSTYLE, group 5 is `DIMBLK` (text, written empty in the R12 exports), and a
+`102` bracket may close as `<name>}` as well as `}`. The exports are read as
+data from a cache outside the repository and are not vendored.
