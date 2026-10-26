@@ -29,10 +29,10 @@ limitations (the maintainer's decision, 2026-10-21):
 | Area | State on `main` | Evidence |
 |---|---|---|
 | Containers | R14 to R2018 read, R2007 included (#110); R13 never seen | STATUS.md |
-| Object walk | Every R2004+ corpus file tiles its object stream with zero bytes between records; class census and reference closure closed on all 19 files | STATUS.md, `examples/probe_reference_closure` |
-| Decode | 3,911 records decoded, 525 skipped, 9 errored (88.0%) on a local 19-file corpus; every entity record boundary-checked (#63) | README.md, measured locally 2026-08-30 |
+| Object walk | Every corpus file tiles its object stream with zero bytes between records; reference closure closed on all 44 R2000-to-R2018 drawings, NOT MEASURED on R14 (#84); class-census shortfalls pinned per file (#230) | the Corpus CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)), `tools/corpus/baseline.tsv` |
+| Decode | 13,781 records decoded, 1,985 skipped, 308 errored (85.7%) on 52 public drawings, R14 to R2018; every entity record boundary-checked (#63) | the Corpus CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)), README.md |
 | Values | Checked for LINE, CIRCLE and ARC on R2013 only; nothing compared with AutoCAD's DXF | `tests/r2013_entity_values.rs` |
-| Spec coverage | Of the 104 object prescriptions in §20.4, most close on the corpus; 22 have no decoder and 8 are partial; the header variables (§9) and seven data sections are unread | [`docs/spec-coverage.md`](docs/spec-coverage.md) |
+| Spec coverage | Of the 104 object prescriptions in §20.4, 46 close on the public corpus in CI; 22 have no decoder, 30 are partial and 6 are unmeasured; the header variables (§9) and seven data sections are unread | [`docs/spec-coverage.md`](docs/spec-coverage.md) |
 | Writer | R2004-family section round-trips; no file shown to open in AutoCAD | ARCHITECTURE.md §8 |
 | Exports, viewer, Python | DXF, SVG, glTF and PDF written and checked syntactically; the viewer has stubs; Python has type stubs only | STATUS.md |
 | CI | Synthetic fixtures only: no real DWG file is read in CI | `.github/workflows/ci.yml` |

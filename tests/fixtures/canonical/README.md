@@ -25,16 +25,14 @@ object map addresses them by absolute file offset. That is what makes
 it a *different* gate rather than a fifth copy of the same one — it is
 the only fixture whose handle-map offsets are file offsets.
 
-Its file header closes with the §3.2 CRC and 16-byte end sentinel, and
-CI checks it with the strict streaming header reader (#214). Only the
-header is valid in that sense: the header-variable block is still 64
-placeholder zero bytes, locator 1 points at no class section, and no
-AutoCAD build has opened the file.
-
-In every fixture the object-map sections and object records carry the
-§23.1 and §20.1 CRCs real files carry (#216): the map's big-endian CRC
-over each section's size and entries, its size-2 terminator section,
-and each record's CRC over its `MS` bytes and data.
+Every integrity field in it is real: the §3.2 file-header CRC and
+end sentinel (#214), the §9 header-variable and §10.1 class sections'
+sentinels, sizes and CRCs, and the §23.1 object-map and §20.1 record
+CRCs (#216). CI walks it with the strict
+streaming container reader. What remains placeholder is content: the
+header variables are 26 zero bytes, the class table is empty, and no
+AutoCAD build has opened the file. The R2004-family files share the
+object-map and record CRCs but are not walked by the streaming reader.
 
 ## Licence and provenance
 

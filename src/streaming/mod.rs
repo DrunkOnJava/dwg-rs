@@ -1,11 +1,20 @@
-//! Bounded, pausable DWG grammar. The initial reader covers the complete
-//! R13–R2000 file header (ODA v5.4.1 §3.2), including CRC and sentinel.
-//! It does not read objects or the R2004+ containers; see issue #205.
+//! Bounded, pausable DWG grammar. It covers the complete R13–R2000 file
+//! header (ODA v5.4.1 §3.2) and the R13–R2000 container walk: header
+//! variables, classes, the object map and every mapped record's framing,
+//! type and handle. It also has a bounded, resumable decoder for the
+//! R2004-family LZ77 dialect (§4.7). Object bodies and the R2004+
+//! container walk remain open; see issue #205.
 
 use core::fmt;
 
 mod checkpoint;
-pub use checkpoint::Checkpoint;
+mod flat;
+mod lz77;
+pub use checkpoint::{Checkpoint, Lz77Checkpoint, WalkCheckpoint};
+pub use flat::{
+    CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
+};
+pub use lz77::{Lz77Decoder, Progress, WINDOW};
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -32,9 +41,18 @@ pub struct Request {
 /// Errors are values with no heap-backed diagnostic buffers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamError {
-    WrongOffset { expected: u64, actual: u64 },
-    InvalidFeed { maximum: usize, actual: usize },
-    Truncated { offset: u64, needed: usize },
+    WrongOffset {
+        expected: u64,
+        actual: u64,
+    },
+    InvalidFeed {
+        maximum: usize,
+        actual: usize,
+    },
+    Truncated {
+        offset: u64,
+        needed: usize,
+    },
     InvalidMagic([u8; 6]),
     UnsupportedLayout([u8; 6]),
     LocatorCount(u32),
@@ -42,11 +60,65 @@ pub enum StreamError {
     MissingLocator(u8),
     DuplicateLocator(u8),
     LocatorRange(u8),
-    HeaderCrc { expected: u16, actual: u16 },
+    HeaderCrc {
+        expected: u16,
+        actual: u16,
+    },
     HeaderSentinel,
     InvalidCheckpoint,
     SourceMismatch,
     Finished,
+    /// Part 0 is the header-variable section (§9), 1 the class section (§10.1).
+    SectionSentinel(u8),
+    SectionSize(u8),
+    SectionCrc {
+        part: u8,
+        expected: u16,
+        actual: u16,
+    },
+    MapChunk(u64),
+    MapCrc {
+        offset: u64,
+        expected: u16,
+        actual: u16,
+    },
+    MapEntry(u64),
+    ObjectRange {
+        handle: u64,
+        offset: u64,
+    },
+    ObjectSize(u64),
+    ObjectCrc {
+        handle: u64,
+        expected: u16,
+        actual: u16,
+    },
+    ObjectHeader(u64),
+    ObjectHandle {
+        map: u64,
+        record: u64,
+    },
+    /// §4.7: an opcode in the reserved range 0x00–0x0F, at input byte `at`.
+    Lz77Opcode {
+        at: u64,
+        opcode: u8,
+    },
+    /// §4.7: a back-reference reaching before the first output byte.
+    Lz77Offset {
+        at: u64,
+        distance: u32,
+    },
+    /// Output would pass the declared decompressed size.
+    Lz77Overrun {
+        limit: u64,
+    },
+    /// The compressed bytes ended before the 0x11 terminator.
+    Lz77Truncated {
+        consumed: u64,
+    },
+    /// A position or count would pass `u64::MAX`. No real input reaches
+    /// this; a forged but CRC-valid checkpoint can.
+    CounterOverflow,
 }
 
 impl fmt::Display for StreamError {
