@@ -1057,6 +1057,7 @@ pub fn score(
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
         D::VisualStyle(v) => score_visualstyle(&mut c, v),
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
+        D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
@@ -1589,6 +1590,102 @@ fn score_dictionary(c: &mut Ctx<'_>, d: &dwg::objects::dictionary::Dictionary, d
         format!("{} keys", common_dwg.len()),
         format!("{} keys", common_dxf.len()),
     );
+}
+
+// §20.4.101.1 (the layout "until R21", R2000 to R2007): 3, 70, 71, 40, 41,
+// 280, 281, then each row style in the order data, title, header: 7 (the
+// text style, a handle the decoder does not read), 140, 170, 62, 63, 283,
+// R2007+ 90, 91 and 1, and per border 274-279, 284-289 and 64-69. The
+// export writes the borders grouped by code (all six 27x, then 28x, then
+// 6x), so each is taken by its own code. Colours are TC; their DXF number
+// is the index (0 ByBlock, 256 ByLayer).
+fn score_tablestyle(c: &mut Ctx<'_>, t: &dwg::objects::acad_table_style::AcadTableStyle) {
+    c.subclass("AcDbTableStyle");
+    c.text("description", 3, &t.description, None);
+    c.int("flow_direction", 70, i64::from(t.flow_direction), None);
+    c.int("bit_flags", 71, i64::from(t.bit_flags), None);
+    c.real("horizontal_margin", 40, t.horizontal_margin, None);
+    c.real("vertical_margin", 41, t.vertical_margin, None);
+    // R2010+ exports write two 280s before the first row style; the
+    // suppress-title flag is the second (examples/probe_tablestyle.rs).
+    let groups = &c.record().groups;
+    let head = groups
+        .iter()
+        .position(|g| g.code == 100 && g.value.as_str() == Some("AcDbTableStyle"))
+        .map_or(&groups[..0], |s| {
+            let rest = &groups[s + 1..];
+            &rest[..rest.iter().position(|g| g.code == 7).unwrap_or(rest.len())]
+        });
+    if head.iter().filter(|g| g.code == 280).count() > 1 {
+        if let Some(v) = c.take(280) {
+            c.not_decoded(
+                "280 (the first of two, not the suppress flag)",
+                v.to_string(),
+            );
+        }
+    }
+    c.int("suppress_title", 280, i64::from(t.suppress_title), None);
+    c.int("suppress_header", 281, i64::from(t.suppress_header), None);
+    for (name, r) in [
+        ("data", &t.data),
+        ("title", &t.title),
+        ("header", &t.header),
+    ] {
+        c.real(&format!("{name}.text_height"), 140, r.text_height, None);
+        c.int(
+            &format!("{name}.text_alignment"),
+            170,
+            i64::from(r.text_alignment),
+            None,
+        );
+        c.int(
+            &format!("{name}.text_color"),
+            62,
+            aci_of(&r.text_color),
+            None,
+        );
+        c.int(
+            &format!("{name}.fill_color"),
+            63,
+            aci_of(&r.fill_color),
+            None,
+        );
+        c.int(
+            &format!("{name}.background_enabled"),
+            283,
+            i64::from(r.background_enabled),
+            None,
+        );
+        if let Some(v) = r.data_type {
+            c.int(&format!("{name}.data_type"), 90, i64::from(v), None);
+        }
+        if let Some(v) = r.data_unit_type {
+            c.int(&format!("{name}.data_unit_type"), 91, i64::from(v), None);
+        }
+        if let Some(v) = &r.format_string {
+            c.text(&format!("{name}.format_string"), 1, v, None);
+        }
+        for (k, b) in (0u16..).zip(r.borders.iter()) {
+            c.int(
+                &format!("{name}.borders[{k}].line_weight"),
+                274 + k,
+                i64::from(b.line_weight),
+                None,
+            );
+            c.int(
+                &format!("{name}.borders[{k}].visible"),
+                284 + k,
+                i64::from(b.visible),
+                None,
+            );
+            c.int(
+                &format!("{name}.borders[{k}].color"),
+                64 + k,
+                aci_of(&b.color),
+                None,
+            );
+        }
+    }
 }
 
 // §20.4.73 with the DXF Reference's MLINESTYLE groups: 2, 70, 3, 62, 51, 52,
