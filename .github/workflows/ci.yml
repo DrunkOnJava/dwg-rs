@@ -254,9 +254,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          # The streaming E2E pins some of the same files; they must agree.
+          shopt -s nullglob
+          others=(tools/streaming/*-corpus.json)
           set +e
           python3 -I tools/corpus/fetch.py --dest "$HOME/dwg-corpus" \
-            --legacy-samples "$GITHUB_WORKSPACE/../../samples"
+            --legacy-samples "$GITHUB_WORKSPACE/../../samples" --cross-check "${others[@]}"
           status=$?
           set -e
           if [ "$status" -eq 69 ]; then

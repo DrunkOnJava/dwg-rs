@@ -366,7 +366,12 @@ are data files: no source code from either repository was consulted.
   `samples/sample_base/save_samples.lsp`, run inside AutoCAD. Each R2004+
   drawing's `AcDb:AppInfo` names AutoCAD build `V.162.0.0`, registry
   version `25.0` (AutoCAD 2025). R14 has no DXF twin in either source; the
-  R12 DXF is the nearest.
+  R12 DXF is the nearest. Three more R2018 drawings from the same commit
+  and licence are other drawings, not saves of that one:
+  `samples/geolocation/geoloc.dwg` with its AC1032 DXF `geoloc.dxf` and
+  `samples/sample_base/empty.dwg` (AutoCAD 2023, build `T.53.0.0`,
+  registry version `24.2`), and `samples/svg/export_sample.dwg` (AutoCAD
+  2025, build `V.162.0.0`).
 
 **`sample_AC1032.dwg`**, the corpus's only R2018 drawing, whose origin was
 unrecorded until now (#96), is ACadSharp's: 1,081,979 bytes, sha256

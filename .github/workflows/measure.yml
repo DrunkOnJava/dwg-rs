@@ -118,7 +118,9 @@ jobs:
           HEAD_SHA: ${{ steps.refs.outputs.head }}
           BASE_SHA: ${{ steps.refs.outputs.base }}
         run: |
-          set -uo pipefail
+          # A base the examples cannot measure is reported, not fatal, so
+          # errexit (on by default) stays off and each status is checked.
+          set +e -uo pipefail
           mkdir -p measure
           for side in base head; do
             if [ "$side" = base ]; then sha="$BASE_SHA"; else sha="$HEAD_SHA"; fi

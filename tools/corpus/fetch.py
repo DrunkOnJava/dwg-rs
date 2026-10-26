@@ -25,13 +25,19 @@ blob id; each route is retried before the other is tried, and GITHUB_TOKEN
 its raw media type re-encodes non-UTF-8 text, which turned the 0xD8 of an
 ANSI_1252 DXF into two UTF-8 bytes.
 
+pins.tsv is the one list of corpus files. --cross-check takes other JSON
+manifests that name files of a pinned commit (tools/streaming/*-corpus.json)
+and fails unless each file they name is pinned here with the same size and
+sha256, so a second copy of a pin cannot drift.
+
 Exit status: 0 every pinned file is present and verified; 1 a file does not
-match its pin, or its pinned commit no longer serves it (fail closed); 69 the
-host was unreachable after every retry (the caller reports NOT MEASURED).
+match its pin, its pinned commit no longer serves it, or a cross-checked
+manifest disagrees (fail closed); 69 the host was unreachable after every
+retry (the caller reports NOT MEASURED).
 
 Usage:
 
-    python3 -I tools/corpus/fetch.py --dest DIR [--legacy-samples DIR]
+    python3 -I tools/corpus/fetch.py --dest DIR [--legacy-samples DIR] [--cross-check FILE...]
 """
 
 import argparse
@@ -126,13 +132,37 @@ def download(row):
     raise Unreachable('; '.join(failures[-2:]))
 
 
+def disagreements(rows, manifests):
+    pinned = {(row['repo'], row['commit'], row['path']): row for row in rows}
+    found = []
+    for manifest in manifests:
+        data = json.loads(manifest.read_text(encoding='utf-8'))
+        repo = data['source'].removeprefix('https://github.com/')
+        for item in data['files']:
+            row = pinned.get((repo, data['commit'], item['name']))
+            if row is None:
+                found.append(f'{manifest}: {repo}@{data["commit"][:12]}:{item["name"]} is not in {PINS.name}')
+            elif (str(item['bytes']), item['sha256']) != (row['bytes'], row['sha256']):
+                found.append(f'{manifest}: {item["name"]} pins {item["bytes"]} bytes, sha256 {item["sha256"]}; '
+                             f'{PINS.name} pins {row["bytes"]}, {row["sha256"]}')
+    return found
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--dest', required=True, type=Path)
     parser.add_argument('--legacy-samples', type=Path)
+    parser.add_argument('--cross-check', type=Path, nargs='*', default=[])
     args = parser.parse_args()
 
     rows = read_pins()
+    conflicts = disagreements(rows, args.cross_check)
+    for line in conflicts:
+        print(f'::error::{line}', flush=True)
+    if conflicts:
+        return 1
+    if args.cross_check:
+        print(f'{len(args.cross_check)} other manifest(s) agree with {PINS.name}', flush=True)
     mismatched, unreachable, fetched = [], [], 0
     for row in rows:
         target = args.dest / local_name(row)
