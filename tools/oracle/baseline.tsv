@@ -83,6 +83,21 @@ R2000	§20.4.21	LINE	start.x	10	99	0	0	0
 R2000	§20.4.21	LINE	start.y	20	99	0	0	0
 R2000	§20.4.21	LINE	start.z	30	99	0	0	0
 R2000	§20.4.21	LINE	thickness	39	0	99	0	0
+R2000	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2000	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2000	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2000	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2000	§20.4.3	TEXT	generation	71	0	29	0	0
+R2000	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2000	§20.4.3	TEXT	height	40	29	0	0	0
+R2000	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2000	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2000	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2000	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2000	§20.4.3	TEXT	text	1	29	0	0	0
+R2000	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2000	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2000	§20.4.3	TEXT	width_factor	41	0	29	0	0
 R2000	§20.4.31	POINT	extrusion.x	210	0	42	0	0
 R2000	§20.4.31	POINT	extrusion.y	220	0	42	0	0
 R2000	§20.4.31	POINT	extrusion.z	230	0	42	0	0
@@ -135,6 +150,29 @@ R2000	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
 R2000	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
 R2000	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
 R2000	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2000	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2000	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2000	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2000	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2000	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2000	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2000	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2000	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2000	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2000	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2000	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2000	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2000	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2000	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2000	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2000	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2000	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2000	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2000	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2000	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2000	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2000	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2000	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
 R2000	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2000	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2000	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -174,6 +212,30 @@ R2000	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
 R2000	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
 R2000	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
 R2000	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2000	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2000	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2000	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2000	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2000	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2000	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2000	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2000	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2000	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2000	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2000	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2000	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2000	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2000	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2000	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2000	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2000	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2000	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2000	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2000	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2000	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2000	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2000	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2000	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
 R2000	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -490,6 +552,21 @@ R2004	§20.4.21	LINE	start.x	10	99	0	0	0
 R2004	§20.4.21	LINE	start.y	20	99	0	0	0
 R2004	§20.4.21	LINE	start.z	30	99	0	0	0
 R2004	§20.4.21	LINE	thickness	39	0	99	0	0
+R2004	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
+R2004	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
+R2004	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
+R2004	§20.4.3	TEXT	extrusion.z	230	0	29	0	0
+R2004	§20.4.3	TEXT	generation	71	0	29	0	0
+R2004	§20.4.3	TEXT	h_align	72	0	29	0	0
+R2004	§20.4.3	TEXT	height	40	29	0	0	0
+R2004	§20.4.3	TEXT	insertion_point.x	10	29	0	0	0
+R2004	§20.4.3	TEXT	insertion_point.y	20	29	0	0	0
+R2004	§20.4.3	TEXT	oblique_angle	51	0	29	0	0
+R2004	§20.4.3	TEXT	rotation_angle	50	0	29	0	0
+R2004	§20.4.3	TEXT	text	1	29	0	0	0
+R2004	§20.4.3	TEXT	thickness	39	0	29	0	0
+R2004	§20.4.3	TEXT	v_align	73	0	29	0	0
+R2004	§20.4.3	TEXT	width_factor	41	0	29	0	0
 R2004	§20.4.31	POINT	extrusion.x	210	0	42	0	0
 R2004	§20.4.31	POINT	extrusion.y	220	0	42	0	0
 R2004	§20.4.31	POINT	extrusion.z	230	0	42	0	0
@@ -543,6 +620,29 @@ R2004	§20.4.39	ELLIPSE	major_axis.x	11	2	0	0	0
 R2004	§20.4.39	ELLIPSE	major_axis.y	21	2	0	0	0
 R2004	§20.4.39	ELLIPSE	major_axis.z	31	2	0	0	0
 R2004	§20.4.39	ELLIPSE	start_param	41	2	0	0	0
+R2004	§20.4.4	ATTRIB	alignment_point.x	11	1	0	0	0
+R2004	§20.4.4	ATTRIB	alignment_point.y	21	1	0	0	0
+R2004	§20.4.4	ATTRIB	attribute_type	-	0	0	0	4
+R2004	§20.4.4	ATTRIB	elevation (30)	30	4	0	0	0
+R2004	§20.4.4	ATTRIB	elevation (31)	31	1	0	0	0
+R2004	§20.4.4	ATTRIB	extrusion.x	210	0	4	0	0
+R2004	§20.4.4	ATTRIB	extrusion.y	220	0	4	0	0
+R2004	§20.4.4	ATTRIB	extrusion.z	230	0	4	0	0
+R2004	§20.4.4	ATTRIB	field_length	73	0	4	0	0
+R2004	§20.4.4	ATTRIB	flags	70	4	0	0	0
+R2004	§20.4.4	ATTRIB	generation	71	0	4	0	0
+R2004	§20.4.4	ATTRIB	h_align	72	0	4	0	0
+R2004	§20.4.4	ATTRIB	height	40	4	0	0	0
+R2004	§20.4.4	ATTRIB	insertion_point.x	10	4	0	0	0
+R2004	§20.4.4	ATTRIB	insertion_point.y	20	4	0	0	0
+R2004	§20.4.4	ATTRIB	lock_position	-	0	0	0	4
+R2004	§20.4.4	ATTRIB	oblique_angle	51	0	4	0	0
+R2004	§20.4.4	ATTRIB	rotation_angle	50	0	4	0	0
+R2004	§20.4.4	ATTRIB	tag	2	4	0	0	0
+R2004	§20.4.4	ATTRIB	text	1	4	0	0	0
+R2004	§20.4.4	ATTRIB	thickness	39	0	4	0	0
+R2004	§20.4.4	ATTRIB	v_align	74	1	3	0	0
+R2004	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
 R2004	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2004	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2004	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -582,6 +682,30 @@ R2004	§20.4.46	MTEXT	text (3-group chunks + 1)	1+3	35	0	0	0
 R2004	§20.4.46	MTEXT	x_axis_direction.x	11	6	0	0	29
 R2004	§20.4.46	MTEXT	x_axis_direction.y	21	6	0	0	29
 R2004	§20.4.46	MTEXT	x_axis_direction.z	31	6	0	0	29
+R2004	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
+R2004	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
+R2004	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
+R2004	§20.4.5	ATTDEF	elevation (30)	30	5	0	0	0
+R2004	§20.4.5	ATTDEF	elevation (31)	31	2	0	0	0
+R2004	§20.4.5	ATTDEF	extrusion.x	210	0	5	0	0
+R2004	§20.4.5	ATTDEF	extrusion.y	220	0	5	0	0
+R2004	§20.4.5	ATTDEF	extrusion.z	230	0	5	0	0
+R2004	§20.4.5	ATTDEF	field_length	73	0	5	0	0
+R2004	§20.4.5	ATTDEF	flags	70	5	0	0	0
+R2004	§20.4.5	ATTDEF	generation	71	0	5	0	0
+R2004	§20.4.5	ATTDEF	h_align	72	0	5	0	0
+R2004	§20.4.5	ATTDEF	height	40	5	0	0	0
+R2004	§20.4.5	ATTDEF	insertion_point.x	10	5	0	0	0
+R2004	§20.4.5	ATTDEF	insertion_point.y	20	5	0	0	0
+R2004	§20.4.5	ATTDEF	lock_position	-	0	0	0	5
+R2004	§20.4.5	ATTDEF	oblique_angle	51	0	5	0	0
+R2004	§20.4.5	ATTDEF	prompt	3	5	0	0	0
+R2004	§20.4.5	ATTDEF	rotation_angle	50	0	5	0	0
+R2004	§20.4.5	ATTDEF	tag	2	5	0	0	0
+R2004	§20.4.5	ATTDEF	text	1	5	0	0	0
+R2004	§20.4.5	ATTDEF	thickness	39	0	5	0	0
+R2004	§20.4.5	ATTDEF	v_align	74	2	3	0	0
+R2004	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
 R2004	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -1175,25 +1299,25 @@ R2007	§20.4.66	APPID	unknown	71	0	60	0	0
 R2007	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
 R2007	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
 R2007	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
-R2007	§20.4.68	DIMSTYLE	dimaltf	143	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimaltrnd	148	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	dimasz	41	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimcen	141	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimexe	44	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimexo	42	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimlfac	144	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	dimscale	40	2	15	0	0
-R2007	§20.4.68	DIMSTYLE	dimtad	77	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtfac	146	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	dimtih	73	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtoh	74	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtolj	283	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimtxt	140	8	9	0	0
-R2007	§20.4.68	DIMSTYLE	dimupt	288	0	17	0	0
-R2007	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	17
-R2007	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	17	0	0	0
-R2007	§20.4.68	DIMSTYLE	name	2	17	0	0	0
-R2007	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	17
+R2007	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2007	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2007	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2007	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2007	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2007	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2007	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
 R2007	§20.4.73	MLINESTYLE	description	3	8	0	0	0
 R2007	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
 R2007	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0
@@ -1647,25 +1771,25 @@ R2010	§20.4.66	APPID	unknown	71	0	60	0	0
 R2010	§20.4.66	APPID	xref_index_plus_1	-	0	0	0	60
 R2010	§20.4.67	DIMSTYLE_CONTROL	dimstyle_trailing_rc	71	8	0	0	0
 R2010	§20.4.67	DIMSTYLE_CONTROL	num_entries	70	8	0	0	0
-R2010	§20.4.68	DIMSTYLE	dimaltf	143	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimaltrnd	148	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	dimasz	41	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimcen	141	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimexe	44	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimexo	42	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimlfac	144	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	dimscale	40	2	15	0	0
-R2010	§20.4.68	DIMSTYLE	dimtad	77	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtfac	146	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	dimtih	73	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtoh	74	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtolj	283	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimtxt	140	8	9	0	0
-R2010	§20.4.68	DIMSTYLE	dimupt	288	0	17	0	0
-R2010	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	17
-R2010	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	17	0	0	0
-R2010	§20.4.68	DIMSTYLE	name	2	17	0	0	0
-R2010	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	17
+R2010	§20.4.68	DIMSTYLE	dimaltf	143	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimaltrnd	148	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	dimasz	41	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimcen	141	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimexe	44	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimexo	42	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimlfac	144	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	dimscale	40	2	18	0	0
+R2010	§20.4.68	DIMSTYLE	dimtad	77	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtfac	146	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	dimtih	73	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtoh	74	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtolj	283	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimtxt	140	9	11	0	0
+R2010	§20.4.68	DIMSTYLE	dimupt	288	0	20	0	0
+R2010	§20.4.68	DIMSTYLE	flag_64 (the export never writes bit 64)	-	0	0	0	20
+R2010	§20.4.68	DIMSTYLE	is_xref_dependent (Xdep)	70&16	20	0	0	0
+R2010	§20.4.68	DIMSTYLE	name	2	20	0	0	0
+R2010	§20.4.68	DIMSTYLE	xref_index_plus_1	-	0	0	0	20
 R2010	§20.4.73	MLINESTYLE	description	3	8	0	0	0
 R2010	§20.4.73	MLINESTYLE	end_angle	52	8	0	0	0
 R2010	§20.4.73	MLINESTYLE	fill_color	62	8	0	0	0

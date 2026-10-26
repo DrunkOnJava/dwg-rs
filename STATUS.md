@@ -346,18 +346,19 @@ These have genuine open scope requiring focused work, not stubs.
   moved into `objects/acad_layout.rs` as a data-store block, and the DXF
   value oracle later showed them to be `plot_layout_flags` in its full
   `BS` form (ARCHITECTURE.md, 2026-10-26): no bits follow the flag.
-  `tables/modern.rs` keeps its `RC` — that path also omits the
-  `BL num_reactors` the object path reads, so its bit accounting has a
-  second unresolved variable (see the next item) and was left alone.
+  `tables/modern.rs`'s `RC` turned out to be its missing
+  `BL num_reactors` (next item), so no bits follow the flag anywhere.
   Evidence: ARCHITECTURE.md §7h, `examples/probe_acis_records.rs`.
 
-- **R2007+ symbol-table common object prefix.** `tables/modern.rs`
-  omits the `BL num_reactors` that `objects/modern.rs` measured as
-  present on every non-entity object, and compensates with a different
-  flag order, so both readings land on the string stream. Which one
-  assigns the right values to the right fields is not determinable
-  from the 16 bits an APPID record spends there; the names are
-  unaffected because they come from the string stream either way.
+- **R2007+ symbol-table common object prefix — settled (#40).**
+  `tables/modern.rs` now reads the `BL num_reactors` that
+  `objects/modern.rs` reads, and it equals the reactor count of
+  AutoCAD's DXF export on all 1,020 table entries with a twin. The six
+  R2007/R2010 DIMSTYLE records with reactors now close. Open: whether
+  the two bits after the prefix are `B 64-flag, B Xdep` or a lone
+  `BS xrefindex+1`, which needs a drawing with an xref-dependent entry
+  (#290). Evidence: ARCHITECTURE.md §7x,
+  `examples/probe_table_prefix.rs`.
 
 - **#103 remaining real-file decoder alignment** (P0, unchanged scope,
   larger corpus). The R2007+
