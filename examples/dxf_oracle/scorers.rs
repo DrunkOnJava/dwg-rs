@@ -2171,25 +2171,6 @@ fn score_mleaderstyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mleader_style::Aca
     c.int("extended_flag", 298, i64::from(m.extended_flag), Some(0));
 }
 
-/// DXF group 71 from §20.4.60's (and §20.4.64's) four stored view-mode bits,
-/// first read first: bits 1, 2 and 4 as stored, 16 when the fourth is clear.
-fn viewmode_71(bits: i16) -> i64 {
-    let mut m = 0;
-    if bits & 0b1000 != 0 {
-        m |= 1;
-    }
-    if bits & 0b0100 != 0 {
-        m |= 2;
-    }
-    if bits & 0b0010 != 0 {
-        m |= 4;
-    }
-    if bits & 0b0001 == 0 {
-        m |= 16;
-    }
-    m
-}
-
 // §20.4.60 VIEW: 40, 41, 10/20, 12/22/32 target, 11/21/31 direction, 50
 // twist (degrees in the DXF), 42, 43, 44, 71 view mode (four stored bits,
 // converted), 281 render mode, 70 bit 1 paper space, 72 associated UCS.
@@ -2208,12 +2189,7 @@ fn score_view(c: &mut Ctx<'_>, v: &dwg::tables::view::ViewEntry) {
     c.real("lens_length", 42, v.lens_length, None);
     c.real("front_clip", 43, v.front_clip, None);
     c.real("back_clip", 44, v.back_clip, None);
-    c.int(
-        "view_mode (stored bits, as group 71)",
-        71,
-        viewmode_71(v.view_mode),
-        None,
-    );
+    c.int("view_mode", 71, i64::from(v.view_mode), None);
     c.int("render_mode", 281, i64::from(v.render_mode), Some(0));
     c.int(
         "is_associated_ucs",
