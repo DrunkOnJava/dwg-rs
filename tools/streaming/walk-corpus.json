@@ -1,0 +1,91 @@
+{
+  "source": "https://github.com/nextgis/dwg_samples",
+  "commit": "ff05d5a89ce123da511ed93c5fe5e6df85e02ab8",
+  "note": "Every R14 and R2000 DWG at this commit, fetched by hash at acceptance time and never committed (the repository declares no licence). Object counts agree across an independent framing parse, the legacy reader and the streaming walk; the acceptance run re-checks all three. The companion DXFs renumber handles on save, so they are not a handle oracle.",
+  "files": [
+    {
+      "name": "arc_2000.dwg",
+      "bytes": 116900,
+      "sha256": "3752e843a2fd565c5002da21dd56ea78f2b73b28254070fb1fecd78d0e2e8161",
+      "objects": 211
+    },
+    {
+      "name": "arc_R14.dwg",
+      "bytes": 122353,
+      "sha256": "d16e193976cee296830ab2d78e892ea9d24e96af03c8635a9308853fde40e9fc",
+      "objects": 292
+    },
+    {
+      "name": "circle_2000.dwg",
+      "bytes": 116875,
+      "sha256": "b725a734ad82d4f39d807688e8fd8e9febd2af810edc1a29c857f1dcbf69c7fa",
+      "objects": 211
+    },
+    {
+      "name": "circle_R14.dwg",
+      "bytes": 122329,
+      "sha256": "9e7894989b4792cfedb631431df100f2f154e4953fc817bcfca29036696f449e",
+      "objects": 292
+    },
+    {
+      "name": "ellipse_2000.dwg",
+      "bytes": 151891,
+      "sha256": "7a3748a716a89b14fda18362c1193444ed26eee14887c92704004f979c378e3b",
+      "objects": 222
+    },
+    {
+      "name": "ellipse_R14.dwg",
+      "bytes": 157528,
+      "sha256": "ebf77feaeca1efbf83a96aca124fc659fb7896ddf7fd3c67cd7f36d98c50597a",
+      "objects": 305
+    },
+    {
+      "name": "line_2000.dwg",
+      "bytes": 116899,
+      "sha256": "f1936ccc5e26dd1aae3f6a26bf5803bdf53d8e0b24f8c18bf3fb96fc540918e0",
+      "objects": 211
+    },
+    {
+      "name": "line_R14.dwg",
+      "bytes": 122353,
+      "sha256": "4ae12afb4052f1be913003b84021054c0e07b08e6aef5e430bf523c6f85c0903",
+      "objects": 292
+    },
+    {
+      "name": "point2d_2000.dwg",
+      "bytes": 116822,
+      "sha256": "7c87da0caa027f5041c916dc8a81d5156cb61317b6228ee6e16579557ef5447d",
+      "objects": 210
+    },
+    {
+      "name": "point2d_R14.dwg",
+      "bytes": 122227,
+      "sha256": "9b731c1568827f18ad4c1875826da28c0e8af4340528d2b66a56b5f4af866066",
+      "objects": 291
+    },
+    {
+      "name": "point3d_2000.dwg",
+      "bytes": 116846,
+      "sha256": "af51e9d5c75a9fd2a014a80bb03633faca93de2a54278e0b403a17ee1b3d7083",
+      "objects": 210
+    },
+    {
+      "name": "point3d_R14.dwg",
+      "bytes": 122251,
+      "sha256": "7e6b1378b053f20de2cf9d153da3485e6475d0cd5845d5a8144b09cfe17cdc46",
+      "objects": 291
+    },
+    {
+      "name": "polyline2d_line_2000.dwg",
+      "bytes": 116916,
+      "sha256": "2711eef5c4b029f48530f694c7f886be6ad015750489a51c7d97e2962118b8a1",
+      "objects": 211
+    },
+    {
+      "name": "polyline2d_line_R14.dwg",
+      "bytes": 122369,
+      "sha256": "7c4ab5e08e85edaced507df033fc357836c564ee19d15dbc965f1b465039fa14",
+      "objects": 292
+    }
+  ]
+}
