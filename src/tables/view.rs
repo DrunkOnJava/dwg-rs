@@ -12,14 +12,14 @@
 //! |-------|--------------------|------|
 //! | 1     | view_height        | BD   |
 //! | 2     | view_width         | BD   |
-//! | 3,4   | view_center        | BD × 2 (2D screen-space) |
+//! | 3,4   | view_center        | RD × 2 (2D screen-space) |
 //! | 5..7  | target             | BD3  |
 //! | 8..10 | view_direction     | BD3  |
 //! | 11    | twist_angle        | BD (radians) |
 //! | 12    | lens_length        | BD (mm for 35mm equivalent) |
 //! | 13    | front_clip         | BD   |
 //! | 14    | back_clip          | BD   |
-//! | 15    | view_mode          | BS (bit flags) |
+//! | 15    | view_mode          | 4 bits (§20.4.60) |
 //! | 16    | render_mode        | RC (0..=6 visual style) |
 //! | 17    | is_paperspace      | B    |
 //! | 18    | is_associated_ucs  | B    |
@@ -58,23 +58,40 @@ pub struct ViewEntry {
 // [`ViewEntry`].
 pub type View = ViewEntry;
 
-/// Decodes a `ViewEntry` table entry that follows the common object header.
+/// Decodes a pre-R2007 `ViewEntry` (§20.4.60) that follows the common object header.
+///
+/// §20.4.60's list, without the R2007+ lighting block: the view centre is
+/// a `2RD` ("not bit-pair coded"), the view mode four bits (as VPORT's),
+/// the render mode an `RC` from R2000, and from R2000 an associated-UCS bit
+/// followed, when set, by the UCS origin, axes, elevation and orthographic
+/// type. The previous list read the centre as two `BD`s, the view mode as a
+/// `BS` and no UCS block, so the ACadSharp R2000 and R2004 VIEW records
+/// errored on a reserved `BD` code; with this list they close on their
+/// `RL` boundary (#256).
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
     let header = read_table_entry_header(c, version)?;
     let view_height = c.read_bd()?;
     let view_width = c.read_bd()?;
-    let vcx = c.read_bd()?;
-    let vcy = c.read_bd()?;
+    let vcx = c.read_rd()?;
+    let vcy = c.read_rd()?;
     let target = read_bd3(c)?;
     let view_direction = read_bd3(c)?;
     let twist_angle = c.read_bd()?;
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = c.read_bs()?;
-    let render_mode = c.read_rc()?;
+    let view_mode = modern::read_4bits(c)? as i16;
+    let r2000_plus = !matches!(version, Version::R14);
+    let render_mode = if r2000_plus { c.read_rc()? } else { 0 };
     let is_paperspace = c.read_b()?;
-    let is_associated_ucs = c.read_b()?;
+    let is_associated_ucs = if r2000_plus { c.read_b()? } else { false };
+    if is_associated_ucs {
+        let _origin = read_bd3(c)?;
+        let _x_direction = read_bd3(c)?;
+        let _y_direction = read_bd3(c)?;
+        let _elevation = c.read_bd()?;
+        let _ortho_view_type = c.read_bs()?;
+    }
     Ok(ViewEntry {
         header,
         view_height,
@@ -290,8 +307,8 @@ mod tests {
         write_header(&mut w, b"SW-Iso");
         w.write_bd(10.0); // height
         w.write_bd(20.0); // width
-        w.write_bd(5.0); // cx
-        w.write_bd(5.0); // cy
+        w.write_rd(5.0); // cx
+        w.write_rd(5.0); // cy
         w.write_bd(0.0);
         w.write_bd(0.0);
         w.write_bd(0.0); // target
@@ -302,10 +319,16 @@ mod tests {
         w.write_bd(50.0); // lens
         w.write_bd(0.0); // front
         w.write_bd(0.0); // back
-        w.write_bs(0x0001); // perspective disabled, back clip off
+        for bit in [false, false, false, true] {
+            w.write_b(bit); // 4BITS view mode = 1
+        }
         w.write_rc(0x04); // render mode — gouraud
         w.write_b(false); // not paperspace
         w.write_b(true); // associated with UCS
+        for v in [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0] {
+            w.write_bd(v); // ucs origin, x-direction, y-direction, elevation
+        }
+        w.write_bs(0); // ortho view type
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let v = decode(&mut c, Version::R2000).unwrap();
