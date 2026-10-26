@@ -2315,7 +2315,7 @@ printed, followed by the `B` §20.4.68 lists as common after `DIMLWE`.
 `examples/probe_dimstyle_r14.rs` repeats the cross-release comparison:
 `probe_dimstyle_r14 <r14.dwg> <r2000.dwg>` for each of the eight pairs.
 
-## 7aa. The object stream's records, framed from the stream (2026-10-26, #205)
+## 7ac. The object stream's records, framed from the stream (2026-10-26, #205)
 
 The streaming object walker (`src/streaming/records.rs`,
 `r2004_objects.rs`) frames an R2004-family object section without the

@@ -3,7 +3,7 @@
 //! `MC` handle-stream size that the `MS` does not count, `MS` bytes of
 //! payload and a CRC of the record's bytes from the `MS` through the last
 //! payload byte (§2.14.1, seed 0xC0C1). Measured on every object section of
-//! the pinned corpus (8,007 records of 28 drawings, ARCHITECTURE.md §7aa) the
+//! the pinned corpus (8,007 records of 28 drawings, ARCHITECTURE.md §7ac) the
 //! records tile the section exactly after its four-byte prologue and every
 //! CRC and every `MC` agree. The framer takes the stream's bytes in order,
 //! in slices of any size; payload is provisional until the step that
