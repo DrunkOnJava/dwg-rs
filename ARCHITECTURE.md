@@ -1303,7 +1303,7 @@ are fixed; three are not and are reported.
 | BLOCK | 45 (R2010/R2013/R2018) | +58 … +266 | the one `TV` was read inline; on R2010+ it lives in the string stream and the record's field budget is **0 bits** on all 33 R2010+ records measured | fixed — names now decode as `*Model_Space`, `_ArchTick`, `MyBlock`, matching the BLOCK_RECORD entries they pair with |
 | POLYLINE_PFACE | 1 (R2018) | +52 | five `BS` counts and two inline `H` handles, where the record holds `BS`, `BS`, `BL` in 30 bits | fixed — reads 5 vertices, 2 faces, 7 owned objects |
 | MLINE | 3 (R2018) | n/a (counts decoded as `521` / `-11716`) | `num_lines` read as `BS` where the record writes one `RC` | fixed — 2 lines on all three, `delta 0` |
-| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7m) |
+| VIEWPORT | 6 (R2018) | −819 | the decoder reads 266 of 1125 bits by design | reported; closed 2026-10-26 by the whole §20.4.38 list (§7s) |
 | MESH | 2 (R2018) | −2 | two trailing bits, `10` on both records | reported |
 | LEADER | 1 (R2018) | −12 | field list stops before the text-box block | reported |
 
@@ -1660,7 +1660,7 @@ strongest of the four checks: an encoder built from the measured layout
 reproduces every parity byte AutoCAD wrote, so the layout is not merely
 consistent with the bytes but the one that produced them.
 
-## 7m. VIEWPORT: §20.4.38 is right as printed (2026-10-26, #71)
+## 7s. VIEWPORT: §20.4.38 is right as printed (2026-10-26, #71)
 
 §7i left VIEWPORT reported rather than fixed: six records of one
 shape on one file, a 1125-bit budget, and a decoder that stopped after
