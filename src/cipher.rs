@@ -43,6 +43,24 @@ pub fn magic_sequence() -> [u8; MAGIC_LEN] {
     out
 }
 
+/// The 0x14 bytes that follow the encrypted block in the file header at
+/// 0xEC (spec §4.1: "copied from the magic number sequence, starting at
+/// 0x100 – 0x14"): the same generator run on to 0x100 bytes. Every real
+/// R2004-family file checked carries them; the copy at the end of the
+/// file does not.
+pub fn header_trailer() -> [u8; 0x14] {
+    let mut out = [0u8; 0x14];
+    let mut seed: u32 = 1;
+    for index in 0..0x100 {
+        seed = seed.wrapping_mul(0x0003_43FD);
+        seed = seed.wrapping_add(0x0026_9EC3);
+        if index >= 0x100 - 0x14 {
+            out[index - (0x100 - 0x14)] = ((seed >> 0x10) & 0xFF) as u8;
+        }
+    }
+    out
+}
+
 /// XOR-decrypt (or re-encrypt — XOR is its own inverse) the 0x6C-byte
 /// block in place.
 pub fn xor_in_place(block: &mut [u8]) {

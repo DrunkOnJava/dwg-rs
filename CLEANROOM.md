@@ -405,3 +405,75 @@ files, the repository `LICENSE`, the commit history of
 script that contains no DWG or DXF implementation. Nothing under its
 `src/` and none of its reader-derived test data (the `*_tree.json` files)
 was opened.
+
+## 2026-10-26 — correction to the 2026-08-30 MLEADERSTYLE entry
+
+The 2026-08-30 entry for #55 says ODA spec v5.4.1 §20.4 carries no
+prescription for `MLEADERSTYLE`. It does: **§20.4.87 MLEADERSTYLE
+(AcDbMLeaderStyle)** of the freely-redistributable specification gives the
+whole record with a DXF group for every field, and those groups are the
+ones `objects::acad_mleader_style`'s names correspond to. The field names
+recalled from the *DXF Reference* there therefore have a prescribed source
+as well. (The entry's statement about `ACDBDETAILVIEWSTYLE` and
+`ACDBSECTIONVIEWSTYLE` stands; §20.4 has no section for either.)
+
+The PR for this correction departs from §20.4.87 in one place, on
+measured evidence: the spec lists `B 295` (property changed) before
+`B 296` (is annotative), and AutoCAD's own DXF export of the
+`nextgis/dwg_samples` and ACadSharp `samples/` drawings, compared record
+by record by the DXF value oracle (#99), shows the two bits stored in the
+reverse order. No other source was consulted.
+
+## 2026-10-26 — DXF reader for the value oracle (Autodesk public DXF Reference)
+
+The PR for #100 adds `src/dxf_reader.rs`, which reads AutoCAD's own ASCII
+DXF exports so the DWG decode can be compared with them (#99). Its grammar
+(group-code / value line pairs, `SECTION` / `ENDSEC` / `EOF`, `9 $NAME`
+header variables, `0`-records, group 5 as the handle and 105 on DIMSTYLE,
+330 as the owner, the `102 {...}` brackets) and the value type of every
+group-code range come from Autodesk's public *DXF Reference*, chiefly its
+"Group Code Value Types" table, as recalled. That is published
+documentation, not SDK or product source; no DXF library's code or comments
+were read. Two readings were measured on the `nextgis/dwg_samples` exports
+rather than taken from the document, and the module documents both: on a
+DIMSTYLE, group 5 is `DIMBLK` (text, written empty in the R12 exports), and a
+`102` bracket may close as `<name>}` as well as `}`. The exports are read as
+data from a cache outside the repository and are not vendored.
+
+## 2026-10-26 — The specification's worked examples as fixtures (#107)
+
+The PR for #107 commits the worked examples and printed tables of the
+freely-redistributable ODA *Open Design Specification for .dwg files*
+v5.4.1 (the PDF under "Allowed sources", sha256
+`973628f353535b81a0be8a31f965bca4fb88b989127b2c1029d28f33be0f504b`) to
+`tests/fixtures/spec-examples/`, and runs them through the crate in
+`examples/spec_examples.rs`. The bytes are short verbatim quotations of
+that document, each with its page numbers, attributed in `NOTICE`.
+`tools/spec/extract_examples.py` reads them out of the PDF with Poppler's
+`pdftotext` and audits every fixture against it; it checks each object
+dump against the dump's own printed CRC, so nothing in the fixtures is
+a reconstruction.
+
+No other source was consulted. Where the specification's own field list
+does not close on its own example (§20.4.28 RADIUS, §20.4.49 TOLERANCE),
+the corrected readings recorded in ARCHITECTURE.md §7k come from that
+example's bytes alone, and the unnamed extra `BD` of TOLERANCE is left
+unnamed for that reason.
+
+## 2026-10-26 — DXF value oracle: pairing and field scorers
+
+The PR for #101 and #102 adds `examples/dxf_oracle`, which pairs every DWG
+record with the record of the same handle in AutoCAD's own DXF export and
+compares each decoded field with the DXF group that carries it. For the
+types ODA spec v5.4.1 prescribes, the group of each field is the one the
+spec prints in its DXF column (§20.4.x, cited on every scorer). For the
+rest (MTEXT's chunked text, the attribute subclass, LAYOUT's subclass
+split, the defaults AutoCAD omits, the `^J` control-character notation,
+the lineweight values), the group codes and conventions are those of
+Autodesk's public *DXF Reference*, recalled; it is published
+documentation, not SDK or product source. Every convention the scorers
+apply is also measured on the exports and documented in `scorers.rs`.
+The exports read are `nextgis/dwg_samples` (no licence stated) and the
+`samples/` directory of `DomCR/ACadSharp` (MIT), fetched by pinned commit
+and sha256 into a cache outside the repository; only those data files
+were read, not ACadSharp's code or comments.

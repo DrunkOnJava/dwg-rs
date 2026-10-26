@@ -1,6 +1,9 @@
 //! Pausable byte delivery. Grammar declares ranges; only adapters perform I/O.
 
-use crate::streaming::{CHUNK_BYTES, FlatHeaderParser, FlatWalker, Request, Step, StreamError};
+use crate::streaming::{
+    CHUNK_BYTES, FlatHeaderParser, FlatWalker, MapDemand, MapStep, R2004HeaderParser,
+    R2004MapWalker, Request, Step, StreamError,
+};
 use std::io::{self, Read, Seek, SeekFrom};
 
 /// `Pending` consumes nothing; EOF is an explicit terminal source observation.
@@ -82,6 +85,19 @@ impl Demand for FlatHeaderParser {
     }
 }
 
+impl Demand for R2004HeaderParser {
+    type Output = ();
+    fn request(&self) -> Result<Option<Request>, StreamError> {
+        self.request()
+    }
+    fn feed(&mut self, offset: u64, input: &[u8]) -> Result<(), StreamError> {
+        self.feed(offset, input)
+    }
+    fn end_of_input(&self) -> Result<(), StreamError> {
+        self.end_of_input()
+    }
+}
+
 impl Demand for FlatWalker {
     type Output = Step;
     fn request(&self) -> Result<Option<Request>, StreamError> {
@@ -146,6 +162,76 @@ pub fn poll_header<S: ByteSource>(
         Polled::Pending => HeaderPoll::Pending,
         Polled::Complete => HeaderPoll::Complete,
     })
+}
+
+/// One transport poll for the R2004-family file header (§4.1). Completion
+/// refers to the header, never to the page maps or objects.
+pub fn poll_r2004_header<S: ByteSource>(
+    parser: &mut R2004HeaderParser,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<HeaderPoll, PumpError<S::Error>> {
+    Ok(match poll_once(parser, source, scratch)? {
+        Polled::Fed(_, actual, ()) => HeaderPoll::Progress(actual),
+        Polled::Pending => HeaderPoll::Pending,
+        Polled::Complete => HeaderPoll::Complete,
+    })
+}
+
+/// Result of one R2004 map-walk poll: a step from source bytes or from a
+/// pump (no source bytes), a pending source, or the end of the walk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapPoll {
+    Fed {
+        step: MapStep,
+        offset: u64,
+        len: usize,
+    },
+    Pumped(MapStep),
+    Pending,
+    Complete,
+}
+
+/// One poll for the R2004 page map and section map walk (§4.3–§4.5): a
+/// pump when the walker needs no source bytes, otherwise at most one read
+/// into caller-owned bounded scratch.
+pub fn poll_r2004_maps<S: ByteSource>(
+    walker: &mut R2004MapWalker,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<MapPoll, PumpError<S::Error>> {
+    let request = match walker.demand().map_err(PumpError::Grammar)? {
+        MapDemand::Done => return Ok(MapPoll::Complete),
+        MapDemand::Pump => return Ok(MapPoll::Pumped(walker.pump().map_err(PumpError::Grammar)?)),
+        MapDemand::Read(request) => request,
+    };
+    let maximum = request.len.min(scratch.len()).min(CHUNK_BYTES);
+    if maximum == 0 {
+        return Err(PumpError::InvalidRead { maximum, actual: 0 });
+    }
+    match source
+        .poll_read(request, &mut scratch[..maximum])
+        .map_err(PumpError::Source)?
+    {
+        SourcePoll::Pending => Ok(MapPoll::Pending),
+        SourcePoll::Eof => {
+            walker.end_of_input().map_err(PumpError::Grammar)?;
+            Ok(MapPoll::Complete)
+        }
+        SourcePoll::Ready(actual) => {
+            if actual == 0 || actual > maximum {
+                return Err(PumpError::InvalidRead { maximum, actual });
+            }
+            let step = walker
+                .feed(request.offset, &scratch[..actual])
+                .map_err(PumpError::Grammar)?;
+            Ok(MapPoll::Fed {
+                step,
+                offset: request.offset,
+                len: actual,
+            })
+        }
+    }
 }
 
 /// One transport poll for the R13–R2000 container walk. Completion means
@@ -274,5 +360,193 @@ impl ByteSource for SliceSource<'_> {
         }
         output[..n].copy_from_slice(&input[..n]);
         Ok(SourcePoll::Ready(n))
+    }
+}
+
+/// Asynchronous adapter for a transport that answers later: a worker
+/// thread, a browser worker, an HTTP range fetcher or an event loop. It
+/// owns no thread, runtime or connection. A poll with nothing in flight
+/// posts one bounded request and returns `Pending`; the host collects it
+/// with [`AsyncSource::take_request`], fetches it however it likes and
+/// hands back the answer with [`AsyncSource::complete`],
+/// [`AsyncSource::complete_eof`] or [`AsyncSource::fail`], then polls
+/// again. An answer must be for the posted offset and no longer than the
+/// posted length, or it is rejected; bytes the caller's next scratch
+/// cannot take are held (at most one chunk) for the polls that follow,
+/// so no source byte is fetched twice.
+#[derive(Debug)]
+pub struct AsyncSource {
+    posted: Option<Request>,
+    taken: bool,
+    held: [u8; CHUNK_BYTES],
+    held_offset: u64,
+    held_len: usize,
+    eof_at: Option<u64>,
+    failure: Option<io::Error>,
+}
+
+impl Default for AsyncSource {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AsyncSource {
+    /// An idle adapter with nothing posted.
+    pub fn new() -> Self {
+        Self {
+            posted: None,
+            taken: false,
+            held: [0; CHUNK_BYTES],
+            held_offset: 0,
+            held_len: 0,
+            eof_at: None,
+            failure: None,
+        }
+    }
+
+    /// The request posted by the last `Pending` poll, once, for the host
+    /// to fetch. `None` if nothing is waiting to be sent.
+    pub fn take_request(&mut self) -> Option<Request> {
+        if self.taken {
+            return None;
+        }
+        self.taken = self.posted.is_some();
+        self.posted
+    }
+
+    /// Whether a posted request still awaits its answer.
+    pub fn in_flight(&self) -> bool {
+        self.posted.is_some()
+    }
+
+    /// Bytes fetched but not yet delivered, and the source offset of the
+    /// first. They are the caller's to save with a grammar checkpoint, so a
+    /// resumed process does not fetch them again.
+    pub fn held(&self) -> (u64, &[u8]) {
+        (self.held_offset, &self.held[..self.held_len])
+    }
+
+    /// An idle adapter that already holds `bytes` fetched at `offset`, as
+    /// saved by [`AsyncSource::held`]. At most one chunk.
+    pub fn with_held(offset: u64, bytes: &[u8]) -> io::Result<Self> {
+        if bytes.len() > CHUNK_BYTES || offset.checked_add(bytes.len() as u64).is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "held bytes exceed one chunk or the source range",
+            ));
+        }
+        let mut source = Self::new();
+        source.held[..bytes.len()].copy_from_slice(bytes);
+        source.held_offset = offset;
+        source.held_len = bytes.len();
+        Ok(source)
+    }
+
+    fn answer(&mut self, offset: u64) -> io::Result<Request> {
+        match self.posted {
+            Some(posted) if self.taken && posted.offset == offset => Ok(posted),
+            Some(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "answer is not for the posted request",
+            )),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "no request is in flight",
+            )),
+        }
+    }
+
+    /// Deliver the bytes fetched for the posted request: at its offset,
+    /// one byte up to its length. Anything else is rejected and leaves the
+    /// request in flight.
+    pub fn complete(&mut self, offset: u64, bytes: &[u8]) -> io::Result<()> {
+        let posted = self.answer(offset)?;
+        if bytes.is_empty()
+            || bytes.len() > posted.len
+            || offset.checked_add(bytes.len() as u64).is_none()
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "answer is empty or longer than the posted request",
+            ));
+        }
+        self.held[..bytes.len()].copy_from_slice(bytes);
+        self.held_offset = offset;
+        self.held_len = bytes.len();
+        self.posted = None;
+        self.taken = false;
+        Ok(())
+    }
+
+    /// The source has no byte at the posted offset.
+    pub fn complete_eof(&mut self, offset: u64) -> io::Result<()> {
+        self.answer(offset)?;
+        self.eof_at = Some(offset);
+        self.posted = None;
+        self.taken = false;
+        Ok(())
+    }
+
+    /// The transport failed; the next poll returns this error.
+    pub fn fail(&mut self, error: io::Error) {
+        self.failure = Some(error);
+        self.posted = None;
+        self.taken = false;
+    }
+}
+
+impl ByteSource for AsyncSource {
+    type Error = io::Error;
+    fn poll_read(&mut self, request: Request, output: &mut [u8]) -> io::Result<SourcePoll> {
+        if let Some(error) = self.failure.take() {
+            return Err(error);
+        }
+        let maximum = request.len.min(output.len()).min(CHUNK_BYTES);
+        if maximum == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "empty read request",
+            ));
+        }
+        if self.held_len > 0 {
+            if request.offset != self.held_offset {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "request does not continue the bytes already fetched",
+                ));
+            }
+            let n = maximum.min(self.held_len);
+            output[..n].copy_from_slice(&self.held[..n]);
+            self.held.copy_within(n..self.held_len, 0);
+            self.held_len -= n;
+            self.held_offset += n as u64;
+            return Ok(SourcePoll::Ready(n));
+        }
+        if let Some(eof) = self.eof_at {
+            return if request.offset == eof {
+                Ok(SourcePoll::Eof)
+            } else {
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "request after end of source",
+                ))
+            };
+        }
+        match self.posted {
+            Some(posted) if posted.offset == request.offset => Ok(SourcePoll::Pending),
+            Some(_) => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "request changed while a read is in flight",
+            )),
+            None => {
+                self.posted = Some(Request {
+                    offset: request.offset,
+                    len: maximum,
+                });
+                self.taken = false;
+                Ok(SourcePoll::Pending)
+            }
+        }
     }
 }

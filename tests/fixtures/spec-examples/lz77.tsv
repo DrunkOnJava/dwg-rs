@@ -1,0 +1,8 @@
+# §4.7 worked examples of the R2004 LZ77 length encodings, transcribed by hand.
+# Source: ODA Open Design Specification for .dwg files v5.4.1 (sha256 973628f353535b81a0be8a31f965bca4fb88b989127b2c1029d28f33be0f504b).
+# `encoded` is the printed byte sequence and `expected` the printed value, both hex.
+id	section	page	kind	encoded	expected	quote
+4.7-literal-a	4.7	34	literal-length	05	08	0x05 : 0x08
+4.7-literal-b	4.7	34	literal-length	00 02	14	0x00 0x02 : 0x14 (0x0F + 2 + 3)
+4.7-offset-a	4.7	34	long-compression-offset	DD	DD	0xDD : 0xDD
+4.7-offset-b	4.7	34	long-compression-offset	00 00 34	232	0x00 0x00 0x34 : 0x232 (0xFF + 0xFF + 0x34)

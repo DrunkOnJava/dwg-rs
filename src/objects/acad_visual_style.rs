@@ -376,6 +376,9 @@ pub enum VisualStyleValue {
     Bool(bool),
     /// A `CMC` slot.
     Color(VisualStyleColor),
+    /// A `TV` slot: its text is in the string stream, so it costs no
+    /// data-stream bits, only its flag.
+    Text(String),
 }
 
 /// A `(value, flag)` property pair.
@@ -474,10 +477,9 @@ pub struct AcadVisualStyle {
     /// without them — but their names are not determined, so they are
     /// surfaced positionally rather than mislabelled.
     pub extended: Vec<VisualStyleProperty>,
-    /// String-stream entries the field list does not place. Every
-    /// corpus record carries exactly one (`strokes_ogs.tif`); which
-    /// property slot owns it is not determined, because a `TV` costs no
-    /// data-stream bits and so leaves no measurable trace.
+    /// String-stream entries the field list does not place. Empty on every
+    /// corpus record: the one string R2013+ records carry
+    /// (`strokes_ogs.tif`) is tail slot 26 of [`extended`](Self::extended).
     pub trailing_strings: Vec<String>,
 }
 
@@ -522,8 +524,16 @@ impl PropertyReader<'_, '_> {
         })
     }
 
-    fn property(&mut self, kind: TailKind) -> Result<VisualStyleProperty> {
+    fn property(
+        &mut self,
+        kind: TailKind,
+        strings: Option<&mut crate::string_stream::StringReader<'_>>,
+    ) -> Result<VisualStyleProperty> {
         let value = match kind {
+            TailKind::Text => VisualStyleValue::Text(match strings {
+                Some(s) => s.read_tv()?,
+                None => String::new(),
+            }),
             TailKind::Short => VisualStyleValue::Short(self.cursor.read_bs()?),
             TailKind::Double => VisualStyleValue::Double(self.cursor.read_bd()?),
             TailKind::Bool => VisualStyleValue::Bool(self.cursor.read_b()?),
@@ -548,12 +558,23 @@ enum TailKind {
     Double,
     Bool,
     Color,
+    Text,
 }
 
-/// The 30 R2013+ tail property widths, measured on `arc_2013.dwg` and
-/// `sample_AC1032.dwg`. This is the only token sequence over
-/// `BS`/`BD`/`B`/`CMC` that lands all 24 records of either file exactly
-/// on their string-stream start.
+/// The 30 R2013+ tail property types.
+///
+/// First measured as the token sequence over `BS`/`BD`/`B`/`CMC` that
+/// lands all 24 records of `arc_2013.dwg` and `sample_AC1032.dwg` on their
+/// string-stream start. That sequence was not unique: a `BS` and a `BD`
+/// of 0 are the same two bits, and the run at slots 24 to 26 read as
+/// `B`, `B`, `BS` takes the same bits as the `BD`, `BS`, `TV` it is.
+/// AutoCAD's DXF export settles both (the DXF value oracle, #99): it
+/// writes the 58 properties as a counted list of typed groups, and slot
+/// 10 is a real (group 40, `0.0`), slot 24 a real (`1.0`), slot 25 an
+/// integer (`2`) and slot 26 a string, `strokes_ogs.tif`: the `TV` this
+/// module used to collect as an unplaced trailing string. With these
+/// types every tail value and flag equals the export on all 240 R2013 and
+/// R2018 records of the nextgis and ACadSharp corpora.
 const R2013_TAIL: [TailKind; 30] = [
     TailKind::Bool,
     TailKind::Bool,
@@ -565,7 +586,7 @@ const R2013_TAIL: [TailKind; 30] = [
     TailKind::Bool,
     TailKind::Bool,
     TailKind::Short,
-    TailKind::Short,
+    TailKind::Double,
     TailKind::Double,
     TailKind::Short,
     TailKind::Color,
@@ -579,9 +600,9 @@ const R2013_TAIL: [TailKind; 30] = [
     TailKind::Bool,
     TailKind::Short,
     TailKind::Color,
-    TailKind::Bool,
-    TailKind::Bool,
+    TailKind::Double,
     TailKind::Short,
+    TailKind::Text,
     TailKind::Bool,
     TailKind::Double,
     TailKind::Double,
@@ -795,7 +816,7 @@ fn decode_paired(
     if matches!(version, Version::R2013 | Version::R2018) {
         extended.reserve(R2013_TAIL.len());
         for kind in R2013_TAIL {
-            extended.push(reader.property(kind)?);
+            extended.push(reader.property(kind, split.strings.as_mut())?);
         }
     }
     let property_flags = reader.flags;
@@ -928,6 +949,8 @@ mod tests {
                 TailKind::Double => w.write_bd(1.0),
                 TailKind::Bool => w.write_b(true),
                 TailKind::Color => cmc(w, 0, 0xC200_0000, 0),
+                // A `TV`'s text is in the string stream; no data bits.
+                TailKind::Text => {}
             }
             flag(w, 1);
         }
@@ -1235,7 +1258,11 @@ mod tests {
         assert_eq!(style.display_shadow_type, 0);
         assert_eq!(style.property_flags.len(), 58);
         assert_eq!(style.extended.len(), 30);
-        assert_eq!(style.trailing_strings, vec!["strokes_ogs.tif".to_string()]);
+        assert_eq!(
+            style.extended[26].value,
+            VisualStyleValue::Text("strokes_ogs.tif".to_string())
+        );
+        assert!(style.trailing_strings.is_empty());
     }
 
     #[test]

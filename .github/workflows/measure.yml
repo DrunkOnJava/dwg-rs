@@ -41,6 +41,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # crates.io index or crate downloads that fail transiently are retried instead of failing the job
+  CARGO_NET_RETRY: "10"
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
 

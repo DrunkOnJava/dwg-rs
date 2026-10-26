@@ -98,9 +98,18 @@ const MAX_PAGES: usize = 1 << 20;
 /// Defensive cap on the number of sections a section map may declare.
 const MAX_SECTIONS: usize = 4096;
 
-/// Round `n` up to a multiple of `a` (`a` must be a power of two).
+/// Round `n` up to a multiple of `a` (`a` must be a power of two),
+/// saturating: a header-supplied size near `usize::MAX` must reach the
+/// bounds check that rejects it, not overflow on the way.
 fn align_up(n: usize, a: usize) -> usize {
-    n.div_ceil(a) * a
+    n.div_ceil(a).saturating_mul(a)
+}
+
+/// `start..start + len`, or `None` when the end would overflow. Every
+/// offset and length here comes from the file, so a range built with a
+/// plain `+` panics (debug) or wraps (release) on a hostile header.
+fn checked_range(start: usize, len: usize) -> Option<std::ops::Range<usize>> {
+    Some(start..start.checked_add(len)?)
 }
 
 /// The system-page size §5.3.1's `GetSystemPageSize` computes from a
@@ -252,8 +261,8 @@ impl FileHeader {
         let compr_len = LittleEndian::read_i32(&decoded[0x18..0x1C]);
         let plain = if compr_len < 0 {
             let stored = compr_len.unsigned_abs() as usize;
-            decoded
-                .get(0x20..0x20 + stored)
+            checked_range(0x20, stored)
+                .and_then(|r| decoded.get(r))
                 .ok_or_else(|| {
                     Error::SectionMap(
                         "R2007 file header: stored payload runs past the decoded block".into(),
@@ -350,11 +359,13 @@ pub fn load_system_page(
         .saturating_mul(align_up(stored, CRC_BLOCK))
         .div_ceil(RS_SYSTEM_MESSAGE);
     let span = blocks.saturating_mul(RS_CODEWORD);
-    let page = bytes.get(offset..offset + span).ok_or(Error::Truncated {
-        offset: offset as u64,
-        wanted: span,
-        len: bytes.len() as u64,
-    })?;
+    let page = checked_range(offset, span)
+        .and_then(|r| bytes.get(r))
+        .ok_or(Error::Truncated {
+            offset: offset as u64,
+            wanted: span,
+            len: bytes.len() as u64,
+        })?;
     let decoded = deinterleave(page, blocks, RS_SYSTEM_MESSAGE)?;
     let payload = decoded.get(..stored).ok_or_else(|| {
         Error::SectionMap("R2007 system page: decoded block shorter than the stored size".into())
@@ -497,11 +508,13 @@ impl SectionMap {
             pos += 0x40;
             let mut name = String::new();
             if name_len > 0 {
-                let raw = data.get(pos..pos + name_len).ok_or_else(|| {
-                    Error::SectionMap(
-                        "R2007 section map: section name runs past the end of the map".into(),
-                    )
-                })?;
+                let raw = checked_range(pos, name_len)
+                    .and_then(|r| data.get(r))
+                    .ok_or_else(|| {
+                        Error::SectionMap(
+                            "R2007 section map: section name runs past the end of the map".into(),
+                        )
+                    })?;
                 let units: Vec<u16> = raw
                     .chunks_exact(2)
                     .map(|c| u16::from_le_bytes([c[0], c[1]]))
@@ -701,11 +714,14 @@ pub fn read_section(
             // §5.13: data pages use (255, 251), interleaved.
             let blocks = compressed.div_ceil(RS_DATA_MESSAGE).max(1);
             let span = blocks.saturating_mul(RS_CODEWORD);
-            let raw = bytes.get(base..base + span).ok_or(Error::Truncated {
-                offset: base as u64,
-                wanted: span,
-                len: bytes.len() as u64,
-            })?;
+            let raw =
+                checked_range(base, span)
+                    .and_then(|r| bytes.get(r))
+                    .ok_or(Error::Truncated {
+                        offset: base as u64,
+                        wanted: span,
+                        len: bytes.len() as u64,
+                    })?;
             let decoded = deinterleave(raw, blocks, RS_DATA_MESSAGE)?;
             decoded
                 .get(..compressed)
@@ -717,8 +733,8 @@ pub fn read_section(
                 })?
                 .to_vec()
         } else {
-            bytes
-                .get(base..base + compressed)
+            checked_range(base, compressed)
+                .and_then(|r| bytes.get(r))
                 .ok_or(Error::Truncated {
                     offset: base as u64,
                     wanted: compressed,
