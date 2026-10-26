@@ -2460,7 +2460,54 @@ comparison:
 cargo run --release --example probe_leader -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
 
-## 7ac. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7ac. The object stream's records, framed from the stream (2026-10-26, #205)
+
+The streaming object walker (`src/streaming/records.rs`,
+`r2004_objects.rs`) frames an R2004-family object section without the
+`AcDb:Handles` map: after the four-byte `RL 0x0DCA` prologue, each record is
+`MS` size, on R2010 and later an `MC` handle-stream size, `MS` bytes of
+payload and a two-byte CRC, and the next record follows at once. Three
+properties of that framing were not on record before it was coded; each was
+measured on every object section of the 28 R2004-family drawings of the
+pinned corpus (21 nextgis saves from AutoCAD 2016, 7 from ACadSharp's
+AutoCAD 2025 samples) with an independent parse, and then enforced by the
+walker.
+
+| Property | R2004 | R2010 | R2013 | R2018 |
+|---|---|---|---|---|
+| Records walked | 2,417 | 2,188 | 1,787 | 1,615 |
+| The records end exactly at the section's size (no padding, no zero-length trailer) | 8 of 8 drawings | 8 of 8 | 8 of 8 | 4 of 4 |
+| The CRC (§2.14.1, seed `0xC0C1`) over the bytes from the `MS` through the last payload byte, `MC` included, equals the two bytes after the payload | 2,417 | 2,188 | 1,787 | 1,615 |
+| The `MC` handle-stream size is at most 8 times the record's payload bytes | n/a | 2,188 | 1,787 | 1,615 |
+
+The CRC rule is the same one §20.1 gives the R13 to R2000 records, and the
+`MC` is inside it. Three other readings were tried on the same 8,007 records
+and agree with none: a CRC over the `MS` alone, over the payload alone (the `MC`
+included, the `MS` not), and, on R2010 and later, over the `MS` and the payload
+without the `MC`. The legacy `ObjectWalker` never checked the CRC. Its comment that "trailing padding in some R2018 files" ends the
+stream at a zero `MS` describes no drawing of this corpus: the four ACadSharp
+R2018 saves, `empty.dwg`, `export_sample.dwg` and `geoloc.dwg` tile exactly;
+the streaming walker refuses a zero `MS` instead (`RecordSize`).
+
+Four larger drawings, `sample_AC1018`, `sample_AC1024`, `sample_AC1027` and
+`sample_AC1032`, hold object sections of 1.2 to 1.6 MB in 41 to 54
+`0x7400`-byte pages. 71 of their 3,644 records straddle a page boundary, 36 of
+those are larger than a page (the largest is 150,148 bytes) and the framing
+carries across them unchanged. The pages of the object section appear in
+section order in the page map of all 28 drawings, 28 of 28 contiguous from
+offset 0. `AcDb:AcDsPrototype_1b`, in the three saves that have one
+(`sample_AC1027`, `sample_AC1032` and `export_sample`), is the only section of
+any drawing whose pages the page map lists out of order: its two pages come
+second first.
+
+The same large drawings corrected a limit of the R13 to R2000 container walk:
+it refused an object map chunk of more than 2,032 bytes. A chunk's size counts
+its own two bytes, so the spec's 2,032 bytes of entries make a chunk of 2,034,
+and AutoCAD's first chunk in `sample_AC1014.dwg` is 2,033 and in
+`sample_AC1015.dwg` 2,034. The walk's evidence had been limited to files under
+160 KB, whose maps are one short chunk.
+
+## 7ad. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned

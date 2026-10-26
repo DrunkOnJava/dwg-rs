@@ -8,6 +8,34 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added (breaking) — the R2004-family object records are streamed (2026-10-26, #205)
+
+`streaming::R2004ObjectWalker` is the whole-file walker with `AcDb:AcDbObjects`
+framed into records in section order: each record's `MS`, R2010 `MC`,
+payload, CRC, type and handle, handed out as `Payload` steps and committed by
+an `Object` step after its checks (docs/streaming/README.md). Every pinned
+R2004, R2010, R2013 and R2018 drawing's records equal the legacy
+`ObjectWalker`'s, and a record's CRC (seed `0xC0C1`, `MS` through the last
+payload byte, `MC` included) is checked, which the legacy walker never did
+(ARCHITECTURE.md §7ac). A checkpoint (`R2004ObjectCheckpoint`, `DWGO`) is
+self-contained and restores in the wasm32 kernel.
+
+The R13 to R2000 container walk refused an object map chunk of more than
+2,032 bytes. A chunk's size counts its own two bytes, so the spec's 2,032 bytes
+of entries make 2,034, and AutoCAD's first chunk in the 1.3 MB
+`sample_AC1014.dwg` and `sample_AC1015.dwg` is 2,033 and 2,034: the walk
+failed on both with `MapChunk`. The limit is 2,034 now; both drawings walk,
+1,242 and 1,047 records equal to the legacy reader's.
+
+- **Added:** `streaming::{R2004ObjectWalker, ObjectStep, ObjectDemand,
+  OBJECTS_SECTION, R2004ObjectCheckpoint, RecordFormat}`,
+  `byte_source::{poll_r2004_objects, ObjectPoll}`, and the
+  `StreamError` variants `ObjectPrologue`, `RecordSize`, `RecordRange`,
+  `RecordCrc`, `RecordHeader`, `ObjectsOrder`, `ObjectsIncomplete` and
+  `ObjectsMissing` (a breaking change for an exhaustive `match` on the enum).
+- **Changed:** `FlatWalker` accepts an object map chunk of 2,033 and 2,034
+  bytes (it refused them with `MapChunk`).
+
 ### Changed — an encrypted section is refused with a typed error by every reader (2026-10-26, #205)
 
 The R2004-family section map carries an encryption flag (§4.5: 0 none, 1
