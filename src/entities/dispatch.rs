@@ -138,6 +138,7 @@ pub enum DecodedEntity {
     SortEntsTable(crate::objects::block_sortents_table::SortEntsTable),
     PlotSettings(crate::objects::acad_plot_settings::AcadPlotSettings),
     MLineStyle(crate::objects::acad_mlinestyle::AcadMlinestyle),
+    SpatialFilter(Box<crate::objects::clip_spatial_filter::SpatialFilter>),
     MLeaderStyle(Box<crate::objects::acad_mleader_style::AcadMLeaderStyle>),
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
@@ -254,6 +255,9 @@ impl DecodedEntity {
             // AcDb:Classes.
             Self::SortEntsTable(_) => 0,
             Self::MLineStyle(_) => OBJECT_TYPE_MLINESTYLE,
+            // SPATIAL_FILTER is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::SpatialFilter(_) => 0,
             // DICTIONARYVAR and SCALE are custom classes — their codes
             // vary per file via AcDb:Classes. Return 0 so callers know
             // to consult the class map.
@@ -485,6 +489,14 @@ pub fn decode_from_raw_with_class_map(
         "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
             hatch::decode(c, v).map(DecodedEntity::Hatch)
         }),
+
+        // MULTILEADER before R2007: AutoCAD writes the record into R14
+        // to R2004 saves too, with its `TV`s inline (#229).
+        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
+            checked_inline(raw, body_start, version, "MULTILEADER", |c, v, _, _| {
+                mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
+            })
+        }
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -718,6 +730,12 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::PlotSettings),
+        "SPATIAL_FILTER" | "ACDBSPATIALFILTER" => {
+            crate::objects::clip_spatial_filter::decode_object(
+                payload, body_start, inline_end, version,
+            )
+            .map(|filter| DecodedEntity::SpatialFilter(Box::new(filter)))
+        }
         "MLEADERSTYLE" | "ACDBMLEADERSTYLE" => crate::objects::acad_mleader_style::decode_object(
             payload, body_start, inline_end, version,
         )
@@ -822,17 +840,22 @@ fn dispatch_split_stream_class(
     kind: ObjectType,
     version: Version,
 ) -> Option<DecodedEntity> {
-    if !version.is_r2010_plus() {
+    if !version.is_r2007_plus() {
         return None;
     }
     let result = match dxf_class_name {
+        // §20.4.48: MULTILEADER exists from R2007 (version 21); its
+        // R2007 record has the `-R2007` tail in place of the R2010+
+        // fields (#229).
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(|m| DecodedEntity::MLeader(Box::new(m)))
         }
         // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
         "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
-        | "ACDBDGNUNDERLAY" => {
+        | "ACDBDGNUNDERLAY"
+            if version.is_r2010_plus() =>
+        {
             let kind = match dxf_class_name {
                 "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
                 "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,

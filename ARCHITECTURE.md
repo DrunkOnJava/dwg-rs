@@ -2665,6 +2665,94 @@ cargo run --release --example probe_sortentstable -- ../dwg-corpus
 | R2013 | 3 | 3 | 11 | 0 |
 | R2018 | 9 | 9 | 11 | 0 |
 
+## 7ah. SPATIAL_FILTER (2026-10-26, #149)
+
+§20.4.94 prints the clip of an xref or block insert as `BS` numpts, that many
+`2RD` boundary points, an extrusion and an origin (`3BD` each), three `BS`
+(the display boundary and the front and back clip switches), a `BD` distance
+after each switch that is 1, and two matrices of 12 `BD`. The dispatcher had
+no class-name arm for it, so the one record of each release was skipped.
+
+The field list closes as printed on all 7 records, R14 to R2018. The spec
+calls each matrix "double [4][3], column major order"; the values arrive as
+three rows of four with the translation last. `sample_AC1018.dwg`'s inverse
+block transformation reads `25.4 0 0 -1087.95`, `0 25.4 0 942.62`,
+`0 0 25.4 0`, an inch-to-millimetre scale with a shift, and its clip boundary
+transformation is the identity. They are kept in stream order, the order of
+the DXF's twenty-four groups 40. Neither clip switch is on in the corpus, so
+the two optional distances are never read there.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) the point count, the boundary points, the extrusion, the origin, the display
+boundary, both switches and all 24 matrix values equal the groups that carry
+them: 234 values, none differing. R14 has no twin.
+
+```sh
+cargo run --release --example probe_spatial_filter -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 1 | 1 | no twin | |
+| R2000 | 1 | 1 | 39 | 0 |
+| R2004 | 1 | 1 | 39 | 0 |
+| R2007 | 1 | 1 | 39 | 0 |
+| R2010 | 1 | 1 | 39 | 0 |
+| R2013 | 1 | 1 | 39 | 0 |
+| R2018 | 1 | 1 | 39 | 0 |
+
+## 7ai. MULTILEADER before R2010 (2026-10-26, #229)
+
+§20.4.48 says MULTILEADER was introduced in version 21 (R2007), and the
+crate decoded it only from R2010. AutoCAD 2025 writes the record into
+every release it saves, as a class on R14 to R2004, so ACadSharp's
+saves of one drawing (#225) hold its 15 multileaders on R14, R2000,
+R2004 and R2007 too. All 60 were counted as skipped.
+
+§20.4.48 and its embedded §20.4.86 MLeaderAnnotContext print every
+version branch the earlier releases need:
+
+| Where | R2010+ only | Up to R2007 only |
+|---|---|---|
+| the record's start | `BS 270` class version | |
+| each leader line | `BS 170`, `CMC 92`, `BL 171`, `BD 40`, `BL 93` | |
+| each leader root | `BS 271` | |
+| the context's end | `BS 273`, `BS 272` | |
+| after `B 293` is annotative | `BS 271`, `BS 273`, `BS 272` (and the 17 unnamed bits of §7g) | `BL` arrow-head count with a `B` each, `BL` block-label count with a `TV`, `BS`, `BD` each, then `B 294`, `BS 178`, `BS 179`, `BD 45` |
+
+Two rules from elsewhere in the spec also apply: before R2004 a `CMC` is
+the bare `BS` index (§2.11), and before R2007 the `TV`s are inline. Read
+that way, all 105 MULTILEADER records of the public corpus close, R14 to
+R2018, with no change at all to how R2010 and later are read.
+
+`examples/probe_mleader.rs` compares the decoded values with the
+`AcDbMLeader` group of the DXF twin, part by part: the context, each
+leader root and line, and the entity's own fields.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 15 | 15 | no twin | |
+| R2000 | 15 | 15 | 1290 | 0 |
+| R2004 | 15 | 15 | 1365 | 0 |
+| R2007 | 15 | 15 | 1365 | 0 |
+| R2010 | 15 | 15 | 1305 | 0 |
+| R2013 | 15 | 15 | 1305 | 0 |
+| R2018 | 15 | 15 | 1305 | 0 |
+
+Colours are compared from R2004 on, so R2000 has fewer. The `-R2007`
+tail's four scalars (294, 178, 179, 45) are compared on R2000 to R2007.
+
+The releases do not store identical values. Record `0xB27` holds its
+content base point at x 527.42 with left/right attachments 4/0 on R2007
+and earlier, and at x 556.64 with 0/8 on R2010 and later. Each release's
+DXF agrees with its own record, so AutoCAD converts the leader when it
+saves the older format, and the probe compares each release with its
+own twin rather than across releases.
+
+```sh
+cargo run --release --example probe_mleader -- sample_AC1018.dwg sample_AC1018_ascii.dxf
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
