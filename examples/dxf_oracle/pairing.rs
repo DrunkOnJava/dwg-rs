@@ -4,6 +4,15 @@ use crate::corpus::{DwgRecord, LoadedPair, record_key};
 use dwg::dxf_reader::DxfRecord;
 use std::collections::BTreeSet;
 
+/// Types whose records AutoCAD creates afresh while saving, so the DWG and
+/// the DXF of one drawing give the same object different handles: their
+/// one-sided records are paired with each other in file order instead, with
+/// the DXF types each may be exported as (DATATABLE, the tables behind a
+/// dynamic block's lookup parameters; the pairing its probe uses,
+/// examples/probe_data_table.rs). The R2000 export writes DATATABLE under
+/// its older name ACDBDATATABLE, with the same groups.
+const PAIRED_IN_ORDER: &[(&str, &[&str])] = &[("DATATABLE", &["DATATABLE", "ACDBDATATABLE"])];
+
 /// How the two sides of one drawing line up by handle.
 pub struct Pairing<'a> {
     /// Same handle, and the DXF record is the type the DWG one exports as.
@@ -44,6 +53,29 @@ pub fn pair(pair: &LoadedPair) -> Pairing<'_> {
             Some(_) => {}
             None => out.dxf_unkeyed += 1,
         }
+    }
+    for (key, exported_as) in PAIRED_IN_ORDER {
+        let dwg: Vec<&DwgRecord> = out
+            .dwg_only
+            .iter()
+            .copied()
+            .filter(|r| r.dxf_key.as_deref() == Some(*key))
+            .collect();
+        let dxf: Vec<&DxfRecord> = out
+            .dxf_only
+            .iter()
+            .copied()
+            .filter(|r| exported_as.contains(&record_key(r).as_str()))
+            .collect();
+        let n = dwg.len().min(dxf.len());
+        for (a, b) in dwg.iter().zip(&dxf).take(n) {
+            out.paired.push((a, b));
+        }
+        let (dwg, dxf) = (&dwg[..n], &dxf[..n]);
+        out.dwg_only
+            .retain(|r| !dwg.iter().any(|x| std::ptr::eq(*x, *r)));
+        out.dxf_only
+            .retain(|r| !dxf.iter().any(|x| std::ptr::eq(*x, *r)));
     }
     out
 }

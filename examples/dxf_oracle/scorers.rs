@@ -1053,6 +1053,11 @@ pub fn score(
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
         D::Layout(l) => score_layout(&mut c, l),
+        D::Underlay(u) => score_underlay(&mut c, u),
+        D::Sun(x) => score_sun(&mut c, x),
+        D::DataTable(t) => score_data_table(&mut c, t),
+        D::TextObjectContextData(t) => score_text_context(&mut c, t),
+        D::EvalGraph(g) => score_eval_graph(&mut c, g),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
         _ => return Err("no scorer yet".into()),
@@ -1584,6 +1589,168 @@ fn score_dictionary(c: &mut Ctx<'_>, d: &dwg::objects::dictionary::Dictionary, d
         format!("{} keys", common_dwg.len()),
         format!("{} keys", common_dxf.len()),
     );
+}
+
+// PDFUNDERLAY (and its DWF and DGN siblings), which v5.4.1 does not
+// prescribe: AcDbUnderlayReference's 10/20/30, 41/42/43 (scale, 1 when
+// omitted), 50 (degrees, 0 when omitted), 210 (Z when omitted), 280 flags,
+// 281 contrast, 282 fade and an 11/21 pair per clip vertex, as the class's
+// probe maps them (examples/probe_underlay.rs). The definition (340) is a
+// handle the decoder does not read.
+fn score_underlay(c: &mut Ctx<'_>, u: &dwg::entities::underlay::Underlay) {
+    c.subclass("AcDbUnderlayReference");
+    c.point3("insertion_point", 10, u.insertion_point, None);
+    c.real("scale.x", 41, u.scale.x, Some(1.0));
+    c.real("scale.y", 42, u.scale.y, Some(1.0));
+    c.real("scale.z", 43, u.scale.z, Some(1.0));
+    c.angle("rotation", 50, u.rotation, Some(0.0));
+    c.point3(
+        "normal",
+        210,
+        Point3D {
+            x: u.normal.x,
+            y: u.normal.y,
+            z: u.normal.z,
+        },
+        Some(Z),
+    );
+    c.int("flags", 280, i64::from(u.flags), None);
+    c.int("contrast", 281, i64::from(u.contrast), None);
+    c.int("fade", 282, i64::from(u.fade), None);
+    let exported = c.record().all(11).count();
+    c.derived(
+        "clip vertex count (11 groups)",
+        "11",
+        u.clip_polygon.len() == exported,
+        u.clip_polygon.len().to_string(),
+        exported.to_string(),
+    );
+    for (i, p) in u.clip_polygon.iter().enumerate() {
+        c.real(&format!("clip[{i}].x"), 11, p.x, None);
+        c.real(&format!("clip[{i}].y"), 21, p.y, None);
+    }
+}
+
+// SUN, which v5.4.1 does not prescribe: AcDbSun's 90, 290, 421 (the low 24
+// bits of the colour word), 40, 291, 91, 92, 292, 70, 71 and 280, as the
+// class's probe maps them (examples/probe_sun.rs). Group 63 is not a field
+// of the data bits and stays not-decoded.
+fn score_sun(c: &mut Ctx<'_>, x: &dwg::entities::sun::Sun) {
+    c.subclass("AcDbSun");
+    c.int("version", 90, i64::from(x.dxf_90), None);
+    c.int("status", 290, i64::from(x.dxf_290), None);
+    match x.color.word {
+        Some(w) => c.int(
+            "colour (word & 0xFFFFFF)",
+            421,
+            i64::from(w & 0x00FF_FFFF),
+            None,
+        ),
+        None => c.dwg_only("colour (no word before R2004)", x.color.index),
+    }
+    c.real("intensity", 40, x.dxf_40, None);
+    c.int("shadows", 291, i64::from(x.dxf_291), None);
+    c.int("julian_day", 91, i64::from(x.dxf_91), None);
+    c.int("time", 92, i64::from(x.dxf_92), None);
+    c.int("daylight_savings", 292, i64::from(x.dxf_292), None);
+    c.int("shadow_type", 70, i64::from(x.dxf_70), None);
+    c.int("shadow_map_size", 71, i64::from(x.dxf_71), None);
+    c.int("shadow_softness", 280, i64::from(x.dxf_280), None);
+}
+
+// DATATABLE, which v5.4.1 does not prescribe (ACDBDATATABLE, subclass
+// ACDBDATATABLE, in the R2000 export): AcDbDataTable's 70, 90 (the
+// column count), 91 (rows) and 1, then per column 92 (its type), 2 (its
+// name) and its cells: one 93 per row for type 1, one 40 per row for type
+// 2, and for type 6 one 360 per row, a handle the decoder does not read
+// (examples/probe_data_table.rs).
+fn score_data_table(c: &mut Ctx<'_>, t: &dwg::objects::data_table::DataTable) {
+    use dwg::objects::data_table::DataTableCells;
+    if !c.subclass("AcDbDataTable") {
+        c.subclass("ACDBDATATABLE");
+    }
+    c.int("version", 70, i64::from(t.dxf_70), None);
+    c.int("column count", 90, t.columns.len() as i64, None);
+    c.int("rows", 91, i64::from(t.rows), None);
+    c.text("name", 1, &t.dxf_1, None);
+    for (i, col) in t.columns.iter().enumerate() {
+        c.int(
+            &format!("columns[{i}].type"),
+            92,
+            i64::from(col.dxf_92),
+            None,
+        );
+        c.text(&format!("columns[{i}].name"), 2, &col.dxf_2, None);
+        match &col.cells {
+            DataTableCells::Long(v) => {
+                for (r, x) in v.iter().enumerate() {
+                    c.int(
+                        &format!("columns[{i}].cells[{r}] (long)"),
+                        93,
+                        i64::from(*x),
+                        None,
+                    );
+                }
+            }
+            DataTableCells::Double(v) => {
+                for (r, x) in v.iter().enumerate() {
+                    c.real(&format!("columns[{i}].cells[{r}] (double)"), 40, *x, None);
+                }
+            }
+            DataTableCells::Handle => {}
+        }
+    }
+}
+
+// ACDB_TEXTOBJECTCONTEXTDATA_CLASS, which v5.4.1 does not prescribe:
+// AcDbObjectContextData's 70 and 290, then, under
+// AcDbAnnotScaleObjectContextData (the export writes no marker of its own
+// for the text subclass), 70, 50, 10, 20, 11 and 21
+// (examples/probe_text_context_data.rs). The scale (340) is a handle the
+// decoder does not read. Group 50 is compared as stored: both exports write
+// 0, so whether the DXF holds degrees is not established.
+fn score_text_context(c: &mut Ctx<'_>, t: &dwg::objects::text_context_data::TextObjectContextData) {
+    c.subclass("AcDbObjectContextData");
+    c.int("version", 70, i64::from(t.dxf_70_version), None);
+    c.int("default", 290, i64::from(t.dxf_290), None);
+    c.subclass("AcDbAnnotScaleObjectContextData");
+    c.int("text flag", 70, i64::from(t.dxf_70_flag), None);
+    c.real("rotation (as stored)", 50, t.dxf_50, None);
+    c.real("location.x", 10, t.dxf_10, None);
+    c.real("location.y", 20, t.dxf_20, None);
+    c.real("group 11", 11, t.dxf_11, None);
+    c.real("group 21", 21, t.dxf_21, None);
+}
+
+// ACAD_EVALUATION_GRAPH, which v5.4.1 does not prescribe: AcDbEvalGraph's 96
+// and 97, then per node 91, 93, 95, its 360 (a handle the decoder does not
+// read) and four 92, then per edge 92, 93, 94, two 91 and five 92
+// (examples/probe_eval_graph.rs). Every field is a signed BL. The node and
+// edge counts have no group of their own. Taking each code in order pairs
+// the n-th decoded value with the n-th group, since nodes precede edges.
+fn score_eval_graph(c: &mut Ctx<'_>, g: &dwg::objects::eval_graph::EvalGraph) {
+    c.subclass("AcDbEvalGraph");
+    c.int("group 96", 96, i64::from(g.dxf_96), None);
+    c.int("group 97", 97, i64::from(g.dxf_97), None);
+    for (i, n) in g.nodes.iter().enumerate() {
+        c.int(&format!("nodes[{i}].91"), 91, i64::from(n.dxf_91), None);
+        c.int(&format!("nodes[{i}].93"), 93, i64::from(n.dxf_93), None);
+        c.int(&format!("nodes[{i}].95"), 95, i64::from(n.dxf_95), None);
+        for (k, v) in n.dxf_92.iter().enumerate() {
+            c.int(&format!("nodes[{i}].92[{k}]"), 92, i64::from(*v), None);
+        }
+    }
+    for (i, e) in g.edges.iter().enumerate() {
+        c.int(&format!("edges[{i}].92"), 92, i64::from(e.dxf_92), None);
+        c.int(&format!("edges[{i}].93"), 93, i64::from(e.dxf_93), None);
+        c.int(&format!("edges[{i}].94"), 94, i64::from(e.dxf_94), None);
+        for (k, v) in e.dxf_91.iter().enumerate() {
+            c.int(&format!("edges[{i}].91[{k}]"), 91, i64::from(*v), None);
+        }
+        for (k, v) in e.dxf_92_links.iter().enumerate() {
+            c.int(&format!("edges[{i}].92 link[{k}]"), 92, i64::from(*v), None);
+        }
+    }
 }
 
 // §20.4.73 with the DXF Reference's MLINESTYLE groups: 2, 70, 3, 62, 51, 52,
