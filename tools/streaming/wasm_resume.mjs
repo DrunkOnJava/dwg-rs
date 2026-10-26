@@ -5,7 +5,9 @@
 // "section-resume" take a native `checkpoint` path (and the section walk its
 // `sidecar`); kinds "maps-run" and "file-run" take `stop` and `checkpoint_out`;
 // "file-resume" takes a native `checkpoint` and the cursors `page_crc`,
-// `page_len` and `number` the native caller saved; "r2007-run" takes `stop` and
+// `page_len` and `number` the native caller saved; "objects-resume" takes a
+// native `checkpoint` and the cursors `digest` and `len`, and "objects-run"
+// takes `stop` and `checkpoint_out`; "r2007-run" takes `stop` and
 // `checkpoint_out` and "r2007-resume" a native `checkpoint` and the cursors
 // `page_crc`, `page_len`, `section` and `id`.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -75,6 +77,15 @@ for (const job of jobs) {
     const state = readFileSync(job.checkpoint);
     mem().set(state, at(2));
     code = x.resume_file(file.length, state.length, job.chunk, job.page_crc, job.page_len, job.number);
+  } else if (job.kind === 'objects-resume') {
+    const state = readFileSync(job.checkpoint);
+    mem().set(state, at(2));
+    code = x.resume_objects(file.length, state.length, job.chunk, job.digest_crc, job.len);
+  } else if (job.kind === 'objects-run') {
+    code = x.run_objects(file.length, job.stop, job.chunk);
+    if (code >= 0) {
+      writeFileSync(job.checkpoint_out, mem().slice(at(2), at(2) + x.layout(9)));
+    }
   } else if (job.kind === 'r2007-resume') {
     const state = readFileSync(job.checkpoint);
     mem().set(state, at(2));
@@ -99,6 +110,7 @@ for (const job of jobs) {
   }
   const out = code > 0 ? Buffer.from(mem().slice(at(7), at(7) + code)).toString('utf8') : '';
   const cursors = job.kind === 'file-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0]
+    : job.kind === 'objects-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0]
     : job.kind === 'r2007-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0, x.layout(13) | 0] : null;
   results.push({ code, out, cursors });
 }

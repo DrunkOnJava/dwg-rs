@@ -22,5 +22,7 @@ const _: () = assert!(core::mem::size_of::<streaming::R2004SectionWalker>() <= s
 const _: () = assert!(core::mem::size_of::<streaming::R2004SectionCheckpoint>() <= streaming::WINDOW + 1024);
 const _: () = assert!(core::mem::size_of::<streaming::R2004Walker>() <= 2 * streaming::WINDOW + 8192);
 const _: () = assert!(core::mem::size_of::<streaming::R2004WalkCheckpoint>() <= 2 * streaming::WINDOW + 8192);
+const _: () = assert!(core::mem::size_of::<streaming::R2004ObjectWalker>() <= 2 * streaming::WINDOW + 8192 + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2004ObjectCheckpoint>() <= 2 * streaming::WINDOW + 8192 + 1024);
 const _: () = assert!(core::mem::size_of::<streaming::R2007Walker>() <= 2 * streaming::R2007_WINDOW + 8192);
 const _: () = assert!(core::mem::size_of::<streaming::R2007Checkpoint>() <= 2 * streaming::R2007_WINDOW + 8192 + 16);

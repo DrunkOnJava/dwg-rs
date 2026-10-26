@@ -49,9 +49,14 @@ jobs:
         run: |
           rustup update stable
           rustup component add clippy --toolchain stable
+          rustup target add wasm32-unknown-unknown --toolchain stable
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
       - name: cargo clippy --all-targets --all-features -- -D warnings
         run: cargo +stable clippy --all-targets --all-features -- -D warnings
+      # The wasm crate depends on this one by path, where a lint error in the
+      # dependency is only a warning; check the library itself on 32 bits.
+      - name: The library builds where usize is 32 bits
+        run: cargo +stable check --lib --target wasm32-unknown-unknown
 
   test:
     name: Test
@@ -394,6 +399,23 @@ jobs:
             echo "::error::no pinned drawing reached the header decoder"
             exit 1
           fi
+      # dwg-to-dxf's HEADER against AutoCAD's own export of the same drawing
+      # (#126): every variable it writes must agree, and none AutoCAD omits.
+      - name: DXF HEADER written by dwg-to-dxf against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --features dxf-reader --example probe_dxf_header -- "$HOME/dwg-corpus" > dxf-header-probe.log 2>&1
+          status=$?
+          set -e
+          cat dxf-header-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' dxf-header-probe.log; then
+            echo "::error::no pinned drawing reached the DXF HEADER probe"
+            exit 1
+          fi
       # Measurements and the baseline a change would need; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.fetch.outputs.measured == 'true'
@@ -407,6 +429,7 @@ jobs:
             corpus-logs/
             corpus-tests.log
             header-probe.log
+            dxf-header-probe.log
             baseline.tsv
           if-no-files-found: warn
 

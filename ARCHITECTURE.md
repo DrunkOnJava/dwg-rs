@@ -1986,6 +1986,56 @@ on all but the release-and-save-dependent variables. R13 (AC1012) has no file at
 all, so its rows are the table's and unmeasured. `$MAXACTVP` is 48 in the
 spec's R14 dump and in all eight R14 files, 64 from R2000.
 
+### dwg-to-dxf writes it back
+
+`src/dxf_header.rs` turns the decoded header into the `$VARIABLE` groups
+AutoCAD's own export writes for the same drawing, and nothing more: a variable
+the export omits is omitted (`$PELLIPSE`, `$FACETRES`, the unknown slots, the
+control-object handles), and so is one the DWG cannot give. The group codes and
+the first release of each variable are measured on the 50 AutoCAD exports of
+the corpus, which agree with each other (`$XCLIPFRAME` alone changes code, 290
+before R2010 and 280 after, and before R2010 a 2 is written false).
+`examples/probe_dxf_header.rs` converts each drawing that has an export, reads
+`dwg-to-dxf`'s output back with `dxf_reader` and compares every variable; the
+Corpus job runs it.
+
+| Release | Files | Written | Agree | Relation | Disagree | Extra | Omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 | 8 | 1,527 | 1,494 | 33 | 0 | 0 | 65 |
+| AC1018 | 8 | 1,622 | 1,589 | 33 | 0 | 0 | 66 |
+| AC1021 | 8 | 1,915 | 1,883 | 32 | 0 | 0 | 93 |
+| AC1024 | 8 | 1,923 | 1,890 | 33 | 0 | 0 | 93 |
+| AC1027 | 8 | 1,931 | 1,898 | 33 | 0 | 0 | 93 |
+| AC1032 | 2 | 479 | 470 | 9 | 0 | 0 | 27 |
+
+*Relation* is the later-save rule above for `$TDUUPDATE`, `$TDINDWG`,
+`$TDUSRTIMER`, `$HANDSEED` and `$VERSIONGUID`. *Extra* is a variable written that
+the export omits: none. Every *omitted* variable has a stated reason: the local
+`$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
+file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
+329), a true-colour `$CECOLOR`, `$CMATERIAL`, `$INTERFEREOBJVS` and `$INTERFEREVPVS`
+(handles to MATERIAL and VISUALSTYLE objects, which the converter exports as
+untyped placeholders, so the reference would point at the wrong thing), and every name for a symbol record the output does not
+define: the converter writes layer 0 and no other symbol table, so `$TEXTSTYLE`,
+`$CELTYPE`, `$DIMSTYLE`, `$CMLSTYLE`, a non-zero `$CLAYER` and the like are
+omitted until those tables are written (a DXF whose header names a style it never
+defines is not a valid reference); an empty name, from a null handle, is kept. Three variables live elsewhere in the DWG and are
+read from there: `$MEASUREMENT` (`AcDb:Template`, §22; from R2007 the description
+length counts UTF-16 units, AutoCAD writes a length of 1 and two bytes, where §22
+counts bytes), `$DWGCODEPAGE` (the file header's code page, 29 and 30 measured)
+and `$LASTSAVEDBY` (`AcDb:SummaryInfo`). A handle DXF writes as a name goes
+through the decoded symbol-table record; `$CMLSTYLE` takes the case of its
+`ACAD_MLINESTYLE` dictionary key and a standard arrowhead block `_BoxBlank` is
+`$DIMBLK` `BoxBlank` (only that name is measured; the list of standard arrowheads
+is AutoCAD's documented one, and any other block keeps its name, underscore
+included). `$ANGBASE` is radians in the database and degrees in DXF group 50, and
+before R2007 non-ASCII text is written as `\U+XXXX` escapes; the corpus holds a
+zero `$ANGBASE` and only ASCII header text, so neither is measured. Control
+characters and the caret are written in DXF's caret notation (a line feed is
+`^J`, a caret `^ `) so a value stays on its own line; no corpus header text has
+one. R12 and R14 targets keep `$ACADVER` alone: no AutoCAD
+export of either exists to measure the set against.
+
 ## 7t. MTEXT before R2007: the version branches (2026-10-26, #226)
 
 The inline MTEXT reader, which serves R13 to R2004, read the R2000+ line
@@ -2409,6 +2459,53 @@ comparison:
 ```sh
 cargo run --release --example probe_leader -- sample_AC1015.dwg sample_AC1015_ascii.dxf
 ```
+
+## 7ac. The object stream's records, framed from the stream (2026-10-26, #205)
+
+The streaming object walker (`src/streaming/records.rs`,
+`r2004_objects.rs`) frames an R2004-family object section without the
+`AcDb:Handles` map: after the four-byte `RL 0x0DCA` prologue, each record is
+`MS` size, on R2010 and later an `MC` handle-stream size, `MS` bytes of
+payload and a two-byte CRC, and the next record follows at once. Three
+properties of that framing were not on record before it was coded; each was
+measured on every object section of the 28 R2004-family drawings of the
+pinned corpus (21 nextgis saves from AutoCAD 2016, 7 from ACadSharp's
+AutoCAD 2025 samples) with an independent parse, and then enforced by the
+walker.
+
+| Property | R2004 | R2010 | R2013 | R2018 |
+|---|---|---|---|---|
+| Records walked | 2,417 | 2,188 | 1,787 | 1,615 |
+| The records end exactly at the section's size (no padding, no zero-length trailer) | 8 of 8 drawings | 8 of 8 | 8 of 8 | 4 of 4 |
+| The CRC (§2.14.1, seed `0xC0C1`) over the bytes from the `MS` through the last payload byte, `MC` included, equals the two bytes after the payload | 2,417 | 2,188 | 1,787 | 1,615 |
+| The `MC` handle-stream size is at most 8 times the record's payload bytes | n/a | 2,188 | 1,787 | 1,615 |
+
+The CRC rule is the same one §20.1 gives the R13 to R2000 records, and the
+`MC` is inside it. Three other readings were tried on the same 8,007 records
+and agree with none: a CRC over the `MS` alone, over the payload alone (the `MC`
+included, the `MS` not), and, on R2010 and later, over the `MS` and the payload
+without the `MC`. The legacy `ObjectWalker` never checked the CRC. Its comment that "trailing padding in some R2018 files" ends the
+stream at a zero `MS` describes no drawing of this corpus: the four ACadSharp
+R2018 saves, `empty.dwg`, `export_sample.dwg` and `geoloc.dwg` tile exactly;
+the streaming walker refuses a zero `MS` instead (`RecordSize`).
+
+Four larger drawings, `sample_AC1018`, `sample_AC1024`, `sample_AC1027` and
+`sample_AC1032`, hold object sections of 1.2 to 1.6 MB in 41 to 54
+`0x7400`-byte pages. 71 of their 3,644 records straddle a page boundary, 36 of
+those are larger than a page (the largest is 150,148 bytes) and the framing
+carries across them unchanged. The pages of the object section appear in
+section order in the page map of all 28 drawings, 28 of 28 contiguous from
+offset 0. `AcDb:AcDsPrototype_1b`, in the three saves that have one
+(`sample_AC1027`, `sample_AC1032` and `export_sample`), is the only section of
+any drawing whose pages the page map lists out of order: its two pages come
+second first.
+
+The same large drawings corrected a limit of the R13 to R2000 container walk:
+it refused an object map chunk of more than 2,032 bytes. A chunk's size counts
+its own two bytes, so the spec's 2,032 bytes of entries make a chunk of 2,034,
+and AutoCAD's first chunk in `sample_AC1014.dwg` is 2,033 and in
+`sample_AC1015.dwg` 2,034. The walk's evidence had been limited to files under
+160 KB, whose maps are one short chunk.
 
 ## 7ad. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
 
