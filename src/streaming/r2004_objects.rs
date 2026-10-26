@@ -291,6 +291,9 @@ impl R2004ObjectWalker {
                 && self.pending_len == 0
                 && self.pending_pos == 0;
         }
+        if !self.framer.consistent() {
+            return false;
+        }
         let slot = self.inner.slots[..self.inner.slot_count]
             .iter()
             .find(|slot| slot.id == self.section_id);
@@ -300,7 +303,6 @@ impl R2004ObjectWalker {
                 && self.framer.at + remaining as u64 == self.inner.page.cursor);
         slot.is_some_and(|slot| slot.size == self.framer.total)
             && self.framer.format == self.format()
-            && self.framer.consistent()
             && self.framer.at + remaining as u64 <= self.framer.total
             && (remaining == 0 || !matches!(self.framer.stage, Frame::Done | Frame::Ended))
             && tied

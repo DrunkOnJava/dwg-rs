@@ -477,6 +477,10 @@ def main():
                 (f'{label}: past the end of the section', state, [(AT, p64(u64(state, TOTAL) + 1))]),
                 (f'{label}: unfound section with a live framer', state, [(FOUND, p8(0))]),
                 (f'{label}: unframed bytes past the buffer', state, [(PENDING_LEN, p16(300))]),
+                (f'{label}: record start past the stream', state, [(START, p64((1 << 64) - 1))]),
+                (f'{label}: field lengths of 255', state, [(WORDS, p8(255)), (MS_LEN, p8(255)), (FIELD_LEN, p8(255))]),
+                (f'{label}: one word with a field length of 255', state, [(WORDS, p8(1)), (FIELD_LEN, p8(255))]),
+                (f'{label}: section of 2^64 - 1 bytes', state, [(TOTAL, p64((1 << 64) - 1))]),
             ]
             if stage in (1, 2, 3):
                 forgeries += [
@@ -577,6 +581,8 @@ def main():
                 cases += [
                     ('MC of eleven bytes', mutate(blob, payload_at, b'\xff' * 11), f'RecordHeader({r["start"]})', k),
                     ('MC claiming more bits than the record holds', mutate(blob, payload_at, b'\xff\x7f'),
+                     f'RecordHeader({r["start"]})', k),
+                    ('MC of 2^64 (nine continuation bytes, then 2)', mutate(blob, payload_at, b'\x80' * 9 + b'\x02'),
                      f'RecordHeader({r["start"]})', k),
                 ]
             for label, bad, error, valid in cases:

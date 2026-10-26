@@ -22,6 +22,10 @@ const PROLOGUE: [u8; 4] = [0xca, 0x0d, 0x00, 0x00];
 /// handle of at most nine bytes fit in 32.
 pub(super) const HEAD: usize = 32;
 const MAX_MC: u8 = 10;
+/// The longest section a stream is taken to have: every position is then far
+/// below `u64::MAX`, so no addition of a record's few bytes can overflow, even
+/// from a forged checkpoint.
+const MAX_STREAM: u64 = 1 << 62;
 /// The fewest bytes a record can take: an `MS`, one payload byte and the CRC.
 const MIN_RECORD: u64 = 5;
 
@@ -173,6 +177,9 @@ impl ObjectFramer {
         if total < PROLOGUE.len() as u64 {
             return Err(StreamError::ObjectPrologue);
         }
+        if total > MAX_STREAM {
+            return Err(StreamError::CounterOverflow);
+        }
         Ok(Self {
             format,
             total,
@@ -267,7 +274,8 @@ impl ObjectFramer {
                     let mut n = 0;
                     while n < input.len() && !self.mc_done {
                         let byte = input[n];
-                        if self.mc_len >= MAX_MC {
+                        if self.mc_len >= MAX_MC || (self.mc_len == MAX_MC - 1 && byte & 0x7e != 0)
+                        {
                             return Err(StreamError::RecordHeader(start));
                         }
                         self.mc |= u64::from(byte & 0x7f) << (7 * u32::from(self.mc_len));
@@ -390,10 +398,10 @@ impl ObjectFramer {
         let held = &self.head[..usize::from(self.mc_len)];
         let mut value = 0u64;
         for (i, &byte) in held.iter().enumerate() {
-            value |= u64::from(byte & 0x7f) << (7 * i as u32);
-            if byte & 0x80 == 0 && i + 1 != held.len() {
+            if (byte & 0x80 == 0 && i + 1 != held.len()) || (i == 9 && byte & 0x7e != 0) {
                 return None;
             }
+            value |= u64::from(byte & 0x7f) << (7 * i as u32);
         }
         let ended = held.last().is_some_and(|&b| b & 0x80 == 0);
         Some((value, ended))
@@ -406,7 +414,11 @@ impl ObjectFramer {
             return *self == Self::idle();
         }
         let prologue = PROLOGUE.len() as u64;
-        if self.total < prologue || self.at > self.total {
+        if self.total < prologue
+            || self.total > MAX_STREAM
+            || self.at > self.total
+            || self.start > self.at
+        {
             return false;
         }
         let held = self.done.min(HEAD as u32) as usize;
@@ -443,8 +455,8 @@ impl ObjectFramer {
                     && self.at == self.start + u64::from(self.ms_len)
                     && self.at < self.total
                     && self.words <= 1
-                    && self.ms_len == 2 * self.words + self.field_len
                     && self.field_len <= 1
+                    && self.ms_len == 2 * self.words + self.field_len
                     && self.ms[ms_len..].iter().all(|&b| b == 0)
                     && self.crc == crc8(SEED, &self.ms[..ms_len])
                     && if self.field_len == 1 {

@@ -498,8 +498,8 @@ resumes' source reads and output concatenate to the uninterrupted run's, and
 the checkpoints were taken in every framer stage, 636 of them holding unframed
 bytes, 18 inside an `MC` and 37 inside an `MS`. 750 bit flips and 750
 truncations of three checkpoints (the fixture before its first record and inside
-one, a real drawing inside one), a wrong identity and 118 resealed unreachable
-states are rejected. 47 errors above are reached on real object sections edited
+one, a real drawing inside one), a wrong identity and 158 resealed unreachable
+states are rejected. 49 errors above are reached on real object sections edited
 and repacked (a record's CRC or payload flipped, a prologue byte, an `MS` of
 zero or of three words, a record past the end, a section cut inside the last
 record, bytes after it, an unreadable handle with a valid CRC, a record too short
