@@ -25,7 +25,9 @@
 //!   header's, the handle records.
 //!
 //! After each drawing it prints the object map's entry count and whether the
-//! §9 header variables decode strictly and end on the size they state.
+//! §9 header variables decode strictly and end on the size they state. Every
+//! line that reads `FAIL`, including an open, object-map or header-variable
+//! failure, makes the exit status 1.
 //!
 //! ```sh
 //! cargo run --release --example probe_r13_container -- a.dwg b.dwg
@@ -180,6 +182,11 @@ fn second_header(b: &[u8], loc: &[(u8, u32, u32)], version: &[u8]) -> String {
     }
 }
 
+fn emit(failed: &mut bool, line: &str) {
+    *failed |= line.contains("FAIL");
+    println!("{line}");
+}
+
 fn main() -> ExitCode {
     let paths: Vec<String> = std::env::args().skip(1).collect();
     if paths.is_empty() {
@@ -235,24 +242,39 @@ fn main() -> ExitCode {
             section(&b, loc.iter().find(|l| l.0 == 1), &CLASS_SENTINELS),
             map(&b, loc.iter().find(|l| l.0 == 2)),
         );
-        failed |= line.contains("FAIL");
-        println!("{line}");
-        if let Ok(file) = DwgFile::from_bytes(b) {
-            if let Some(Ok(handles)) = file.handle_map() {
-                println!("    {} handle-map entries", handles.entries.len());
-            }
-            if let Some(Ok(bytes)) = file.read_section("AcDb:Header") {
-                match HeaderVars::parse_strict(&bytes, file.version()) {
-                    Ok(h) => println!(
-                        "    header variables: {} slots, crc {}, end sentinel {}, fields {} on the stated end, {} unknown slots, {} diagnostics",
-                        h.entries().len(),
-                        verdict(h.crc_ok),
-                        verdict(h.end_sentinel_ok),
-                        if h.closed { "end" } else { "do not end" },
-                        h.unknowns().count(),
-                        h.diagnostics.len()
-                    ),
-                    Err(e) => println!("    header variables: FAIL({e})"),
+        emit(&mut failed, &line);
+        match DwgFile::from_bytes(b) {
+            Err(e) => emit(&mut failed, &format!("    open: FAIL({e})")),
+            Ok(file) => {
+                match file.handle_map() {
+                    Some(Ok(handles)) => {
+                        println!("    {} handle-map entries", handles.entries.len())
+                    }
+                    Some(Err(e)) => emit(&mut failed, &format!("    handle map: FAIL({e})")),
+                    None => emit(&mut failed, "    handle map: FAIL(no object map)"),
+                }
+                match file.read_section("AcDb:Header") {
+                    Some(Ok(bytes)) => match HeaderVars::parse_strict(&bytes, file.version()) {
+                        Ok(h) => {
+                            let ok = h.crc_ok && h.end_sentinel_ok && h.closed;
+                            emit(
+                                &mut failed,
+                                &format!(
+                                    "    header variables: {}({} slots, crc {}, end sentinel {}, fields {} on the stated end, {} unknown slots, {} diagnostics)",
+                                    verdict(ok),
+                                    h.entries().len(),
+                                    verdict(h.crc_ok),
+                                    verdict(h.end_sentinel_ok),
+                                    if h.closed { "end" } else { "do not end" },
+                                    h.unknowns().count(),
+                                    h.diagnostics.len()
+                                ),
+                            );
+                        }
+                        Err(e) => emit(&mut failed, &format!("    header variables: FAIL({e})")),
+                    },
+                    Some(Err(e)) => emit(&mut failed, &format!("    header variables: FAIL({e})")),
+                    None => emit(&mut failed, "    header variables: FAIL(no header section)"),
                 }
             }
         }
