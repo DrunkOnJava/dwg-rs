@@ -8,7 +8,7 @@
 # main: when every generated file comes out unchanged the PR keeps its CI results and lands;
 # otherwise auto-merge goes off and it exits 8 for a real refresh.
 #
-# Exit: 0 merged, 1 failing check, 2 unresolved threads, 3 timeout, 4 someone else pushed,
+# Exit: 0 merged, 1 failing check, 2 unresolved threads (before or after auto-merge), 3 timeout, 4 someone else pushed,
 #       5 auto-merge refused, 6 closed, 7 went DIRTY, 8 main moved under it (refresh again).
 {
 P=$1
@@ -51,9 +51,12 @@ while :; do
   esac
   sleep 60
 done
-u=$(gh api graphql -F owner="${R%/*}" -F name="${R#*/}" -F n="$P" \
-  -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' \
-  --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length')
+unresolved() {
+  gh api graphql -F owner="${R%/*}" -F name="${R#*/}" -F n="$P" \
+    -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length' 2>/dev/null
+}
+u=$(unresolved)
 [ "$u" != 0 ] && { echo "#$P Corpus green but $u unresolved review thread(s)"; exit 2; }
 if moved && ! still_valid; then echo "#$P main moved under it since the refresh"; exit 8; fi
 gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not enable auto-merge"; exit 5; }
@@ -77,6 +80,12 @@ while :; do
   fi
   f=$(gh pr checks "$P" -R "$R" --json name,state --jq '[.[]|select(.state=="FAILURE")|.name]|join(", ")' 2>/dev/null)
   [ -n "$f" ] && { echo "#$P failing: $f"; exit 1; }
+  # A reviewer can open a thread after auto-merge went on; the ruleset then holds the PR until
+  # the deadline, so hand it back instead of stalling the train.
+  case $(unresolved) in
+    [1-9]|[1-9][0-9]) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1
+       echo "#$P review thread opened after auto-merge went on; auto-merge off"; exit 2 ;;
+  esac
   sleep 60
 done
 }
