@@ -21,6 +21,8 @@ permissions:
   contents: read
 
 env:
+  # crates.io index or crate downloads that fail transiently are retried instead of failing the job
+  CARGO_NET_RETRY: "10"
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: short
   RUSTFLAGS: "-D warnings"
@@ -70,6 +72,8 @@ jobs:
         run: cargo +${{ matrix.toolchain }} build --release --all-features --all-targets
       - name: cargo test --release
         run: cargo +${{ matrix.toolchain }} test --release --all-features
+      - name: The specification's worked examples (#107)
+        run: cargo +${{ matrix.toolchain }} run --release --all-features --example spec_examples
 
   doc:
     name: Documentation
@@ -316,6 +320,23 @@ jobs:
           check_status=$?
           set -e
           if [ "$run_status" -ne 0 ] || [ "$check_status" -ne 0 ]; then
+            exit 1
+          fi
+      # Every Reed-Solomon codeword of every pinned R2007 drawing (§5.13, #275):
+      # intact, re-encoded to AutoCAD's parity, and corrected after damage.
+      - name: Reed-Solomon on every R2007 page
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --example probe_r2007_rs -- "$HOME/dwg-corpus" > rs-probe.log 2>&1
+          status=$?
+          set -e
+          cat rs-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' rs-probe.log; then
+            echo "::error::no pinned R2007 drawing reached the Reed-Solomon probe"
             exit 1
           fi
       # Measurements and the baseline a change would need; never a sample file.

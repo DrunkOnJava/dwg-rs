@@ -18,12 +18,12 @@
 //!
 //! # Current scope
 //!
-//! - Emits a valid 32-byte header: page type (0x4163043B),
-//!   section-number, data-size, page-size, start-offset (0),
-//!   checksum (§4.6.1 32-bit sum), all-zero trailer fields.
+//! - Emits the §4.6 32-byte header: page type (0x4163043B),
+//!   section number, data size, page size, the u64 start offset (0),
+//!   the header checksum at 0x18 and the data checksum at 0x1C, both the
+//!   §4.2 section page checksum ([`crate::crc::section_page_checksum`]).
 //! - Applies Sec_Mask XOR at the given page offset.
 //! - LZ77-compresses the payload via the literal-only encoder.
-//! - Computes + writes the page checksum.
 //!
 //! # Deferred
 //!
@@ -35,6 +35,7 @@
 //!   pipeline is in [`crate::file_writer`].
 
 use crate::cipher::section_page_mask;
+use crate::crc::section_page_checksum;
 use crate::error::Result;
 use crate::lz77_encode;
 
@@ -57,7 +58,7 @@ pub struct BuiltSection {
     pub compressed_size: u32,
     /// Size of the uncompressed source bytes.
     pub decompressed_size: u32,
-    /// Page checksum value written into the header.
+    /// The §4.6 header checksum written at 0x18.
     pub checksum: u32,
 }
 
@@ -85,25 +86,25 @@ pub fn build_section(
     //  1   | section_number
     //  2   | data_size (compressed_size)
     //  3   | page_size (includes header + padding)
-    //  4   | start_offset = 0 (relative within section)
-    //  5   | page_checksum
-    //  6   | data_checksum
-    //  7   | unknown (ODA writes 0x80)
+    //  4-5 | start_offset, u64 = 0 (relative within section)
+    //  6   | header checksum: §4.2 over this header with the field
+    //      | zeroed, seeded with the data checksum
+    //  7   | data checksum: §4.2 over the compressed bytes, seed 0
+    //
+    // Every real R2004-family page checked carries exactly this (#265).
     let total_len = HEADER_SIZE + compressed_size as usize;
     let page_size = (total_len.div_ceil(32) * 32) as u32;
 
-    let page_checksum = compute_checksum(&compressed, 0);
-    let data_checksum = compute_checksum(decompressed, 0);
+    let data_checksum = section_page_checksum(0, &compressed);
 
     let mut header = [0u8; HEADER_SIZE];
     write_u32_le(&mut header, 0, DATA_PAGE_HEADER_TYPE);
     write_u32_le(&mut header, 4, section_number);
     write_u32_le(&mut header, 8, compressed_size);
     write_u32_le(&mut header, 12, page_size);
-    write_u32_le(&mut header, 16, 0);
-    write_u32_le(&mut header, 20, page_checksum);
-    write_u32_le(&mut header, 24, data_checksum);
-    write_u32_le(&mut header, 28, 0x80);
+    write_u32_le(&mut header, 28, data_checksum);
+    let page_checksum = section_page_checksum(data_checksum, &header);
+    write_u32_le(&mut header, 24, page_checksum);
 
     // Apply the Sec_Mask XOR to all 8 words.
     apply_sec_mask(&mut header, page_offset);
@@ -125,8 +126,10 @@ pub fn build_section(
     })
 }
 
-/// Compute spec §4.6.1 page checksum: 32-bit rolling sum with bit
-/// rotation. `seed` is 0 for a fresh chunk.
+/// A 32-bit rotate-and-add sum. It is **not** the §4.2 section page
+/// checksum real files carry, which is [`crate::crc::section_page_checksum`];
+/// the writer stopped using this for page headers in #265.
+/// `seed` is 0 for a fresh chunk.
 ///
 /// # This is the Stage-1 hot loop (measured 2026-08-30, issue #17)
 ///

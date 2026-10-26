@@ -6,7 +6,7 @@ dwg-rs is an Apache-2.0 Rust reader (and early writer) for Autodesk DWG, R13 to 
 
 ## Commands
 
-The required CI gate (Rustfmt, Clippy, Test, Documentation, cargo-deny, PII guard):
+`main` requires twelve checks (the `main-protection` ruleset, kept in `.github/rulesets/`): Rustfmt, Clippy, Test on Linux, macOS and Windows (stable), Verify MSRV (1.85), Documentation, cargo-deny, PII guard, Streaming E2E, Corpus (public DWG) and Spec coverage, so a corpus count change without its regenerated baseline, or a coverage page out of step with its data, blocks the merge. It is strict: a PR must be up to date with `main`, so every merge restarts the full matrix on the PRs behind it. Locally:
 
 ```sh
 cargo fmt --all -- --check
@@ -15,6 +15,7 @@ cargo test --release --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo deny check advisories bans licenses sources        # CI pins cargo-deny 0.19.4
 CARGO_TARGET_DIR=target-msrv cargo +1.85 check --all-features   # MSRV without evicting the stable cache
+python3 tools/ci/spec_coverage.py --check                # docs/spec-coverage.md agrees with its data
 ```
 
 CI also builds with `RUSTFLAGS="-D warnings"`, so a warning anywhere fails the Test job.
@@ -41,7 +42,10 @@ cargo run --release --example coverage_report -- <dir-of-dwg>      # decoded / s
 cargo run --release --example build_fixtures                        # regenerate tests/fixtures/canonical/*.dwg
 cargo run --release --example probe_class_census -- <file> --strict # walk reaches every instance AcDb:Classes declares
 cargo run --release --example probe_reference_closure -- <file>     # no gaps between records, no dangling hard handles
+cargo run --release --example spec_examples                         # the spec's own worked examples (#107); CI's Test job runs it
 ```
+
+`tests/fixtures/spec-examples/` quotes the spec PDF verbatim; `python3 tools/spec/extract_examples.py --pdf <spec.pdf> --check` audits it against the PDF. When a decoder change moves a §20.4 example's outcome, the step fails; `cargo run --release --example spec_examples -- --update` rewrites the moved `expect` cells in `r14-objects.tsv` and their notes in `docs/data/spec-coverage.tsv` and `docs/spec-coverage.md`, and lists them. Commit those in the same PR. A record that newly errors is written `error #?` and keeps failing until its tracking issue is filled in.
 
 Fixture generation is byte-deterministic and CI diffs the committed canonical fixtures against `build_fixtures` output, so any change to the writer or the synthetic entities means regenerating and committing the fixtures in the same PR.
 
@@ -59,9 +63,20 @@ Features: `lz77-trace` (plus `DWG_LZ77_TRACE=1` at runtime) traces the LZ77 deco
 
 ## Real-file corpus
 
-CI reads no real DWG file (#95); it runs only on the five self-generated files in `tests/fixtures/canonical/`. The real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) look for the corpus at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green `cargo test` says nothing about real drawings unless that directory exists. The corpus is 19 files: `arc_`, `circle_` and `line_` in `R14`, `2000`, `2004`, `2007`, `2010` and `2013` from the public `nextgis/dwg_samples` (AutoCAD saves, each with AutoCAD's DXF export), plus `sample_AC1032.dwg` (R2018, provenance #96). Copy only those files rather than cloning the whole repository: `corpus_roundtrip.rs` runs over every `.dwg` in the directory, and the rest of nextgis has never been measured. Fetch by pinned commit; nextgis declares no licence, so never vendor it into this repo. A worktree resolves `../../samples` against its own path, so it needs its own copy or link.
+Every real drawing CI reads is public, pinned by sha256 in `tools/corpus/pins.tsv`, and fetched at run time; none is committed (nextgis declares no licence, so never vendor its files). The pins cover `nextgis/dwg_samples` at ff05d5a8 (42 drawings from R14 to 2013, each with AutoCAD's DXF export) and ACadSharp's `samples/` at c30a97ce (MIT, including the R2018 files):
 
-The coverage tables in `README.md`, `STATUS.md` and `lib.rs` are local measurements from 2026-08-30, not CI output. Never estimate or carry them forward: re-run `coverage_report` and paste the table.
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus --legacy-samples ../../samples   # fetch + verify every pin
+cargo build --release --example coverage_report --example probe_class_census --example probe_reference_closure
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json        # every drawing against tools/corpus/baseline.tsv
+```
+
+The `Corpus (public DWG)` job runs exactly this and fails on any count change in either direction, so a PR that changes a decoded, skipped or errored count must commit the regenerated baseline (`python3 -I tools/corpus/measure.py baseline --results r.json` after the `run` above, or the `corpus-measurement` artifact the job uploads). Streaming E2E reads its own pinned nextgis files (`tools/streaming/*-corpus.json`, cross-checked against `pins.tsv`).
+
+The older real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) read a 19-file subset at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green local `cargo test` says nothing about real drawings unless that directory exists. `fetch.py --legacy-samples ../../samples` writes exactly that subset there; from a worktree, `../../samples` resolves against the worktree's own path.
+
+Coverage numbers come from two places, and each says which: the headline tables in `README.md` and `STATUS.md` cite the corpus job's run on `main`, while older sections (STATUS.md's 2026-08-30 baseline, the evidence behind `closes` states in `docs/spec-coverage.md`) are dated local measurements of the 19-file subset. Never estimate or carry a number forward: re-measure, and cite the run or the command and date.
 
 ## Architecture
 
@@ -84,7 +99,7 @@ Invariants across the crate: `#![forbid(unsafe_code)]`; malformed input returns 
 ## Rules for changes
 
 - **Clean-room** (`CLEANROOM.md`): never consult or import LibreDWG, the ODA/Teigha SDK, Autodesk SDKs or any GPL DWG source. Algorithm-description comments in MIT, Apache or BSD projects may resolve a spec ambiguity only with a dated disclosure added to `CLEANROOM.md`. Every PR body carries the source-provenance declaration from the PR template.
-- **Cite the spec by v5.4.1 number.** Objects are §20.4.x; older code still says §19.4.x (#106). `docs/spec-coverage.md` gives every section a state (`missing`, `decoder`, `partial`, `closes`, `complete`) and says it is generated from `docs/data/spec-coverage.tsv`, but no generator is on `main`: update both together. A state changes only in the PR that brings its evidence.
+- **Cite the spec by v5.4.1 number.** Objects are §20.4.x; older code still says §19.4.x (#106). `docs/spec-coverage.md` gives every section a state (`missing`, `decoder`, `partial`, `closes`, `complete`) and is generated: edit `docs/data/spec-coverage.tsv`, then run `python3 tools/ci/spec_coverage.py --write`. CI's Spec coverage job fails when a section has no row or the page and its data disagree. A state changes only in the PR that brings its evidence.
 - **Evidence is real-file, not unit tests.** The PR template asks for the corpus records a change was measured on and the reproducing command, with no new unit tests; existing suites stay and must pass. A new format finding gets a probe under `examples/` (module doc saying what it proves and how to verify it) and a dated section in `ARCHITECTURE.md` with its evidence table.
 - **New decoders** follow `docs/EXTENDING_DECODERS.md`. For a fixed-code entity: a type-code constant, a `DecodedEntity` variant, a `fixed_entity_label` entry and a `decode_fixed_entity_body` arm in `entities/dispatch.rs`. The label list and the body arms must match (`fixed_entity_label_covers_every_body_arm` checks it), and `checked_inline` applies the boundary check for you. Custom classes dispatch on their DXF class name instead. `templates/entity-decoder` is a cargo-generate skeleton.
 - Every `pub fn` in `src/` gets a `///` line naming its bit code, flag mask or spec section; the docs-rs workflow fails below 80% and the tree is at 100%.

@@ -725,6 +725,13 @@ fn dispatch_object_class(
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ImageDef)
         }
+        // §20.4.104 types XRECORD `(varies)`: from R2000 it has the
+        // fixed code 0x4F, but R14 files give it a class number from
+        // AcDb:Classes. It is the same record either way.
+        "XRECORD" => {
+            crate::objects::xrecord::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::XRecord)
+        }
         _ => return None,
     };
     Some(match result {
@@ -1244,7 +1251,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
         OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
-        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c)?),
+        OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
         // bit: when it is set the SAB stream lives in the data-storage
@@ -1283,7 +1290,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_POLYLINE_PFACE => {
             DecodedEntity::PolyfaceMesh(polyface_mesh::decode_record(c, version)?)
         }
-        OBJECT_TYPE_POLYLINE_MESH => DecodedEntity::PolygonMesh(polygon_mesh::decode(c)?),
+        OBJECT_TYPE_POLYLINE_MESH => DecodedEntity::PolygonMesh(polygon_mesh::decode(c, version)?),
         OBJECT_TYPE_LEADER => DecodedEntity::Leader(leader::decode(c)?),
         OBJECT_TYPE_TOLERANCE => DecodedEntity::Tolerance(tolerance::decode(c, version)?),
         OBJECT_TYPE_OLE2FRAME => DecodedEntity::Ole2Frame(ole2_frame::decode(c)?),
