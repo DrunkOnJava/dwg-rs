@@ -1828,6 +1828,36 @@ cargo run --release --example probe_cross_release -- arc_R14.dwg arc_2004.dwg LA
     --ignore=shade_plot_mode,shade_plot_resolution_level,shade_plot_custom_dpi,viewport_count,trailing_strings
 ```
 
+## 7x. VIEWPORT ENTITY HEADER (2026-10-26, #146)
+
+§20.4.70 prints the header the older releases keep for each viewport entity
+(type `0x47`): the name and flags a symbol-table entry opens with, as
+`TV` name, `B` 64-flag, `BS` xrefindex + 1 and `B` xdep, then one more `B`,
+"1 flag". Only R14 and R2000 drawings hold one. The handle references (the
+control object, the extension dictionary, the external reference block, the
+viewport entity it describes and the previous header of the chain) are in the
+handle stream and are not read. The record had no decoder, so its type
+stayed `Unhandled`.
+
+All 6 records of the corpus close on their data-stream boundary, 3 on
+R14 and 3 on R2000 (the `RL` inside the common object data on R14, the
+prologue's on R2000): the names read `""`, `"1"` and `""` on each, the
+64-flag and the 1 flag are set and the xref index is 0, the shape of a
+header with no xref behind it. This is boundary evidence alone. AutoCAD's DXF
+exports of the corpus hold no record for the header (R14's is R12 DXF, which
+has no OBJECTS section, and R2000's has no viewport entity table), so no value
+is compared. The spec's own example (§20.4.70.1, an R14 record) now runs
+through the decoder as well, and `spec_examples` records its outcome.
+
+```sh
+cargo run --release --example probe_vp_ent_hdr -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared with a DXF |
+|---|---|---|---|
+| R14 | 3 | 3 | no twin |
+| R2000 | 3 | 3 | the DXF holds no such record |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
