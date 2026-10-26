@@ -1794,7 +1794,7 @@ cargo run --release --example probe_cross_release -- sample_AC1014.dwg sample_AC
     --ignore=attachment,line_spacing_style,line_spacing_factor,actual_measurement
 ```
 
-## 7x. IMAGEDEFREACTOR and RASTERVARIABLES (2026-10-26, #150)
+## 7ae. IMAGEDEFREACTOR and RASTERVARIABLES (2026-10-26, #150)
 
 §20.4.82 and §20.4.91 print the two small objects an IMAGE entity drags
 along, both after the common object data and `BL` class version: the
