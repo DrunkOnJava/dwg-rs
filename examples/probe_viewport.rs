@@ -129,7 +129,10 @@ fn fields(v: &Viewport) -> Vec<(u16, String)> {
 /// `(code, value)` pairs after its `AcDbViewport` subclass marker.
 fn dxf_viewports(path: &str) -> std::io::Result<HashMap<u64, Vec<(u16, String)>>> {
     let bytes = std::fs::read(path)?;
-    let text: String = bytes.iter().map(|&b| b as char).collect();
+    // R2007+ DXF is UTF-8; earlier releases write the drawing's ANSI
+    // code page, read here byte for byte.
+    let text = String::from_utf8(bytes)
+        .unwrap_or_else(|e| e.into_bytes().iter().map(|&b| b as char).collect());
     let lines: Vec<&str> = text.lines().collect();
     let mut out = HashMap::new();
     let mut i = 0;
