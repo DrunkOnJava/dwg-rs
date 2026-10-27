@@ -2843,9 +2843,9 @@ runs it.
 | VIEW | 6 | 6 | 190 | 190 | 0 | 0 | 0 | 4 | 0 |
 | UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
-| DIMSTYLE | 108 | 108 | 1443 | 1439 | 4 | 0 | 0 | 326 | 0 |
-| BLOCK_RECORD | 270 | 270 | 1092 | 1089 | 3 | 0 | 0 | 179 | 0 |
-| All | 1239 | 1239 | 8792 | 8783 | 9 | 0 | 0 | 1378 | 0 |
+| DIMSTYLE | 108 | 108 | 1449 | 1445 | 4 | 0 | 0 | 320 | 0 |
+| BLOCK_RECORD | 270 | 270 | 1134 | 1131 | 3 | 0 | 0 | 137 | 0 |
+| All | 1239 | 1239 | 8840 | 8831 | 9 | 0 | 0 | 1330 | 0 |
 
 Every group written has the export's code and value, over the 42 drawings of the
 public corpus that have an AutoCAD export of the same release (R2000 to R2018).
@@ -2934,13 +2934,25 @@ so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It writes a
 layout, a material or a visual style as an untyped record (they are class-numbered
 objects), so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
-and visual style names. An arrowhead block is left out
-the same way until BLOCKS writes block contents, which is only `*Model_Space` and
-`*Paper_Space` empty today (`dxf_tables::BLOCKS_EXPORTED`): `$DIMBLK` and its family
-are omitted, and so are a DIMSTYLE's 341 to 344. The entities that react to a record
-or insert a block are not written with their handles yet, so a record whose reactors
-or inserts name one has no such bracket. The probe lists each of these as an
-omission with its reason.
+and visual style names. An arrowhead block is named once BLOCKS writes it, which it
+now does for every block record (`$DIMBLK` and its family, a DIMSTYLE's 341 to 344).
+The entities that react to a record and the INSERTs of a block (`{ACAD_REACTORS`,
+`{BLKREFS`, 331) are named too, when every one of them is written: the tables are
+built twice, the second time knowing the handles of the entities and block markers
+written, so a record whose reactors or inserts include an entity nothing writes yet (a
+DIMENSION) has no such bracket. The probe lists each omission with its reason.
+
+### The order of a table
+
+Each table lists its records in the order its control object does: the `n` handles
+after the `BL` numentries, except that the LTYPE control (ByBlock, ByLayer) and the
+BLOCK control (model space, paper space) hold their two built-in records after the
+entries and AutoCAD's export writes those first. A BLOCK_RECORD's groups run name,
+layout (340), preview bitmap (310), `{BLKREFS`, then insert units, explodability and
+scaling (70, 280, 281); a DIMSTYLE's run in ascending code order, the fill colour (a
+second 70) after the fill mode (69) and the lineweights (371, 372) after the handles.
+The tables probe checks both orders against the export's, record by record and
+group by group.
 
 ### What the exports do that is not the DWG's doing
 
@@ -3048,12 +3060,12 @@ walk refuses.
 
 `src/dxf_entities.rs` writes the entities of model space and of the active paper
 space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decoded
-records: 15 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
-3DFACE, TEXT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface forms, VERTEX,
-SEQEND). An INSERT and the ATTRIBs and SEQEND under it are written too by the code
-but wait for BLOCKS: an INSERT is skipped, with its children, until the block it
-names is a written definition (`dxf_tables::BLOCKS_EXPORTED`), so no output holds a
-reference to a block it lacks. Any other kind, and an entity whose fields do not all
+records: 17 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
+3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface
+forms, VERTEX, SEQEND). An INSERT, with the ATTRIBs and SEQEND under it, is written
+only when BLOCKS (§7ar) writes the block it names (the blocks written are decided
+first; an INSERT of any other is counted as `INSERT (its block is not written)`), so
+no output holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
 decode, is counted in a `999 skipped` comment. `examples/probe_dxf_entities.rs`
 converts each drawing that has an AutoCAD export, reads the output back and pairs
 every entity written with the export's record of the same handle; the Corpus job runs
@@ -3064,28 +3076,29 @@ every export record, whatever the output holds.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 3DFACE | 6 | 6 | 78 | 78 | 0 | 0 | 0 |
 | ARC | 11 | 11 | 77 | 77 | 0 | 0 | 0 |
+| ATTRIB | 23 | 23 | 223 | 223 | 0 | 0 | 16 |
 | CIRCLE | 53 | 53 | 271 | 271 | 0 | 0 | 38 |
 | ELLIPSE | 11 | 11 | 143 | 143 | 0 | 0 | 0 |
+| INSERT | 36 | 36 | 293 | 293 | 0 | 0 | 0 |
 | LINE | 161 | 161 | 1377 | 1377 | 0 | 0 | 6 |
 | LWPOLYLINE | 131 | 131 | 810 | 810 | 0 | 0 | 42 |
 | MTEXT | 25 | 25 | 295 | 295 | 0 | 0 | 89 |
 | POINT | 46 | 46 | 243 | 243 | 0 | 0 | 4 |
 | POLYLINE | 12 | 12 | 84 | 84 | 0 | 0 | 0 |
 | RAY | 6 | 6 | 42 | 42 | 0 | 0 | 0 |
-| SEQEND | 12 | 12 | 12 | 12 | 0 | 0 | 0 |
+| SEQEND | 24 | 24 | 24 | 24 | 0 | 0 | 0 |
 | SOLID | 6 | 6 | 83 | 83 | 0 | 0 | 0 |
 | TEXT | 174 | 174 | 1140 | 1140 | 0 | 0 | 396 |
 | VERTEX | 72 | 72 | 402 | 402 | 0 | 0 | 0 |
 | XLINE | 6 | 6 | 42 | 42 | 0 | 0 | 0 |
-| All | 732 | 732 | 5099 | 5099 | 0 | 0 | 576 |
+| All | 803 | 803 | 5627 | 5627 | 0 | 0 | 591 |
 
 Every group written has the export's code and value, over the 42 drawings that have
-an AutoCAD export of the same release (R2000 to R2018): 732 entities, 5,099 groups.
+an AutoCAD export of the same release (R2000 to R2018): 803 entities, 5,627 groups.
 The export holds 1,145 entities that are in the DWG: 336 are of the 16 kinds nothing
 writes yet (DIMENSION, HATCH, MULTILEADER, VIEWPORT, MLINE, TOLERANCE, SPLINE, MESH,
 ACAD_TABLE, 3DSOLID, REGION, SHAPE, WIPEOUT, LEADER, IMAGE, PDFUNDERLAY), which the
-probe counts by kind; 36 INSERTs, 23 ATTRIBs and 12 SEQENDs of INSERTs wait for
-BLOCKS; and six are R2018 records with an embedded object (five MTEXT, one
+probe counts by kind; and six are R2018 records with an embedded object (five MTEXT, one
 multi-line ATTRIB) that nothing writes yet. What an entity omits has a reason the probe checks:
 extended data (1000 to 1071); a colour book colour's 420 and 430, which are in its
 `AcDbColor` object; a material's 347, written as an untyped record; reactors that are
@@ -3130,8 +3143,17 @@ appends an embedded object (101) with the column data, which is not written yet.
 Text goes through the header's release-aware escaping (a newline is `^J`).
 
 A layer of the `ENTITIES` section is the entity's own decoded layer; the placeholder
-that put every entity on layer 0 (or on the first visible layer) is used only when the
-tables are not written.
+writer, which puts every entity on layer 0, runs only when no table is written.
+
+The groups come in AutoCAD's order, which the probe checks record by record against the
+export: the `AcDbEntity` groups run 67, 8, 6, 347, 62, 420, 430, 440, 60, 370 (measured
+pairwise on every entity of the corpus; the linetype scale, 48, is placed after the colour
+because no corpus record holds it with 440 or 60), then the groups of the entity's own
+subclasses, and the entities in the order of the export, with a SEQEND after the last child
+of its parent (the object stream may hold it before a child created later). A colour's
+true-colour word (420) and transparency (440) are stored RGB word first and transparency
+second: the common data read them the other way round, which closed every record on its
+boundary (both are a `BL`) and was never compared.
 
 ## 7ao. dwg-to-dxf: the CLASSES section (2026-10-27, #126)
 
@@ -3412,6 +3434,72 @@ shows stays provisional (#348).
 The controlled drawings should vary what these records hold (a solid with subentities, a
 dynamic block, a second associative object), so that the arrays carry something other than
 the three ids and the counts of two.
+
+## 7ar. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
+
+`src/dxf_blocks.rs` writes one block per `BLOCK_RECORD` of the table, in its order: the
+`BLOCK` (its handle from the block record's handle stream, its layer, name, flags, base
+point, description and xref path), the entities of the block that
+`dxf_entities::build` collects (model space and the active paper space are in ENTITIES, so
+those two blocks are empty here, as in AutoCAD's own export) and the `ENDBLK`. Any kind
+nothing writes yet is counted in a `999 skipped` comment. The tables are built a second time
+knowing which entities and blocks are written, so the header's `$DIMBLK` family, a
+DIMSTYLE's arrowhead blocks and a BLOCK_RECORD's `{BLKREFS` name only what is in the output.
+`examples/probe_dxf_entities.rs --section=BLOCKS` pairs every record of the section with the
+export's of the same handle; the Corpus job runs it.
+
+| Kind | Written | Paired | Groups written | Agree | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ARC | 12 | 12 | 118 | 118 | 0 | 0 | 0 |
+| ATTDEF | 29 | 29 | 324 | 324 | 0 | 0 | 20 |
+| BLOCK | 270 | 264 | 2274 | 2268 | 0 | 0 | 0 |
+| CIRCLE | 30 | 30 | 150 | 150 | 0 | 0 | 72 |
+| ENDBLK | 270 | 264 | 420 | 420 | 0 | 0 | 0 |
+| INSERT | 48 | 36 | 378 | 378 | 0 | 0 | 24 |
+| LINE | 432 | 432 | 4472 | 4472 | 0 | 0 | 0 |
+| LWPOLYLINE | 12 | 12 | 90 | 90 | 0 | 0 | 0 |
+| MTEXT | 147 | 142 | 1990 | 1990 | 0 | 0 | 122 |
+| POINT | 204 | 204 | 1190 | 1190 | 0 | 0 | 0 |
+| SOLID | 78 | 78 | 1177 | 1177 | 0 | 0 | 0 |
+| All | 1532 | 1503 | 12583 | 12577 | 0 | 0 | 238 |
+
+Every group written has the export's code and value, in its order, over the 42 drawings of
+the corpus that have an AutoCAD export of the same release: 1,503 of 1,532 records pair, 12,577
+of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic block, below. The
+29 that do not pair are the records of one block per drawing the export registers again.
+
+- **A block the export registers again.** `*U25`, an anonymous block of the ACadSharp saves,
+  is in the export under a new block record, new `BLOCK` and `ENDBLK` and new entity handles
+  (the tables probe pairs the record by name). The DWG's `BLOCK`, `ENDBLK` and entities of it
+  (one MTEXT and two INSERTs per drawing) have no counterpart by handle, so the probe pairs the
+  two `BLOCK` records by name and sets the block's records on both sides aside, counted with
+  their reason.
+- **The dynamic block of R2000 to R2007.** `my-dynamic-block` is in the DWG under that name
+  and in the export as `*U17`: AutoCAD loads a dynamic block of those releases as an anonymous
+  block. The probe names it a relation (six BLOCK records, name and description groups).
+- **Group 4.** A `BLOCK` carries its block record's description as group 4 when it has one.
+- **A block left out, its entities and its INSERTs.** A block whose `BLOCK` or `ENDBLK` cannot
+  be written (its layer or linetype is not in the tables, its base point is not finite) is not
+  in BLOCKS. The entities inside it are left out with it (counted `(in a block that is not
+  written)`), so the handles the second table build is told are written are all in the output
+  and no BLOCK_RECORD's `{BLKREFS` lists an INSERT that is not; an INSERT of the block, with its
+  ATTRIBs, is left out too (counted `INSERT (its block is not written)`). The probe converts
+  every drawing to every release the writer writes it to and checks each INSERT's block (group
+  2) against the `BLOCK`s of the output (510 INSERTs in 264 conversions, 0 unresolved) and
+  each BLKREFS handle against the output's records (366 handles, 0 not written). No corpus
+  drawing has a block the writer must leave out, so the probe also builds the entities of each
+  drawing once per layer with that layer out of the tables, which takes the blocks on it out
+  (160 builds, 283 blocks left out), builds the tables from what is left and reads the two
+  sections' writers back: 39,429 handles told to the tables as written, 0 not in the output,
+  1,124 BLKREFS handles in those tables, 0 not in the output, 1,580 INSERTs written, 0
+  naming a block that is not written. With the entity filter taken out, 589 of the 40,018
+  handles told are not in the output and the probe exits 1; no BLKREFS entry dangles in the
+  corpus even then, so that symptom is guarded by the check and not measured. A negative run
+  (`PROBE_DXF_ENTITIES_DROP_BLOCK=1`) takes one written block and one written entity out of
+  the output the two first checks read: 72 INSERTs and 42 BLKREFS handles unresolved, exit 1.
+- **Not written yet.** 24 VIEWPORTs, one multi-line ATTDEF (R2018), and 38 MTEXTs that carry a background fill (90, 63, 45,
+  441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
+  which is not decoded) or an embedded object (R2018); the probe counts them by kind.
 
 ## 7as. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
 
