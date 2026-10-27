@@ -479,7 +479,9 @@ fn read_r2004_record_tail(c: &mut BitCursor<'_>) -> Option<RecordTail> {
 /// Write a TV (variable text) field per spec §2, branching on version.
 ///
 /// - R2007+ → UTF-16LE: `BS len` then `len` little-endian u16 code units.
-/// - Older   → 8-bit: `BS len` then `len` raw bytes (UTF-8 on the wire).
+/// - Older   → 8-bit: `BS len` then `len` bytes in the code page in force
+///   ([`crate::code_page::active`], [`crate::code_page::CodePage::encode`]):
+///   what the page holds as its byte, the rest as `\U+XXXX` escapes.
 ///
 /// The decoder counterpart is [`crate::tables::read_tv`]. It pops a
 /// trailing NUL unit if present; the writer emits the string verbatim
@@ -494,10 +496,10 @@ fn write_tv(w: &mut BitWriter, s: &str, version: Version) {
             w.write_rc((u >> 8) as u8);
         }
     } else {
-        let bytes = s.as_bytes();
+        let bytes = crate::code_page::active().encode(s);
         w.write_bs_u(bytes.len() as u16);
         for b in bytes {
-            w.write_rc(*b);
+            w.write_rc(b);
         }
     }
 }
