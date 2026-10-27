@@ -19,7 +19,7 @@ use super::{SourceIdentity, StreamError};
 
 const VERSION: u8 = 1;
 const TRAILER: usize = 4;
-const MAX: usize = 2 * R2007_WINDOW + 8192;
+pub(super) const MAX: usize = 2 * R2007_WINDOW + 8192;
 const HEAD: usize = 0x480;
 const PLAIN: usize = 0x110;
 

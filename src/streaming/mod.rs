@@ -5,8 +5,9 @@
 //! and has a bounded, resumable decoder for the
 //! R2004-family LZ77 dialect (§4.7); it walks the R2004 page map and
 //! section map, assembles sections from their data pages (§4.6) and frames
-//! the object section into records (§20.1). R2007 and the decoding of an
-//! object's fields remain open; see issue #205.
+//! the object section into records (§20.1). R2007 has its own whole-file walk
+//! and frames its object section into records the same way. The decoding of an
+//! object's fields remains open; see issue #205.
 
 use core::fmt;
 
@@ -22,10 +23,11 @@ mod r2007;
 mod r2007_checkpoint;
 mod r2007_codes;
 mod r2007_lz;
+mod r2007_objects;
 mod records;
 pub use checkpoint::{
     Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004ObjectCheckpoint,
-    R2004SectionCheckpoint, R2004WalkCheckpoint, WalkCheckpoint,
+    R2004SectionCheckpoint, R2004WalkCheckpoint, R2007ObjectCheckpoint, WalkCheckpoint,
 };
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
@@ -43,6 +45,7 @@ pub use r2007::{
     R2007Step, R2007Walker,
 };
 pub use r2007_checkpoint::R2007Checkpoint;
+pub use r2007_objects::{R2007ObjectDemand, R2007ObjectStep, R2007ObjectWalker};
 pub use records::RecordFormat;
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
