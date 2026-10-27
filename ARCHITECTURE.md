@@ -2753,7 +2753,923 @@ own twin rather than across releases.
 cargo run --release --example probe_mleader -- sample_AC1018.dwg sample_AC1018_ascii.dxf
 ```
 
-## 7aj. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7aj. R2007's CRCs, checksum and page sizes, as AutoCAD writes them (2026-10-26, #205)
+
+§5.2 to §5.4 give R2007 a lot of integrity data and say how it was made, not
+what each value covers or how its seed is built: the legacy reader checks none
+of it (§"What does not run" in §7k: "the crate has no 64-bit CRC"). The
+streaming walk (`src/streaming/r2007*.rs`) verifies all of it before it hands
+out a byte, so each reading below was measured first, on the eight R2007
+drawings of the pinned corpus (seven nextgis saves from AutoCAD 2016 and
+ACadSharp's `sample_AC1021.dwg` from AutoCAD 2025), by
+`tools/streaming/probe_r2007_checks.py`, which uses only the independent
+reader `tools/streaming/r2007_ref.py` and prints, for each field, how many
+agree with the reading and how many with the nearest wrong ones (the other CRC
+flavour, the other seed update, plain byte order).
+
+| Field | Reading that holds | Agree | Any other reading |
+|---|---|---|---|
+| File header, compressed data CRC (decoded block `0x10`) | normal CRC, `UpdateSeed2(0, length)`, over the `ComprLen` bytes | 8 of 8 | 0 |
+| File header, header CRC (`0x108`) | normal CRC, `UpdateSeed2(0, 0x110)`, over the header with the CRC field zeroed | 8 of 8 | 0 |
+| File header, checking sequence CRC (decoded block `0x00`) | normal CRC, `UpdateSeed1(0, 16)`, over the key and the key rotated by itself | 8 of 8 | |
+| File header, check data (`0x3D8`, five values) | both CRCs of the eight-word buffers §5.2.1.1.5 builds from the two random values; seeds `~random2` (normal) and `~random1` (mirrored), no seed update | 8 of 8 | |
+| System page (page map, section map), stored bytes | mirrored CRC, `UpdateSeed1(seed, length)`, `seed` the ten bits of the header's encoded seed | 16 of 16 | 0 |
+| System page, decompressed bytes | the same reading over the decompressed bytes | 16 of 16 | 0 |
+| Data page, stored bytes | mirrored CRC, `UpdateSeed1(CrcSeed, compressed size)`, over the first `compressed size` bytes after the codewords are de-interleaved | 137 of 137 | 0 |
+| Data page, checksum | §5.4.1's checksum, seed 0, over the decompressed bytes | 137 of 137 | |
+| Syndromes of every codeword (§7l) | all zero | 24 header, 34 page map, 129 section map, 4,425 data | |
+
+Both CRCs take eight-byte blocks in the order `6 7 4 5 2 3 0 1` and a 1 to 7
+byte remainder in §5.12's table order (`2 3 0 1 4 5 6` for seven); the
+checksum takes its bytes in the same orders. Taken in plain byte order none of
+the CRCs matches (0 of 137 data pages), which is the part of §5.12 that is easy
+to read past. Both tables follow from one polynomial each: ECMA-182
+(`0x42F0E1EBA9EA3693`) most significant bit first for the normal CRC, and
+`0x95AC9329AC4BC9B5` shifting the other way for the mirrored one; the tables
+§5.12 prints are reproduced exactly.
+
+What is not protected, and so not checked: bytes `0x2FD` to `0x3D7` of the file
+header block (random padding after its three codewords; a flipped byte there
+changes nothing), and the padding after the stored bytes in a data page's last
+codeword, which is not zero (0 of 4,425 codewords' padding is) because §5.13.2
+fills it from the random encoder. The repeated copies of a system page's data
+are equal to the first (16 of 16) and protected by their own codewords; the walk
+reads only the first, and checks the others' syndromes in its first pass.
+
+Three facts about page sizes the legacy reader never needed, and a bounded walker
+cannot ignore:
+
+- **A data page is not bounded by its section's maximum size.** Every section of
+  `sample_AC1021.dwg` and the nextgis drawings names `0xF800` as its maximum,
+  yet 16 pages of `AcDb:AcDbObjects` decompress to more (up to 70,912 bytes)
+  and the largest has a compressed size of 68,365 bytes: 273 codewords. A
+  fixed buffer sized to the maximum would refuse real files, so the walker
+  holds no page: it gathers one codeword at a time (the stride of the
+  interleave is the page's codeword count, so a codeword's 255 bytes are not
+  adjacent) and decodes through a 64 KiB window, the largest distance §5.10
+  can encode.
+- **A page's section-map "size" is its decompressed size only for some pages**
+  (34 of 137), so it is carried and printed but not relied on; its page map
+  entry is the codewords' span rounded up to `0x20` (98 of 98 Reed-Solomon
+  pages), and for every page (137 of 137) at least the span.
+- **Every section's pages end exactly at its data size** (103 of 103), so a
+  section needs no tail of zeros; a gap before a page (§5.2: "a page that
+  contains zeroes only is not written") is a hole, as in the legacy reader.
+
+Not measured: a header whose `ComprLen` is negative (stored), a non-zero
+`CrcSeed` (every pinned header has 0, so the seed plumbing is checked only
+against files `r2007_ref.build` writes from the spec's text), and any file
+with an encrypted section.
+
+## 7ak. dwg-to-dxf: the TABLES section (2026-10-26, #126)
+
+`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, VIEW, UCS, APPID,
+DIMSTYLE and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
+under its control object's handle with its records under their own and owned by
+the table, in the group order of AutoCAD's exports (VPORT, LTYPE, LAYER, STYLE,
+VIEW, UCS, APPID, DIMSTYLE, BLOCK_RECORD). The header then names a layer, text
+style, linetype or block only if a written table defines it
+(§7s, "dwg-to-dxf writes it back"). `examples/probe_dxf_tables.rs`
+converts each drawing that has an AutoCAD export, reads the output back and pairs
+every record written with the export's record of the same handle; the Corpus job
+runs it.
+
+| Table | Written | Paired | Groups written | Agree | Relation | Disagree | Extra | Groups omitted | Records omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| VPORT | 42 | 42 | 2199 | 2197 | 2 | 0 | 0 | 137 | 0 |
+| LTYPE | 156 | 156 | 1146 | 1146 | 0 | 0 | 0 | 4 | 0 |
+| LAYER | 156 | 156 | 964 | 964 | 0 | 0 | 0 | 496 | 0 |
+| STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
+| VIEW | 6 | 6 | 190 | 190 | 0 | 0 | 0 | 4 | 0 |
+| UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
+| DIMSTYLE | 108 | 108 | 1449 | 1445 | 4 | 0 | 0 | 320 | 0 |
+| BLOCK_RECORD | 270 | 270 | 1134 | 1131 | 3 | 0 | 0 | 137 | 0 |
+| All | 1239 | 1239 | 8840 | 8831 | 9 | 0 | 0 | 1330 | 0 |
+
+Every group written has the export's code and value, over the 42 drawings of the
+public corpus that have an AutoCAD export of the same release (R2000 to R2018).
+What is omitted has a reason the probe checks, and an unexplained omission fails
+it: the extended data (1000 to 1071) of a record, which the decoder does not read;
+a true-colour layer's 420 and the 62 beside it, a viewport's 63 beside its 421
+and a dimension colour (176 to 178), because the DWG stores no index for a true
+colour; a layer's colour name
+(430); a record the export registers again under another handle (an APPID, a
+layer, a block), which pairs by name; and the
+`{BLKREFS` bracket of a block, because ENTITIES does not carry the INSERT handles
+it lists. `ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that
+application on all four drawings that hold it. UCS is written
+as AutoCAD's empty table when the drawing has no UCS record, which is every
+drawing of the corpus; a drawing with UCS records gets no UCS table, because the
+decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
+that `tables::ucs` does not read).
+
+A LTYPE with a text or shape dash is written with its shape number (75; 0 for a text
+dash, whose `shape_number` is an offset into the text area, not a shape: the export
+writes 0 on all six text dashes of the corpus, which all sit at offset 0, so the
+corpus does not tell the offset from 0 and DXF's 75 settles it), style
+handle (340), scale, rotation, offsets and text (44 to 46, 50, 9). The style is the
+handle after the xref block's, one per dash; the text is the NUL-terminated string at
+the dash's `shape_number` bytes into the linetype's text area (256 bytes to R2004,
+512 of UTF-16 from R2007), decoded as the crate decodes every pre-R2007 string (lossy
+UTF-8, not the drawing's code page: #370; the six corpus text dashes read `GAS`, all
+ASCII), measured at offset 0 only. The DWG sets bit 8 of a text
+dash's flags on every release; AutoCAD's export writes it from R2013 and clears it
+before, so it is cleared for targets before R2013. All 156 LTYPE records pair, the
+four complex ones of each release included.
+
+### The handle stream of a table entry
+
+`tables::handles::refs` reads what the other decoders leave: the handle stream.
+Every entry starts with the table's control object (soft pointer, the owner), one
+soft pointer per reactor (the `BL` of the common object data), and the extension
+dictionary (always on R2000, unless the `XDic Missing Flag` is set from R2004).
+The entry's own handles follow, as §20.4.x lists them, and this is what was
+measured against the exports' handle groups:
+
+- **LAYER**: the xref block (NULL), the plot style (390), from R2007 the material
+  (347), the linetype (6, written by name) and, from R2013, a visual style (348,
+  written as `348 0` when NULL). That is 3, 4 and 5 handles on R2000 and R2004,
+  R2007 and R2010, R2013 and R2018.
+- **VPORT**: the xref block, then from R2007 the background (332), visual style
+  (348) and sun (361), then the named UCS (345) and base UCS (346): 3 handles on
+  R2000, 6 from R2007. Only 348 is ever set in the corpus.
+- **DIMSTYLE**: the xref block, the text style (340), the leader block (341), the
+  two arrowhead blocks (342 to 344) and, from R2007, the dimension linetype and
+  the two extension line linetypes (345 to 347): 6 handles to R2004, 9 from
+  R2007, a NULL one left out.
+
+- **VIEW**: as VPORT's, the xref block, then from R2007 the background, visual
+  style (348) and sun, then the named and base UCS. A view is the one record written
+  with the view's associated UCS (72, 110 to 112, 79, 146) and, from R2007, the
+  camera-plottable flag (73); a record from R13 or R14, which store neither a render
+  mode nor a UCS, gets no 281 or 72.
+- **BLOCK_RECORD**: a NULL, the `BLOCK` entity, on R2000 the first and last entity
+  (unless an xref), on R2004 and later the owned entities (their count is in the
+  data stream), the `ENDBLK` entity, one handle per non-zero `RC` of the insert
+  count, and last the layout (340, `0` for a block that is not a layout). A list
+  whose length is not what that order gives is not read. The layout handle equals
+  the export's 340 on all 270 records.
+
+### DIMSTYLE: what AutoCAD leaves out
+
+`tables::dimstyle::decode_with_vars` returns every variable of the record in
+stored order by AutoCAD's name (the 15 fields of `DimStyleEntry` are unchanged).
+AutoCAD writes a DIMSTYLE group only when its value differs from the imperial
+default, and the defaults are the ones in `DIM_GROUPS`: measured by pairing the
+decoded value of each variable with the export's record of the same handle over
+the 108 records, a variable the export omits has the same value on every record
+that omits it, and a record whose value differs carries the group (`DIMSCALE`
+1.0, `DIMASZ` 0.18, `DIMEXO` 0.0625, `DIMDLI` 0.38, `DIMDEC` 4, `DIMTAD` 0,
+`DIMTIH` and `DIMTOH` 1, `DIMJOGANG` 45 degrees, and so on). A colour is written
+as its index (176 to 178; the fill colour as a second `70`) unless it is ByBlock.
+The `DIMFIT` slot of §20.4.68 is the group `DIMATFIT` (289) on every release.
+The table header carries `100 AcDbDimStyleTable`, a `71` and a `340` per handle
+the control object lists after its `numentries` dimstyles (non-NULL ones), and
+the probe checks that header against the export's on every drawing.
+
+A handle group is written only when the output defines the object it names, under
+its own type: the OBJECTS section writes dictionaries and plot style placeholders,
+so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It writes a
+layout, a material or a visual style as an untyped record (they are class-numbered
+objects), so a block's 340 (when it names a layout), a layer's 347 and 348 and a
+viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
+and visual style names. An arrowhead block is named once BLOCKS writes it, which it
+now does for every block record (`$DIMBLK` and its family, a DIMSTYLE's 341 to 344).
+The entities that react to a record and the INSERTs of a block (`{ACAD_REACTORS`,
+`{BLKREFS`, 331) are named too, when every one of them is written: the tables are
+built twice, the second time knowing the handles of the entities and block markers
+written, so a record whose reactors or inserts include an entity nothing writes yet (a
+DIMENSION) has no such bracket. The probe lists each omission with its reason.
+
+### The order of a table
+
+Each table lists its records in the order its control object does: the `n` handles
+after the `BL` numentries, except that the LTYPE control (ByBlock, ByLayer) and the
+BLOCK control (model space, paper space) hold their two built-in records after the
+entries and AutoCAD's export writes those first. A BLOCK_RECORD's groups run name,
+layout (340), preview bitmap (310), `{BLKREFS`, then insert units, explodability and
+scaling (70, 280, 281); a DIMSTYLE's run in ascending code order, the fill colour (a
+second 70) after the fill mode (69) and the lineweights (371, 372) after the handles.
+The tables probe checks both orders against the export's, record by record and
+group by group.
+
+### What the exports do that is not the DWG's doing
+
+Three differences are relations the probe names, not disagreements:
+
+- The export of `geoloc.dwg` is a later save (its `$TDUUPDATE` is 1.94 days later,
+  `$HANDSEED` 0x249 against 0x243), and the `*Active` viewport of the later save has a
+  different view height (40) and centre (22).
+- AutoCAD loads the dynamic block `my-dynamic-block` of the R2000, R2004 and R2007
+  saves as the anonymous block `*U17`; the R2010 to R2018 saves keep the name.
+- The R2000 save holds an extension dictionary on three true or book colour
+  layers (`Layer_true_color`, `Layer_color_book`, `color_125_33_79`) that
+  AutoCAD's export drops. They are written, with the dictionary, which OBJECTS
+  writes.
+
+The probe also prints the numbers per release.
+
+## 7al. The entity colour's true colour and transparency words (2026-10-26, #126)
+
+§2.11 stores an R2004+ entity colour as a `BS` whose high byte flags what
+follows it: bit 0x80 a `BL` with the true colour (`0xC2RRGGBB`), bit 0x40 a colour
+book handle (the RGB and name are then in the AcDbColor object), bit 0x20 a `BL`
+with the transparency. `read_common_entity_data` read both `BL`s and dropped
+them, taking the transparency first. Two `BL`s are the same 32 bits either way,
+so the order moved no cursor and no decoded count, and nothing showed it until
+the words were kept: `CommonEntityData` now carries `color_raw`, `color_rgb` and
+`color_alpha`, with the RGB word first, as §2.11 lists them.
+
+`examples/probe_entity_colour.rs` pairs every entity of a drawing with the
+record of the same handle in AutoCAD's own export of it and compares the colour
+index (62, absent for BYLAYER, left out where the export has a true colour:
+AutoCAD derives a nearest index the DWG does not store), the true colour (420),
+and the transparency (440). The Corpus job runs it. An entity whose common data
+does not read is a failure, named by drawing and handle, not a skipped record, and a
+run that reads and pairs no entity prints `NOT MEASURED`; `PROBE_ENTITY_COLOUR_TRUNCATE`
+cuts every record short to show it (2,609 entities named, exit 1).
+
+| Release | Entities paired | Index | Agree | True colour | Agree | Colour book | Transparency | Agree | Both words | Agree, RGB first | Agree, exchanged |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 437 | 437 | 437 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| AC1018 (2004) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1021 (2007) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1024 (2010) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1027 (2013) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1032 (2018) | 394 | 360 | 360 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+
+The order matters only for an entity that carries both words, and the corpus
+has 14 of them in each R2004+ release: read RGB first, all 14 match the export;
+with the two words exchanged (the transparency first), none does. One of them is
+the LINE `9D4` of `sample_AC1032.dwg`, whose export reads `62 183`,
+`420 8404418` and `440 16777216` where the stream holds `0xC2802142` and then
+`0x01000000`: read the other way round it would be a colour `0x01000000` with
+the transparency `0xC2802142`. The colour book colour (one entity, flag 0x40) is
+counted and not compared, since its RGB is not in the entity. R13 and R14 colours
+are the bare index, and the probe skips AC1014 drawings.
+
+## 7am. R2007's object records are R2000's (2026-10-26, #205)
+
+The streaming object walker for R2007 (`src/streaming/r2007_objects.rs`) frames
+the `AcDb:AcDbObjects` section of an `AC1021` file into records without the
+`AcDb:Handles` map, exactly as §7ac's walker does for the R2004 family, and it
+needed one answer first: which record layout. R2007 is neither R2004 (§7ac's
+`RL`-sized record, which it shares) nor R2010 (the `MC` handle-stream size and a
+two-bit-tagged type), and the legacy walker's comment that "the R2004 and R2007
+corpus files tile their object stream exactly" had never been counted. It was,
+on every object section of the eight R2007 drawings of the pinned corpus (seven
+nextgis saves from AutoCAD 2016 and ACadSharp's `sample_AC1021.dwg` from AutoCAD
+2025), with an independent parse (`tools/streaming/verify_objects.py`'s framer
+over `r2007_ref.py`'s section bytes):
+
+| Property | `AC1021` |
+|---|---|
+| Records walked | 2,237 (186, 186, 198, 186, 185, 185, 186 in the seven nextgis drawings, 925 in `sample_AC1021`) |
+| The section opens with `CA 0D 00 00` (an `RL` of 0x0DCA), as R2004's does | 8 of 8 drawings |
+| Records (`MS`, `MS` bytes of payload, two-byte CRC) end exactly at the section's size, with no padding and no zero-length trailer | 8 of 8 |
+| The CRC (§2.14.1, seed `0xC0C1`) over the `MS` and the payload equals the two bytes after the payload | 2,237 |
+| The (handle, offset) pairs of the `AcDb:Handles` map, sorted by offset, equal the records' handles and starts | 8 of 8 drawings, 2,237 records |
+| The same bytes read as R2010 records (an `MC` after the `MS`, a two-bit-tagged type) | the first record's CRC fails in 8 of 8 |
+
+So an R2007 record is the R2000 record (`RecordFormat::R2000`: a `BS` type, an
+`RL` size in bits, then the handle), and the framer needed no new format. The
+`RL` and the type are read from the payload's first 16 bytes as before and the
+record is committed only after the CRC. The legacy reader reads the same bytes
+the same way, and the streaming walker's records equal its (handle, offset, `MS`,
+type, payload length, payload CRC-32) on all 2,237.
+
+Two facts about the pages that carry the records, which a bounded walker cannot
+ignore. The section's pages arrive in the order its section map lists them (a
+rising `data_offset` is enforced by the file walk, which looks each page up in
+the page map, §7aj), so unlike the R2004 family's page map the order of a page in
+the file does not matter and no out-of-order page can reach the framer; a stretch
+of the section that no page covers arrives as a `Hole` step, which the object
+walker refuses (`ObjectsOrder`) instead of framing zeros. And records do not
+respect pages: 34 of the 2,237 records straddle a page boundary (two in each
+nextgis drawing, twenty in `sample_AC1021`, whose 21 object pages hold up to
+70,912 decompressed bytes), the largest record takes 150,151 bytes of the section (`sample_AC1021`),
+and the framing carries across all of them unchanged.
+
+Not measured: an R2007 drawing larger than the 1.06 MB `sample_AC1021` (none is
+pinned or available locally), a section the file lists in a different page order
+(not a possible layout, per the above), and an encrypted section, which the file
+walk refuses.
+
+## 7an. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
+
+`src/dxf_entities.rs` writes the entities of model space and of the active paper
+space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decoded
+records: 17 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
+3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface
+forms, VERTEX, SEQEND). An INSERT, with the ATTRIBs and SEQEND under it, is written
+only when BLOCKS (§7ar) writes the block it names (the blocks written are decided
+first; an INSERT of any other is counted as `INSERT (its block is not written)`), so
+no output holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
+decode, is counted in a `999 skipped` comment. `examples/probe_dxf_entities.rs`
+converts each drawing that has an AutoCAD export, reads the output back and pairs
+every entity written with the export's record of the same handle; the Corpus job runs
+it, and expects every kind `dxf_entities::kinds` lists for the target release of
+every export record, whatever the output holds.
+
+| Kind | Written | Paired | Groups written | Agree | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 3DFACE | 6 | 6 | 78 | 78 | 0 | 0 | 0 |
+| ARC | 11 | 11 | 77 | 77 | 0 | 0 | 0 |
+| ATTRIB | 23 | 23 | 223 | 223 | 0 | 0 | 16 |
+| CIRCLE | 53 | 53 | 271 | 271 | 0 | 0 | 38 |
+| ELLIPSE | 11 | 11 | 143 | 143 | 0 | 0 | 0 |
+| INSERT | 36 | 36 | 293 | 293 | 0 | 0 | 0 |
+| LINE | 161 | 161 | 1377 | 1377 | 0 | 0 | 6 |
+| LWPOLYLINE | 131 | 131 | 810 | 810 | 0 | 0 | 42 |
+| MTEXT | 25 | 25 | 295 | 295 | 0 | 0 | 89 |
+| POINT | 46 | 46 | 243 | 243 | 0 | 0 | 4 |
+| POLYLINE | 12 | 12 | 84 | 84 | 0 | 0 | 0 |
+| RAY | 6 | 6 | 42 | 42 | 0 | 0 | 0 |
+| SEQEND | 24 | 24 | 24 | 24 | 0 | 0 | 0 |
+| SOLID | 6 | 6 | 83 | 83 | 0 | 0 | 0 |
+| TEXT | 174 | 174 | 1140 | 1140 | 0 | 0 | 396 |
+| VERTEX | 72 | 72 | 402 | 402 | 0 | 0 | 0 |
+| XLINE | 6 | 6 | 42 | 42 | 0 | 0 | 0 |
+| All | 803 | 803 | 5627 | 5627 | 0 | 0 | 591 |
+
+Every group written has the export's code and value, over the 42 drawings that have
+an AutoCAD export of the same release (R2000 to R2018): 803 entities, 5,627 groups.
+The export holds 1,145 entities that are in the DWG: 336 are of the 16 kinds nothing
+writes yet (DIMENSION, HATCH, MULTILEADER, VIEWPORT, MLINE, TOLERANCE, SPLINE, MESH,
+ACAD_TABLE, 3DSOLID, REGION, SHAPE, WIPEOUT, LEADER, IMAGE, PDFUNDERLAY), which the
+probe counts by kind; and six are R2018 records with an embedded object (five MTEXT, one
+multi-line ATTRIB) that nothing writes yet. What an entity omits has a reason the probe checks:
+extended data (1000 to 1071); a colour book colour's 420 and 430, which are in its
+`AcDbColor` object; a material's 347, written as an untyped record; reactors that are
+entities not all written; an extension dictionary the export made itself (its handle is
+at or above the DWG's `$HANDSEED`).
+
+### The common data and handles of an entity
+
+`entity_refs` reads the handle stream the entity decoders leave: the owner (only when
+the entity mode is 0; mode 2 is model space and 1 paper space), the reactors, the
+extension dictionary, a colour book colour, the layer, the linetype, the material, the
+plot style and, from R2010, the visual styles, then the entity's own handles (a TEXT's
+style, an INSERT's block, ...). Measured against the export:
+
+- **R2000** has `Nolinks` clear on entities, which puts the previous and next entity
+  handles (two relative soft pointers) before the layer; the common decoder read the bit
+  and dropped it. From R2004 it is always set.
+- From **R2007** the flag pair the common data calls `plotstyle_flag` then
+  `material_flag` is read the other way round: the first names a MATERIAL (its handle,
+  group 347; `1` is the ByBlock material, `0` ByLayer, which is not written), the second
+  the plot style. Handle `0xDC0` of the R2007 sample is a class-505 MATERIAL object.
+- The colour `BS` keeps the index in its low nine bits (256 is ByLayer, not written); a
+  transparency (440) and a true colour (420) follow when the high bits announce them.
+- The lineweight `RC` maps through the lineweight table; 29 (ByLayer) is not written and
+  30 (ByBlock) is `-2`.
+
+Group rules the export shows, each checked on every record of its kind: the linetype is
+`ByBlock` or `Continuous` in mixed case, a LINE's thickness and an extrusion of `(0, 0,
+1)` are omitted but an ELLIPSE always writes its 210; a TEXT writes its style only when
+it is not `Standard`, and the vertical alignment (73) under its second `AcDbText`; an
+ATTRIB writes the lock position (280) from R2007 and a version 280 before it from R2010;
+an LWPOLYLINE writes the constant width (43) unless it has per-vertex widths, and is
+not written at all when its flag word has a bit the decoder does not name (the
+presence bits of §20.4.85 and the closed bit are named; PLINEGEN is none of them, no
+record of the 143 LWPOLYLINEs of the corpus exports sets it, whose group 70 is 0 or 1,
+and the spec does not say which bit it is); an MTEXT
+writes its rectangle height (46) only from R2007 and splits its text in 250-character
+`3` groups ahead of the `1` (a line feed, written `^J`, counts one character; no chunk
+passes 2,000 written characters, a DXF line's limit, where `\U+XXXX` escapes before
+R2007 widen it). An MTEXT of an R2018 target is not written: the export
+appends an embedded object (101) with the column data, which is not written yet.
+Text goes through the header's release-aware escaping (a newline is `^J`).
+
+A layer of the `ENTITIES` section is the entity's own decoded layer; the placeholder
+writer, which puts every entity on layer 0, runs only when no table is written.
+
+The groups come in AutoCAD's order, which the probe checks record by record against the
+export: the `AcDbEntity` groups run 67, 8, 6, 347, 62, 420, 430, 440, 60, 370 (measured
+pairwise on every entity of the corpus; the linetype scale, 48, is placed after the colour
+because no corpus record holds it with 440 or 60), then the groups of the entity's own
+subclasses, and the entities in the order of the export, with a SEQEND after the last child
+of its parent (the object stream may hold it before a child created later). A colour's
+true-colour word (420) and transparency (440) are stored RGB word first and transparency
+second: the common data read them the other way round, which closed every record on its
+boundary (both are a `BL`) and was never compared.
+
+## 7ao. dwg-to-dxf: the CLASSES section (2026-10-27, #126)
+
+`src/dxf_classes.rs` writes a `CLASSES` section from the class table of `AcDb:Classes`,
+for a target of R2000 or later (R12 has none; R14 is not measured), one `CLASS` record
+per class in the table's order: the DXF name (1), the C++ name (2), the application
+(3), the proxy capability flags as an unsigned 16-bit word (90; the table stores a
+`BS`, so a flag word of `0x8401` reads as `-31743` signed), for a target of R2004 or
+later the instance count (91), the was-a-proxy flag (280) and the entity flag (281:
+item class id 0x1F2). Group 91 follows the target release; the count follows the
+source: the table's from an R2004 or later drawing, and for an earlier one, whose table
+stores none, the objects of the stream whose type code is the class number.
+`examples/probe_dxf_classes.rs` pairs every class with the export's of the same DXF
+name and compares groups and order, on the CLASSES section alone; the Corpus job runs it.
+
+| Release | Written | Paired | Groups | Agree | Relation | Disagree | Export only |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 135 | 135 | 675 | 675 | 0 | 0 | 0 |
+| AC1018 (2004) | 119 | 119 | 714 | 695 | 19 | 0 | 0 |
+| AC1021 (2007) | 118 | 118 | 708 | 690 | 18 | 0 | 1 |
+| AC1024 (2010) | 118 | 118 | 708 | 697 | 11 | 0 | 1 |
+| AC1027 (2013) | 111 | 111 | 666 | 655 | 11 | 0 | 8 |
+| AC1032 (2018) | 66 | 66 | 396 | 388 | 8 | 0 | 1 |
+
+Three differences between AutoCAD's export and the table are measured and applied:
+from R2004 the export does not list LAYOUT or ACDBPLACEHOLDER (newer releases hold them
+as native types; both are listed in an R2000 export), and an R2000 export writes
+`AcDbDataTable`'s record as `ACDBDATATABLE` where the table, and every later export,
+say `DATATABLE`. The 67 relations are the instance count (91): the export counts the
+objects it holds, among them those AutoCAD creates when it loads the file (more
+DICTIONARYVARs, CELLSTYLEMAPs) or leaves out, so the DWG's own count differs by a few
+on those classes. The export also holds 11 classes the table lacks (7 CELLSTYLEMAP and
+4 DATATABLE, on the larger samples) that AutoCAD registers on load; they are listed and
+not written. The probe also converts every drawing to every release from R2000: 3,934
+CLASS records over 252 conversions, group 91 on each exactly when the target is R2004
+or later. A drawing before R2004 has no count in its table, so a newer target gets the
+count taken from the object stream; that count equals the table's own on 473 of the 544
+classes of the R2004 and later drawings (the other 71 differ, as the export's counts
+differ from the table's), and no corpus pair shows AutoCAD's own count for an R2000
+drawing saved as a newer DXF, so that case is owed against an export. Not measured: an
+R14 target.
+
+## 7ap. Pre-R2007 text is in the code page the header names (2026-10-27, #370)
+
+Before R2007 every `TV` is a run of single bytes in the drawing's code page, and
+§3.2.5 says where the page is named: "Bytes at 0x13 and 0x14 are a raw short
+indicating the value of the code page for this drawing file." Every reader of
+such a string (the symbol-table entry names, TEXT, ATTRIB, ATTDEF, MTEXT,
+TOLERANCE, IMAGEDEF, BLOCK, every non-entity object through
+`objects::modern::read_tv`, the class table, the header variables and the
+metadata sections) read the bytes as UTF-8 and kept U+FFFD for what is not, so a
+byte above 0x7F that is not valid UTF-8 on its own (`0xB0`, `0xE9`, a Cyrillic
+letter) was lost on the way in.
+
+**What the specification gives, and what it does not.** The short and nothing
+else: v5.4.1 prints no table of its values (the word "codepage" occurs in §3.2.5,
+in the header dumps, in §22's template string and in the XRECORD and extended
+entity data string layouts, where each string carries a code page of its own).
+The values are therefore
+learned as the project learns everything the specification omits (CLEANROOM.md,
+2026-10-27): from AutoCAD's own output. `examples/probe_code_page.rs` pairs the
+header short of each pre-R2007 drawing with the `$DWGCODEPAGE` of AutoCAD's DXF
+export of it:
+
+| Header short | Export's `$DWGCODEPAGE` | Drawings paired | Table row |
+|---:|---|---:|---|
+| 29 | `ANSI_1251` | 14 (seven nextgis saves each in AC1015 and AC1018) | `CodePage::Ansi1251`, Windows-1251 |
+| 30 | `ANSI_1252` | 2 (`sample_AC1015.dwg`, `sample_AC1018.dwg`) | `CodePage::Ansi1252`, Windows-1252 |
+| 29, 30 | none: AutoCAD's exports of the AC1014 drawings are R12 DXF or absent, and carry no `$DWGCODEPAGE` | 7 and 1 AC1014 drawings | the same two rows apply to them; no export confirms the short on R14 |
+
+Every other short is `CodePage::Unknown(n)` and its text is read as before; the
+probe fails when an export names a page the table has no row for, which is how a
+row is added: in the pull request of the drawing and the export that name it.
+Windows-1250, 1253 to 1258, 874, 932, 936, 949, 950 and the DOS and ISO pages
+all decode through `encoding_rs` the day their numbers are measured; none is
+named here because no pinned drawing has a number to name them by.
+
+**One path.** `CodePage::decode` (`src/code_page.rs`) is the only place a
+pre-R2007 byte string becomes a `String`, through `encoding_rs`' WHATWG tables
+(`decode_without_bom_handling`: a leading `EF BB BF` is text here, not a byte
+order mark). The records reach it through the page they were stamped with:
+`ObjectWalker::with_code_page` puts `DwgFile::code_page()` on every
+`RawObject::code_page`, `decode_from_raw` and `decode_from_raw_with_class_map`
+put it in force for the decode with `with_code_page`, and the shared `TV` readers
+read it back. The page is carried that way and not as a parameter because about
+forty object decoders take only `(payload, body_start, inline_end, version)`;
+a decoder called on a bare cursor sees `CodePage::default()` and reads UTF-8 as
+before. `DwgFile` does the same around the header variables, the class table and
+`AcDb:SummaryInfo`, `AcDb:AppInfo` and `AcDb:FileDepList`. A header variable
+that leaves ASCII under a page the table does not name stays `Value::RawText`;
+under a named one it is `Value::Text`. The writer's `$DWGCODEPAGE` takes its
+name from the same table (`CodePage::dxf_name`).
+
+**What the corpus holds.** No pre-R2007 string with a byte above 0x7F:
+
+| Release | Drawings | Strings decoded | With a byte above 0x7F |
+|---|---:|---:|---:|
+| AC1014 (R14) | 8 | 3,418 | 0 |
+| AC1015 (2000) | 8 | 2,846 | 0 |
+| AC1018 (2004) | 8 | 2,812 | 0 |
+
+The degree sign the twins show is not a counter-example: the MTEXT of
+`sample_AC1015.dwg` that AutoCAD's export writes as `94\U+00B0` holds those nine
+ASCII characters in the DWG too (`\U+00B0` is MTEXT's own escape for a character
+outside the page, and the dimension text `\U+220545,6` is the same), so the old
+and the new decode both return them and agree with the export. No decoded,
+skipped or errored count and no oracle row moved (below).
+
+**A patched copy.** With no such string to read, the path is proved on real
+drawings altered in memory (nothing is written). For each of the 16 uncompressed
+drawings (the eight AC1014 and the eight AC1015) and each kind of record that
+holds a string, the first string of six bytes or more that sits once in the file
+has its first four characters overwritten, at the bit they sit at, with
+`E9 B0 C0 FC`, and the record is read back under the drawing's own header short,
+under 29, under 30 and under 31, a number the table lacks:
+
+| Header short | Reads as | Before the code page |
+|---:|---|---|
+| 29 | `й°Аь` + the rest (Windows-1251's own chart) | U+FFFD ×4 |
+| 30 | `é°Àü` + the rest (Windows-1252's own chart) | U+FFFD ×4 |
+| 31 | the bytes, as before, and counted as unknown | U+FFFD ×4 |
+
+153 strings in 24 kinds of record, 612 of 612 reads as the table says:
+
+| Kind of record | Strings | Reads right | `dwg-to-dxf` TABLES holds it |
+|---|---:|---:|---:|
+| AppId | 16 | 64 of 64 | 16 of 16 |
+| DimStyle | 16 | 64 of 64 | 8 of 8 |
+| Layer | 1 | 4 of 4 | 1 of 1 |
+| Ltype | 16 | 64 of 64 | 16 of 16 |
+| Style | 2 | 8 of 8 | 2 of 2 |
+| Vport | 8 | 32 of 32 | 8 of 8 |
+| BlockHeader | 1 | 4 of 4 | - |
+| Block | 8 | 32 of 32 | - |
+| Text, Attrib, Attdef | 2, 2, 2 | 8 of 8 each | - |
+| MText, Tolerance | 2, 2 | 8 of 8 each | - |
+| Dictionary, ACDBDICTIONARYWDFLT, DICTIONARYVAR | 16, 16, 1 | 64, 64, 4 of the same | - |
+| LAYOUT, SCALE, IMAGEDEF, MULTILEADER | 2 each | 8 of 8 each | - |
+| ACDBDETAILVIEWSTYLE, ACDBSECTIONVIEWSTYLE | 16 each | 64 of 64 each | - |
+| HATCH, Hatch | 1 each | 4 of 4 each | - |
+
+The 51 table-entry names reach `dwg-to-dxf` as `\U+XXXX` escapes of the
+characters their page gives (`\U+00E9\U+00B0\U+00C0\U+00FC` under 30,
+`\U+0439\U+00B0\U+0410\U+044C` under 29), where they were `\U+FFFD` before. The
+corpus's own twins do not show how AutoCAD exports an in-page character: the
+`\U+XXXX` form is the writer's choice (`src/dxf_header.rs`), measured against
+nothing but the escapes the twins hold as literal text. The first run of this
+probe named one reader that takes a `RawObject` without the dispatcher:
+`tables::dimstyle::decode_with_vars`, which DXF TABLES calls for DIMSTYLE (0 of 8
+before, 8 of 8 now); it puts the record's page in force itself. No other reader
+of the crate takes a record that way. The `from_utf8_lossy` calls left in
+`src/` are `CodePage`'s own fallback, the ASCII section names of the R2004
+section map and the DXF reader's.
+
+**Counts.** On `main` at `5851283` with this change merged: `measure.py check`
+matches all 52 rows (15,527 records decoded, 547 skipped, 0 errored), so no
+baseline is regenerated; the DXF oracle's regenerated table is identical to
+`tools/oracle/baseline.tsv` (105,690 values equal, 11,142 default, 283 different,
+6,722 DWG-only); `probe_header_vars`, `probe_dxf_header`, `probe_dxf_tables`,
+`probe_dxf_entities`, `probe_entity_colour`, `probe_text` and `probe_mtext` read
+0 differences; `cargo test --release --all-features` passes (921 tests). Text
+content changes no field width, and none moved.
+
+**Owed.** The writers still emit strings as UTF-8 (`file_writer.rs` names,
+the element encoders): the inverse of this decode, a page-aware encoder, is not
+in this change. XRECORD strings (§20.4.104: an `RC` code page byte after the
+length) and extended entity data strings (§28: a 2-byte code page short) carry a
+code page of their own beside each string; the crate does not decode them
+(XRECORD keeps its bytes, the extended data chain is skipped).
+`dxf_tables::dash_text` (#358) takes `CodePage::decode` with the record's page
+(`ltype_groups` is handed `RawObject::code_page`); the corpus's complex
+linetypes have ASCII text, so the probe above patches an LTYPE's name and no
+data reads that text area through a non-ASCII byte. The diagnostic `read_tv`
+copies in `examples/trace_*` and the field-list probes still decode as UTF-8;
+they print strings and compare none.
+
+## 7aq. ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER, derived from AutoCAD's own output (2026-10-27, #152)
+
+ODA spec v5.4.1 prints no layout for either class, and no other lane had touched them: they
+were the last two skipped types with no decoder and no open PR. `src/objects/pers_subent.rs`
+reads them from the layout below, derived by the CLEANROOM.md method of 2026-10-26: the data
+bits of every record in the pinned corpus, read against the object of the same handle in
+AutoCAD's DXF export. The corpus holds one record of each class per release, 14 in all, and
+all 14 close on the data-stream boundary. Every record is in ACadSharp's `sample_base`
+(AutoCAD 2025, saved as R14, R2000, R2004, R2007, R2010, R2013 and R2018) at the same handles,
+0xD62 and 0xD63, on every release; no nextgis drawing holds either class, and the R2000 to R2018
+exports hold both objects (the R14 save has no twin). One drawing therefore supplies all 14.
+
+| Release | Records | Close | Data bits (ASSOC, PERS) | Values compared | Differ |
+|---|---:|---:|---|---:|---:|
+| R14 | 2 | 2 | 49, 64 (boundary from the `RL` in the common object data) | none, no DXF twin | |
+| R2000 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2004 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2007 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2010 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2013 | 2 | 2 | 107, 28 | 22 | 0 |
+| R2018 | 2 | 2 | 107, 28 | 22 | 0 |
+| Total | 14 | 14 | | 120 | 0 |
+
+### The field lists
+
+```text
+ACDBPERSSUBENTMANAGER
+  BL version, array, array, array
+ACDBASSOCPERSSUBENTMANAGER
+  BL version, array ids, one array per id, one more array at version 2, B flag
+array = BL count, then count x BL
+```
+
+| Variant | Records | Groups 90 of the DXF object, in order | Group 290 |
+|---|---|---|---|
+| ASSOC, version 1 (R14 to R2010) | 5 | 1 3 0 2 4 0 0 0 | 0 |
+| ASSOC, version 2 (R2013, R2018) | 2 | 2 3 0 2 4 0 2 3 4 2 3 4 0 | 0 |
+| PERS (R14 to R2010) | 5 | 2 0 2 4 0 2 3 4 | none |
+| PERS (R2013, R2018) | 2 | 2 0 2 0 0 0 | none |
+
+How it was found, so that it can be checked. Each record's bits tile exactly as `BL`s: the
+version, the counts and the values are 10-bit forms (code `01`, then a byte) for 1, 2, 3 and 4
+and 2-bit zero codes for 0, and the ASSOC ends in one more bit. Those numbers are the groups
+90 of the DXF object in file order, count for count (8, 13, 8 and 6), and the last bit is
+group 290. `probe_field_list` reproduces it with `8*BL,B`, `13*BL,B`, `8*BL` and `6*BL` on
+handles 3426 and 3427 of every `sample_AC10xx.dwg` from R2000. The grouping into arrays
+is the reading, among those that parse the same bits, that keeps the most repeat counts in the
+stream: in the ASSOC the ids array `[0 2 4]` is followed by three arrays (all empty at version
+1; `[]`, `[3 4]`, `[3 4]` at version 2), then at version 2 one more empty one; in the PERS the
+arrays are `[]`, `[4 0]`, `[3 4]` on R14 to R2010 and `[]`, `[0 0]`, `[]` on R2013 and R2018.
+A count is followed by exactly that many values in all 14 records.
+
+### Values compared with the DXF (`probe_pers_subent`, `probe_assoc_pers_subent`)
+
+| Object | Group | Compared | Differ |
+|---|---|---:|---:|
+| ACDBASSOCPERSSUBENTMANAGER | 90 (every value, and their number) | 64 | 0 |
+| ACDBASSOCPERSSUBENTMANAGER | 290 | 6 | 0 |
+| ACDBPERSSUBENTMANAGER | 90 (every value, and their number) | 50 | 0 |
+
+The DXF value oracle scores both (`examples/dxf_oracle/scorers.rs`): 64 and 44 values equal
+the DXF on six releases, 0 different, and the 12 groups it leaves are the owner and the
+reactor (330). The corpus baseline moves by 2 decoded and 2 skipped on each of the seven
+`sample_AC10xx.dwg` drawings (14 in all) and no other drawing changes.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_assoc_pers_subent -- ../dwg-corpus
+cargo run --release --example probe_pers_subent -- ../dwg-corpus
+cargo run --release --features dxf-reader --example dxf_oracle -- ../dwg-corpus \
+    --baseline tools/oracle/baseline.tsv
+```
+
+### Unverified by value
+
+The numbers are verified; their grouping and meaning are not, and a field that one drawing
+shows stays provisional (#348).
+
+- Where each array ends. The DXF writes every number as group 90, so no group shows it.
+  Readings that parse the same bits: a fixed number of arrays after the ids (3, then 4 at
+  version 2) in place of one per id; the version-2 tail as a lone `BL` 0 instead of an empty
+  array; and the leading `BL` 3 of the ASSOC (and `BL` 0 of the PERS) as a lone scalar with
+  the arrays starting after it. All 14 records hold the ids array at three ids and the PERS at
+  an empty first array, so none separates them.
+- What any value means. The ids `0 2 4` and the array items `3 4`, `4 0`, `0 0` are small
+  integers with no role the twin names.
+- Whether the version-2 array is gated by the version word or by the release: the word is 1 on
+  R14 to R2010 and 2 on R2013 and R2018 in all seven ASSOC records, so the two coincide. The
+  PERS carries 2 everywhere, with its content differing by release all the same.
+- The `BL` width: every value is under 256 and every zero uses the 2-bit code, so `BS` is
+  bit-identical on all 14 records; group 90 is a 32-bit integer, and the 32-bit form is never
+  exercised.
+- The flag is pinned in width (a `BS` or `BL` zero would take two bits and the record has
+  one) but is 0 in every record.
+- A version word other than 2 (PERS) and 1 or 2 (ASSOC) is refused with
+  `Error::Unsupported`, never read on a guess.
+- Handles. The DXF writes no handle-valued group for either object beyond the owner and the
+  one reactor (both 0xC, `330`). Read by hand from the bits after the data on all 14 records,
+  the handle stream holds those two (on R2000 also a null extension-dictionary handle) and
+  padding; no probe reads it, and none is decoded.
+
+The controlled drawings should vary what these records hold (a solid with subentities, a
+dynamic block, a second associative object), so that the arrays carry something other than
+the three ids and the counts of two.
+
+## 7ar. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
+
+`src/dxf_blocks.rs` writes one block per `BLOCK_RECORD` of the table, in its order: the
+`BLOCK` (its handle from the block record's handle stream, its layer, name, flags, base
+point, description and xref path), the entities of the block that
+`dxf_entities::build` collects (model space and the active paper space are in ENTITIES, so
+those two blocks are empty here, as in AutoCAD's own export) and the `ENDBLK`. Any kind
+nothing writes yet is counted in a `999 skipped` comment. The tables are built a second time
+knowing which entities and blocks are written, so the header's `$DIMBLK` family, a
+DIMSTYLE's arrowhead blocks and a BLOCK_RECORD's `{BLKREFS` name only what is in the output.
+`examples/probe_dxf_entities.rs --section=BLOCKS` pairs every record of the section with the
+export's of the same handle; the Corpus job runs it.
+
+| Kind | Written | Paired | Groups written | Agree | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ARC | 12 | 12 | 118 | 118 | 0 | 0 | 0 |
+| ATTDEF | 29 | 29 | 324 | 324 | 0 | 0 | 20 |
+| BLOCK | 270 | 264 | 2274 | 2268 | 0 | 0 | 0 |
+| CIRCLE | 30 | 30 | 150 | 150 | 0 | 0 | 72 |
+| ENDBLK | 270 | 264 | 420 | 420 | 0 | 0 | 0 |
+| INSERT | 48 | 36 | 378 | 378 | 0 | 0 | 24 |
+| LINE | 432 | 432 | 4472 | 4472 | 0 | 0 | 0 |
+| LWPOLYLINE | 12 | 12 | 90 | 90 | 0 | 0 | 0 |
+| MTEXT | 147 | 142 | 1990 | 1990 | 0 | 0 | 122 |
+| POINT | 204 | 204 | 1190 | 1190 | 0 | 0 | 0 |
+| SOLID | 78 | 78 | 1177 | 1177 | 0 | 0 | 0 |
+| All | 1532 | 1503 | 12583 | 12577 | 0 | 0 | 238 |
+
+Every group written has the export's code and value, in its order, over the 42 drawings of
+the corpus that have an AutoCAD export of the same release: 1,503 of 1,532 records pair, 12,577
+of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic block, below. The
+29 that do not pair are the records of one block per drawing the export registers again.
+
+- **A block the export registers again.** `*U25`, an anonymous block of the ACadSharp saves,
+  is in the export under a new block record, new `BLOCK` and `ENDBLK` and new entity handles
+  (the tables probe pairs the record by name). The DWG's `BLOCK`, `ENDBLK` and entities of it
+  (one MTEXT and two INSERTs per drawing) have no counterpart by handle, so the probe pairs the
+  two `BLOCK` records by name and sets the block's records on both sides aside, counted with
+  their reason.
+- **The dynamic block of R2000 to R2007.** `my-dynamic-block` is in the DWG under that name
+  and in the export as `*U17`: AutoCAD loads a dynamic block of those releases as an anonymous
+  block. The probe names it a relation (six BLOCK records, name and description groups).
+- **Group 4.** A `BLOCK` carries its block record's description as group 4 when it has one.
+- **A block left out, its entities and its INSERTs.** A block whose `BLOCK` or `ENDBLK` cannot
+  be written (its layer or linetype is not in the tables, its base point is not finite) is not
+  in BLOCKS. The entities inside it are left out with it (counted `(in a block that is not
+  written)`), so the handles the second table build is told are written are all in the output
+  and no BLOCK_RECORD's `{BLKREFS` lists an INSERT that is not; an INSERT of the block, with its
+  ATTRIBs, is left out too (counted `INSERT (its block is not written)`). The probe converts
+  every drawing to every release the writer writes it to and checks each INSERT's block (group
+  2) against the `BLOCK`s of the output (510 INSERTs in 264 conversions, 0 unresolved) and
+  each BLKREFS handle against the output's records (366 handles, 0 not written). No corpus
+  drawing has a block the writer must leave out, so the probe also builds the entities of each
+  drawing once per layer with that layer out of the tables, which takes the blocks on it out
+  (160 builds, 283 blocks left out), builds the tables from what is left and reads the two
+  sections' writers back: 39,429 handles told to the tables as written, 0 not in the output,
+  1,124 BLKREFS handles in those tables, 0 not in the output, 1,580 INSERTs written, 0
+  naming a block that is not written. With the entity filter taken out, 589 of the 40,018
+  handles told are not in the output and the probe exits 1; no BLKREFS entry dangles in the
+  corpus even then, so that symptom is guarded by the check and not measured. A negative run
+  (`PROBE_DXF_ENTITIES_DROP_BLOCK=1`) takes one written block and one written entity out of
+  the output the two first checks read: 72 INSERTs and 42 BLKREFS handles unresolved, exit 1.
+- **Not written yet.** 24 VIEWPORTs, one multi-line ATTDEF (R2018), and 38 MTEXTs that carry a background fill (90, 63, 45,
+  441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
+  which is not decoded) or an embedded object (R2018); the probe counts them by kind.
+
+## 7as. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
+
+Two places hold pre-R2007 text that the crate never turned into a string. An XRECORD's
+body stayed opaque bytes (`XRecord::data`), and the extended entity data chain
+(§28, the `BS` size, application handle and payload that follows every object's handle)
+was read to be skipped (`common_entity::skip_extended_data`). `src/extended_data.rs` reads
+both as values for R13 to R2004: `extended_data::read` for the chain of a walked record and
+`extended_data::xrecord_values` for an XRECORD, each string decoded by
+`CodePage::decode` in the page the string itself names. R2007 and later (UTF-16) are refused.
+
+**Layouts, measured.** On every pre-R2007 drawing of the pinned corpus (24 drawings, 2,370
+XRECORDs and 1,263 records with extended data), the specification's two string layouts
+turn out to be one. §20.4.104 says "the string length (RC), the dwgcodepage (RC), and then
+the string" and §28 "1st byte of value is the length N; this is followed by a 2-byte short
+indicating the codepage": in the data both are the same three bytes before the characters,
+an `RS` length and an `RC` code page (a length below 256, a zero, the page). No string of
+the corpus is 256 bytes long (the longest is 250), so the data cannot say whether the
+length is an `RC` followed by a short or an `RS` followed by a byte; the reader takes the
+`RS` form, which is also the one that reads the XRECORD strings of every record to its
+last byte. Two more things the specification leaves open:
+
+| Value | XRECORD (§20.4.104) | Extended data (§28) |
+|---|---|---|
+| handle | 8 bytes, least significant first (330 to 369) | 8 bytes, most significant first, "read as hex" (codes 3 and 5), the layer of code 1003 resolving to the layer name the export writes |
+| the other widths | by the DXF group code's range: 16-bit for 60 to 79, 170 to 179, 270 to 279, 370 to 379 and 1070; 32-bit for 90 to 99, 420 to 429, 440 to 449 and 1071; one byte for 280 to 299; a double for 40 to 59, 140 to 149 and 460 to 469; three doubles for 10 to 39; a binary chunk with a length byte for 310 to 319 and 1004 | the item widths §28 lists |
+
+The XRECORD ranges are those of Autodesk's public DXF Reference (recalled, CLEANROOM.md),
+taken for a range only where a code of the range occurs in the corpus; every XRECORD body
+then closes exactly on its length (2,370 of 2,370). A code outside them (for instance 105,
+110 to 139, 160 to 169, 210 to 239, 320 to 329, 380 to 419, 999 and 1005 to 1013) is
+`Error::Unsupported`, never read at a guessed width, and `XRecord::data` is there to read as
+bytes.
+
+**Every string names the header's page.** 78,242 strings (76,926 in XRECORDs, 1,316 in
+extended data) carry a page byte, and every one equals the header's short: 29 or 30, in R14
+(27,153 strings), R2000 (25,751) and R2004 (25,338) alike. The decoder reads each string in
+the page it names (a number the table lacks reads as before), so the two agree here and a
+file whose strings named another page than its header would be read by its strings.
+
+**Against AutoCAD's exports.** `examples/probe_code_page.rs` sets each decoded record beside
+the export's record of the same handle, group by group (R2000 and R2004; R14 has no export):
+
+| Release | XRECORDs compared | Equal | Save-time | Extended data records compared | Equal | Tail only | Export only |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 227 | 225 | 2 | 410 | 410 | 2 | 1 |
+| AC1018 (2004) | 227 | 225 | 2 | 347 | 347 | 0 | 1 |
+
+1,211 of 1,211 compared records agree. The probe lets a value differ only where the save
+itself makes it anew, and only in two named records (`SAVE_TIME_XRECORDS`), under the same
+group code in the export, with every other value of the record and the count of groups still
+compared: in `#306` a handle the save gave another value (0x1020 in the DWG, 0x1487 in the
+export, the oracle's save-time rule) and in `#D09` a GUID and the path of the file the save
+wrote (`name.dwg` against the export's `name_ascii.dxf`). The "export only" record is the
+VPORT table header `#8`, which the DXF writer gives `1001 ACAD`, `1000 DbSaveVer`, `1071`
+and the DWG holds no extended data for; any other application data the export holds for a
+record the reader returns nothing for fails the probe. Applications are paired by identity:
+each application of the export (the value of its group `1001`) with the decoded
+application whose handle resolves, through the drawing's APPID entries, to the same
+name, and then item by item, so a wrong application handle fails. The 2 "tail only"
+records are the two MTEXT (`#9DA` and `#CDC` of `sample_AC1015`) whose `ACAD` application
+data begins with an `RTTcAl` block (a string `RTTcAl`, a short, a long and
+`$$NoName$$`) that the R2000 export leaves out; its other items equal ours, and that
+exact block, on an `ACAD` application of an MTEXT record, is the only prefix the probe lets
+the export lack. A decoded application the
+export omits altogether is counted and not compared (45 on the pinned corpus: the export
+drops several render applications' data).
+
+**A patched copy.** As in §7ap, strings rewritten in memory: the XRECORD string and the
+extended data string of the first record that holds one of six bytes or more sitting once in
+the file, their first four characters overwritten with `E9 B0 C0 FC` and their page byte (the
+eight bits before the characters) set to 29, 30 and 31, and read back through the new
+readers: XRECORD values 24 strings, 96 of 96 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
+before); extended data 3 strings, 12 of 12 (R14, R2000 and, since the DWG writer assembles
+the patched R2004 drawings, R2004; the string's own page byte is patched there and the
+header keeps the drawing's page).
+
+**R14, and the assumption that the shorts mean there what they mean later.** Nothing in
+the corpus names an R14 page: AutoCAD's exports of the AC1014 drawings are R12 DXF, which
+carries no `$DWGCODEPAGE`. What is measured is weaker, and recorded as such. The strings of
+the R14 drawings (27,153 in XRECORDs and extended data) name 29 and 30, the same two numbers
+their headers carry; each of the seven nextgis R14 saves has an R2000 save of the same stem
+whose short is 29 and whose export names `ANSI_1251`, and the ACadSharp R14 and R2000 saves
+both carry 30. That is one project saved to two releases, not a statement by AutoCAD that
+the numbers keep their meaning; the rows apply to R14 on that footing and no export confirms
+it.
+
+**Not covered.** R2007 and later extended data and XRECORD strings (UTF-16); the unmeasured
+XRECORD ranges above; the length field's width for a string of 256 bytes or more; an
+extended data application the export omits; and the entities' own strings that sit in a
+record's extended data on an R13 drawing (the corpus holds none).
+
+## 7at. The writers write the drawing's code page (2026-10-27, #375)
+
+#374 reads pre-R2007 text in the page the header names; the writers still did the
+opposite of what they read. `dwg-to-dxf` wrote every character above ASCII of a
+pre-R2007 DXF as a `\U+XXXX` escape, whatever the drawing's page (a `String` could
+hold nothing else), the class table of the DWG writer wrote its strings as UTF-8
+(`classes::write_tv`), and `DwgFile::to_bytes` assembled the R2004-family header with a
+code page of 0, so a rewritten file read its own text as an unnamed page. Now:
+
+- `CodePage::encode_char` and `CodePage::encode` are the inverse of `decode`: a character
+  the page holds is its byte (two on a double-byte page), any other is the escape
+  `\U+XXXX`, four uppercase hexadecimal digits of each UTF-16 unit, and text that is
+  already an escape (MTEXT's `\U+00B0`) passes as it is. Under an unnamed page no
+  character is known to be in the page, so the result is ASCII with escapes.
+- `dxf_convert::convert_dwg_to_dxf_bytes` (and `convert_file_to_dxf_bytes`, and the
+  `dwg-to-dxf` binary) write R12 to R2004 in the drawing's page: each character the page
+  holds as its byte, every other as an escape. The writer's text is still a `String`, so
+  the page bytes travel through it as the chars of the same code points and the function
+  turns them back into bytes; `convert_dwg_to_dxf` keeps returning escapes only. From
+  R2007 the output is UTF-8 as before.
+- `classes::write_tv` encodes through the page in force, and
+  `file_writer::assemble_dwg_bytes_with_page` writes the page into the header (the short at
+  0x13); `DwgFile::to_bytes` passes the drawing's own, so the string bytes it copies read
+  as the text they were.
+
+**What AutoCAD does.** Two things are measured; the rest is owed.
+
+- *An in-page character is its byte in a pre-R2007 DXF.* The corpus's one raw high byte
+  in a pre-R2007 export is `0xD8` in a TEXT of `sample_AC1009_ascii.dxf` (R12): AutoCAD
+  wrote the character the page holds as that byte. None of the R2000 and R2004 exports
+  holds one (their only non-ASCII is escape text copied from the DWG), so for those
+  targets the choice rests on the DXF Reference's statement that DXF before R2007 is in
+  `$DWGCODEPAGE` (public documentation, recalled; `dxf_reader` reads on the same
+  statement), not on an export.
+- *A character the page lacks is `\U+XXXX`.* The corpus holds one: the diameter sign
+  U+2205, which the R2007 and later saves of `sample_AC10xx.dwg` hold as the character and
+  the R2000 and R2004 saves hold as the ASCII escape `\U+2205`, in an MTEXT and in an
+  XRECORD string. `CodePage::encode` of each R2007 and later text, under the R2000 file's
+  page, gives the bytes of the R2000 text of the same handle: 59 of 59 texts in each of
+  `sample_AC1021`, `sample_AC1024`, `sample_AC1027` and `sample_AC1032` (one holding the
+  diameter sign, written `\U+220545,6` as AutoCAD wrote it; five more are MTEXT that AutoCAD
+  formatted differently in the two releases, a line break or a stacked fraction, and are
+  not compared). That is MTEXT and one XRECORD. No TEXT, ATTRIB, ATTDEF or table name of
+  the corpus holds a character outside its page, so the escape for those strings is the
+  same one by extension, as it was before this change, and stays unmeasured.
+
+**Evidence.** `examples/probe_code_page.rs`, on the 24 pre-R2007 drawings of the pinned
+corpus, with the strings rewritten in memory as in §7ap:
+
+| What | Result |
+|---|---|
+| `encode` is `decode`'s inverse on every byte above 0x7F of each named page | 128 of 128 for `ANSI_1251` and for `ANSI_1252` |
+| The escapes: U+2205 and U+0439 under 1252, U+00E9 under 1251 and under an unnamed page, MTEXT's own `94\U+00B0` | each as above |
+| 266 strings in 27 kinds of record (R14, R2000 and R2004, XRECORD values and extended data included), read under the drawing's own page, 29, 30 and 31; the R2004 drawings re-assembled by the DWG writer with that short as the header's page | 1,064 of 1,064 reads as the code page charts say |
+| The 87 table-entry names of those drawings written by `dwg-to-dxf` (R2000 target, bytes) | 348 of 348 checks: under 29 and 30 the patched bytes `E9 B0 C0 FC` and the rest of the name verbatim, under 31 the `\U+FFFD` escapes of what was read |
+| `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
+| R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
+
+No text of the corpus leaves ASCII in a pre-R2007 DXF, so `convert_dwg_to_dxf_bytes` writes
+exactly the bytes `convert_dwg_to_dxf` writes: 104 of 104 conversions of the corpus's 52
+drawings (R2000 and R2004 targets), identical. The first run of that check read 0 of 104 and
+named a real defect: four comments the writer itself emits (`999` groups in
+`dxf_sections.rs`: the ACI colour note, the opaque proxy note and the custom-class
+pass-through note) held an em dash or a `≈`, which a pre-R2007 DXF reads as bytes of the
+code page, not UTF-8 (and which the bytes conversion cannot map to one byte). They are ASCII
+now, and a character above U+00FF that still reaches the bytes conversion is written as a
+`\U+XXXX` escape, not as `?`. `probe_dxf_header`, `probe_dxf_tables`,
+`probe_dxf_entities` and `probe_dxf_classes`, which call `convert_dwg_to_dxf`, read 0
+differences.
+
+**Owed.** A TEXT, ATTRIB or name outside its page (above); an in-page character in an
+R2000 or R2004 export (above); MTEXT in an R2000 or R2004 DXF target, which the ENTITIES
+writer does not write yet, so no AutoCAD export pairs with the writer's own escape end to
+end; characters above the BMP, two escapes each as before and never measured; and a
+strings encoder for the entities, which the DWG writer does not write at all (its only
+authored strings are the class table's).
+
+## 7au. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned
@@ -2959,9 +3875,9 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7ak. R13 through the decoders main added after the branch began (2026-10-26, #119)
+## 7av. R13 through the decoders main added after the branch began (2026-10-26, #119)
 
-§7aj opened AC1012 and found, in a scratch tree, that the decoders main
+§7au opened AC1012 and found, in a scratch tree, that the decoders main
 gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
 (#258), the R13/R14 DIMSTYLE block (#297) and LEADER (#249) each test the
 R13-R14 branch as `version == Version::R14` or
@@ -3005,7 +3921,7 @@ TEXT, VIEWPORT or TRACE record. Two other sets do: the US Forest Service R6
 library (122 drawings, public domain, "created in AutoCad Ver 13"; pinned by a
 later PR and measured here on lower-cased copies, because `coverage_report`
 skipped `.DWG` until #353) and Autodesk's own install-disc drawings (68
-distinct, local evidence only, §7aj).
+distinct, local evidence only, §7au).
 
 | | Forest Service, 122 drawings | Autodesk discs, 68 distinct drawings |
 |---|---:|---:|
@@ -3025,10 +3941,19 @@ height).
 
 **TRACE reads BT and BE in their R13-R14 form too.** `trace::decode` never took
 the version, so TRACE kept the R2000+ flag-then-value forms of thickness and
-extrusion on R13 and R14, the bug §7aj fixed for SOLID, ARC, CIRCLE, POINT and
+extrusion on R13 and R14, the bug §7au fixed for SOLID, ARC, CIRCLE, POINT and
 the polylines. TRACE shares SOLID's stream (§20.4.36), so `trace::decode_for`
 calls SOLID's. It moves the 3 TRACE records of the Forest Service set that
 errored; the other 162 closed before and still do.
+
+Five more guards main gained after the swaps above tested R14 alone where the
+comment or the section says "R13 and R14": `dxf_entities::writes`, the layer
+and VPORT guards of `dxf_tables.rs` ("R13 and R14 store no plot flag and no
+lineweight", "neither a render mode nor an associated UCS"), `entity_refs` and
+`DIMSTYLE`'s `decode_with_vars`. They read `is_r13_r14()` now. They are not
+measured: they act only when an R13 drawing is converted to DXF, no R13 drawing
+has an AutoCAD DXF twin, and no CI step converts one, so this is a sweep result,
+not a count.
 
 The remaining `Version::R14` tests in `src/` are R14-only on purpose:
 DICTIONARY's unknown byte (§20.4.44), the R14 header variable table, and
@@ -3053,7 +3978,7 @@ for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"
 target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
 ```
 
-## 7al. R13: the record types the drawings hold, and the ones still unmeasured (2026-10-26, #119)
+## 7aw. R13: the record types the drawings hold, and the ones still unmeasured (2026-10-26, #119)
 
 #119 asks that every §20.4 decoder's R13 branch be exercised on a real R13
 drawing or listed as unmeasured. `examples/probe_r13_census.rs` walks the
@@ -3061,15 +3986,15 @@ object map of each drawing it is given, sends every record through the same
 decoder `coverage_report` uses and counts, per record type (a custom class
 under its DXF class name), the records, the drawings that hold the type, and
 how many decoded, errored or had no decoder. It was run on three sets, with the
-decoders of §7ak (the R13-R14 branches read as `is_r13_r14()`):
+decoders of §7av (the R13-R14 branches read as `is_r13_r14()`):
 
-- **the 22 pinned drawings** (§7aj): SketchUp's `Cabin.dwg` and 21 Sovol3d
+- **the 22 pinned drawings** (§7au): SketchUp's `Cabin.dwg` and 21 Sovol3d
   drawings, none written by AutoCAD;
 - **the US Forest Service R6 library**, 122 drawings, public domain, "created
   in AutoCad Ver 13" by the agency's own note; pinned by a later PR and measured
   here on lower-cased copies, because `coverage_report` skipped `.DWG` until #353;
 - **Autodesk's own R13 install discs**, 68 distinct drawings, local evidence
-  only (§7aj: never fetched by CI or committed).
+  only (§7au: never fetched by CI or committed).
 
 Records per type in each set:
 
@@ -3147,7 +4072,7 @@ MINSERT on the discs, a type with a section (§20.4.10) and a `decoder` row in
 `docs/spec-coverage.md` but no dispatch arm, so the walk skips it. A type in
 the table has its R13 branch exercised on real bytes, to the record's own
 boundary and no further: no AutoCAD DXF of an R13 drawing exists, so no R13
-value is compared (§7aj). The two AutoCAD-written sets are what makes TEXT,
+value is compared (§7au). The two AutoCAD-written sets are what makes TEXT,
 VIEWPORT, TRACE, ELLIPSE, GROUP, UCS, VIEW, 3DSOLID and the 3D polyline and
 vertex types measured at all: the 22 hold none of them.
 

@@ -88,7 +88,7 @@ fn main() -> Result<()> {
         let mut paths = Vec::new();
         let mut spec = String::new();
         for a in args {
-            if a.ends_with(".dwg") {
+            if a.to_ascii_lowercase().ends_with(".dwg") {
                 paths.push(a);
             } else {
                 spec = a;

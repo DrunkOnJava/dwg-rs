@@ -81,7 +81,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Block> {
             bytes.pop();
         }
         Ok(Block {
-            name: String::from_utf8_lossy(&bytes).into_owned(),
+            name: crate::code_page::decode_active(&bytes),
         })
     }
 }

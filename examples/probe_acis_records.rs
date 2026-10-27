@@ -170,7 +170,7 @@ fn dwg_files(path: &PathBuf) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = entries
             .flatten()
             .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("dwg"))
+            .filter(|p| p.extension().is_some_and(|s| s.eq_ignore_ascii_case("dwg")))
             .collect();
         files.sort();
         files

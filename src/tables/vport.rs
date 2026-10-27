@@ -86,6 +86,61 @@ pub struct VportEntry {
     pub snap_spacing: Point2D,
     pub grid_spacing: Point2D,
     pub snap_rotation: f64,
+    /// VIEWRES circle zoom percent, DXF group 72 (`BS`).
+    pub circle_zoom: i16,
+    /// FASTZOOM, DXF group 73 (`B`).
+    pub fast_zoom: bool,
+    /// `UCSICON` as DXF group 74 (`BB`): 1 icon on, 2 icon at the UCS origin.
+    pub ucs_icon: u8,
+    /// SNAPMODE, DXF group 75 (`B`).
+    pub snap_on: bool,
+    /// GRIDMODE, DXF group 76 (`B`).
+    pub grid_on: bool,
+    /// SNAPSTYLE, DXF group 77 (`B`).
+    pub snap_style: bool,
+    /// SNAPISOPAIR, DXF group 78 (`BS`).
+    pub snap_isopair: i16,
+    /// The viewport's own UCS (R2000+), DXF groups 110 to 112, 79 and 146.
+    pub ucs: Option<VportUcs>,
+    /// The R2007+ lighting and grid block.
+    pub lighting: Option<VportLighting>,
+}
+
+/// A VPORT's UCS block (§20.4.64, R2000+).
+#[derive(Debug, Clone, PartialEq)]
+pub struct VportUcs {
+    /// UCS origin, DXF 110, 120, 130.
+    pub origin: Point3D,
+    /// UCS X axis, DXF 111, 121, 131.
+    pub x_direction: Point3D,
+    /// UCS Y axis, DXF 112, 122, 132.
+    pub y_direction: Point3D,
+    /// UCS elevation, DXF 146.
+    pub elevation: f64,
+    /// Orthographic type of the UCS, DXF 79.
+    pub ortho_view_type: i16,
+}
+
+/// A VPORT's R2007+ lighting and grid fields (§20.4.64).
+#[derive(Debug, Clone, PartialEq)]
+pub struct VportLighting {
+    /// Default lights on, DXF 292.
+    pub use_default_lights: bool,
+    /// Default lighting type, DXF 282.
+    pub default_lighting_type: u8,
+    /// Brightness, DXF 141.
+    pub brightness: f64,
+    /// Contrast, DXF 142.
+    pub contrast: f64,
+    /// The ambient colour's `BS` index (DXF 63 when the colour is indexed).
+    pub ambient_color_index: u16,
+    /// The ambient colour's `BL`: the top byte is the colour method (0xC2 a
+    /// true colour, whose RGB is the low three bytes: DXF 421).
+    pub ambient_color_rgb: u32,
+    /// Grid flags, DXF 60.
+    pub grid_flags: i16,
+    /// Grid major, DXF 61.
+    pub grid_major: i16,
 }
 
 // Legacy alias retained so callers keep compiling while they migrate to
@@ -167,17 +222,17 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         y: c.read_rd()?,
     };
     let ucs_follow = c.read_b()?;
-    let _circle_zoom = c.read_bs()?;
-    let _fast_zoom = c.read_b()?;
+    let circle_zoom = c.read_bs()?;
+    let fast_zoom = c.read_b()?;
     let ucs_icon = c.read_bb()?;
-    let _grid_on = c.read_b()?;
+    let grid_on = c.read_b()?;
     let grid_spacing = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let _snap_on = c.read_b()?;
-    let _snap_style = c.read_b()?;
-    let _snap_isopair = c.read_bs()?;
+    let snap_on = c.read_b()?;
+    let snap_style = c.read_b()?;
+    let snap_isopair = c.read_bs()?;
     let snap_rotation = c.read_bd()?;
     let snap_base = Point2D {
         x: c.read_rd()?,
@@ -190,17 +245,19 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     // §20.4.64 gates the whole per-viewport UCS block on R2000+ as
     // well. Reading it on R14 walked the `*Active` record off the end
     // of its payload with one bit to spare.
-    let ucs_per_vport = if version.is_r13_r14() {
-        false
+    let (ucs_per_vport, ucs) = if version.is_r13_r14() {
+        (false, None)
     } else {
         let _unknown = c.read_b()?;
         let ucs_per_vport = c.read_b()?;
-        let _ucs_origin = read_bd3(c)?;
-        let _ucs_x_direction = read_bd3(c)?;
-        let _ucs_y_direction = read_bd3(c)?;
-        let _ucs_elevation = c.read_bd()?;
-        let _ucs_ortho_view_type = c.read_bs()?;
-        ucs_per_vport
+        let ucs = VportUcs {
+            origin: read_bd3(c)?,
+            x_direction: read_bd3(c)?,
+            y_direction: read_bd3(c)?,
+            elevation: c.read_bd()?,
+            ortho_view_type: c.read_bs()?,
+        };
+        (ucs_per_vport, Some(ucs))
     };
     Ok(VportEntry {
         header,
@@ -223,6 +280,15 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
         snap_spacing,
         grid_spacing,
         snap_rotation,
+        circle_zoom,
+        fast_zoom,
+        ucs_icon,
+        snap_on,
+        grid_on,
+        snap_style,
+        snap_isopair,
+        ucs,
+        lighting: None,
     })
 }
 
@@ -321,11 +387,11 @@ pub(crate) fn decode_modern_split_stream(
     } else {
         c.read_rc()?
     };
-    let _use_default_lights = c.read_b()?;
-    let _default_lighting_type = c.read_rc()?;
-    let _brightness = c.read_bd()?;
-    let _contrast = c.read_bd()?;
-    let _ambient_color = modern::read_cmc_full(c)?;
+    let use_default_lights = c.read_b()?;
+    let default_lighting_type = c.read_rc()?;
+    let brightness = c.read_bd()?;
+    let contrast = c.read_bd()?;
+    let (ambient_color_index, ambient_color_rgb, _ambient_color_flags) = modern::read_cmc_full(c)?;
     let lower_left = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
@@ -335,17 +401,17 @@ pub(crate) fn decode_modern_split_stream(
         y: c.read_rd()?,
     };
     let ucs_follow = c.read_b()?;
-    let _circle_zoom = c.read_bs()?;
-    let _fast_zoom = c.read_b()?;
+    let circle_zoom = c.read_bs()?;
+    let fast_zoom = c.read_b()?;
     let ucs_icon = c.read_bb()?;
-    let _grid_on = c.read_b()?;
+    let grid_on = c.read_b()?;
     let grid_spacing = Point2D {
         x: c.read_rd()?,
         y: c.read_rd()?,
     };
-    let _snap_on = c.read_b()?;
-    let _snap_style = c.read_b()?;
-    let _snap_isopair = c.read_bs()?;
+    let snap_on = c.read_b()?;
+    let snap_style = c.read_b()?;
+    let snap_isopair = c.read_bs()?;
     let snap_rotation = c.read_bd()?;
     let snap_base = Point2D {
         x: c.read_rd()?,
@@ -357,13 +423,15 @@ pub(crate) fn decode_modern_split_stream(
     };
     let _unknown = c.read_b()?;
     let ucs_per_vport = c.read_b()?;
-    let _ucs_origin = read_bd3(c)?;
-    let _ucs_x_direction = read_bd3(c)?;
-    let _ucs_y_direction = read_bd3(c)?;
-    let _ucs_elevation = c.read_bd()?;
-    let _ucs_ortho_view_type = c.read_bs()?;
-    let _grid_flags = c.read_bs()?;
-    let _grid_major = c.read_bs()?;
+    let ucs = VportUcs {
+        origin: read_bd3(c)?,
+        x_direction: read_bd3(c)?,
+        y_direction: read_bd3(c)?,
+        elevation: c.read_bd()?,
+        ortho_view_type: c.read_bs()?,
+    };
+    let grid_flags = c.read_bs()?;
+    let grid_major = c.read_bs()?;
     split.finish("VPORT")?;
     let name = split.strings.read_tv()?;
     Ok(VportEntry {
@@ -392,6 +460,24 @@ pub(crate) fn decode_modern_split_stream(
         snap_spacing,
         grid_spacing,
         snap_rotation,
+        circle_zoom,
+        fast_zoom,
+        ucs_icon,
+        snap_on,
+        grid_on,
+        snap_style,
+        snap_isopair,
+        ucs: Some(ucs),
+        lighting: Some(VportLighting {
+            use_default_lights,
+            default_lighting_type,
+            brightness,
+            contrast,
+            ambient_color_index,
+            ambient_color_rgb,
+            grid_flags,
+            grid_major,
+        }),
     })
 }
 
