@@ -2992,7 +2992,7 @@ the transparency `0xC2802142`. The colour book colour (one entity, flag 0x40) is
 counted and not compared, since its RGB is not in the entity. R13 and R14 colours
 are the bare index, and the probe skips AC1014 drawings.
 
-## 7am. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
+## 7an. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
 
 `src/dxf_entities.rs` writes the entities of model space and of the active paper
 space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decoded
