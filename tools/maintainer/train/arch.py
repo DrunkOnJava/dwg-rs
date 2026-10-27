@@ -93,12 +93,25 @@ def renumber(mb, main):
     print(' '.join(f'7{k}->7{v}' for k, v in mapping.items()))
 
 
+def sections(lines):
+    """Each `## ` section of lines, heading to the next heading, as stripped text."""
+    out, block = set(), []
+    for line in lines + ['## ']:
+        if line.startswith('## '):
+            if block and block[0].startswith('## '):
+                out.add('\n'.join(block).strip())
+            block = []
+        block.append(line)
+    return out
+
+
 def without_known(lines, main_text):
-    """Lines less each `## ` section (heading to the next heading) that main_text holds word for word."""
+    """Lines less each `## ` section (heading to the next heading) that equals one of main_text's whole sections."""
+    known = sections(main_text.split('\n'))
     kept, block = [], []
     def flush():
         text = '\n'.join(block).strip()
-        if not (block and block[0].startswith('## ') and text and text in main_text):
+        if not (block and block[0].startswith('## ') and text in known):
             kept.extend(block)
     for line in lines:
         if line.startswith('## '):
