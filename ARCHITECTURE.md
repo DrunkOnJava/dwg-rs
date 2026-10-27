@@ -3522,16 +3522,26 @@ it is, the escape being the text's own (a page byte `E1` is `α` under 1253; the
 character that decodes back to itself, which keeps Shift_JIS's extra mappings (U+00A5 to
 0x5C) out.
 
-**Counts.** Regenerated with the baseline in the next commit of this pull request.
+**Counts.** `measure.py` over the 61 pinned drawings (the Corpus job's `corpus-measurement` artifact on
+the first head of this change): the 52 existing rows are unchanged and nine are added,
+and `tools/corpus/baseline.tsv` carries them. The nine decode 106,189 records and skip 90
+(the custom classes CELLSTYLEMAP and MATERIAL, and two render-settings classes in the
+R14 files), and **error on 9**: every one a
+BLOCK_HEADER of the four Seeed AC1018 drawings (5 in `A205_TOP.dwg`, 1 in
+`A206_BOTTOM.dwg`, 3 in `A206_TOP.dwg`), the corpus's only drawings of AutoCAD build
+`I.18.0.0`. Those records are the 1,028-byte "descriptions" the probe lists as non-ASCII strings
+(`#101`, `#151`, `#335E` of `A205_TOP`, `#2AC6` of `A206_TOP`): the decoder reads a
+string from a place that is not text and its field list then misses the record's boundary.
+The error is the ratchet doing its job on drawings the corpus did not hold before, and
+the rows pin it.
 
 **Owed.** A double-byte round trip over real strings (`decode` then `encode` returns the
 bytes read) waits for #382, which adds `encode`; the DXF writers' handling of a double-byte
 string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. In
 `A205_TOP.dwg` and `A206_TOP.dwg` four BLOCK_HEADER records (`#101`, `#151`, `#335E`,
-`#2AC6`) hold a 1,028-byte "description" of binary-looking bytes that closes the record
-exactly on its length; the probe lists them as non-ASCII strings and no layer of this
-change reads them, so whether `BlockRecord::description` is the field AutoCAD stores there
-is not settled.
+`#2AC6`) are among the 9 BLOCK_HEADER records that error (Counts above); their
+"description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
+after the insert-count run is wrong for these blocks. No layer of this change touches it.
 
 ## 8. Write pipeline (current scope)
 
