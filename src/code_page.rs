@@ -132,7 +132,7 @@ impl CodePage {
     /// holds as its bytes ([`encode_char`](Self::encode_char)), every other
     /// character as the escape `\U+XXXX` (four uppercase hexadecimal digits of each
     /// UTF-16 unit) that AutoCAD's own R2000 and R2004 saves hold for a character
-    /// their page cannot (ARCHITECTURE.md §7ar). The result is ASCII under
+    /// their page cannot (ARCHITECTURE.md §7at). The result is ASCII under
     /// [`CodePage::Unknown`], where no character is known to be in the page. Text
     /// that is already such an escape, as MTEXT's `\U+00B0` is, passes unchanged:
     /// a backslash is ASCII.
