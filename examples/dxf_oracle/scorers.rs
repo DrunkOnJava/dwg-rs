@@ -715,6 +715,7 @@ const Z: Point3D = Point3D {
 /// spec does not prescribe.
 pub fn section_of(label: &str) -> &'static str {
     match label {
+        "SORTENTSTABLE" => "§20.4.93",
         "BLOCK" => "§20.4.6",
         "ENDBLK" => "§20.4.7",
         "ARC" => "§20.4.18",
@@ -1040,6 +1041,7 @@ pub fn score(
             c.int("is_unit_scale", 290, i64::from(s.is_unit_scale), None);
         }
         // §20.4.104: the cloning flag in 280; the data stream stays raw.
+        D::SortEntsTable(t) => score_sortents(&mut c, t),
         D::XRecord(x) => {
             c.subclass("AcDbXrecord");
             c.int("cloning_flags", 280, i64::from(x.cloning_flags), None);
@@ -2309,4 +2311,33 @@ fn score_view(c: &mut Ctx<'_>, v: &dwg::tables::view::ViewEntry) {
         i64::from(v.is_associated_ucs),
         Some(0),
     );
+}
+
+// §20.4.93: BL numentries, then that many sort handles, handle code 0 in the
+// data stream. The DXF writes each entry as 331 (the entity, a handle of the
+// handle stream the decoder does not read) then 5 (the sort handle), after
+// the record's own 5; the entry count has no group of its own. All entries
+// count under one field.
+fn score_sortents(c: &mut Ctx<'_>, t: &dwg::objects::block_sortents_table::SortEntsTable) {
+    c.subclass("AcDbSortentsTable");
+    let exported = c.record().all(5).count().saturating_sub(1);
+    c.derived(
+        "entry count (5 groups)",
+        "5",
+        t.sort_handles.len() == exported,
+        t.sort_handles.len().to_string(),
+        exported.to_string(),
+    );
+    for h in &t.sort_handles {
+        match c.take(5).and_then(DxfValue::as_handle) {
+            Some(x) => c.derived(
+                "sort_handle",
+                "5",
+                x == *h,
+                format!("{h:X}"),
+                format!("{x:X}"),
+            ),
+            None => c.dwg_only("sort_handle", format!("{h:X}")),
+        }
+    }
 }
