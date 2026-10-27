@@ -3650,10 +3650,17 @@ corpus, with the strings rewritten in memory as in §7ap:
 | `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
 | R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
 
-No text of the corpus leaves ASCII in a pre-R2007 DXF, so `convert_dwg_to_dxf_bytes` writes
-exactly the bytes `convert_dwg_to_dxf` writes: 104 of 104 conversions of the corpus's 52
-drawings (R2000 and R2004 targets), identical. The first run of that check read 0 of 104 and
-named a real defect: four comments the writer itself emits (`999` groups in
+Until the OBJECTS section was written no text of the corpus left ASCII in a pre-R2007 DXF, so
+`convert_dwg_to_dxf_bytes` wrote exactly the bytes `convert_dwg_to_dxf` wrote: 104 of 104
+conversions of the corpus's 52 drawings (R2000 and R2004 targets), identical. The `ACAD_LAYOUT`
+dictionary of the GBK drawings now writes their layout name as a key (#126), the first
+character above ASCII in a written DXF of the corpus: `convert_dwg_to_dxf` spells it
+`\U+5E03\U+5C40`, `convert_dwg_to_dxf_bytes` writes the page's bytes `B2 BC BE D6`, the
+bytes AutoCAD's own export holds for that key, so 10 of the 122 conversions now differ
+(112 of 122 identical). The check is therefore that the bytes read back under the
+drawing's page to the `String` writer's text once every character above ASCII is spelled as
+its escape again, and that at least one conversion writes page bytes. The first run of the
+older, identical-bytes check read 0 of 104 and named a real defect: four comments the writer itself emits (`999` groups in
 `dxf_sections.rs`: the ACI colour note, the opaque proxy note and the custom-class
 pass-through note) held an em dash or a `≈`, which a pre-R2007 DXF reads as bytes of the
 code page, not UTF-8 (and which the bytes conversion cannot map to one byte). They are ASCII
@@ -4065,6 +4072,55 @@ Unmeasured: R13 (AC1012), for which the corpus holds no AutoCAD-written file, so
 section is written by the R14 rule on the strength of §10.1 alone. The canonical
 fixtures on R2004 and later have no `AcDb:Classes` section, and the R2000 fixture's
 empty one is framed by `build_fixtures` itself, so none of them exercises this writer.
+
+
+
+## 7az. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+
+`dxf_objects` writes three more kinds, each from the decoder that already closed on
+the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,
+paper size, plot view name, the six margins and sizes, origin, window, scale,
+flags, units, rotation, type, style sheet, scale type and factor, and from R2004 the
+shade plot triple) then `AcDbLayout` (name, flags, tab order, limits, insertion base,
+extents, elevation, UCS, orthographic type) and its handles. The export's order
+puts `70` of the plot settings after `143` and the shade plot triple after `147`;
+the handle stream lists, from R2004 the plot view, from R2007 the visual style, then
+the block record (`330`), the last active viewport (`331`) and the base and named
+UCS (`346`, `345`), of which the null ones are not written, and so is any that names a
+record the output does not define. The plot view name (`6`) is the DWG's own up to
+R2000; from R2004 the DWG stores a handle instead, and the name written is that of the VIEW
+record it names. A **GROUP** is its description (`300`), the unnamed and selectable flags
+and one `340` per member the output holds (an MLINE or VIEWPORT member, which the entity
+writer does not write yet, is left out, counted by the probe). An
+**MLINESTYLE** is its name, flags (the DWG's bits are not DXF's: bits 1, 2, 32, 64,
+512 and 1024 swap in pairs), description, fill colour, angles in degrees and one
+offset, colour and linetype per line; a linetype is `BYLAYER` or `BYBLOCK` for the
+two sentinel indexes, and any other index, or any R2018 record (which names the
+linetype by handle), is not written.
+
+| Kind | Written | Paired | Groups | Agree | Relation | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| LAYOUT | 132 | 132 | 8182 | 8182 | 0 | 0 | 0 | 126 |
+| GROUP | 12 | 12 | 144 | 144 | 0 | 0 | 0 | 0 |
+| MLINESTYLE | 40 | 40 | 640 | 640 | 0 | 0 | 0 | 0 |
+
+The 126 groups a LAYOUT omits are extended data (1000 to 1070, the `ACAD_PSEXT`
+application data, 108) and the last active viewport (`331`, 18): it names a VIEWPORT
+entity, which is not written yet, so the group is left out and the probe names the reason.
+The probe compares every `330` after the record's owner, so a LAYOUT's block record is
+checked. The two R2018 MLINESTYLEs of the corpus are the records not
+written. With the layouts written, a BLOCK_RECORD's `340` and the dictionary entries
+of `ACAD_LAYOUT` are written too (132 more entries), and the tables probe still
+agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a layout that
+plots a named view (none of the 132 has plot type 3 or a non-empty group `6` in the
+export, so the plot view handle's resolution to the VIEW record's name is by the rule
+and not by a drawing), a visual style handle (`333`), an MLINESTYLE whose linetype is
+neither sentinel, and R2018 MLINESTYLE. A LAYOUT whose plot settings, limits, elevation or
+any of its six 3D points (insertion point, extents, UCS origin and axes) holds a NaN or an
+infinity, which `read_bd` returns as read, is not written: the DXF reader rejects either.
+No pinned layout holds one (all 132 are written), so a synthetic check of the predicate
+(`layout_is_finite`, the one the planner uses) refuses all 63 cases, a NaN, an infinity and a
+negative infinity in each of the 18 coordinates of the six points and in one real of each other kind.
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

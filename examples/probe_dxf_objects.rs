@@ -28,6 +28,9 @@
 //! application data holds a `102 {ACAD_REACTORS` bracket and a 330 to an absent handle,
 //! which must read as data and not as a dangling reactor, beside a control record whose
 //! real reactor to an absent handle must still count as dangling.
+//! A third writes no record: it checks that a LAYOUT with a NaN or an infinity in any of its
+//! six 3D points, its limits, elevation or plot settings is refused, as no record of the
+//! pinned corpus holds one.
 //!
 //! A record of the export of a kind the converter writes with no record written
 //! is a failure, unless its owner is a record the output does not write; one of a kind it does not write yet is counted by kind; one the
@@ -376,6 +379,62 @@ fn boundary_check() -> Result<String, String> {
     }
 }
 
+/// A LAYOUT is written only when every real it writes is finite, the six 3D points
+/// (insertion point, extents, UCS origin and axes) as much as the limits, the elevation
+/// and the plot settings: the DXF reader rejects a NaN or an infinity, and
+/// `BitCursor::read_bd` returns one as read. A layout of zeros must pass, and a NaN, an
+/// infinity and a negative infinity in each coordinate of each point, and in one real of
+/// each other kind, must each be refused. Synthetic (no pinned drawing holds a
+/// non-finite coordinate: every one of the corpus's layouts is written), so it measures
+/// the predicate `dwg-to-dxf` plans with and not a drawing.
+fn finite_check() -> Result<String, String> {
+    use dwg::dxf_objects::layout_is_finite;
+    use dwg::objects::acad_layout::AcadLayout;
+    if !layout_is_finite(&AcadLayout::default()) {
+        return Err("a layout of zeros reads as not finite".into());
+    }
+    let (mut refused, mut cases) = (0, 0);
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        for point in 0..6 {
+            for axis in 0..3 {
+                let mut l = AcadLayout::default();
+                let p = match point {
+                    0 => &mut l.insertion_point,
+                    1 => &mut l.extent_min,
+                    2 => &mut l.extent_max,
+                    3 => &mut l.ucs_origin,
+                    4 => &mut l.ucs_x_axis,
+                    _ => &mut l.ucs_y_axis,
+                };
+                match axis {
+                    0 => p.x = bad,
+                    1 => p.y = bad,
+                    _ => p.z = bad,
+                }
+                cases += 1;
+                refused += usize::from(!layout_is_finite(&l));
+            }
+        }
+        for other in 0..3 {
+            let mut l = AcadLayout::default();
+            match other {
+                0 => l.elevation = bad,
+                1 => l.limmax.y = bad,
+                _ => l.plot_settings.scale_factor = bad,
+            }
+            cases += 1;
+            refused += usize::from(!layout_is_finite(&l));
+        }
+    }
+    if refused == cases {
+        Ok(format!("{refused} of {cases} non-finite layouts refused"))
+    } else {
+        Err(format!(
+            "{refused} of {cases} non-finite layouts refused, so the others would be written as NaN or inf"
+        ))
+    }
+}
+
 fn objects(doc: &DxfDocument) -> Vec<&DxfRecord> {
     doc.records
         .iter()
@@ -546,7 +605,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             dropped.insert(h, why);
         }
     }
-    let supported = kinds(target);
+    let supported = kinds(file.version());
     let mut last_index = 0usize;
     for r in &our_recs {
         let kind = r.kind.clone();
@@ -664,6 +723,19 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         }
         for bname in our_brackets.keys() {
             if !their_brackets.contains_key(bname) {
+                if bname == "ACAD_XDICTIONARY"
+                    && our_brackets[bname]
+                        .iter()
+                        .filter_map(|(_, v)| v.as_handle())
+                        .all(|x| dropped.contains_key(&x))
+                {
+                    *o.reasons
+                        .entry(format!(
+                            "{kind} extension dictionary the export leaves out (it names a dictionary the export does not have)"
+                        ))
+                        .or_default() += 1;
+                    continue;
+                }
                 t.extra += 1;
                 o.failures.push(format!(
                     "{name} {kind} {h:X}: bracket {bname} written but absent from the export"
@@ -671,7 +743,23 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             }
         }
 
-        let (a, b) = (body(r), body(want));
+        let (a, mut b) = (body(r), body(want));
+        // A GROUP lists only the members the output holds.
+        if kind == "GROUP" {
+            b.retain(|(code, v)| {
+                let held = *code == 340 && v.as_handle().is_some_and(|x| !defined(x));
+                if held {
+                    t.omitted_groups += 1;
+                    *o.reasons
+                        .entry(
+                            "GROUP member 340 (an entity the output does not write: an MLINE, a VIEWPORT)"
+                                .to_string(),
+                        )
+                        .or_default() += 1;
+                }
+                !held
+            });
+        }
         let n = a.len().max(b.len());
         for i in 0..n {
             match (a.get(i), b.get(i)) {
@@ -737,6 +825,17 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                     o.failures.push(format!(
                         "{name} {kind} {h:X}: group {ca} (position {i}) written but absent from the export"
                     ));
+                }
+                (None, Some((cb, vb)))
+                    if matches!(cb, 331 | 345 | 346)
+                        && vb.as_handle().is_some_and(|x| !defined(x)) =>
+                {
+                    t.omitted_groups += 1;
+                    *o.reasons
+                        .entry(format!(
+                            "{kind} group {cb} (it names an entity or UCS record the output does not define)"
+                        ))
+                        .or_default() += 1;
                 }
                 (None, Some((330, _)))
                     if kind == "XRECORD"
@@ -964,6 +1063,14 @@ fn main() -> ExitCode {
         Ok(shown) => println!("XRECORD group 102 escaping (synthetic): ok, read back {shown}"),
         Err(e) => {
             failures.push(format!("XRECORD group 102 escaping (synthetic): {e}"));
+        }
+    }
+    match finite_check() {
+        Ok(shown) => println!(
+            "LAYOUT non-finite coordinates (synthetic): ok, {shown}, counted as not written"
+        ),
+        Err(e) => {
+            failures.push(format!("LAYOUT non-finite coordinates (synthetic): {e}"));
         }
     }
     match boundary_check() {
