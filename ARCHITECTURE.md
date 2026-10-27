@@ -3669,7 +3669,7 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7aj. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7au. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned
