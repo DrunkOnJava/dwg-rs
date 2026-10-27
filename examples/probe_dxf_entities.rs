@@ -382,7 +382,12 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         }
         let t = o.tallies.entry(r.kind.clone()).or_default();
         t.unwritten += 1;
-        let embedded = r.groups.iter().any(|g| g.code == 101);
+        // An MTEXT with an embedded object (R2018), a background fill (90, 441) or
+        // columns (75) is a variant nothing writes yet.
+        let embedded = r
+            .groups
+            .iter()
+            .any(|g| g.code == 101 || (r.kind == "MTEXT" && matches!(g.code, 90 | 441 | 75)));
         // A child is written with its parent only.
         let parent_written = !matches!(r.kind.as_str(), "ATTRIB" | "VERTEX" | "SEQEND")
             || r.owner
