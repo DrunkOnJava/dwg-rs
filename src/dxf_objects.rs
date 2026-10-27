@@ -105,6 +105,60 @@ impl Plan {
     pub fn handles(&self) -> HashSet<u64> {
         self.items.iter().map(|i| i.handle).collect()
     }
+
+    /// Close ownership over what the output holds: an object is kept only when its
+    /// owner is null, one of `emitted` (the table records, entities and block
+    /// markers written) or an object that is kept, so no record names an owner the
+    /// output lacks and nothing is left in an orphaned ownership tree (the
+    /// extension dictionary of an entity the writer omits, and everything it owns).
+    /// Returns the handles of the objects dropped, counted in the skipped objects.
+    pub fn close(&mut self, emitted: &HashSet<u64>) -> HashSet<u64> {
+        let mut kept: HashSet<u64> = HashSet::new();
+        loop {
+            let before = kept.len();
+            for i in &self.items {
+                let owner = i.refs.owner;
+                if owner == 0 || emitted.contains(&owner) || kept.contains(&owner) {
+                    kept.insert(i.handle);
+                }
+            }
+            if kept.len() == before {
+                break;
+            }
+        }
+        let mut gone = HashSet::new();
+        let mut labels: Vec<String> = Vec::new();
+        self.items.retain(|i| {
+            if kept.contains(&i.handle) {
+                return true;
+            }
+            gone.insert(i.handle);
+            labels.push(item_label(i));
+            false
+        });
+        for l in labels {
+            *self
+                .skipped
+                .entry(format!("{l} (its owner is not written)"))
+                .or_default() += 1;
+        }
+        gone
+    }
+}
+
+fn item_label(item: &Item) -> String {
+    match &item.decoded {
+        DecodedEntity::Dictionary(_) => "DICTIONARY",
+        DecodedEntity::DictionaryVar(_) => "DICTIONARYVAR",
+        DecodedEntity::XRecord(_) => "XRECORD",
+        DecodedEntity::Scale(_) => "SCALE",
+        DecodedEntity::Layout(_) => "LAYOUT",
+        DecodedEntity::Group(_) => "GROUP",
+        DecodedEntity::MLineStyle(_) => "MLINESTYLE",
+        DecodedEntity::VisualStyle(_) => "VISUALSTYLE",
+        _ => "ACDBPLACEHOLDER",
+    }
+    .to_string()
 }
 
 fn class_label(raw: &RawObject, class: &Option<String>) -> String {
@@ -207,7 +261,9 @@ pub fn plan(file: &DwgFile, header: &HeaderVars) -> Plan {
             refs: r,
         });
         match item {
-            Some(item) if record(&item, &HashSet::new()).is_some() => out.items.push(item),
+            Some(item) if record(&item, &HashSet::new(), &HashMap::new()).is_some() => {
+                out.items.push(item)
+            }
             Some(_) => {
                 *out.skipped
                     .entry(format!("{} (not written)", class_label(raw, &class)))
@@ -457,6 +513,7 @@ fn layout_groups(
     l: &crate::objects::acad_layout::AcadLayout,
     item: &Item,
     defined: &HashSet<u64>,
+    views: &HashMap<u64, String>,
 ) -> Option<()> {
     let p = &l.plot_settings;
     let skip = match item.version {
@@ -499,7 +556,16 @@ fn layout_groups(
     g.push(HeaderGroup::Text(1, p.page_setup_name.clone()));
     g.push(HeaderGroup::Text(2, p.printer_config_name.clone()));
     g.push(HeaderGroup::Text(4, p.paper_size.clone()));
-    g.push(HeaderGroup::Text(6, p.plot_view_name.clone()));
+    // From R2004 the plot view is a handle, the first of the layout's own; its name
+    // is the VIEW record's.
+    let view_name = match item.version.is_r2004_plus() {
+        true => item.refs.rest.first().and_then(|h| views.get(h)).cloned(),
+        false => None,
+    };
+    g.push(HeaderGroup::Text(
+        6,
+        view_name.unwrap_or_else(|| p.plot_view_name.clone()),
+    ));
     for (code, v) in [
         (40, p.margin_left),
         (41, p.margin_bottom),
@@ -563,7 +629,11 @@ fn layout_groups(
 }
 
 /// The record of `item`, or `None` when a group does not write.
-fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
+fn record(
+    item: &Item,
+    defined: &HashSet<u64>,
+    views: &HashMap<u64, String>,
+) -> Option<EntityRecord> {
     let mut g: Vec<HeaderGroup> = Vec::new();
     let kind: &'static str = match &item.decoded {
         DecodedEntity::Dictionary(d) => {
@@ -629,7 +699,7 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             "XRECORD"
         }
         DecodedEntity::Layout(l) => {
-            layout_groups(&mut g, l, item, defined)?;
+            layout_groups(&mut g, l, item, defined, views)?;
             "LAYOUT"
         }
         DecodedEntity::Group(grp) => {
@@ -640,7 +710,7 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             g.push(HeaderGroup::Text(300, grp.name.clone()));
             g.push(HeaderGroup::Int(70, i64::from(grp.unnamed)));
             g.push(HeaderGroup::Int(71, i64::from(grp.selectable)));
-            for m in &item.refs.rest {
+            for m in item.refs.rest.iter().filter(|m| defined.contains(m)) {
                 g.push(HeaderGroup::Handle(340, *m));
             }
             "GROUP"
@@ -693,24 +763,19 @@ pub fn build(
     let root = header
         .get_handle("DICTIONARY_NAMED_OBJECTS")
         .map_or(0, |h| h.value);
+    let views: HashMap<u64, String> = tables
+        .iter()
+        .filter(|t| t.name == "VIEW")
+        .flat_map(|t| t.records.iter().map(|r| (r.handle, r.name.clone())))
+        .collect();
     let mut by_handle: HashMap<u64, EntityRecord> = HashMap::new();
     for item in &plan.items {
-        match record(item, defined) {
+        match record(item, defined, &views) {
             Some(r) => {
                 by_handle.insert(item.handle, r);
             }
             None => {
-                let label = match &item.decoded {
-                    DecodedEntity::Dictionary(_) => "DICTIONARY",
-                    DecodedEntity::DictionaryVar(_) => "DICTIONARYVAR",
-                    DecodedEntity::XRecord(_) => "XRECORD",
-                    DecodedEntity::Scale(_) => "SCALE",
-                    DecodedEntity::Layout(_) => "LAYOUT",
-                    DecodedEntity::Group(_) => "GROUP",
-                    DecodedEntity::MLineStyle(_) => "MLINESTYLE",
-                    DecodedEntity::VisualStyle(_) => "VISUALSTYLE",
-                    _ => "ACDBPLACEHOLDER",
-                };
+                let label = item_label(item);
                 *out.skipped
                     .entry(format!("{label} (not written)"))
                     .or_default() += 1;

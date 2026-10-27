@@ -106,6 +106,24 @@ pub struct BlockRecords {
 }
 
 impl Entities {
+    /// Forget the objects `gone`: a record names none of them as a reactor (the
+    /// whole list goes, as when one of them is undefined) or as its extension
+    /// dictionary.
+    pub fn forget(&mut self, gone: &HashSet<u64>) {
+        let markers = self
+            .blocks
+            .iter_mut()
+            .flat_map(|b| [&mut b.begin, &mut b.end]);
+        for r in self.records.iter_mut().chain(markers) {
+            if r.reactors.iter().any(|h| gone.contains(h)) {
+                r.reactors.clear();
+            }
+            if r.xdictionary.is_some_and(|h| gone.contains(&h)) {
+                r.xdictionary = None;
+            }
+        }
+    }
+
     /// The handles of every record written, entities and block markers.
     pub fn handles(&self) -> HashSet<u64> {
         self.records
@@ -1201,12 +1219,21 @@ fn block_markers(
 }
 
 /// `groups` with their text escaped for the release `version` (see
-/// `dxf_header::escape_text`); markers are plain ASCII already.
+/// `dxf_header::escape_text`); the record and subclass markers are plain ASCII
+/// already. After an `AcDbXrecord` marker the groups are application data: a 100 or
+/// a 102 there is a string of the application's, escaped like any other (the
+/// structural `{ACAD_REACTORS` and `{ACAD_XDICTIONARY` brackets are written apart
+/// from a record's groups).
 fn escaped(groups: &[HeaderGroup], version: DxfVersion) -> Vec<HeaderGroup> {
+    let mut application = false;
     groups
         .iter()
         .map(|g| match g {
-            HeaderGroup::Text(code, t) if !matches!(code, 0 | 100 | 102) => {
+            HeaderGroup::Text(100, t) if !application => {
+                application = t == "AcDbXrecord";
+                g.clone()
+            }
+            HeaderGroup::Text(code, t) if *code != 0 => {
                 HeaderGroup::Text(*code, crate::dxf_header::escape_text(version, t))
             }
             other => other.clone(),

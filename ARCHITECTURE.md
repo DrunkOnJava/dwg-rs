@@ -2931,7 +2931,7 @@ the probe checks that header against the export's on every drawing.
 A handle group is written only when the output defines the object it names, under
 its own type: the OBJECTS section writes dictionaries and plot style placeholders,
 so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It does not write
-a layout, a material or a visual style yet (§7at lists the kinds it does),
+a layout, a material or a visual style yet (§7au lists the kinds it does),
 so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
 and visual style names. An arrowhead block is named once BLOCKS writes it, which it
@@ -3572,8 +3572,10 @@ drops several render applications' data).
 extended data string of the first record that holds one of six bytes or more sitting once in
 the file, their first four characters overwritten with `E9 B0 C0 FC` and their page byte (the
 eight bits before the characters) set to 29, 30 and 31, and read back through the new
-readers: XRECORD values 16 strings, 64 of 64 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
-before); extended data 2 strings, 8 of 8.
+readers: XRECORD values 24 strings, 96 of 96 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
+before); extended data 3 strings, 12 of 12 (R14, R2000 and, since the DWG writer assembles
+the patched R2004 drawings, R2004; the string's own page byte is patched there and the
+header keeps the drawing's page).
 
 **R14, and the assumption that the shorts mean there what they mean later.** Nothing in
 the corpus names an R14 page: AutoCAD's exports of the AC1014 drawings are R12 DXF, which
@@ -3590,7 +3592,84 @@ XRECORD ranges above; the length field's width for a string of 256 bytes or more
 extended data application the export omits; and the entities' own strings that sit in a
 record's extended data on an R13 drawing (the corpus holds none).
 
-## 7at. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
+## 7at. The writers write the drawing's code page (2026-10-27, #375)
+
+#374 reads pre-R2007 text in the page the header names; the writers still did the
+opposite of what they read. `dwg-to-dxf` wrote every character above ASCII of a
+pre-R2007 DXF as a `\U+XXXX` escape, whatever the drawing's page (a `String` could
+hold nothing else), the class table of the DWG writer wrote its strings as UTF-8
+(`classes::write_tv`), and `DwgFile::to_bytes` assembled the R2004-family header with a
+code page of 0, so a rewritten file read its own text as an unnamed page. Now:
+
+- `CodePage::encode_char` and `CodePage::encode` are the inverse of `decode`: a character
+  the page holds is its byte (two on a double-byte page), any other is the escape
+  `\U+XXXX`, four uppercase hexadecimal digits of each UTF-16 unit, and text that is
+  already an escape (MTEXT's `\U+00B0`) passes as it is. Under an unnamed page no
+  character is known to be in the page, so the result is ASCII with escapes.
+- `dxf_convert::convert_dwg_to_dxf_bytes` (and `convert_file_to_dxf_bytes`, and the
+  `dwg-to-dxf` binary) write R12 to R2004 in the drawing's page: each character the page
+  holds as its byte, every other as an escape. The writer's text is still a `String`, so
+  the page bytes travel through it as the chars of the same code points and the function
+  turns them back into bytes; `convert_dwg_to_dxf` keeps returning escapes only. From
+  R2007 the output is UTF-8 as before.
+- `classes::write_tv` encodes through the page in force, and
+  `file_writer::assemble_dwg_bytes_with_page` writes the page into the header (the short at
+  0x13); `DwgFile::to_bytes` passes the drawing's own, so the string bytes it copies read
+  as the text they were.
+
+**What AutoCAD does.** Two things are measured; the rest is owed.
+
+- *An in-page character is its byte in a pre-R2007 DXF.* The corpus's one raw high byte
+  in a pre-R2007 export is `0xD8` in a TEXT of `sample_AC1009_ascii.dxf` (R12): AutoCAD
+  wrote the character the page holds as that byte. None of the R2000 and R2004 exports
+  holds one (their only non-ASCII is escape text copied from the DWG), so for those
+  targets the choice rests on the DXF Reference's statement that DXF before R2007 is in
+  `$DWGCODEPAGE` (public documentation, recalled; `dxf_reader` reads on the same
+  statement), not on an export.
+- *A character the page lacks is `\U+XXXX`.* The corpus holds one: the diameter sign
+  U+2205, which the R2007 and later saves of `sample_AC10xx.dwg` hold as the character and
+  the R2000 and R2004 saves hold as the ASCII escape `\U+2205`, in an MTEXT and in an
+  XRECORD string. `CodePage::encode` of each R2007 and later text, under the R2000 file's
+  page, gives the bytes of the R2000 text of the same handle: 59 of 59 texts in each of
+  `sample_AC1021`, `sample_AC1024`, `sample_AC1027` and `sample_AC1032` (one holding the
+  diameter sign, written `\U+220545,6` as AutoCAD wrote it; five more are MTEXT that AutoCAD
+  formatted differently in the two releases, a line break or a stacked fraction, and are
+  not compared). That is MTEXT and one XRECORD. No TEXT, ATTRIB, ATTDEF or table name of
+  the corpus holds a character outside its page, so the escape for those strings is the
+  same one by extension, as it was before this change, and stays unmeasured.
+
+**Evidence.** `examples/probe_code_page.rs`, on the 24 pre-R2007 drawings of the pinned
+corpus, with the strings rewritten in memory as in §7ap:
+
+| What | Result |
+|---|---|
+| `encode` is `decode`'s inverse on every byte above 0x7F of each named page | 128 of 128 for `ANSI_1251` and for `ANSI_1252` |
+| The escapes: U+2205 and U+0439 under 1252, U+00E9 under 1251 and under an unnamed page, MTEXT's own `94\U+00B0` | each as above |
+| 266 strings in 27 kinds of record (R14, R2000 and R2004, XRECORD values and extended data included), read under the drawing's own page, 29, 30 and 31; the R2004 drawings re-assembled by the DWG writer with that short as the header's page | 1,064 of 1,064 reads as the code page charts say |
+| The 87 table-entry names of those drawings written by `dwg-to-dxf` (R2000 target, bytes) | 348 of 348 checks: under 29 and 30 the patched bytes `E9 B0 C0 FC` and the rest of the name verbatim, under 31 the `\U+FFFD` escapes of what was read |
+| `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
+| R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
+
+No text of the corpus leaves ASCII in a pre-R2007 DXF, so `convert_dwg_to_dxf_bytes` writes
+exactly the bytes `convert_dwg_to_dxf` writes: 104 of 104 conversions of the corpus's 52
+drawings (R2000 and R2004 targets), identical. The first run of that check read 0 of 104 and
+named a real defect: four comments the writer itself emits (`999` groups in
+`dxf_sections.rs`: the ACI colour note, the opaque proxy note and the custom-class
+pass-through note) held an em dash or a `≈`, which a pre-R2007 DXF reads as bytes of the
+code page, not UTF-8 (and which the bytes conversion cannot map to one byte). They are ASCII
+now, and a character above U+00FF that still reaches the bytes conversion is written as a
+`\U+XXXX` escape, not as `?`. `probe_dxf_header`, `probe_dxf_tables`,
+`probe_dxf_entities` and `probe_dxf_classes`, which call `convert_dwg_to_dxf`, read 0
+differences.
+
+**Owed.** A TEXT, ATTRIB or name outside its page (above); an in-page character in an
+R2000 or R2004 export (above); MTEXT in an R2000 or R2004 DXF target, which the ENTITIES
+writer does not write yet, so no AutoCAD export pairs with the writer's own escape end to
+end; characters above the BMP, two escapes each as before and never measured; and a
+strings encoder for the entities, which the DWG writer does not write at all (its only
+authored strings are the class table's).
+
+## 7au. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
 
 `src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
 table records: DICTIONARY and ACDBDICTIONARYWDFLT (each entry as its key and handle,
@@ -3640,30 +3719,57 @@ The Corpus job runs it.
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | ACDBDICTIONARYWDFLT | 42 | 42 | 294 | 294 | 0 | 0 | 0 | 0 |
 | ACDBPLACEHOLDER | 42 | 42 | 84 | 84 | 0 | 0 | 0 | 0 |
-| DICTIONARY | 2147 | 2113 | 14529 | 12778 | 0 | 0 | 0 | 1779 |
+| DICTIONARY | 930 | 905 | 7514 | 5809 | 0 | 0 | 0 | 1733 |
 | DICTIONARYVAR | 365 | 365 | 1825 | 1825 | 0 | 0 | 0 | 0 |
 | SCALE | 826 | 826 | 6608 | 6608 | 0 | 0 | 0 | 0 |
-| XRECORD | 2522 | 2348 | 233042 | 232952 | 184 | 0 | 0 | 0 |
+| XRECORD | 296 | 223 | 2815 | 2741 | 84 | 0 | 0 | 0 |
 
 The export registers again objects it creates on load under handles of its own (at or
-above the DWG's `$HANDSEED`): 1,020 DICTIONARYs, 107 DICTIONARYVARs and 1,111
-XRECORDs, extension dictionaries and what they hold, paired by owner or by the key
-under which a paired dictionary holds them. 208 records the export does not have at
-all are written from the DWG and left unpaired with a stated reason: 34 dictionaries
-(28 extension dictionaries of owners the export writes without one, 6 whose owner it
-does not write) and 174 XRECORDs (58 held by entries its dictionaries lack, 34 inside
-the dictionaries it leaves out, 82 whose owner it does not write). 184 group values are relations the probe names: the editing time
-and save date of `DWGPROPS` (40, 42), the saved file's identity of
-`ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export
-registers again, the styles AutoCAD lists again in an `ACDB_RECOMPOSE_DATA` XRECORD (330; the
-probe compares every 330 after the record's owner, so an XRECORD's handles and a LAYOUT's
-block record are checked), and the tail of a round-trip XRECORD that AutoCAD consumes when it
-loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28
-groups); 1,670 entries name objects not written yet, 81 name objects the export made
-itself, and 58 name objects it leaves out. 10 of the 42 drawings have no export of
-their release and are skipped.
+above the DWG's `$HANDSEED`), extension dictionaries and what they hold: 72 DICTIONARYs,
+107 DICTIONARYVARs and 97 XRECORDs among the records written, paired by owner or by the key
+under which a paired dictionary holds them. 84 group values are relations the probe names:
+the editing time and save date of `DWGPROPS` (40, 42), the saved file's identity of
+`ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export registers
+again, the styles AutoCAD lists again in an `ACDB_RECOMPOSE_DATA` XRECORD (330; the probe
+compares every 330 after the record's owner, so an XRECORD's handles and a LAYOUT's block
+record are checked), and the tail of a round-trip XRECORD that AutoCAD consumes when it
+loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28 groups).
+2,223 dictionary entries are written and 1,705 left out: 1,652 name objects the output does
+not define, 53 objects the export made itself and 48 objects it leaves out. 10 of the 42
+drawings have no export of their release and are skipped.
 
-## 7au. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+### Ownership is closed over what the output holds
+
+An object is written only when its owner is null, a table record, an entity or block
+marker the output holds, or another object that is written: `Plan::close` drops the rest
+(and, in turn, what they own) before any handle is told to a table record or an entity, and
+the entities forget the dropped objects as reactors and extension dictionaries. The objects
+dropped hang off entities the entity writer does not write yet (HATCH, DIMENSION,
+VIEWPORT, MLINE and the others it counts as skipped) and off objects not written yet, and
+come back by themselves as those kinds are written. Every record of the 42 drawings'
+OBJECTS sections is checked for the handles it names, and each structural class must
+resolve to a record of the same output:
+
+| Reference | Written before | To no record before | Written now | To no record now |
+|---|---:|---:|---:|---:|
+| owner (330) | 5944 | 1287 | 2501 | 0 |
+| reactor (330) | 4452 | 0 | 2296 | 0 |
+| extension dictionary (360) | 6 | 0 | 6 | 0 |
+| dictionary entry (350, 360) | 4452 | 0 | 2296 | 0 |
+| dictionary default (340) | 42 | 0 | 42 | 0 |
+| XRECORD data handle (an application's, not held to it) | 454 | 120 | 374 | 76 |
+
+The records left out are counted in the probe by kind with the reason "its owner is not
+written" (1,111 XRECORDs and 260 DICTIONARYs among them); an export record of a supported
+kind that is missing without that reason, or whose owner the output does hold, is still a
+failure. A synthetic check writes an XRECORD whose group 102 strings and application
+group 100 hold a newline and a character outside ASCII: after `AcDbXrecord` a group 100 or
+102 is application data, now escaped for the release like every other string (`^J` for the
+newline, `\U+00E9` for the accented letter on R2004), where before the newline split the
+record and the DXF no longer read (`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
+the writer and not a drawing.
+
+## 7av. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
 the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,
@@ -3675,8 +3781,11 @@ puts `70` of the plot settings after `143` and the shade plot triple after `147`
 the handle stream lists, from R2004 the plot view, from R2007 the visual style, then
 the block record (`330`), the last active viewport (`331`) and the base and named
 UCS (`346`, `345`), of which the null ones are not written, and so is any that names a
-record the output does not define. A **GROUP** is its
-description (`300`), the unnamed and selectable flags and one `340` per member. An
+record the output does not define. The plot view name (`6`) is the DWG's own up to
+R2000; from R2004 the DWG stores a handle instead, and the name written is that of the VIEW
+record it names. A **GROUP** is its description (`300`), the unnamed and selectable flags
+and one `340` per member the output holds (an MLINE or VIEWPORT member, which the entity
+writer does not write yet, is left out, counted by the probe). An
 **MLINESTYLE** is its name, flags (the DWG's bits are not DXF's: bits 1, 2, 32, 64,
 512 and 1024 swap in pairs), description, fill colour, angles in degrees and one
 offset, colour and linetype per line; a linetype is `BYLAYER` or `BYBLOCK` for the
@@ -3696,11 +3805,13 @@ The probe compares every `330` after the record's owner, so a LAYOUT's block rec
 checked. The two R2018 MLINESTYLEs of the corpus are the records not
 written. With the layouts written, a BLOCK_RECORD's `340` and the dictionary entries
 of `ACAD_LAYOUT` are written too (132 more entries), and the tables probe still
-agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a plot
-view handle on R2004 and later (its name is `6`), a visual style handle (`333`), an
-MLINESTYLE whose linetype is neither sentinel, and R2018 MLINESTYLE.
+agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a layout that
+plots a named view (none of the 132 has plot type 3 or a non-empty group `6` in the
+export, so the plot view handle's resolution to the VIEW record's name is by the rule
+and not by a drawing), a visual style handle (`333`), an MLINESTYLE whose linetype is
+neither sentinel, and R2018 MLINESTYLE.
 
-## 7av. dwg-to-dxf: the VISUALSTYLE objects (2026-10-27, #66)
+## 7aw. dwg-to-dxf: the VISUALSTYLE objects (2026-10-27, #66)
 
 `dxf_objects` writes the 24 built-in VISUALSTYLEs of every drawing from the fields
 `acad_visual_style` decodes (the layout the module derives from bytes, since §20.4 has no
