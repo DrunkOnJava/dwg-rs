@@ -37,7 +37,7 @@
 //!
 //! # What the files say that §9 does not
 //!
-//! `ARCHITECTURE.md` §7n has the measurements. In short: `MENUNAME` is read
+//! `ARCHITECTURE.md` §7s has the measurements. In short: `MENUNAME` is read
 //! on every release; four `BS` slots end the section on every release from
 //! R14 (in the handle stream from R2007) and five `B` slots follow them from
 //! R2004; the padding is all ones on every AutoCAD 2016 to 2025 file; R2000
@@ -45,9 +45,11 @@
 //! named `$TDUCREATE` and `$TDUUPDATE`; and a `CMC` from R2004 carries its
 //! meaning in the top byte of its `BL`.
 //!
-//! Text before R2007 is in the drawing's code page. The crate applies none, so
-//! a text with a byte above 0x7F is kept as [`Value::RawText`] bytes instead of
-//! being read as UTF-8; all-ASCII text is [`Value::Text`] as on later releases.
+//! Text before R2007 is in the drawing's code page ([`crate::code_page`], §3.2.5),
+//! which [`crate::reader::DwgFile::header_vars`] puts in force. A text in a
+//! code page the crate names, and all-ASCII text, is [`Value::Text`] as on
+//! later releases; a text with a byte above 0x7F under a page it does not name
+//! is kept as [`Value::RawText`] bytes instead of being read as UTF-8.
 //!
 //! # How it fails
 //!
@@ -148,9 +150,9 @@ pub enum Value {
     Point3([f64; 3]),
     /// `TV`.
     Text(String),
-    /// A pre-R2007 `T` with a byte above 0x7F. Those releases store text in
-    /// the drawing's code page, which the crate does not apply, so the
-    /// bytes are kept as they are rather than read as UTF-8.
+    /// A pre-R2007 `T` with a byte above 0x7F in a code page the crate does
+    /// not name ([`crate::code_page::CodePage::Unknown`]), so the bytes are
+    /// kept as they are rather than read as UTF-8.
     RawText(Vec<u8>),
     /// `H`.
     Handle(Handle),
@@ -437,10 +439,9 @@ impl Reader<'_> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(if bytes.is_ascii() {
-            Value::Text(String::from_utf8_lossy(&bytes).into_owned())
-        } else {
-            Value::RawText(bytes)
+        Ok(match crate::code_page::try_decode_active(&bytes) {
+            Some(text) => Value::Text(text),
+            None => Value::RawText(bytes),
         })
     }
 
@@ -448,8 +449,9 @@ impl Reader<'_> {
         match self.tv_value()? {
             Value::Text(s) => Ok(s),
             _ => Err(Error::Unsupported {
-                feature: "a pre-R2007 colour name outside ASCII (the code page is not applied)"
-                    .into(),
+                feature:
+                    "a pre-R2007 colour name outside ASCII in a code page the crate does not name"
+                        .into(),
             }),
         }
     }
