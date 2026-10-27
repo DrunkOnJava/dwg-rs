@@ -8,7 +8,7 @@ use crate::cipher;
 use crate::code_page::{CodePage, with_code_page};
 use crate::crc;
 use crate::error::{Error, Result};
-use crate::file_writer::{WriterScaffold, assemble_dwg_bytes, validate_section_name};
+use crate::file_writer::{WriterScaffold, assemble_dwg_bytes_with_page, validate_section_name};
 use crate::header::{CommonHeader, R13R15Header, R2004Header};
 use crate::section::{Section, SectionKind};
 use crate::section_map;
@@ -424,7 +424,9 @@ impl DwgFile {
     ///
     /// This is an experimental R2004-family write path. It proves an
     /// in-crate section round-trip (`DwgFile::from_bytes(file.to_bytes()?)`
-    /// can read the same section payloads), but it does not promise
+    /// can read the same section payloads, and the same text: the file header's
+    /// code page ([`Self::code_page`], §3.2.5) is written, so the pre-R2007
+    /// string bytes the sections hold read in the page they were stored in), but it does not promise
     /// byte-identical reproduction of the source file or acceptance by
     /// external CAD applications.
     ///
@@ -469,7 +471,7 @@ impl DwgFile {
         }
 
         let built = scaffold.build_sections()?;
-        assemble_dwg_bytes(&built, self.version)
+        assemble_dwg_bytes_with_page(&built, self.version, self.code_page())
     }
 
     /// Read + decompress the named section like [`Self::read_section`],
