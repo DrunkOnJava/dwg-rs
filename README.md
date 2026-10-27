@@ -167,6 +167,8 @@ ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
 - Metadata parsers: `SummaryInfo`, `AppInfo` (R18 ANSI and R21+ UTF-16
   auto-detected), `Preview` (BMP, WMF, PNG), `FileDepList`
 - Handle map, class map and header variables
+- R14 to R2004 text in the code page the file header names, for pages 1251
+  and 1252, through one shared decoder (#374)
 - The object walk on every release from R14 to R2018, and the class census
   CI gate that holds it to what `AcDb:Classes` declares
 - Entity and object decoding, boundary-checked on every release, with the
@@ -185,9 +187,10 @@ every later disclosure.
 ### What dwg-rs does not do today
 
 - Read R13 (AC1012) files; the reader is in review (#323).
-- Read text outside ASCII in the drawing's own code page on R14 to R2004;
-  such text is decoded as lossy UTF-8 (#370; fix in review as #374, which
-  covers code pages 1251 and 1252; the rest are #375).
+- Read R14 to R2004 text in code pages other than 1251 (Cyrillic) and 1252
+  (Western European): text in any other page still decodes as lossy UTF-8.
+  XRECORD and XDATA strings are not decoded by page yet, and the writers
+  still emit UTF-8 (#375).
 - Decode password-protected R2007 files: a section whose descriptor declares
   encryption is refused, not decoded.
 - Write R13, R14 or R2007 files; the writer covers the R2004 family only.
