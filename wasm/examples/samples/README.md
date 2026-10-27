@@ -1,9 +1,12 @@
 # dwg-wasm sample fixtures
 
-Tiny synthetic DWG files bundled with `dwg-wasm` so a browser viewer
-can load a real file without the user having to supply one. Served by
-the V-20 `DwgFile.openSample(name)` JS entry point (see
-`wasm/src/sample_loader.rs`).
+Tiny synthetic DWG files meant to let the browser viewer load a real file
+without the user having to supply one (V-20). `.github/workflows/pages.yml`
+copies this directory into the Pages site, so they are served from
+`/samples/`. Nothing in the tree fetches them yet: the
+`DwgFile.openSample(name)` entry point that V-20 describes is not implemented
+(`wasm/src/no_upload.rs` notes it needs a one-line CSP relaxation when it
+ships), and `docs/viewer/index.html` reads only a file the user picks.
 
 ## Provenance
 
@@ -34,5 +37,5 @@ NOTE: the generator emitted the same skeleton file for each invocation, so
 the name-to-content mapping above is the shape the names were meant to have,
 not what the files hold. All four files are byte-identical (SHA-256
 `1a6e92f734f0a747b434cc617953e907ca35b2c394962f5149d3ad9e5358c342`). The four
-names still exercise the sample-loader's `fetch` path + URL routing, which is
-the purpose of V-20.
+names are there for the loader's `fetch` path and URL routing, once V-20's
+loader exists.
