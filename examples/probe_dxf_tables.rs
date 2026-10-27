@@ -7,7 +7,7 @@
 //! release, reads the output back with [`dwg::dxf_reader`] (the converter's
 //! output as far as the end of its TABLES section) and pairs every record it
 //! wrote with the export's record of the same handle, per table (VPORT, LTYPE,
-//! LAYER, STYLE, UCS, APPID, DIMSTYLE, BLOCK_RECORD). A paired record must agree group by
+//! LAYER, STYLE, VIEW, UCS, APPID, DIMSTYLE, BLOCK_RECORD). A paired record must agree group by
 //! group:
 //!
 //! - every group written has the export's code and equal values (text and
@@ -60,11 +60,12 @@ use dwg::dxf::DxfVersion;
 use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
 use dwg::{DwgFile, Version};
 
-const TABLES: [&str; 8] = [
+const TABLES: [&str; 9] = [
     "VPORT",
     "LTYPE",
     "LAYER",
     "STYLE",
+    "VIEW",
     "UCS",
     "APPID",
     "DIMSTYLE",
@@ -219,7 +220,7 @@ fn group_reason(
         ("DIMSTYLE", 345..=347) if complex_ltype_handle(theirs, code, doc) => {
             Some("the linetype has a shape or text dash and is not written")
         }
-        ("VPORT", 348) => Some("the visual style object is written as an untyped record"),
+        ("VPORT" | "VIEW", 348) => Some("the visual style object is written as an untyped record"),
         ("VPORT", 332 | 361 | 345 | 346) => Some("the object it names is not written"),
         ("VPORT", 63) if !values(theirs, 421).is_empty() => {
             Some("a true colour has no index in the DWG")

@@ -1,7 +1,7 @@
 //! The DXF `TABLES` section from the decoded symbol tables.
 //!
-//! [`build`] turns the decoded VPORT, LTYPE, LAYER, STYLE, APPID, DIMSTYLE and
-//! BLOCK_RECORD records of a drawing into the `TABLE` blocks AutoCAD's own DXF export writes for it, and
+//! [`build`] turns the decoded VPORT, LTYPE, LAYER, STYLE, VIEW, APPID, DIMSTYLE
+//! and BLOCK_RECORD records of a drawing into the `TABLE` blocks AutoCAD's own DXF export writes for it, and
 //! [`write()`] emits them. Each record carries its handle and its owner (the
 //! table's control object, from `AcDb:Header`), then the groups of its
 //! `AcDb...TableRecord` subclass that the decoder surfaces, under the codes and
@@ -30,6 +30,9 @@
 //!   (74), render mode (281), the viewport's own UCS (65, 110 to 112, 79, 146)
 //!   and, from R2007, the lighting and grid block (60, 61, 63, 141, 142, 282,
 //!   292, 421).
+//! - VIEW: name, flags (70: paper space 1, Xdep 16), the view as VPORT's (40 to
+//!   44, 50, 71, 281, 10 to 12), the associated UCS (72, 110 to 112, 79, 146) and,
+//!   from R2007, whether the camera plots (73) and the visual style (348).
 //! - UCS: an empty table when the drawing has no UCS record, as AutoCAD writes
 //!   it (every drawing of the public corpus). A drawing that has UCS records
 //!   gets no UCS table: no corpus drawing holds one, so the UCS decoder has
@@ -56,8 +59,7 @@
 //! such bracket.
 //!
 //! Records the export itself creates while saving (their handles are at or
-//! above the DWG's `$HANDSEED`) are not in the DWG and not written. VIEW is not
-//! written yet.
+//! above the DWG's `$HANDSEED`) are not in the DWG and not written.
 //!
 //! Targets before R2000 have no subclass markers and are not written: the
 //! converter keeps its default layer for them.
@@ -480,6 +482,90 @@ fn vport_groups(
     Some(g)
 }
 
+/// The groups of a VIEW record: the view as VPORT's, the associated UCS and, from
+/// R2007, whether the camera plots and the visual style (the handle after the xref
+/// block's and the background's).
+fn view_groups(
+    v: &crate::tables::view::ViewEntry,
+    refs: Option<&EntryRefs>,
+    file_version: crate::version::Version,
+    version: DxfVersion,
+    defined: &HashSet<u64>,
+) -> Option<Vec<HeaderGroup>> {
+    // R13 and R14 store neither a render mode nor an associated UCS.
+    let r2000_plus = !matches!(file_version, crate::version::Version::R14);
+    let reals = [
+        v.view_height,
+        v.view_width,
+        v.view_center.x,
+        v.view_center.y,
+        v.target.x,
+        v.target.y,
+        v.target.z,
+        v.view_direction.x,
+        v.view_direction.y,
+        v.view_direction.z,
+        v.twist_angle,
+        v.lens_length,
+        v.front_clip,
+        v.back_clip,
+    ];
+    if !finite(&reals) {
+        return None;
+    }
+    let flags = xdep(&v.header) | i64::from(v.is_paperspace);
+    let mut g = vec![
+        HeaderGroup::Text(100, "AcDbViewTableRecord".into()),
+        HeaderGroup::Text(2, v.header.name.clone()),
+        HeaderGroup::Int(70, flags),
+        HeaderGroup::Real(40, v.view_height),
+    ];
+    point2(&mut g, 10, v.view_center);
+    g.push(HeaderGroup::Real(41, v.view_width));
+    point3(&mut g, 11, v.view_direction);
+    point3(&mut g, 12, v.target);
+    g.push(HeaderGroup::Real(42, v.lens_length));
+    g.push(HeaderGroup::Real(43, v.front_clip));
+    g.push(HeaderGroup::Real(44, v.back_clip));
+    g.push(HeaderGroup::Real(50, v.twist_angle.to_degrees()));
+    g.push(HeaderGroup::Int(71, i64::from(v.view_mode)));
+    if r2000_plus {
+        g.push(HeaderGroup::Int(281, i64::from(v.render_mode)));
+        g.push(HeaderGroup::Int(72, flag(v.is_associated_ucs)));
+    }
+    if let Some(ucs) = &v.ucs {
+        let ucs_reals = [
+            ucs.origin.x,
+            ucs.origin.y,
+            ucs.origin.z,
+            ucs.x_direction.x,
+            ucs.x_direction.y,
+            ucs.x_direction.z,
+            ucs.y_direction.x,
+            ucs.y_direction.y,
+            ucs.y_direction.z,
+            ucs.elevation,
+        ];
+        if !finite(&ucs_reals) {
+            return None;
+        }
+        point3(&mut g, 110, ucs.origin);
+        point3(&mut g, 111, ucs.x_direction);
+        point3(&mut g, 112, ucs.y_direction);
+        g.push(HeaderGroup::Int(79, i64::from(ucs.ortho_view_type)));
+        g.push(HeaderGroup::Real(146, ucs.elevation));
+    }
+    if from_r2007(version) {
+        if let Some(plottable) = v.camera_plottable {
+            g.push(HeaderGroup::Int(73, flag(plottable)));
+        }
+        if let Some(r) = refs.filter(|r| r.rest.len() == 6) {
+            handle_group(&mut g, 348, r.rest.get(2).copied(), defined);
+        }
+    }
+    Some(g)
+}
+
 /// Where a dimension variable lands in a DIMSTYLE record: its DXF group, the
 /// value AutoCAD leaves the group out for, and the first target that has it.
 struct DimGroup {
@@ -794,6 +880,7 @@ pub fn build(
         ("LTYPE", "LINETYPE_CONTROL_OBJECT"),
         ("LAYER", "LAYER_CONTROL_OBJECT"),
         ("STYLE", "STYLE_CONTROL_OBJECT"),
+        ("VIEW", "VIEW_CONTROL_OBJECT"),
         ("UCS", "UCS_CONTROL_OBJECT"),
         ("APPID", "APPID_CONTROL_OBJECT"),
         ("DIMSTYLE", "DIMSTYLE_CONTROL_OBJECT"),
@@ -825,6 +912,7 @@ pub fn build(
         .map(|(h, _)| *h)
         .collect();
     let has_ucs = raws.iter().any(|r| r.kind == ObjectType::Ucs);
+    let has_view = raws.iter().any(|r| r.kind == ObjectType::View);
     // Linetype handle -> (name, whether the LTYPE table writes it).
     let mut ltypes: BTreeMap<u64, (String, bool)> = BTreeMap::new();
     for raw in raws.iter().filter(|r| r.kind == ObjectType::Ltype) {
@@ -848,6 +936,7 @@ pub fn build(
                 | ObjectType::Ltype
                 | ObjectType::AppId
                 | ObjectType::Vport
+                | ObjectType::View
                 | ObjectType::DimStyle
                 | ObjectType::BlockHeader
         ) {
@@ -884,6 +973,11 @@ pub fn build(
                 // APPID table on all four drawings of the corpus that hold it.
                 DecodedEntity::AppId(a) if a.header.name == "ACAD_SPLINE_DATA" => continue,
                 DecodedEntity::AppId(a) => ("APPID", a.header.name.clone(), Some(appid_groups(&a))),
+                DecodedEntity::View(v) => (
+                    "VIEW",
+                    v.header.name.clone(),
+                    view_groups(&v, refs.as_ref(), file_version, version, &defined),
+                ),
                 DecodedEntity::VPort(v) => (
                     "VPORT",
                     v.header.name.clone(),
@@ -945,7 +1039,9 @@ pub fn build(
         return Vec::new();
     }
     // An empty UCS table is the drawing's own: none of its UCS records exists.
-    tables.retain(|t| !t.records.is_empty() || (t.name == "UCS" && !has_ucs));
+    tables.retain(|t| {
+        !t.records.is_empty() || (t.name == "UCS" && !has_ucs) || (t.name == "VIEW" && !has_view)
+    });
     tables
 }
 
