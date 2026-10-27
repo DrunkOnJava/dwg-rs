@@ -483,6 +483,23 @@ jobs:
             echo "::error::no pinned drawing reached the DXF BLOCKS probe"
             exit 1
           fi
+      # dwg-to-dxf's OBJECTS against AutoCAD's own export of the same drawing:
+      # every record written pairs with the export's, group for group, in its order.
+      - name: DXF OBJECTS written by dwg-to-dxf against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --features dxf-reader --example probe_dxf_objects -- "$HOME/dwg-corpus" > dxf-objects-probe.log 2>&1
+          status=$?
+          set -e
+          cat dxf-objects-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' dxf-objects-probe.log; then
+            echo "::error::no pinned drawing reached the DXF OBJECTS probe"
+            exit 1
+          fi
       # Measurements and the baseline a change would need; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.fetch.outputs.measured == 'true'

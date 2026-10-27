@@ -52,9 +52,9 @@
 //! Every record also carries, from its handle stream, its reactors and its
 //! extension dictionary (`102 {ACAD_REACTORS`, `102 {ACAD_XDICTIONARY`). A
 //! handle is written only when the output defines the object it names: the
-//! OBJECTS section writes dictionaries and plot style placeholders under their own
-//! type, so those are named (a layout, material or visual style is written as an
-//! untyped record and is not); the
+//! OBJECTS section writes the kinds `dxf_objects::kinds` lists under their own
+//! type, so those are named (an object of another kind, a material or a visual
+//! style, is not written yet and is not named); the
 //! entities that react to a record or insert a block are not written with their
 //! handles yet, so a record whose reactors or insert handles name one has no
 //! such bracket.

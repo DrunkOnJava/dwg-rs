@@ -53,6 +53,153 @@ pub struct XRecord {
     pub cloning_flags: i16,
 }
 
+/// One value of an XRECORD's data (§20.4.104): the type follows the group
+/// code's range, as in DXF.
+#[derive(Debug, Clone, PartialEq)]
+pub enum XValue {
+    /// A string (codes 1 to 9, 100 to 102, 105, 300 to 309, 410 to 419, 430 to
+    /// 439, 470 to 479, 999, 1000 to 1003).
+    Text(String),
+    /// A 16-, 32- or 64-bit integer or a byte (the numeric ranges of DXF).
+    Int(i64),
+    /// A real (40 to 59, 140 to 149, 460 to 469, 1040 to 1042).
+    Real(f64),
+    /// Three reals (10 to 39, 110 to 119, 210 to 239, 1010 to 1013).
+    Point([f64; 3]),
+    /// A handle (320 to 369, 390 to 399, 480, 481, 1005), as eight bytes.
+    Handle(u64),
+    /// A chunk of binary data (310 to 319, 1004).
+    Binary(Vec<u8>),
+}
+
+/// One (group code, value) pair of an XRECORD.
+#[derive(Debug, Clone, PartialEq)]
+pub struct XItem {
+    /// The DXF group code.
+    pub code: u16,
+    /// Its value.
+    pub value: XValue,
+}
+
+struct Bytes<'a> {
+    b: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Bytes<'a> {
+    fn take(&mut self, n: usize) -> Result<&'a [u8]> {
+        let end = self
+            .at
+            .checked_add(n)
+            .filter(|e| *e <= self.b.len())
+            .ok_or_else(|| Error::SectionMap("XRECORD value runs past its data".into()))?;
+        let out = &self.b[self.at..end];
+        self.at = end;
+        Ok(out)
+    }
+
+    fn u16(&mut self) -> Result<u16> {
+        let v = self.take(2)?;
+        Ok(u16::from_le_bytes([v[0], v[1]]))
+    }
+
+    fn u32(&mut self) -> Result<u32> {
+        let v = self.take(4)?;
+        Ok(u32::from_le_bytes([v[0], v[1], v[2], v[3]]))
+    }
+
+    fn u64(&mut self) -> Result<u64> {
+        let v = self.take(8)?;
+        let mut a = [0u8; 8];
+        a.copy_from_slice(v);
+        Ok(u64::from_le_bytes(a))
+    }
+
+    fn f64(&mut self) -> Result<f64> {
+        Ok(f64::from_bits(self.u64()?))
+    }
+}
+
+impl XRecord {
+    /// The data as (group code, value) pairs: per pair an `RS` code and a value
+    /// of the type DXF gives that code. Fails when a value does not fit the
+    /// data, or when a code has no type here, so a record that reads at all
+    /// reads to its last byte.
+    ///
+    /// Strings are an `RS` length, from R2000 to R2004 an `RC` code page and
+    /// that many bytes, from R2007 that many UTF-16 units; a trailing NUL is
+    /// dropped. A handle is eight bytes (an `RLL`).
+    pub fn items(&self, version: Version) -> Result<Vec<XItem>> {
+        let mut r = Bytes {
+            b: &self.data,
+            at: 0,
+        };
+        let mut out = Vec::new();
+        while r.at < r.b.len() {
+            let code = r.u16()?;
+            let value = match code {
+                1..=9
+                | 100..=102
+                | 105
+                | 300..=309
+                | 410..=419
+                | 430..=439
+                | 470..=479
+                | 999
+                | 1000..=1003 => XValue::Text(Self::text(&mut r, version)?),
+                10..=39 | 110..=119 | 210..=239 | 1010..=1013 => {
+                    XValue::Point([r.f64()?, r.f64()?, r.f64()?])
+                }
+                40..=59 | 140..=149 | 460..=469 | 1040..=1042 => XValue::Real(r.f64()?),
+                60..=79 | 170..=179 | 270..=279 | 370..=389 | 400..=409 | 1060..=1070 => {
+                    XValue::Int(i64::from(r.u16()? as i16))
+                }
+                90..=99 | 420..=429 | 440..=459 | 1071 => XValue::Int(i64::from(r.u32()? as i32)),
+                160..=169 => XValue::Int(r.u64()? as i64),
+                280..=299 => XValue::Int(i64::from(r.take(1)?[0])),
+                310..=319 | 1004 => {
+                    let n = usize::from(r.take(1)?[0]);
+                    XValue::Binary(r.take(n)?.to_vec())
+                }
+                320..=369 | 390..=399 | 480 | 481 | 1005 => XValue::Handle(r.u64()?),
+                other => {
+                    return Err(Error::SectionMap(format!(
+                        "XRECORD group code {other} has no value type"
+                    )));
+                }
+            };
+            out.push(XItem { code, value });
+        }
+        Ok(out)
+    }
+
+    fn text(r: &mut Bytes<'_>, version: Version) -> Result<String> {
+        let len = usize::from(r.u16()?);
+        if version.is_r2007_plus() {
+            let raw = r
+                .take(len.checked_mul(2).ok_or_else(|| {
+                    Error::SectionMap("XRECORD string length overflows".into())
+                })?)?;
+            let mut units: Vec<u16> = raw
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect();
+            if units.last() == Some(&0) {
+                units.pop();
+            }
+            String::from_utf16(&units)
+                .map_err(|_| Error::SectionMap("XRECORD string is not valid UTF-16".into()))
+        } else {
+            let _code_page = r.take(1)?;
+            let mut bytes = r.take(len)?.to_vec();
+            if bytes.last() == Some(&0) {
+                bytes.pop();
+            }
+            Ok(String::from_utf8_lossy(&bytes).into_owned())
+        }
+    }
+}
+
 /// Decodes the `XRecord` payload that follows the common object header.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<XRecord> {
     let data_bytes = c.read_bl()? as usize;

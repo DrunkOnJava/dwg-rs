@@ -2018,8 +2018,8 @@ the export omits: none. Every *omitted* variable has a stated reason: the local
 `$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
 file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
 329), a true-colour `$CECOLOR`, `$CMATERIAL`, `$INTERFEREOBJVS` and `$INTERFEREVPVS`
-(handles to MATERIAL and VISUALSTYLE objects, which the converter exports as
-untyped placeholders, so the reference would point at the wrong thing), and every name for a symbol record the output does not
+(handles to MATERIAL and VISUALSTYLE objects, which OBJECTS does not write yet,
+so the reference would point at nothing), and every name for a symbol record the output does not
 define: the converter writes layer 0 and no other symbol table, so `$TEXTSTYLE`,
 `$CELTYPE`, `$DIMSTYLE`, `$CMLSTYLE`, a non-zero `$CLAYER` and the like are
 omitted until those tables are written (a DXF whose header names a style it never
@@ -2930,9 +2930,9 @@ the probe checks that header against the export's on every drawing.
 
 A handle group is written only when the output defines the object it names, under
 its own type: the OBJECTS section writes dictionaries and plot style placeholders,
-so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It writes a
-layout, a material or a visual style as an untyped record (they are class-numbered
-objects), so a block's 340 (when it names a layout), a layer's 347 and 348 and a
+so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It does not write
+a layout, a material or a visual style yet (§7ap lists the kinds it does),
+so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
 and visual style names. An arrowhead block is named once BLOCKS writes it, which it
 now does for every block record (`$DIMBLK` and its family, a DIMSTYLE's 341 to 344).
@@ -3100,7 +3100,7 @@ ACAD_TABLE, 3DSOLID, REGION, SHAPE, WIPEOUT, LEADER, IMAGE, PDFUNDERLAY), which 
 probe counts by kind; and six are R2018 records with an embedded object (five MTEXT, one
 multi-line ATTRIB) that nothing writes yet. What an entity omits has a reason the probe checks:
 extended data (1000 to 1071); a colour book colour's 420 and 430, which are in its
-`AcDbColor` object; a material's 347, written as an untyped record; reactors that are
+`AcDbColor` object; a material's 347, which OBJECTS does not write yet; reactors that are
 entities not all written; an extension dictionary the export made itself (its handle is
 at or above the DWG's `$HANDSEED`).
 
@@ -3200,6 +3200,73 @@ of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic bloc
 - **Not written yet.** 24 VIEWPORTs, one multi-line ATTDEF (R2018), and 38 MTEXTs that carry a background fill (90, 63, 45,
   441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
   which is not decoded) or an embedded object (R2018); the probe counts them by kind.
+
+## 7ap. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
+
+`src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
+table records: DICTIONARY and ACDBDICTIONARYWDFLT (each entry as its key and handle,
+`350` for a soft-owner dictionary and `360` for a hard-owner one, with the default
+entry's `340`), DICTIONARYVAR, XRECORD, SCALE and ACDBPLACEHOLDER. The handle stream
+of an object is the one `tables::handles::refs` reads for a table record: owner,
+reactors, extension dictionary, then the object's own handles (a dictionary's item
+handles in key order). Records of a class named only in `AcDb:Classes`
+(DICTIONARYVAR, SCALE, ACDBDICTIONARYWDFLT) decode through the class map. An
+XRECORD's data is typed by the group code's range, as in DXF (`XRecord::items`): `RS`
+code, then a string (`RS` length; from R2000 to R2004 an `RC` code page and bytes,
+from R2007 UTF-16), a real, three reals, a short or long integer, a byte, a handle of
+eight bytes or a chunk of binary data. A dictionary entry whose object is not written
+(a MATERIAL, a VISUALSTYLE, a LAYOUT: typed writers come after this one) is left out,
+and the probe states why.
+
+### The order of the section
+
+AutoCAD's export walks the objects level by level from several roots: the named
+object dictionary first, then every object not owned by an object (an extension
+dictionary of a table, a table record, a block marker or an entity), in the order of
+its owner in TABLES, BLOCKS and ENTITIES, each root's dictionary entries in key order
+followed by its extension dictionary. A level is finished before the next starts, so
+a root's children come after all the roots. An object the walk does not reach follows
+in file order. The owner places are the table records in table order, the entities by
+their block and place in it (an attribute or a vertex by its parent's place), and a
+class-numbered entity (an ACAD_TABLE, an IMAGE) by its class's item id 0x1F2 against
+0x1F3 for an object. The probe checks the order of every paired record against the
+export's, and it holds on all 42 drawings. From the root dictionary alone the walk
+reproduces the whole order of the export for 32 of the 35 single-entity drawings
+(the other three have an extension dictionary of a table or an entity); the roots
+after it account for those and for the larger samples. No corpus dictionary has both
+entries and an extension dictionary, so their relative order is not measured.
+
+### Against AutoCAD's export
+
+`examples/probe_dxf_objects.rs` pairs every record written with the export's record
+and compares owner, groups (reals to AutoCAD's 16 decimals), dictionary entries (key,
+code and handle), the `{ACAD_REACTORS` and `{ACAD_XDICTIONARY` brackets and the order.
+The Corpus job runs it.
+
+| Kind | Written | Paired | Groups | Agree | Relation | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| ACDBDICTIONARYWDFLT | 42 | 42 | 294 | 294 | 0 | 0 | 0 | 0 |
+| ACDBPLACEHOLDER | 42 | 42 | 84 | 84 | 0 | 0 | 0 | 0 |
+| DICTIONARY | 2147 | 2113 | 14529 | 12778 | 0 | 0 | 0 | 1779 |
+| DICTIONARYVAR | 365 | 365 | 1825 | 1825 | 0 | 0 | 0 | 0 |
+| SCALE | 826 | 826 | 6608 | 6608 | 0 | 0 | 0 | 0 |
+| XRECORD | 2522 | 2348 | 232852 | 232802 | 134 | 0 | 0 | 0 |
+
+The export registers again objects it creates on load under handles of its own (at or
+above the DWG's `$HANDSEED`): 1,020 DICTIONARYs, 107 DICTIONARYVARs and 1,111
+XRECORDs, extension dictionaries and what they hold, paired by owner or by the key
+under which a paired dictionary holds them. 208 records the export does not have at
+all are written from the DWG and left unpaired with a stated reason: 34 dictionaries
+(28 extension dictionaries of owners the export writes without one, 6 whose owner it
+does not write) and 174 XRECORDs (58 held by entries its dictionaries lack, 34 inside
+the dictionaries it leaves out, 82 whose owner it does not write). 134 group values are relations the probe names: the editing time
+and save date of `DWGPROPS` (40, 42), the saved file's identity of
+`ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export
+registers again, and the tail of a round-trip XRECORD that AutoCAD consumes when it
+loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28
+groups); 1,670 entries name objects not written yet, 81 name objects the export made
+itself, and 58 name objects it leaves out. 10 of the 42 drawings have no export of
+their release and are skipped.
 
 ## 8. Write pipeline (current scope)
 
