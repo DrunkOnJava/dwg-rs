@@ -2823,8 +2823,8 @@ with an encrypted section.
 
 ## 7ak. dwg-to-dxf: the TABLES section (2026-10-26, #126)
 
-`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, UCS, APPID, DIMSTYLE
-and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
+`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, VIEW, UCS, APPID,
+DIMSTYLE and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
 under its control object's handle with its records under their own and owned by
 the table, in the group order of AutoCAD's exports (VPORT, LTYPE, LAYER, STYLE,
 VIEW, UCS, APPID, DIMSTYLE, BLOCK_RECORD). The header then names a layer, text
@@ -2840,11 +2840,12 @@ runs it.
 | LTYPE | 132 | 132 | 804 | 804 | 0 | 0 | 0 | 0 | 24 |
 | LAYER | 156 | 156 | 964 | 964 | 0 | 0 | 0 | 496 | 0 |
 | STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
+| VIEW | 6 | 6 | 190 | 190 | 0 | 0 | 0 | 4 | 0 |
 | UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
 | DIMSTYLE | 108 | 108 | 1431 | 1427 | 4 | 0 | 0 | 338 | 0 |
 | BLOCK_RECORD | 270 | 270 | 1092 | 1089 | 3 | 0 | 0 | 179 | 0 |
-| All | 1209 | 1209 | 8248 | 8239 | 9 | 0 | 0 | 1382 | 24 |
+| All | 1215 | 1215 | 8438 | 8429 | 9 | 0 | 0 | 1386 | 24 |
 
 Every group written has the export's code and value, over the 42 drawings of the
 public corpus that have an AutoCAD export of the same release (R2000 to R2018).
@@ -2859,7 +2860,7 @@ the corpus, written by none), and the 6 of a layer, the 345 to 347 of a
 dimension style that use one; and the
 `{BLKREFS` bracket of a block, because ENTITIES does not carry the INSERT handles
 it lists. `ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that
-application on all four drawings that hold it. VIEW is not written yet. UCS is written
+application on all four drawings that hold it. UCS is written
 as AutoCAD's empty table when the drawing has no UCS record, which is every
 drawing of the corpus; a drawing with UCS records gets no UCS table, because the
 decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
@@ -2886,6 +2887,11 @@ measured against the exports' handle groups:
   the two extension line linetypes (345 to 347): 6 handles to R2004, 9 from
   R2007, a NULL one left out.
 
+- **VIEW**: as VPORT's, the xref block, then from R2007 the background, visual
+  style (348) and sun, then the named and base UCS. A view is the one record written
+  with the view's associated UCS (72, 110 to 112, 79, 146) and, from R2007, the
+  camera-plottable flag (73); a record from R13 or R14, which store neither a render
+  mode nor a UCS, gets no 281 or 72.
 - **BLOCK_RECORD**: a NULL, the `BLOCK` entity, on R2000 the first and last entity
   (unless an xref), on R2004 and later the owned entities (their count is in the
   data stream), the `ENDBLK` entity, one handle per non-zero `RC` of the insert
