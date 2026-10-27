@@ -3669,7 +3669,7 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7au. AcDb:Classes as AutoCAD writes it, and a writer that matches it (2026-10-27, #45)
+## 7ax. AcDb:Classes as AutoCAD writes it, and a writer that matches it (2026-10-27, #45)
 
 `write_class_map` was "not a byte-exact AutoCAD emitter" (#45): it round-tripped through
 `ClassMap::parse` and no further. `examples/probe_class_roundtrip.rs` reads each
