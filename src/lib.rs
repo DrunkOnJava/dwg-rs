@@ -111,6 +111,7 @@ pub mod crc;
 pub mod curve;
 pub mod dxf;
 pub mod dxf_convert;
+pub mod dxf_entities;
 pub mod dxf_header;
 #[cfg(feature = "dxf-reader")]
 pub mod dxf_reader;
@@ -119,6 +120,7 @@ pub mod dxf_tables;
 pub mod element_encoder;
 pub mod entities;
 pub mod entity_geometry;
+pub mod entity_refs;
 pub mod error;
 pub mod file_writer;
 pub mod geometry;

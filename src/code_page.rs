@@ -6,7 +6,7 @@
 //! (§3.2.5). The specification prints no list of those values, so the table
 //! here holds only the numbers AutoCAD's own output has named: the header
 //! short of a pinned drawing against the `$DWGCODEPAGE` of its DXF export
-//! (`examples/probe_code_page.rs`, ARCHITECTURE.md §7an). A number outside
+//! (`examples/probe_code_page.rs`, ARCHITECTURE.md §7ao). A number outside
 //! the table is [`CodePage::Unknown`] and its text is read as it was before
 //! the table existed, as UTF-8 with U+FFFD for what is not; nothing is
 //! guessed for it, and a probe can list the strings that took that path
