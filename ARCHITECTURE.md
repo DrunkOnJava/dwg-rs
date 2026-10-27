@@ -3155,6 +3155,47 @@ true-colour word (420) and transparency (440) are stored RGB word first and tran
 second: the common data read them the other way round, which closed every record on its
 boundary (both are a `BL`) and was never compared.
 
+## 7ao. dwg-to-dxf: the CLASSES section (2026-10-27, #126)
+
+`src/dxf_classes.rs` writes a `CLASSES` section from the class table of `AcDb:Classes`,
+for a target of R2000 or later (R12 has none; R14 is not measured), one `CLASS` record
+per class in the table's order: the DXF name (1), the C++ name (2), the application
+(3), the proxy capability flags as an unsigned 16-bit word (90; the table stores a
+`BS`, so a flag word of `0x8401` reads as `-31743` signed), for a target of R2004 or
+later the instance count (91), the was-a-proxy flag (280) and the entity flag (281:
+item class id 0x1F2). Group 91 follows the target release; the count follows the
+source: the table's from an R2004 or later drawing, and for an earlier one, whose table
+stores none, the objects of the stream whose type code is the class number.
+`examples/probe_dxf_classes.rs` pairs every class with the export's of the same DXF
+name and compares groups and order, on the CLASSES section alone; the Corpus job runs it.
+
+| Release | Written | Paired | Groups | Agree | Relation | Disagree | Export only |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 135 | 135 | 675 | 675 | 0 | 0 | 0 |
+| AC1018 (2004) | 119 | 119 | 714 | 695 | 19 | 0 | 0 |
+| AC1021 (2007) | 118 | 118 | 708 | 690 | 18 | 0 | 1 |
+| AC1024 (2010) | 118 | 118 | 708 | 697 | 11 | 0 | 1 |
+| AC1027 (2013) | 111 | 111 | 666 | 655 | 11 | 0 | 8 |
+| AC1032 (2018) | 66 | 66 | 396 | 388 | 8 | 0 | 1 |
+
+Three differences between AutoCAD's export and the table are measured and applied:
+from R2004 the export does not list LAYOUT or ACDBPLACEHOLDER (newer releases hold them
+as native types; both are listed in an R2000 export), and an R2000 export writes
+`AcDbDataTable`'s record as `ACDBDATATABLE` where the table, and every later export,
+say `DATATABLE`. The 67 relations are the instance count (91): the export counts the
+objects it holds, among them those AutoCAD creates when it loads the file (more
+DICTIONARYVARs, CELLSTYLEMAPs) or leaves out, so the DWG's own count differs by a few
+on those classes. The export also holds 11 classes the table lacks (7 CELLSTYLEMAP and
+4 DATATABLE, on the larger samples) that AutoCAD registers on load; they are listed and
+not written. The probe also converts every drawing to every release from R2000: 3,934
+CLASS records over 252 conversions, group 91 on each exactly when the target is R2004
+or later. A drawing before R2004 has no count in its table, so a newer target gets the
+count taken from the object stream; that count equals the table's own on 473 of the 544
+classes of the R2004 and later drawings (the other 71 differ, as the export's counts
+differ from the table's), and no corpus pair shows AutoCAD's own count for an R2000
+drawing saved as a newer DXF, so that case is owed against an export. Not measured: an
+R14 target.
+
 ## 7ap. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
 
 `src/dxf_blocks.rs` writes one block per `BLOCK_RECORD` of the table, in its order: the

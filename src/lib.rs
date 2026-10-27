@@ -110,6 +110,7 @@ pub mod crc;
 pub mod curve;
 pub mod dxf;
 pub mod dxf_blocks;
+pub mod dxf_classes;
 pub mod dxf_convert;
 pub mod dxf_entities;
 pub mod dxf_header;

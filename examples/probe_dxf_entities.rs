@@ -767,7 +767,7 @@ fn main() -> ExitCode {
     println!("{skipped} drawings skipped (no twin or no AutoCAD export of the release)");
     if section == "BLOCKS" {
         if conversions == 0 {
-            println!("INSERT block references: NOT MEASURED (no drawing converts to a release)");
+            println!("NOT MEASURED: INSERT block references (no drawing converts to a release)");
         } else {
             println!(
                 "INSERT block references: {inserts} INSERTs in {conversions} conversions, {unresolved} naming a block that is not written"
@@ -783,7 +783,7 @@ fn main() -> ExitCode {
     }
     if section == "BLOCKS" {
         if gate.blocks_left_out == 0 {
-            println!("INSERT gate: NOT MEASURED (no layer removed took a block out)");
+            println!("NOT MEASURED: INSERT gate (no layer removed took a block out)");
         } else {
             println!(
                 "INSERT gate: {} builds, each without one layer: {} blocks left out, {} INSERTs of them left out, {} INSERTs written, {} naming a block that is not written",
