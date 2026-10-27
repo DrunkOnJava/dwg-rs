@@ -715,6 +715,7 @@ const Z: Point3D = Point3D {
 /// spec does not prescribe.
 pub fn section_of(label: &str) -> &'static str {
     match label {
+        "SORTENTSTABLE" => "§20.4.93",
         "BLOCK" => "§20.4.6",
         "ENDBLK" => "§20.4.7",
         "ARC" => "§20.4.18",
@@ -766,6 +767,8 @@ pub fn section_of(label: &str) -> &'static str {
         "LWPOLYLINE" => "§20.4.85",
         "SCALE" => "§20.4.92",
         "TABLESTYLE" => "§20.4.101",
+        "IMAGEDEF_REACTOR" => "§20.4.82",
+        "RASTERVARIABLES" => "§20.4.91",
         "XRECORD" => "§20.4.104",
         _ => "-",
     }
@@ -1038,6 +1041,7 @@ pub fn score(
             c.int("is_unit_scale", 290, i64::from(s.is_unit_scale), None);
         }
         // §20.4.104: the cloning flag in 280; the data stream stays raw.
+        D::SortEntsTable(t) => score_sortents(&mut c, t),
         D::XRecord(x) => {
             c.subclass("AcDbXrecord");
             c.int("cloning_flags", 280, i64::from(x.cloning_flags), None);
@@ -1055,14 +1059,57 @@ pub fn score(
             );
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
+        // §20.4.82: the class version in 90; the IMAGE it serves is a handle.
+        D::ImageDefReactor(r) => {
+            c.subclass("AcDbRasterImageDefReactor");
+            c.int("class_version", 90, i64::from(r.class_version), None);
+        }
+        // §20.4.91: 90, 70 display frame, 71 display quality, 72 units.
+        D::RasterVariables(r) => {
+            c.subclass("AcDbRasterVariables");
+            c.int("class_version", 90, i64::from(r.class_version), None);
+            c.int("display_frame", 70, i64::from(r.display_frame), None);
+            c.int("display_quality", 71, i64::from(r.display_quality), None);
+            c.int("units", 72, i64::from(r.units), None);
+        }
+        // No spec section: every number is a group 90, taken in the order
+        // the DWG holds them (ARCHITECTURE.md §7aq).
+        D::PersSubentManager(m) => {
+            c.subclass("AcDbPersSubentManager");
+            c.int("version", 90, i64::from(m.version), None);
+            score_pers_arrays(&mut c, "arrays", &m.arrays);
+        }
+        // The same, then the final `B` as group 290.
+        D::AssocPersSubentManager(m) => {
+            c.subclass("AcDbAssocPersSubentManager");
+            c.int("version", 90, i64::from(m.version), None);
+            c.int("ids.count", 90, m.ids.len() as i64, None);
+            for (i, id) in m.ids.iter().enumerate() {
+                c.int(&format!("ids[{i}]"), 90, i64::from(*id), None);
+            }
+            score_pers_arrays(&mut c, "arrays", &m.arrays);
+            c.int("flag", 290, i64::from(m.flag), None);
+        }
         D::VisualStyle(v) => score_visualstyle(&mut c, v),
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
+        D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
         _ => return Err("no scorer yet".into()),
     }
     Ok(c.finish())
+}
+
+/// The arrays of a persistent-subentity manager: each one's count, then its
+/// values, every one a group 90.
+fn score_pers_arrays(c: &mut Ctx<'_>, name: &str, arrays: &[Vec<u32>]) {
+    for (k, array) in arrays.iter().enumerate() {
+        c.int(&format!("{name}[{k}].count"), 90, array.len() as i64, None);
+        for (i, v) in array.iter().enumerate() {
+            c.int(&format!("{name}[{k}][{i}]"), 90, i64::from(*v), None);
+        }
+    }
 }
 
 // §20.4.3: 10/20 with the elevation as 30, 11/21/31 when stored, 210, 39,
@@ -1589,6 +1636,102 @@ fn score_dictionary(c: &mut Ctx<'_>, d: &dwg::objects::dictionary::Dictionary, d
         format!("{} keys", common_dwg.len()),
         format!("{} keys", common_dxf.len()),
     );
+}
+
+// §20.4.101.1 (the layout "until R21", R2000 to R2007): 3, 70, 71, 40, 41,
+// 280, 281, then each row style in the order data, title, header: 7 (the
+// text style, a handle the decoder does not read), 140, 170, 62, 63, 283,
+// R2007+ 90, 91 and 1, and per border 274-279, 284-289 and 64-69. The
+// export writes the borders grouped by code (all six 27x, then 28x, then
+// 6x), so each is taken by its own code. Colours are TC; their DXF number
+// is the index (0 ByBlock, 256 ByLayer).
+fn score_tablestyle(c: &mut Ctx<'_>, t: &dwg::objects::acad_table_style::AcadTableStyle) {
+    c.subclass("AcDbTableStyle");
+    c.text("description", 3, &t.description, None);
+    c.int("flow_direction", 70, i64::from(t.flow_direction), None);
+    c.int("bit_flags", 71, i64::from(t.bit_flags), None);
+    c.real("horizontal_margin", 40, t.horizontal_margin, None);
+    c.real("vertical_margin", 41, t.vertical_margin, None);
+    // R2010+ exports write two 280s before the first row style; the
+    // suppress-title flag is the second (examples/probe_tablestyle.rs).
+    let groups = &c.record().groups;
+    let head = groups
+        .iter()
+        .position(|g| g.code == 100 && g.value.as_str() == Some("AcDbTableStyle"))
+        .map_or(&groups[..0], |s| {
+            let rest = &groups[s + 1..];
+            &rest[..rest.iter().position(|g| g.code == 7).unwrap_or(rest.len())]
+        });
+    if head.iter().filter(|g| g.code == 280).count() > 1 {
+        if let Some(v) = c.take(280) {
+            c.not_decoded(
+                "280 (the first of two, not the suppress flag)",
+                v.to_string(),
+            );
+        }
+    }
+    c.int("suppress_title", 280, i64::from(t.suppress_title), None);
+    c.int("suppress_header", 281, i64::from(t.suppress_header), None);
+    for (name, r) in [
+        ("data", &t.data),
+        ("title", &t.title),
+        ("header", &t.header),
+    ] {
+        c.real(&format!("{name}.text_height"), 140, r.text_height, None);
+        c.int(
+            &format!("{name}.text_alignment"),
+            170,
+            i64::from(r.text_alignment),
+            None,
+        );
+        c.int(
+            &format!("{name}.text_color"),
+            62,
+            aci_of(&r.text_color),
+            None,
+        );
+        c.int(
+            &format!("{name}.fill_color"),
+            63,
+            aci_of(&r.fill_color),
+            None,
+        );
+        c.int(
+            &format!("{name}.background_enabled"),
+            283,
+            i64::from(r.background_enabled),
+            None,
+        );
+        if let Some(v) = r.data_type {
+            c.int(&format!("{name}.data_type"), 90, i64::from(v), None);
+        }
+        if let Some(v) = r.data_unit_type {
+            c.int(&format!("{name}.data_unit_type"), 91, i64::from(v), None);
+        }
+        if let Some(v) = &r.format_string {
+            c.text(&format!("{name}.format_string"), 1, v, None);
+        }
+        for (k, b) in (0u16..).zip(r.borders.iter()) {
+            c.int(
+                &format!("{name}.borders[{k}].line_weight"),
+                274 + k,
+                i64::from(b.line_weight),
+                None,
+            );
+            c.int(
+                &format!("{name}.borders[{k}].visible"),
+                284 + k,
+                i64::from(b.visible),
+                None,
+            );
+            c.int(
+                &format!("{name}.borders[{k}].color"),
+                64 + k,
+                aci_of(&b.color),
+                None,
+            );
+        }
+    }
 }
 
 // §20.4.73 with the DXF Reference's MLINESTYLE groups: 2, 70, 3, 62, 51, 52,
@@ -2197,4 +2340,33 @@ fn score_view(c: &mut Ctx<'_>, v: &dwg::tables::view::ViewEntry) {
         i64::from(v.is_associated_ucs),
         Some(0),
     );
+}
+
+// §20.4.93: BL numentries, then that many sort handles, handle code 0 in the
+// data stream. The DXF writes each entry as 331 (the entity, a handle of the
+// handle stream the decoder does not read) then 5 (the sort handle), after
+// the record's own 5; the entry count has no group of its own. All entries
+// count under one field.
+fn score_sortents(c: &mut Ctx<'_>, t: &dwg::objects::block_sortents_table::SortEntsTable) {
+    c.subclass("AcDbSortentsTable");
+    let exported = c.record().all(5).count().saturating_sub(1);
+    c.derived(
+        "entry count (5 groups)",
+        "5",
+        t.sort_handles.len() == exported,
+        t.sort_handles.len().to_string(),
+        exported.to_string(),
+    );
+    for h in &t.sort_handles {
+        match c.take(5).and_then(DxfValue::as_handle) {
+            Some(x) => c.derived(
+                "sort_handle",
+                "5",
+                x == *h,
+                format!("{h:X}"),
+                format!("{x:X}"),
+            ),
+            None => c.dwg_only("sort_handle", format!("{h:X}")),
+        }
+    }
 }
