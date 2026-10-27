@@ -111,7 +111,9 @@ impl CodePage {
     /// The bytes this code page holds `c` as, for a character the page can hold:
     /// `Some` (one byte, or two on a double-byte page) for ASCII under every page
     /// and for the characters of a named page, the inverse of
-    /// [`decode`](Self::decode); `None` for a character outside the page and for
+    /// [`decode`](Self::decode) (the bytes are returned only when they decode back to
+    /// `c`, which excludes the WHATWG encoders' extra mappings, such as U+00A5 to
+    /// 0x5C on Shift_JIS); `None` for a character outside the page and for
     /// every character above ASCII under [`CodePage::Unknown`].
     pub fn encode_char(self, c: char) -> Option<Vec<u8>> {
         if c.is_ascii() {
@@ -119,7 +121,11 @@ impl CodePage {
         }
         let mut buf = [0u8; 4];
         let (bytes, _, unmappable) = self.encoding()?.encode(c.encode_utf8(&mut buf));
-        (!unmappable).then(|| bytes.into_owned())
+        if unmappable {
+            return None;
+        }
+        let bytes = bytes.into_owned();
+        self.decode(&bytes).chars().eq([c]).then_some(bytes)
     }
 
     /// `text` as the bytes a pre-R2007 writer stores: each character the page
