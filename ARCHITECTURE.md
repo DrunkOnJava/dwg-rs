@@ -3707,6 +3707,50 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
+## 7ak. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
+
+`probe_reference_closure` decides whether a class the walk reaches fewer of
+than `AcDb:Classes` declares is a missing record or an over-declaring file: it
+decodes every handle reference in every record's handle stream and checks the
+target against the handle map. It was blind on R13 and R14, because nothing in
+the object prologue says where the data stream ends: all 292 records of an R14
+file, and later all 27,714 records of the 22 R13 drawings, counted as
+`references_unchecked`.
+
+§20.1 and §20.4.1 do say it, under "R13-R14 Only": an `RL` "size of object in
+bits, not including end handles", after the EED chain of a non-entity object
+and after the graphics block of an entity. `object::r13_r14_data_end` reads
+`BS` type, `H` handle, the EED chain, for an entity the graphics-present flag
+and any graphics, then the `RL`, and refuses a value that is not a bit
+position inside the record after the end of its own prefix. The handle stream
+runs from there to the end of the record, as on R2000 and R2004.
+
+Whether a record is an entity decides whether the graphics flag is there. For
+a fixed type code that is `ObjectType::is_entity`. For a record of a custom
+class (type code 500 and up) it is the class's item class id: §10.1 gives
+`0x1F2` to "classes which produce entities" and `0x1F3` to "classes which
+produce objects", and all 321 class entries of the 30 R13 and R14 drawings of
+the corpus carry one of the two (15 entity classes, 306 object classes), unlike
+R2004+, where a vendor class has neither. The walker takes the class table from
+`DwgFile::all_objects_lossy` (`ObjectWalker::with_classes`); without it a
+custom-class record stays unchecked rather than guessed.
+
+Result on the corpus (`measure.py`, the `refs`, `unanswered`, `hard` and
+`no_boundary` columns of `tools/corpus/baseline.tsv`):
+
+| release | drawings | references decoded | unanswered | hard | records with no boundary |
+|---|---|---|---|---|---|
+| R13 | 22 | 72,799 | 0 | 0 | 0 (was 27,714) |
+| R14 | 8 | 9,213 | 0 | 0 | 0 (was 3,297) |
+
+So the walk is now closed on all 74 pinned drawings. The check is not vacuous:
+a handle stream read from the wrong bit decodes handles that do not exist. The
+same walk with the boundary moved one bit later leaves 38 of 295 references
+unanswered (23 hard) on `line_R14.dwg`, 583 of 1,725 (28 hard) on
+`sample_AC1014.dwg`, 711 of 4,437 (9 hard) on `Cabin.dwg` and 140 of 874 (1
+hard) on `JXHMP4602-11083-b 铁片.dwg`, where the right boundary decodes 789,
+3,657, 7,866 and 1,304 references with none unanswered.
+
 ## 7at. R13 through the decoders main added after the branch began (2026-10-26, #119)
 
 §7as opened AC1012 and found, in a scratch tree, that the decoders main
