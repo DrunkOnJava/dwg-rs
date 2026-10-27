@@ -5,6 +5,7 @@
 //! family.
 
 use crate::cipher;
+use crate::code_page::{CodePage, with_code_page};
 use crate::crc;
 use crate::error::{Error, Result};
 use crate::file_writer::{WriterScaffold, assemble_dwg_bytes, validate_section_name};
@@ -290,6 +291,18 @@ impl DwgFile {
         self.version
     }
 
+    /// The code page of the drawing's pre-R2007 text (§3.2.5): the raw short at
+    /// 0x13 of the file header, named by [`crate::code_page::CodePage`]. A
+    /// header the file could not supply reads as [`CodePage::default`].
+    pub fn code_page(&self) -> CodePage {
+        self.r2004
+            .as_ref()
+            .map(|h| h.common.codepage)
+            .or_else(|| self.r13.as_ref().map(|h| h.common.codepage))
+            .or_else(|| self.r2007_common.as_ref().map(|h| h.codepage))
+            .map_or_else(CodePage::default, CodePage::from_header)
+    }
+
     /// Total file size in bytes.
     pub fn file_size(&self) -> u64 {
         self.bytes.len() as u64
@@ -500,18 +513,18 @@ impl DwgFile {
 
     /// Read + parse `AcDb:SummaryInfo` into a structured [`crate::metadata::SummaryInfo`].
     pub fn summary_info(&self) -> Option<Result<crate::metadata::SummaryInfo>> {
-        Some(
-            self.read_section("AcDb:SummaryInfo")?
-                .and_then(|bytes| crate::metadata::SummaryInfo::parse(&bytes)),
-        )
+        Some(self.read_section("AcDb:SummaryInfo")?.and_then(|bytes| {
+            with_code_page(self.code_page(), || {
+                crate::metadata::SummaryInfo::parse(&bytes)
+            })
+        }))
     }
 
     /// Read + parse `AcDb:AppInfo` into a structured [`crate::metadata::AppInfo`].
     pub fn app_info(&self) -> Option<Result<crate::metadata::AppInfo>> {
-        Some(
-            self.read_section("AcDb:AppInfo")?
-                .and_then(|bytes| crate::metadata::AppInfo::parse(&bytes)),
-        )
+        Some(self.read_section("AcDb:AppInfo")?.and_then(|bytes| {
+            with_code_page(self.code_page(), || crate::metadata::AppInfo::parse(&bytes))
+        }))
     }
 
     /// Read + parse `AcDb:Preview` into a structured [`crate::metadata::Preview`]
@@ -527,10 +540,11 @@ impl DwgFile {
     /// [`crate::metadata::FileDepList`] listing external font / image /
     /// XREF references.
     pub fn file_dep_list(&self) -> Option<Result<crate::metadata::FileDepList>> {
-        Some(
-            self.read_section("AcDb:FileDepList")?
-                .and_then(|bytes| crate::metadata::FileDepList::parse(&bytes)),
-        )
+        Some(self.read_section("AcDb:FileDepList")?.and_then(|bytes| {
+            with_code_page(self.code_page(), || {
+                crate::metadata::FileDepList::parse(&bytes)
+            })
+        }))
     }
 
     /// Walk the `AcDb:AcDbObjects` stream and return every object as a
@@ -546,7 +560,11 @@ impl DwgFile {
             Some(Err(e)) => return Some(Err(e)),
             None => return None,
         };
-        Some(crate::object::ObjectWalker::new(&bytes, self.version).collect_all())
+        Some(
+            crate::object::ObjectWalker::new(&bytes, self.version)
+                .with_code_page(self.code_page())
+                .collect_all(),
+        )
     }
 
     /// Read + parse the `AcDb:Handles` object map into a
@@ -562,10 +580,11 @@ impl DwgFile {
     /// Read + parse the `AcDb:Classes` custom class table.
     pub fn class_map(&self) -> Option<Result<crate::classes::ClassMap>> {
         let version = self.version;
-        Some(
-            self.read_section("AcDb:Classes")?
-                .and_then(|bytes| crate::classes::ClassMap::parse(&bytes, version)),
-        )
+        Some(self.read_section("AcDb:Classes")?.and_then(|bytes| {
+            with_code_page(self.code_page(), || {
+                crate::classes::ClassMap::parse(&bytes, version)
+            })
+        }))
     }
 
     /// Read and decode `AcDb:Header` (§9): every system variable the
@@ -578,10 +597,11 @@ impl DwgFile {
     /// See [`Self::header_vars_strict`] for the checked read.
     pub fn header_vars(&self) -> Option<Result<crate::header_vars::HeaderVars>> {
         let version = self.version;
-        Some(
-            self.read_section("AcDb:Header")?
-                .and_then(|bytes| crate::header_vars::HeaderVars::parse_lossy(&bytes, version)),
-        )
+        Some(self.read_section("AcDb:Header")?.and_then(|bytes| {
+            with_code_page(self.code_page(), || {
+                crate::header_vars::HeaderVars::parse_lossy(&bytes, version)
+            })
+        }))
     }
 
     /// Read and decode `AcDb:Header` (§9), failing on anything that does
@@ -591,11 +611,13 @@ impl DwgFile {
     pub fn header_vars_strict(&self) -> Option<Result<crate::header_vars::HeaderVars>> {
         let version = self.version;
         Some(self.read_section("AcDb:Header")?.and_then(|bytes| {
-            crate::header_vars::HeaderVars::decode(
-                &bytes,
-                version,
-                &crate::limits::ParseLimits::safe(),
-            )
+            with_code_page(self.code_page(), || {
+                crate::header_vars::HeaderVars::decode(
+                    &bytes,
+                    version,
+                    &crate::limits::ParseLimits::safe(),
+                )
+            })
         }))
     }
 
@@ -615,6 +637,7 @@ impl DwgFile {
         };
         Some(
             crate::object::ObjectWalker::with_handle_map(&obj_bytes, self.version, &hmap)
+                .with_code_page(self.code_page())
                 .collect_all(),
         )
     }
@@ -652,6 +675,7 @@ impl DwgFile {
             self.version,
             &hmap,
         )
+        .with_code_page(self.code_page())
         .collect_all_lossy()))
     }
 

@@ -16,6 +16,7 @@
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
 //! | LAYOUT                   | [`acad_layout`]           | §20.4.84         |
 //! | ACAD_MATERIAL            | [`acad_material`]         | none — measured  |
+//! | ACDB(ASSOC)PERSSUBENTMANAGER | [`pers_subent`]       | none — measured  |
 //! | MLEADERSTYLE             | [`acad_mleader_style`]    | none — measured  |
 //! | MLINESTYLE               | [`acad_mlinestyle`]       | §20.4.73         |
 //! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
@@ -99,6 +100,7 @@ pub mod dictionary_var;
 pub mod image_def_reactor;
 pub mod image_raster_variables;
 pub(crate) mod modern;
+pub mod pers_subent;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
