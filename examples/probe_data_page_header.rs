@@ -36,9 +36,11 @@
 //! ```
 //!
 //! Directories are searched recursively for `.dwg` files; with no argument
-//! it reads `../../samples`. Files that are not R2004-family are skipped;
-//! with no such file it prints `NOT MEASURED` and exits 0. With `--strict` a
-//! page that disagrees with the measured layout exits 1.
+//! it reads `../../samples`. An argument that holds no `.dwg` file is an
+//! error (exit 1): the probe never measures a different set than the one it
+//! was given. Files that are not R2004-family are skipped; with no such file
+//! it prints `NOT MEASURED` and exits 0. With `--strict` a page that
+//! disagrees with the measured layout exits 1.
 
 use dwg::cipher::section_page_mask;
 use dwg::crc::section_page_checksum;
@@ -160,15 +162,26 @@ fn measure(bytes: &[u8], tally: &mut Tally) -> Option<()> {
 
 fn main() -> ExitCode {
     let mut strict = false;
+    let mut given = false;
+    let mut empty = false;
     let mut paths = Vec::new();
     for arg in std::env::args().skip(1) {
         if arg == "--strict" {
             strict = true;
         } else {
+            given = true;
+            let before = paths.len();
             files(Path::new(&arg), &mut paths);
+            if paths.len() == before {
+                eprintln!("no .dwg file under {arg}");
+                empty = true;
+            }
         }
     }
-    if paths.is_empty() {
+    if empty {
+        return ExitCode::FAILURE;
+    }
+    if !given {
         files(Path::new("../../samples"), &mut paths);
     }
     let mut tally = Tally::default();
