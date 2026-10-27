@@ -3650,10 +3650,17 @@ corpus, with the strings rewritten in memory as in §7ap:
 | `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
 | R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
 
-No text of the corpus leaves ASCII in a pre-R2007 DXF, so `convert_dwg_to_dxf_bytes` writes
-exactly the bytes `convert_dwg_to_dxf` writes: 104 of 104 conversions of the corpus's 52
-drawings (R2000 and R2004 targets), identical. The first run of that check read 0 of 104 and
-named a real defect: four comments the writer itself emits (`999` groups in
+Until the OBJECTS section was written no text of the corpus left ASCII in a pre-R2007 DXF, so
+`convert_dwg_to_dxf_bytes` wrote exactly the bytes `convert_dwg_to_dxf` wrote: 104 of 104
+conversions of the corpus's 52 drawings (R2000 and R2004 targets), identical. The `ACAD_LAYOUT`
+dictionary of the GBK drawings now writes their layout name as a key (#126), the first
+character above ASCII in a written DXF of the corpus: `convert_dwg_to_dxf` spells it
+`\U+5E03\U+5C40`, `convert_dwg_to_dxf_bytes` writes the page's bytes `B2 BC BE D6`, the
+bytes AutoCAD's own export holds for that key, so 10 of the 122 conversions now differ
+(112 of 122 identical). The check is therefore that the bytes read back under the
+drawing's page to the `String` writer's text once every character above ASCII is spelled as
+its escape again, and that at least one conversion writes page bytes. The first run of the
+older, identical-bytes check read 0 of 104 and named a real defect: four comments the writer itself emits (`999` groups in
 `dxf_sections.rs`: the ACI colour note, the opaque proxy note and the custom-class
 pass-through note) held an em dash or a `≈`, which a pre-R2007 DXF reads as bytes of the
 code page, not UTF-8 (and which the bytes conversion cannot map to one byte). They are ASCII
