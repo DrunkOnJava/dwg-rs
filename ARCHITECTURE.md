@@ -2931,7 +2931,7 @@ the probe checks that header against the export's on every drawing.
 A handle group is written only when the output defines the object it names, under
 its own type: the OBJECTS section writes dictionaries and plot style placeholders,
 so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It does not write
-a layout, a material or a visual style yet (§7au lists the kinds it does),
+a layout, a material or a visual style yet (§7aw lists the kinds it does),
 so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
 and visual style names. An arrowhead block is named once BLOCKS writes it, which it
@@ -3669,7 +3669,195 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7au. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
+## 7au. Code page rows 28 to 41, from drawings that name them (2026-10-27, #375)
+
+#374 named two header shorts (29, 30) because the pinned corpus held no others. The
+number at 0x13 of the header (§3.2.5) is AutoCAD's own enumeration of code pages, not a
+Windows code page number, and the shorts 28 to 41 run in the order of the Windows ANSI
+pages with gaps: 28 is 1250, 29 is 1251, 30 is 1252, but 38 is 932, 39 is 936, 40 is 949
+and 41 is 950. This change adds the eight rows below, each backed by a drawing, and pins
+the public drawings that can back two of them:
+
+| Short | `$DWGCODEPAGE` | Decodes through | Backed by |
+|---:|---|---|---|
+| 28 | `ANSI_1250` | Windows-1250 | a DXF twin of the same drawing names it (local) |
+| 32 | `ANSI_1253` | Windows-1253 | 10 of 14 Greek drawings decode to Greek words (local) |
+| 33 | `ANSI_1254` | Windows-1254 | a DXF twin of the same drawing names it (local) |
+| 36 | `ANSI_1257` | Windows-1257 | the DXF of another save of the same drawing names it (local) |
+| 38 | `ANSI_932` | Shift_JIS (code page 932) | the Japanese layout name decodes in 4 of 4 pinned AC1014 drawings |
+| 39 | `ANSI_936` | GBK (code page 936) | the Chinese layout name decodes in 5 of 5 pinned drawings (AC1015, AC1018) |
+| 40 | `ANSI_949` | EUC-KR (code page 949) | the Korean layout name decodes in 4 of 4 distinct drawings (local) |
+| 41 | `ANSI_950` | Big5 (code page 950) | a DXF twin names it and 8 of 8 distinct non-ASCII strings equal the export's (local) |
+
+Not named, and why: 0 (one AC1018 pairs with `ANSI_0`), 1 and 23 (one drawing each, no
+twin), 45 (an AC1012 whose twin says 936), 31 (never seen), 34 (one AC1015 file of 43 MB
+with no text check, and one AC1032 twin of unknown producer that says `ANSI_1255`), 35 and
+37 (AC1032 files only, twins that say `ANSI_1256` and `ANSI_874`) and the DOS and ISO pages
+(never seen). They stay `CodePage::Unknown` and their text is read as before.
+
+**The pinned drawings.** `tools/corpus/pins.tsv` gains nine, all fetched by sha256 and never
+committed (CLEANROOM.md, 2026-10-27): four AC1014 drawings of `kurema/BookViewerApp3` (MIT,
+short 38), four AC1018 drawings of `Seeed-Studio/OSHW-Jetson-Series` (Apache-2.0, short 39,
+AutoCAD build `I.18.0.0`) and one AC1015 drawing of `huifer/planar_algorithm` (Apache-2.0,
+short 39). Three `icon.dwg` of the first repository are left out because the corpus keys
+files by name, and the fourth candidate of the second kind, `Xinyuan-LilyGO/T-Dongle-S3`
+(MIT), because its `AcDb:AppInfo` names Teigha 19.7 as the writer, not AutoCAD. The fetcher
+now percent-encodes the path of a file, which the first of these (spaces) and the last
+(Chinese) need. None of the nine has a DXF twin, so the number is proved by text:
+AutoCAD names its first layout in the language of the installation, `レイアウト1`, `布局1`
+and `배치1`, and `examples/probe_code_page.rs` decodes every string of every pre-R2007
+drawing and fails when a drawing of a checked short holds none of the known names:
+
+| Short | Drawings | Decode to the known layout name |
+|---:|---:|---:|
+| 38 | 4 (all AC1014) | 4 |
+| 39 | 5 (4 AC1018, 1 AC1015) | 5 |
+
+In every one the name is a Dictionary entry and the name of the drawing's LAYOUT object
+(a class-numbered object, 502, in the R14 and R2000 files). The text is raw
+double-byte data: `レイアウト1` is `83 8C 83 43 83 41 83 45 83 67 31`, five two-byte
+characters whose trail bytes (`43`, `41`, `45`) are ASCII letters, so a double-byte string is
+not recognisable as non-ASCII by its trail bytes, only by its lead bytes.
+
+**Local evidence.** The other rows rest on drawings from repositories that state no licence, a
+custom one, or open-data records whose licence the publisher leaves unstated; they were
+downloaded for this measurement, are not pinned, and are listed here by sha256 so anyone can
+fetch the same bytes (each is a file of its repository's default branch on 2026-10-27; no
+commit was recorded). `probe_code_page` run over a directory of them reads:
+
+| Short | What the probe printed | Drawings (sha256) |
+|---:|---|---|
+| 28 | header 28, export `ANSI_1250` (AC1015; the export's `VERSIONGUID` is in the DWG) | `c6837f5bdd4870cbaadd6c3b64db647edcd7695eb604f84381c772935501ffc5` |
+| 33 | header 33, export `ANSI_1254` (AC1015; both GUIDs of the export are in the DWG) | `3b4a60301ed32c830668bf09dd34ab8077080b94ec315bd36a9c81c9e17bf2d9` |
+| 36 | header 36, export `ANSI_1257` on 3 AC1018 drawings | `4679c1c2d2fb76afe213dc01a33a57e90dce2ad599c7a7207a0d295a5e488d39`, `d757100f62bdbbe2ccb7cda9761f72536413381b715db87513b6f3efd04e4bfd`, `0ebc64a2b4bd20dde88d9f3f9f390a4cffdc05892865d908b29bbb9a0be707fb` |
+| 41 | header 41, export `ANSI_950` on 2 AC1018 drawings; 8 of 8 distinct non-ASCII strings occur in the export | `11912c97aa9fa6d8c3ee46f55e34a9a6da2868105a919535ba0cf4d9a4540b07`, `8b5ccd79d7ef8304794f6049e9a92e72649513d492b157108e384afe9fc1bf9d` |
+| 40 | 4 distinct AC1015 drawings (one is uploaded twice) decode to the Korean layout name | `4cb4bda6f3e8ba8f52155300546f70d202526301344b029e868d21172895e16c`, `715a85bc28f9b19fe06b0a98307cc5ff6a30a63100d751fb915ae0a8a6e19d5a`, `1f644de3f83a397dca237b174d121cb3485a7a47f80891856a6c339e7003cd31`, `12f609df87b0d5f1003e5f866281c5dba5bc506e9e83ec7743886813bfa8f44e` |
+| 30 (R14) | header 30, export `ANSI_1252` on an AC1014 drawing and its AC1014 export | `bf77cf41e8eddfa51bfd9cca9b622accea822e67de0ab355078a9b189eb59373` |
+| 32 | 14 distinct drawings (3 AC1014, 1 AC1015, 10 AC1018) of five Greek municipalities' open data; 10 decode to one of five Greek words, the other 4 hold none of them | the 14 sha256 values below |
+
+The Greek drawings (`data.gov.gr` resources, catalogue licence CC BY 4.0 by the harvested
+record, "not specified" by the publisher's own): `41e1314447765107143eec7b188a026d8ea94c9d33fe062e25c89e0632cd7d2f`,
+`3a81107ae70ac709d6ec77e60ab83fe6b0db4f2e4281ce94377483b68621d6f4`,
+`e770851c3f27699af207c8aed240c622e8fbcabc1acc6cca353e2e4bcc9933b0`,
+`c476ca65c000d9c21483711d9791f92daaff42e427409825daac8bbcad942d1a`,
+`a49e0eb948f88da5e9b704c7a3fb64ad4e87bd90fc33e7f9920f47275eb42821`,
+`adb56428dd6e5ee69c72b20f5265c30ee5e4936bd915eaf81f59adb8e2c726e5`,
+`3f163f4f60a62c71c6290eb77c5f788c84653b9acb9094714e4d1d13c931a942`,
+`9c13e8fd092591d0e0969f5a5e6adcb5c9c70f5082af5a33396be3fc9ef113e2`,
+`7f36b422d594090db9acdbd8847875d361f8a4f17d3c521ed0302f4b5d13c7a4`,
+`1e6d884cdda4c896b614aebab5838d1a607104e01e64c161934ab0043aaf6844`,
+`31cbfea23edcd07a07f1c4858083567aaad21dda089ffa910f8dc0cec708b5f2`,
+`d2cacf61be0c3a0c8266faec297c422e407dee76b527b767a9b8bb764f746a05`,
+`0808a2317a4d84304405eec9d0bfea2af62adcecd20ce264dfb4c94df143ba6c`,
+`c6c01d061e25c0177f068dbbb320c9e678925ad1a462e969c455fe2b7ea0bfcd`. The words decode as accented, mixed-case Greek
+(streets, offices, names) in the AC1014 drawings too, and the text of the MTEXT font tags
+carries `c161`, the Windows Greek charset number, beside it.
+
+Two caveats the rows carry. Rows 28 and 33 rest on the twin alone: neither export has a
+byte above 0x7F, so no text separates 1250 from 1252 or 1254 from 1252 there; they are
+the Windows pages the shorts' order gives and the exports name. Row 36's three DXF files
+are another save of each drawing, not the export of the file read (the DWG holds an ATTRIB
+at handle 0x87 where the DXF has a LINE, and the only non-ASCII text, a degree sign, is
+the same in 1252 and 1257), so the probe's per-record comparison reports 4 strings
+differing there and its set comparison 0 of 4: the row is the weakest of the eight. The
+research that found these drawings also counted DXF twins of AC1024 and later drawings
+that name 1250, 1253, 1254, 1257, 949 and 950 for the same shorts (the header short is
+read from every release), 39 of them for 949 alone; those files are not kept or pinned
+and are not part of what this probe reproduces (it pairs the short of every release with
+its export, which on the pinned corpus gives 29 and 30 on 35 and 7 drawings, 0 differing).
+
+**How out-of-page text is held.** The strings of the 14 Greek and the Chinese drawings
+carry `\U+XXXX` escapes (text: `\U+00E1` and `\U+00DF` in a Greek-page drawing, `\U+2205` in a
+GBK one), and the pinned corpus holds 9 in the three ACadSharp saves (short 30): a
+character outside the page is written as the escape of its Unicode code point, in ASCII,
+by the application that saved the drawing, on R14 as on R2004, and the string keeps it as
+it is, the escape being the text's own (a page byte `E1` is `α` under 1253; the escape
+`\U+00E1` is `á`). The multibyte interchange form
+`\M+` appears in none of the strings of the 52 pinned drawings or the local ones.
+`CodePage::encode` (#382) writes the same escapes, and returns bytes only for a
+character that decodes back to itself, which keeps Shift_JIS's extra mappings (U+00A5 to
+0x5C) out.
+
+**Counts.** `measure.py` over the 61 pinned drawings (the Corpus job's `corpus-measurement` artifact on
+the first head of this change): the 52 existing rows are unchanged and nine are added,
+and `tools/corpus/baseline.tsv` carries them. The nine decode 106,189 records and skip 90
+(the custom classes CELLSTYLEMAP and MATERIAL, and two render-settings classes in the
+R14 files), and **error on 9**: every one a
+BLOCK_HEADER of the four Seeed AC1018 drawings (5 in `A205_TOP.dwg`, 1 in
+`A206_BOTTOM.dwg`, 3 in `A206_TOP.dwg`), the corpus's only drawings of AutoCAD build
+`I.18.0.0`. Those records are the 1,028-byte "descriptions" the probe lists as non-ASCII strings
+(`#101`, `#151`, `#335E` of `A205_TOP`, `#2AC6` of `A206_TOP`): the decoder reads a
+string from a place that is not text and its field list then misses the record's boundary.
+The error is the ratchet doing its job on drawings the corpus did not hold before, and
+the rows pin it.
+
+**Owed.** A double-byte round trip over real strings (`decode` then `encode` returns the
+bytes read) waits for #382, which adds `encode`; the DXF writers' handling of a double-byte
+string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. In
+`A205_TOP.dwg` and `A206_TOP.dwg` four BLOCK_HEADER records (`#101`, `#151`, `#335E`,
+`#2AC6`) are among the 9 BLOCK_HEADER records that error (Counts above); their
+"description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
+after the insert-count run is wrong for these blocks. No layer of this change touches it.
+
+## 7av. BLOCK_HEADER: the insert-count run has no length cap (2026-10-27, #386)
+
+§20.4.52 puts, after the base point and the xref path, "Insert Count: a sequence of zero
+or more non-zero RC's, followed by a terminating 0 RC. The total number of these indicates
+how many insert handles will be present", then the description, the preview size and the
+preview bytes. The decoder read at most 257 of those RCs (`MAX_INSERT_COUNT`, "no realistic
+block carries more") and went on to the description from wherever it stood, so a block with
+more inserts than that misread everything after the run and the record errored, each in a
+different way: a reserved `BL` bit pattern, the bit cursor running out, a preview size of
+269,488,144 bytes (`0x10101010`, a `BL` read out of the run's bytes), or fields that closed 6,592 and
+7,216 bits past the boundary. The run now ends at its zero, and runs out of record only by
+the cursor's own bounds, in both decode paths (R2004 and earlier inline, R2007 and later
+from the data stream). `examples/probe_block_header_inserts.rs` is the evidence.
+
+It decodes every BLOCK_HEADER of the corpus and compares the run with the record's handle
+stream, which lists the block control, the reactors, the extension dictionary, a NULL, the
+owned entities (R2004 and later), the ENDBLK, one handle per insert and the layout (on R2000
+the first and last entity of a block that is not an xref). The record agrees when the handles
+after the extension dictionary number exactly that sum: a second count of the same run that
+reads none of its bytes. All 2,953 records of the 49 pinned drawings from R2000 to R2018 decode
+and agree, and the Corpus job runs it:
+
+| Release | Records | Decoded | Handle stream agrees | Run over 256 | Longest run |
+|---|---:|---:|---:|---:|---:|
+| R2000 | 51 | 51 | 51 | 0 | 10 |
+| R2004 | 2715 | 2715 | 2715 | 9 | 29895 |
+| R2007 | 48 | 48 | 48 | 0 | 10 |
+| R2010 | 48 | 48 | 48 | 0 | 10 |
+| R2013 | 48 | 48 | 48 | 0 | 10 |
+| R2018 | 43 | 43 | 43 | 0 | 10 |
+
+The nine records that errored before are the whole of the runs over 256, in four drawings of
+Seeed-Studio/OSHW-Jetson-Series (Apache-2.0) saved as R2004 by AutoCAD I.18.0.0; no other
+block of the corpus has a run that long (every byte of the run of `0x101` is `0x01`):
+
+| Drawing | Handle | Block | Insert handles | Owned objects | Before |
+|---|---|---|---:|---:|---|
+| A205_TOP | 0x101 | `SMOOTH_0$1` | 383 | 1 | reserved `BL` bit pattern |
+| A205_TOP | 0x151 | `SYM_TOP_3` | 426 | 8 | reserved `BL` bit pattern |
+| A205_TOP | 0x24CE | `STK_TOP_15` | 260 | 9 | bit cursor exhausted |
+| A205_TOP | 0x335E | `DRIL_HOLE_0` | 462 | 2 | fields end 6,592 bits past the boundary |
+| A205_TOP | 0x3501 | `SMOOTH_0$0254` | 14079 | 1 | preview of 269,488,144 bytes |
+| A206_TOP | 0x20CB | `STK_TOP_72` | 260 | 9 | bit cursor exhausted |
+| A206_TOP | 0x2875 | `SMOOTH_0$0254` | 29895 | 1 | preview of 269,488,144 bytes |
+| A206_TOP | 0x2AC6 | `DRIL_HOLE_0` | 384 | 2 | fields end 7,216 bits past the boundary |
+| A206_BOTTOM | 0x7A9 | `SMOOTH_0$0254` | 8493 | 1 | preview of 269,488,144 bytes |
+
+All nine now close on their data-stream boundary and agree with their handle stream, so the
+corpus baseline (`tools/corpus/baseline.tsv`) moves for those three drawings and no other:
+A205_TOP 35,002 decoded and 5 errored to 35,007 and 0, A206_TOP 50,626 and 3 to 50,629 and 0,
+A206_BOTTOM 13,367 and 1 to 13,368 and 0, and the ratchet check passes on the regenerated
+rows. No drawing of the corpus has an AutoCAD DXF export of these four, so the values of
+these records are not compared with an export: the boundary and the handle stream are the
+evidence (the name, flags and base point precede the run, so the fix does not touch them).
+Not corpus-measured: a run over 256 in an R2007 or later drawing (the longest
+there is 10; the same change applies to that path), and an R13 or R14 block (the field does
+not exist there).
+
+## 7aw. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
 
 `src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
 table records: DICTIONARY and ACDBDICTIONARYWDFLT (each entry as its key and handle,
@@ -3767,9 +3955,13 @@ group 100 hold a newline and a character outside ASCII: after `AcDbXrecord` a gr
 102 is application data, now escaped for the release like every other string (`^J` for the
 newline, `\U+00E9` for the accented letter on R2004), where before the newline split the
 record and the DXF no longer read (`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
-the writer and not a drawing.
+the writer and not a drawing. A second synthetic check writes an XRECORD whose application
+data holds `102 {ACAD_REACTORS` and a 330 to a handle no record has: the probe reads
+brackets only up to `100 AcDbXrecord`, as `DxfRecord::top_level` does, so that 330 counts
+as an application's handle and not as a dangling reactor, and a control XRECORD with a
+real reactor to an absent handle still counts as dangling.
 
-## 7av. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+## 7ax. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
 the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,
