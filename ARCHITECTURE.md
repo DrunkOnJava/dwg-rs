@@ -2753,7 +2753,7 @@ own twin rather than across releases.
 cargo run --release --example probe_mleader -- sample_AC1018.dwg sample_AC1018_ascii.dxf
 ```
 
-## 7aj. dwg-to-dxf: the TABLES section (2026-10-26, #126)
+## 7ak. dwg-to-dxf: the TABLES section (2026-10-26, #126)
 
 `src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, UCS, APPID, DIMSTYLE
 and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
