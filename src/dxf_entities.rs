@@ -741,6 +741,15 @@ fn dictionary_entry(
     refs.rest.get(at).copied().filter(|h| *h != 0)
 }
 
+/// Whether [`build`] writes the entities of a drawing of release `source` to a
+/// DXF of release `target`: from R2000 to R2000 or later. Anything else keeps
+/// the converter's primitive exporter.
+pub fn writes(source: Version, target: DxfVersion) -> bool {
+    !matches!(source, Version::R14)
+        && target.supports_subclass_markers()
+        && target != DxfVersion::R14
+}
+
 /// The entities to write for `file` when the output targets `version`.
 ///
 /// `tables` are the tables the converter writes: their layers, linetypes, text
@@ -755,16 +764,13 @@ pub fn build(
     objects: &HashSet<u64>,
 ) -> Entities {
     let mut out = Entities::default();
-    if tables.is_empty() || !version.supports_subclass_markers() || version == DxfVersion::R14 {
+    if tables.is_empty() || !writes(file.version(), version) {
         return out;
     }
     let Some(Ok(raws)) = file.all_objects() else {
         return out;
     };
     let file_version = file.version();
-    if matches!(file_version, Version::R14) {
-        return out;
-    }
     let handle = |name: &str| header.get_handle(name).map_or(0, |h| h.value);
     let layer_names = names(tables, "LAYER");
     let linetype_names = names(tables, "LTYPE");
@@ -966,13 +972,12 @@ fn order_children(
         records.push(r);
         if let Some(mut ks) = kids.remove(&handle) {
             let sequence = &sequences[&handle];
+            let at: HashMap<u64, usize> =
+                sequence.iter().enumerate().map(|(i, h)| (*h, i)).collect();
             ks.sort_by_key(|k| {
                 (
                     k.kind == "SEQEND",
-                    sequence
-                        .iter()
-                        .position(|h| *h == k.handle)
-                        .unwrap_or(usize::MAX),
+                    at.get(&k.handle).copied().unwrap_or(usize::MAX),
                 )
             });
             records.extend(ks);

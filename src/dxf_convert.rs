@@ -154,13 +154,15 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     // active paper space from the handle-driven object walk (see
     // crate::dxf_entities); otherwise the five curve primitives below.
     let decoded_entities = match &header {
-        Some(h) if !tables.is_empty() => Some(crate::dxf_entities::build(
-            file,
-            version,
-            h,
-            &tables,
-            &object_handles,
-        )),
+        Some(h) if !tables.is_empty() && crate::dxf_entities::writes(file.version(), version) => {
+            Some(crate::dxf_entities::build(
+                file,
+                version,
+                h,
+                &tables,
+                &object_handles,
+            ))
+        }
         _ => None,
     };
     if let Some(entities) = &decoded_entities {
