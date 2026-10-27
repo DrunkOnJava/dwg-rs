@@ -146,7 +146,9 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     // CLASSES — the drawing's class table, for a target of R2000 or later.
     if version.supports_subclass_markers() && version != DxfVersion::R14 {
         if let Some(Ok(classes)) = file.class_map() {
-            crate::dxf_classes::write(&mut writer, &classes, file.version().is_r2004_plus());
+            let counts = (version != DxfVersion::R2000)
+                .then(|| crate::dxf_classes::instance_counts(file, &classes));
+            crate::dxf_classes::write(&mut writer, &classes, counts.as_ref());
         }
     }
 

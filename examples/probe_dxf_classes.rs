@@ -14,8 +14,15 @@
 //! export lacks is a failure; the export may hold classes of its own (AutoCAD
 //! registers them when it loads the file), which are listed.
 //!
-//! Any disagreement, extra, wrong order, section the output lacks or unreadable
-//! output exits 1. AC1014 drawings are skipped. A drawing with no class table
+//! The release a drawing is converted to is not the release it was saved in, so the
+//! probe also converts every drawing to every release from R2000 and checks that
+//! group 91 is on each CLASS record exactly when the target is R2004 or later, and
+//! it compares the instance count taken from the object stream (what a drawing
+//! before R2004 gets for a newer target) with the table's own count on the
+//! drawings that have one.
+//!
+//! Any disagreement, extra, wrong order, section the output lacks, group 91 on the
+//! wrong target or unreadable output exits 1. AC1014 drawings are skipped. A drawing with no class table
 //! (R12 and R14 exports) has no section to compare.
 //!
 //! # How to verify
@@ -128,12 +135,24 @@ struct Tally {
     export_only: usize,
 }
 
+/// The cross-release checks that need no export: the converter writes every
+/// release's CLASSES for a drawing of any release.
+#[derive(Default)]
+struct Cross {
+    conversions: usize,
+    classes: usize,
+    wrong_91: usize,
+    counted: usize,
+    counted_equal: usize,
+}
+
 fn probe_file(
     path: &Path,
     twins: &BTreeMap<String, PathBuf>,
     failures: &mut Vec<String>,
     tally: &mut BTreeMap<String, Tally>,
     export_only: &mut BTreeMap<String, usize>,
+    cross: &mut Cross,
 ) -> Result<bool, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
     let file = DwgFile::from_bytes(bytes).map_err(|e| format!("open: {e}"))?;
@@ -150,6 +169,50 @@ fn probe_file(
     let ours =
         DxfDocument::parse(classes_only(&out).as_bytes()).map_err(|e| format!("read back: {e}"))?;
     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+    // Every target release: group 91 is on every CLASS record exactly when the
+    // target is R2004 or later, whatever release the drawing is.
+    for t in [
+        DxfVersion::R2000,
+        DxfVersion::R2004,
+        DxfVersion::R2007,
+        DxfVersion::R2010,
+        DxfVersion::R2013,
+        DxfVersion::R2018,
+    ] {
+        let converted =
+            dwg::dxf_convert::convert_dwg_to_dxf(&file, t).map_err(|e| format!("convert: {e}"))?;
+        let doc = DxfDocument::parse(classes_only(&converted).as_bytes())
+            .map_err(|e| format!("read back: {e}"))?;
+        cross.conversions += 1;
+        for r in classes(&doc) {
+            cross.classes += 1;
+            if r.first(91).is_some() != (t != DxfVersion::R2000) {
+                cross.wrong_91 += 1;
+                failures.push(format!(
+                    "{file_name} {} to {t:?}: group 91 is {} on a CLASS record",
+                    file.version(),
+                    if r.first(91).is_some() {
+                        "present"
+                    } else {
+                        "absent"
+                    }
+                ));
+            }
+        }
+    }
+    // The count taken from the object stream, which is what a drawing before R2004
+    // gets for a newer target, against the table's own count where there is one.
+    if file.version().is_r2004_plus() {
+        if let Some(Ok(table)) = file.class_map() {
+            let counted = dwg::dxf_classes::stream_counts(&file);
+            for c in &table.classes {
+                cross.counted += 1;
+                if counted.get(&c.class_number).copied().unwrap_or(0) == c.num_objects {
+                    cross.counted_equal += 1;
+                }
+            }
+        }
+    }
     let (our_recs, their_recs) = (classes(&ours), classes(&theirs));
     let by_name: BTreeMap<String, usize> = their_recs
         .iter()
@@ -240,9 +303,17 @@ fn main() -> ExitCode {
     let mut failures = Vec::new();
     let mut tally: BTreeMap<String, Tally> = BTreeMap::new();
     let mut export_only: BTreeMap<String, usize> = BTreeMap::new();
+    let mut cross = Cross::default();
     let (mut measured, mut skipped, mut errors) = (0usize, 0usize, 0usize);
     for path in &dwgs {
-        match probe_file(path, &twins, &mut failures, &mut tally, &mut export_only) {
+        match probe_file(
+            path,
+            &twins,
+            &mut failures,
+            &mut tally,
+            &mut export_only,
+            &mut cross,
+        ) {
             Ok(true) => measured += 1,
             Ok(false) => skipped += 1,
             Err(e) => {
@@ -263,6 +334,14 @@ fn main() -> ExitCode {
         );
     }
     println!("{skipped} drawings skipped (no twin or no AutoCAD export of the release)");
+    println!(
+        "every target: {} CLASS records over {} conversions, {} with group 91 where the target says otherwise",
+        cross.classes, cross.conversions, cross.wrong_91
+    );
+    println!(
+        "counted from the object stream: {} of {} classes of R2004 and later drawings equal the table's count",
+        cross.counted_equal, cross.counted
+    );
     for (n, c) in &export_only {
         println!("export only: {n} x{c}");
     }

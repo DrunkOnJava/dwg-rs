@@ -3139,8 +3139,11 @@ tables are not written.
 for a target of R2000 or later (R12 has none; R14 is not measured), one `CLASS` record
 per class in the table's order: the DXF name (1), the C++ name (2), the application
 (3), the proxy capability flags as an unsigned 16-bit word (90; the table stores a
-`BS`, so a flag word of `0x8401` reads as `-31743` signed), from R2004 the instance
-count (91), the was-a-proxy flag (280) and the entity flag (281: item class id 0x1F2).
+`BS`, so a flag word of `0x8401` reads as `-31743` signed), for a target of R2004 or
+later the instance count (91), the was-a-proxy flag (280) and the entity flag (281:
+item class id 0x1F2). Group 91 follows the target release; the count follows the
+source: the table's from an R2004 or later drawing, and for an earlier one, whose table
+stores none, the objects of the stream whose type code is the class number.
 `examples/probe_dxf_classes.rs` pairs every class with the export's of the same DXF
 name and compares groups and order, on the CLASSES section alone; the Corpus job runs it.
 
@@ -3162,7 +3165,14 @@ objects it holds, among them those AutoCAD creates when it loads the file (more
 DICTIONARYVARs, CELLSTYLEMAPs) or leaves out, so the DWG's own count differs by a few
 on those classes. The export also holds 11 classes the table lacks (7 CELLSTYLEMAP and
 4 DATATABLE, on the larger samples) that AutoCAD registers on load; they are listed and
-not written. Not measured: an R14 target.
+not written. The probe also converts every drawing to every release from R2000: 3,934
+CLASS records over 252 conversions, group 91 on each exactly when the target is R2004
+or later. A drawing before R2004 has no count in its table, so a newer target gets the
+count taken from the object stream; that count equals the table's own on 473 of the 544
+classes of the R2004 and later drawings (the other 71 differ, as the export's counts
+differ from the table's), and no corpus pair shows AutoCAD's own count for an R2000
+drawing saved as a newer DXF, so that case is owed against an export. Not measured: an
+R14 target.
 
 ## 8. Write pipeline (current scope)
 
