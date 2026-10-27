@@ -289,14 +289,23 @@ fn group_matches(
     }
 }
 
-/// How an XRECORD value that the export holds otherwise differs: a handle the save
-/// gave a different value (the oracle's save-time rule), a GUID the save made anew,
-/// or anything else (a failure).
-#[derive(Clone, Copy, PartialEq)]
-enum Mismatch {
-    SaveTimeHandle,
-    SaveTimeGuid,
-    Other,
+/// The XRECORDs whose value the save itself made anew, by handle in the DWG: `#306`
+/// holds a handle the save gave another value (the oracle's save-time rule), `#D09`
+/// a GUID and the path of the file the save wrote (`name.dwg` in the DWG, the
+/// export's own `name_ascii.dxf` in the DXF). Only these two records, and in them
+/// only a handle, a GUID or that path under the group code the DWG decodes, may
+/// differ; everything else must equal the export.
+const SAVE_TIME_XRECORDS: [u64; 2] = [0x306, 0xD09];
+
+fn is_save_path(ours: &str, theirs: &str) -> bool {
+    ours.strip_suffix(".dwg")
+        .is_some_and(|stem| theirs.strip_suffix("_ascii.dxf") == Some(stem))
+}
+
+/// The one application item the DXF writer adds to a table's header that the DWG
+/// does not hold: `1001 ACAD`, `1000 DbSaveVer`, `1071` (the save's own version).
+fn is_save_version(groups: &[Group]) -> bool {
+    matches!(groups, [a, b] if a.code == 1000 && a.value.trim() == "DbSaveVer" && b.code == 1071)
 }
 
 fn is_guid(s: &str) -> bool {
@@ -315,12 +324,16 @@ fn is_guid(s: &str) -> bool {
 /// An XRECORD's values against the data groups of the export's record (after its
 /// `100 AcDbXrecord` marker and the cloning flag `280`), or `None` when they
 /// cannot be paired: a code 102 value, which the twin reader takes for a bracket,
-/// or a record with no marker.
+/// or a record with no marker. `Ok(n)` is `n` save-time values (a handle or a GUID
+/// of a record of `SAVE_TIME_XRECORDS`, under the same group code in the export)
+/// accepted as different; every other value, and the count of groups, must equal
+/// the export's.
 fn xrecord_agrees(
+    handle: u64,
     items: &[GroupItem],
     rec: &Record,
     layers: &BTreeMap<u64, String>,
-) -> Option<Result<(), (Mismatch, String)>> {
+) -> Option<Result<usize, String>> {
     if items.iter().any(|i| i.code == 102) {
         return None;
     }
@@ -331,38 +344,43 @@ fn xrecord_agrees(
     let data = &rec.groups[at + 1..];
     let skip = usize::from(data.first().is_some_and(|g| g.code == 280));
     let mut g = data[skip..].iter();
+    let mut save_time = 0;
     for (n, item) in items.iter().enumerate() {
         let before = g.clone();
-        if !group_matches(item, &mut g, layers) {
-            let first = before.clone().next();
-            let kind = match (&item.value, first) {
-                (GroupValue::Handle(_), _) => Mismatch::SaveTimeHandle,
-                (GroupValue::Text { text, .. }, Some(x))
-                    if is_guid(text) && is_guid(x.value.trim()) =>
-                {
-                    Mismatch::SaveTimeGuid
-                }
-                _ => Mismatch::Other,
-            };
-            let theirs: Vec<String> = before
-                .take(3)
-                .map(|x| format!("{} {:?}", x.code, x.value))
-                .collect();
-            return Some(Err((
-                kind,
-                format!(
-                    "item {n} {item:?} against the export's {}",
-                    theirs.join(" | ")
-                ),
-            )));
+        if group_matches(item, &mut g, layers) {
+            continue;
         }
+        let first = before.clone().next();
+        let anew = SAVE_TIME_XRECORDS.contains(&handle)
+            && first.is_some_and(|x| {
+                x.code == item.code
+                    && match &item.value {
+                        GroupValue::Handle(_) => u64::from_str_radix(x.value.trim(), 16).is_ok(),
+                        GroupValue::Text { text, .. } => {
+                            (is_guid(text) && is_guid(x.value.trim()))
+                                || is_save_path(text, x.value.trim())
+                        }
+                        _ => false,
+                    }
+            });
+        if anew {
+            g = before;
+            g.next();
+            save_time += 1;
+            continue;
+        }
+        let theirs: Vec<String> = before
+            .take(3)
+            .map(|x| format!("{} {:?}", x.code, x.value))
+            .collect();
+        return Some(Err(format!(
+            "item {n} {item:?} against the export's {}",
+            theirs.join(" | ")
+        )));
     }
     Some(match g.next() {
-        None => Ok(()),
-        Some(x) => Err((
-            Mismatch::Other,
-            format!("the export has more: {} {:?}", x.code, x.value),
-        )),
+        None => Ok(save_time),
+        Some(x) => Err(format!("the export has more: {} {:?}", x.code, x.value)),
     })
 }
 
@@ -381,6 +399,7 @@ struct ExtTally {
     eed_compared: usize,
     eed_agree: usize,
     eed_partial: usize,
+    eed_export_only: usize,
     errors: usize,
 }
 
@@ -448,7 +467,23 @@ fn ext_census(
     for raw in objects {
         let rec = twin.and_then(|t| t.record(raw.handle.value));
         match extended_data::read(raw, version) {
-            Ok(apps) if apps.is_empty() => {}
+            Ok(apps) if apps.is_empty() => {
+                let theirs = rec.map(export_apps).unwrap_or_default();
+                if !theirs.is_empty() {
+                    tally.eed_compared += 1;
+                    if theirs.iter().all(|t| is_save_version(t)) {
+                        tally.eed_agree += 1;
+                        tally.eed_export_only += 1;
+                    } else {
+                        tally.errors += 1;
+                        *failed = true;
+                        println!(
+                            "  {name} #{:X} extended data: the export holds application data that was not decoded",
+                            raw.handle.value
+                        );
+                    }
+                }
+            }
             Ok(apps) => {
                 let chain = format!("{apps:?}");
                 let items: Vec<GroupItem> = apps.iter().flat_map(|a| a.items.clone()).collect();
@@ -498,22 +533,22 @@ fn ext_census(
                     tally.xr_strings += ours.len();
                     tally.xr_page_differs += ours.iter().filter(|(p, _)| *p != page).count();
                     if let Some(rec) = rec {
-                        match xrecord_agrees(&items, rec, &layers) {
-                            Some(Ok(())) => {
+                        match xrecord_agrees(raw.handle.value, &items, rec, &layers) {
+                            Some(Ok(0)) => {
                                 tally.xr_compared += 1;
                                 tally.xr_agree += 1;
                             }
-                            Some(Err((Mismatch::Other, why))) => {
+                            Some(Ok(_)) => {
+                                tally.xr_compared += 1;
+                                tally.xr_savetime += 1;
+                            }
+                            Some(Err(why)) => {
                                 tally.xr_compared += 1;
                                 *failed = true;
                                 println!(
                                     "  {name} #{:X} XRECORD values differ from the export's: {why}",
                                     raw.handle.value
                                 );
-                            }
-                            Some(Err(_)) => {
-                                tally.xr_compared += 1;
-                                tally.xr_savetime += 1;
                             }
                             None => tally.xr_unpaired += 1,
                         }
@@ -1037,7 +1072,7 @@ fn main() -> ExitCode {
         "EED recs",
         "strings",
         "page != hdr",
-        "vs export / agree / tail only"
+        "vs export / agree / tail only / export only"
     );
     let (mut ext_compared, mut ext_agree, mut ext_strings) = (0usize, 0usize, 0usize);
     for (release, t) in &ext {
@@ -1052,7 +1087,10 @@ fn main() -> ExitCode {
             t.eed_records,
             t.eed_strings,
             t.eed_page_differs,
-            format!("{} / {} / {}", t.eed_compared, t.eed_agree, t.eed_partial),
+            format!(
+                "{} / {} / {} / {}",
+                t.eed_compared, t.eed_agree, t.eed_partial, t.eed_export_only
+            ),
         );
         ext_compared += t.xr_compared + t.eed_compared;
         ext_agree += t.xr_agree + t.xr_savetime + t.eed_agree;
@@ -1145,6 +1183,16 @@ fn main() -> ExitCode {
         );
     }
 
+    for kind in ["XRECORD values", "extended data"] {
+        if by_kind.get(kind).is_none_or(|t| t.targets == 0) {
+            println!("NOT MEASURED: no patchable {kind} string");
+            failed = true;
+        }
+    }
+    if ext_compared == 0 {
+        println!("NOT MEASURED: no XRECORD or extended data record paired with an export");
+        failed = true;
+    }
     if drawings == 0 || proved == 0 {
         println!("NOT MEASURED: no pre-R2007 drawing with a patchable string");
         return ExitCode::FAILURE;

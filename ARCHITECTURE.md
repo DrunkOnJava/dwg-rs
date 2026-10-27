@@ -3350,15 +3350,20 @@ file whose strings named another page than its header would be read by its strin
 **Against AutoCAD's exports.** `examples/probe_code_page.rs` sets each decoded record beside
 the export's record of the same handle, group by group (R2000 and R2004; R14 has no export):
 
-| Release | XRECORDs compared | Equal | Save-time | Extended data records compared | Equal | Tail only |
-|---|---:|---:|---:|---:|---:|---:|
-| AC1015 (2000) | 227 | 225 | 2 | 409 | 409 | 2 |
-| AC1018 (2004) | 227 | 225 | 2 | 346 | 346 | 0 |
+| Release | XRECORDs compared | Equal | Save-time | Extended data records compared | Equal | Tail only | Export only |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 227 | 225 | 2 | 410 | 410 | 2 | 1 |
+| AC1018 (2004) | 227 | 225 | 2 | 347 | 347 | 0 | 1 |
 
-1,209 of 1,209 compared records agree. The 2 "save-time" XRECORDs of each release differ in
-a value AutoCAD makes anew at every save, as the oracle's save-time rule says: a handle the
-save gave another value (`#306`: 0x1020 in the DWG, 0x1487 in the export) and a GUID
-(`#D09`). The 2 "tail only" records are the two MTEXT whose `ACAD` application data begins
+1,211 of 1,211 compared records agree. The probe lets a value differ only where the save
+itself makes it anew, and only in two named records (`SAVE_TIME_XRECORDS`), under the same
+group code in the export, with every other value of the record and the count of groups still
+compared: in `#306` a handle the save gave another value (0x1020 in the DWG, 0x1487 in the
+export, the oracle's save-time rule) and in `#D09` a GUID and the path of the file the save
+wrote (`name.dwg` against the export's `name_ascii.dxf`). The "export only" record is the
+VPORT table header `#8`, which the DXF writer gives `1001 ACAD`, `1000 DbSaveVer`, `1071`
+and the DWG holds no extended data for; any other application data the export holds for a
+record the reader returns nothing for fails the probe. The 2 "tail only" records are the two MTEXT whose `ACAD` application data begins
 with an `RTTcAl` block (a string, a short, a long and `$$NoName$$`) that the R2000 export
 leaves out; its other items equal ours. An application the export omits altogether is not
 compared (the export drops several render applications' data).
