@@ -3,8 +3,8 @@
 use crate::streaming::{
     CHUNK_BYTES, FlatHeaderParser, FlatWalker, MapDemand, MapStep, ObjectDemand, ObjectStep,
     R2004HeaderParser, R2004MapWalker, R2004ObjectWalker, R2004SectionWalker, R2004Walker,
-    R2007Demand, R2007Step, R2007Walker, Request, SectionDemand, SectionStep, Step, StreamError,
-    WalkDemand, WalkStep,
+    R2007Demand, R2007ObjectDemand, R2007ObjectStep, R2007ObjectWalker, R2007Step, R2007Walker,
+    Request, SectionDemand, SectionStep, Step, StreamError, WalkDemand, WalkStep,
 };
 use std::io::{self, Read, Seek, SeekFrom};
 
@@ -521,6 +521,80 @@ pub fn poll_r2007_walk<S: ByteSource>(
                 .feed(offset, &scratch[..actual])
                 .map_err(PumpError::Grammar)?;
             Ok(R2007Poll::Fed {
+                step,
+                offset,
+                stride,
+                len: actual,
+            })
+        }
+    }
+}
+
+/// Result of one R2007 object-stream poll: a step from source bytes (read
+/// contiguously, or gathered across a page) or from a pump, a pending source,
+/// or the end of the walk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum R2007ObjectPoll {
+    Fed {
+        step: R2007ObjectStep,
+        offset: u64,
+        /// Bytes between the fed bytes in the source: 1 for a contiguous read.
+        stride: u64,
+        len: usize,
+    },
+    Pumped(R2007ObjectStep),
+    Pending,
+    Complete,
+}
+
+/// One poll for the R2007 object stream: a pump when the walker needs no
+/// source bytes (it holds section bytes to frame, or has output to decode),
+/// otherwise at most one read, or one gather of the codeword in progress, into
+/// caller-owned bounded scratch.
+pub fn poll_r2007_objects<S: ByteSource>(
+    walker: &mut R2007ObjectWalker,
+    source: &mut S,
+    scratch: &mut [u8],
+) -> Result<R2007ObjectPoll, PumpError<S::Error>> {
+    let (offset, stride, wanted) = match walker.demand().map_err(PumpError::Grammar)? {
+        R2007ObjectDemand::Done => return Ok(R2007ObjectPoll::Complete),
+        R2007ObjectDemand::Pump => {
+            return Ok(R2007ObjectPoll::Pumped(
+                walker.pump().map_err(PumpError::Grammar)?,
+            ));
+        }
+        R2007ObjectDemand::Read(r) => (r.offset, 1, r.len),
+        R2007ObjectDemand::Gather(g) => (g.offset, g.stride, g.len),
+    };
+    let maximum = wanted.min(scratch.len()).min(CHUNK_BYTES);
+    if maximum == 0 {
+        return Err(PumpError::InvalidRead { maximum, actual: 0 });
+    }
+    let polled = if stride == 1 {
+        source.poll_read(
+            Request {
+                offset,
+                len: maximum,
+            },
+            &mut scratch[..maximum],
+        )
+    } else {
+        source.poll_gather(offset, stride, &mut scratch[..maximum])
+    };
+    match polled.map_err(PumpError::Source)? {
+        SourcePoll::Pending => Ok(R2007ObjectPoll::Pending),
+        SourcePoll::Eof => {
+            walker.end_of_input().map_err(PumpError::Grammar)?;
+            Ok(R2007ObjectPoll::Complete)
+        }
+        SourcePoll::Ready(actual) => {
+            if actual == 0 || actual > maximum {
+                return Err(PumpError::InvalidRead { maximum, actual });
+            }
+            let step = walker
+                .feed(offset, &scratch[..actual])
+                .map_err(PumpError::Grammar)?;
+            Ok(R2007ObjectPoll::Fed {
                 step,
                 offset,
                 stride,
