@@ -61,6 +61,13 @@ struct Ctx<'a> {
     material_by_block: Option<u64>,
 }
 
+fn from_r2004(version: DxfVersion) -> bool {
+    !matches!(
+        version,
+        DxfVersion::R12 | DxfVersion::R14 | DxfVersion::R2000
+    )
+}
+
 fn from_r2010(version: DxfVersion) -> bool {
     matches!(
         version,
@@ -164,13 +171,15 @@ fn common_groups(
     if let Some(w) = lineweight_hundredths(c.lineweight).filter(|w| *w != -1) {
         g.push(HeaderGroup::Int(370, i64::from(w)));
     }
-    if let Some(rgb) = c.color_rgb {
-        if rgb >> 24 == 0xC2 {
-            g.push(HeaderGroup::Int(420, i64::from(rgb & 0xFF_FFFF)));
+    if from_r2004(ctx.version) {
+        if let Some(rgb) = c.color_rgb {
+            if rgb >> 24 == 0xC2 {
+                g.push(HeaderGroup::Int(420, i64::from(rgb & 0xFF_FFFF)));
+            }
         }
-    }
-    if let Some(alpha) = c.color_alpha {
-        g.push(HeaderGroup::Int(440, i64::from(alpha)));
+        if let Some(alpha) = c.color_alpha {
+            g.push(HeaderGroup::Int(440, i64::from(alpha)));
+        }
     }
     if from_r2007(ctx.version) {
         let material = match refs.material_flags {
@@ -461,7 +470,7 @@ fn own_groups(
             p3(&mut g, 10, m.insertion_point);
             g.push(HeaderGroup::Real(40, m.nominal_text_height));
             g.push(HeaderGroup::Real(41, m.rect_width));
-            if let Some(h) = m.rect_height {
+            if let Some(h) = m.rect_height.filter(|_| from_r2007(ctx.version)) {
                 g.push(HeaderGroup::Real(46, h));
             }
             g.push(HeaderGroup::Int(71, i64::from(m.attachment_point)));
