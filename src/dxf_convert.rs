@@ -125,6 +125,9 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
         Some(h) => crate::dxf_tables::build(file, version, h, &object_handles),
         None => Vec::new(),
     };
+    let entity_layer = crate::dxf_tables::visible_layer(&tables)
+        .map(|n| crate::dxf_header::escape_text(version, &n))
+        .unwrap_or_else(|| layers[0].name.clone());
     let defined = if tables.is_empty() {
         crate::dxf_tables::Defined {
             layers: layers.iter().map(|l| l.name.clone()).collect(),
@@ -184,7 +187,7 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     if let Some(decoded_res) = file.decoded_entities() {
         let (decoded_list, _summary) = decoded_res?;
         for decoded in &decoded_list {
-            match decoded_entity_to_record(decoded) {
+            match decoded_entity_to_record(decoded, &entity_layer) {
                 Some(record) => entities.push(record),
                 None => {
                     let label = decoded_label(decoded);
@@ -371,11 +374,12 @@ fn raw_to_decoded_object(raw: &RawObject) -> Option<DecodedObject> {
 /// Best-effort conversion from a [`DecodedEntity`] to an
 /// [`EntityRecord`]. Returns `None` for any entity whose geometry
 /// isn't one of the five Curve-shaped primitives this pipeline emits.
-fn decoded_entity_to_record(e: &DecodedEntity) -> Option<EntityRecord> {
-    // Layer + color aren't yet surfaced uniformly across DecodedEntity. This
-    // path runs only when no symbol table is written, so layer "0" (the default
-    // every DXF reader requires) and ACI 7 are the whole table.
-    let layer = "0".to_string();
+fn decoded_entity_to_record(e: &DecodedEntity, layer: &str) -> Option<EntityRecord> {
+    // Layer + color aren't yet surfaced uniformly across DecodedEntity: every
+    // entity goes on `layer`, chosen so that it is visible (see
+    // `crate::dxf_tables::visible_layer`), in ACI 7. The path runs for a drawing
+    // without readable tables, for a target before R2000 and for an R14 source.
+    let layer = layer.to_string();
     let aci = 7u8;
 
     match e {
