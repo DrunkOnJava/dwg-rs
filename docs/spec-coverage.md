@@ -176,6 +176,7 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | VISUALSTYLE | `closes` | src/objects/acad_visual_style.rs | 456 of 456 corpus records on every release (ARCHITECTURE §7d.1). |
 | MATERIAL | `partial` | src/objects/acad_material.rs | Strings and bit budget only (#49). |
 | PROPERTYSET_DATA | `partial` | src/objects/acad_property_set_data.rs | Prefix only; no record in the corpus. |
+| ACDBASSOCPERSSUBENTMANAGER / ACDBPERSSUBENTMANAGER | `closes` | src/objects/pers_subent.rs | 14 of 14 corpus records on every release R14 to R2018, all from one drawing; 120 values equal the DXF twin by handle (R2000 to R2018, 6 of 7 releases); where each array ends and what each value means are unverified (ARCHITECTURE §7aq, #152). |
 | PLOTSETTINGS | `closes` | src/objects/acad_plot_settings.rs | Read with LAYOUT. |
 | ACDBDETAILVIEWSTYLE / ACDBSECTIONVIEWSTYLE | `closes` | src/objects/acad_detail_view_style.rs, src/objects/acad_section_view_style.rs | Joint-boundary search, delta 0 (ARCHITECTURE §7d.4). |
 | EXTRUDEDSURFACE / REVOLVEDSURFACE / SWEPTSURFACE / LOFTEDSURFACE | `decoder` | src/entities/*_surface.rs |  |
@@ -184,4 +185,4 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | WIPEOUT / WIPEOUTVARIABLES | `decoder` | src/entities/wipeout.rs | WIPEOUTVARIABLES not decoded. |
 | PDFUNDERLAY / DWFUNDERLAY / DGNUNDERLAY and their definitions | `decoder` | src/entities/underlay.rs |  |
 | DBCOLOR | `missing` |  | Referenced by ENC colours (§2.11). |
-| ACAD_EVALUATION_GRAPH, ACDBASSOC* (constraints and associativity) | `missing` |  |  |
+| ACAD_EVALUATION_GRAPH, ACDBASSOC* other than ACDBASSOCPERSSUBENTMANAGER (constraints and associativity) | `missing` |  | ACDBASSOCPERSSUBENTMANAGER is decoded, above. |
