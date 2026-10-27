@@ -3968,7 +3968,7 @@ brackets only up to `100 AcDbXrecord`, as `DxfRecord::top_level` does, so that 3
 as an application's handle and not as a dangling reactor, and a control XRECORD with a
 real reactor to an absent handle still counts as dangling.
 
-## 7ax. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+## 7ay. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
 the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,
