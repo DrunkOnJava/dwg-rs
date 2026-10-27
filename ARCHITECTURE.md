@@ -3781,8 +3781,11 @@ puts `70` of the plot settings after `143` and the shade plot triple after `147`
 the handle stream lists, from R2004 the plot view, from R2007 the visual style, then
 the block record (`330`), the last active viewport (`331`) and the base and named
 UCS (`346`, `345`), of which the null ones are not written, and so is any that names a
-record the output does not define. A **GROUP** is its
-description (`300`), the unnamed and selectable flags and one `340` per member. An
+record the output does not define. The plot view name (`6`) is the DWG's own up to
+R2000; from R2004 the DWG stores a handle instead, and the name written is that of the VIEW
+record it names. A **GROUP** is its description (`300`), the unnamed and selectable flags
+and one `340` per member the output holds (an MLINE or VIEWPORT member, which the entity
+writer does not write yet, is left out, counted by the probe). An
 **MLINESTYLE** is its name, flags (the DWG's bits are not DXF's: bits 1, 2, 32, 64,
 512 and 1024 swap in pairs), description, fill colour, angles in degrees and one
 offset, colour and linetype per line; a linetype is `BYLAYER` or `BYBLOCK` for the
@@ -3802,9 +3805,11 @@ The probe compares every `330` after the record's owner, so a LAYOUT's block rec
 checked. The two R2018 MLINESTYLEs of the corpus are the records not
 written. With the layouts written, a BLOCK_RECORD's `340` and the dictionary entries
 of `ACAD_LAYOUT` are written too (132 more entries), and the tables probe still
-agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a plot
-view handle on R2004 and later (its name is `6`), a visual style handle (`333`), an
-MLINESTYLE whose linetype is neither sentinel, and R2018 MLINESTYLE.
+agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a layout that
+plots a named view (none of the 132 has plot type 3 or a non-empty group `6` in the
+export, so the plot view handle's resolution to the VIEW record's name is by the rule
+and not by a drawing), a visual style handle (`333`), an MLINESTYLE whose linetype is
+neither sentinel, and R2018 MLINESTYLE.
 
 ## 8. Write pipeline (current scope)
 
