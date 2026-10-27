@@ -379,7 +379,20 @@ const OBJECT_TYPE_DIMENSION_LINEAR_SENTINEL: u16 = 0x15; // 21
 /// Supports IMAGE, MLEADER, and other post-spec entities whose type
 /// codes vary per file. Unknown class names fall through to
 /// [`DecodedEntity::Unhandled`].
+///
+/// The record's pre-R2007 text is read in [`RawObject::code_page`] (§3.2.5).
 pub fn decode_from_raw_with_class_map(
+    raw: &RawObject,
+    version: Version,
+    class_map: &crate::classes::ClassMap,
+    type_code: u16,
+) -> DecodedEntity {
+    crate::code_page::with_code_page(raw.code_page, || {
+        decode_with_class_map_in_page(raw, version, class_map, type_code)
+    })
+}
+
+fn decode_with_class_map_in_page(
     raw: &RawObject,
     version: Version,
     class_map: &crate::classes::ClassMap,
@@ -489,6 +502,14 @@ pub fn decode_from_raw_with_class_map(
         "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
             hatch::decode(c, v).map(DecodedEntity::Hatch)
         }),
+
+        // MULTILEADER before R2007: AutoCAD writes the record into R14
+        // to R2004 saves too, with its `TV`s inline (#229).
+        "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
+            checked_inline(raw, body_start, version, "MULTILEADER", |c, v, _, _| {
+                mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
+            })
+        }
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -528,7 +549,13 @@ pub fn decode_from_raw_with_class_map(
 /// For custom-class entities (type codes ≥ 500 like IMAGE, MLEADER,
 /// TABLE), see [`decode_from_raw_with_class_map`] which resolves the
 /// code via [`crate::classes::ClassMap`] before dispatching.
+///
+/// The record's pre-R2007 text is read in [`RawObject::code_page`] (§3.2.5).
 pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
+    crate::code_page::with_code_page(raw.code_page, || decode_in_page(raw, version))
+}
+
+fn decode_in_page(raw: &RawObject, version: Version) -> DecodedEntity {
     let type_code = raw.type_code;
     let kind = raw.kind;
 
@@ -832,17 +859,22 @@ fn dispatch_split_stream_class(
     kind: ObjectType,
     version: Version,
 ) -> Option<DecodedEntity> {
-    if !version.is_r2010_plus() {
+    if !version.is_r2007_plus() {
         return None;
     }
     let result = match dxf_class_name {
+        // §20.4.48: MULTILEADER exists from R2007 (version 21); its
+        // R2007 record has the `-R2007` tail in place of the R2010+
+        // fields (#229).
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(|m| DecodedEntity::MLeader(Box::new(m)))
         }
         // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
         "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
-        | "ACDBDGNUNDERLAY" => {
+        | "ACDBDGNUNDERLAY"
+            if version.is_r2010_plus() =>
+        {
             let kind = match dxf_class_name {
                 "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
                 "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
@@ -1477,6 +1509,7 @@ mod tests {
             },
             raw: Vec::new(),
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
@@ -1500,6 +1533,7 @@ mod tests {
             },
             raw: Vec::new(),
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Error { .. }));
@@ -1523,6 +1557,7 @@ mod tests {
             },
             raw: Vec::new(),
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Error { .. }));
@@ -1592,6 +1627,7 @@ mod tests {
             },
             raw: bytes,
             obj_size_bits: Some(obj_size_bits),
+            code_page: Default::default(),
         };
 
         match decode_from_raw(&raw, Version::R2004) {
@@ -1673,6 +1709,7 @@ mod tests {
                 },
                 raw: bytes,
                 obj_size_bits: Some(claimed),
+                code_page: Default::default(),
             };
             match decode_from_raw(&raw, Version::R2004) {
                 DecodedEntity::Error { message, .. } => {
@@ -1770,12 +1807,14 @@ mod tests {
             },
             raw: vec![0u8; 16],
             obj_size_bits: Some(64),
+            code_page: Default::default(),
         };
         assert_eq!(entity_data_end(&raw, Version::R2000), Some(64));
         assert_eq!(entity_data_end(&raw, Version::R2004), Some(64));
         assert_eq!(entity_data_end(&raw, Version::R2007), None);
         let r14 = RawObject {
             obj_size_bits: None,
+            code_page: Default::default(),
             ..raw
         };
         assert_eq!(entity_data_end(&r14, Version::R14), None);

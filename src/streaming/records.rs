@@ -293,9 +293,7 @@ impl ObjectFramer {
                     n
                 } else {
                     let n = input.len().min(self.needs() as usize);
-                    for &byte in &input[..n] {
-                        self.keep(byte);
-                    }
+                    self.keep_all(&input[..n]);
                     n
                 };
                 self.crc = crc8(self.crc, &input[..n]);
@@ -350,11 +348,18 @@ impl ObjectFramer {
     }
 
     fn keep(&mut self, byte: u8) {
-        let i = self.done as usize;
-        if i < HEAD {
-            self.head[i] = byte;
+        self.keep_all(&[byte]);
+    }
+
+    /// Count `bytes` into the payload read so far, keeping those that fall
+    /// in its first [`HEAD`] bytes.
+    fn keep_all(&mut self, bytes: &[u8]) {
+        let at = self.done as usize;
+        if at < HEAD {
+            let take = bytes.len().min(HEAD - at);
+            self.head[at..at + take].copy_from_slice(&bytes[..take]);
         }
-        self.done += 1;
+        self.done += bytes.len() as u32;
     }
 
     fn check_end(&self) -> Result<(), StreamError> {

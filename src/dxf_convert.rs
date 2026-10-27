@@ -111,25 +111,79 @@ pub fn convert_dxf_to_dwg(
 pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     let mut writer = DxfWriter::with_version(version);
 
-    // The one LAYER record this pipeline writes; the header names no other
-    // symbol record because none is defined (see crate::dxf_header).
+    // TABLES — the decoded LAYER, STYLE, LTYPE and APPID records (see
+    // crate::dxf_tables); a file without them, or a target before R2000, keeps
+    // the default "0" layer every DXF reader requires. The header is written
+    // first but names only records these tables define.
     let layers = [LayerEntry::default()];
-    let layer_names: Vec<&str> = layers.iter().map(|l| l.name.as_str()).collect();
+    let object_handles = written_object_handles(file);
+    let header = match file.header_vars() {
+        Some(Ok(h)) if h.closed => Some(h),
+        _ => None,
+    };
+    let tables = match &header {
+        Some(h) => crate::dxf_tables::build(file, version, h, &object_handles),
+        None => Vec::new(),
+    };
+    let entity_layer = crate::dxf_tables::visible_layer(&tables)
+        .map(|n| crate::dxf_header::escape_text(version, &n))
+        .unwrap_or_else(|| layers[0].name.clone());
+    let defined = if tables.is_empty() {
+        crate::dxf_tables::Defined {
+            layers: layers.iter().map(|l| l.name.clone()).collect(),
+            ..Default::default()
+        }
+    } else {
+        crate::dxf_tables::defined(&tables)
+    };
 
     // HEADER — auto-emits $ACADVER from writer.version(); the rest is the
     // decoded AcDb:Header under the names and groups AutoCAD's export uses
     // (see crate::dxf_header).
-    let header_vars: Vec<HeaderEntry> =
-        crate::dxf_header::header_entries(file, version, &layer_names);
+    let header_vars: Vec<HeaderEntry> = crate::dxf_header::header_entries(file, version, &defined);
     write_header_section(&mut writer, &header_vars);
 
-    // TABLES — at minimum a default "0" LAYER, which every DXF
-    // reader requires to exist.
-    write_tables_section(&mut writer, &layers);
+    // CLASSES — the drawing's class table, for a target of R2000 or later.
+    if version.supports_subclass_markers() && version != DxfVersion::R14 {
+        if let Some(Ok(classes)) = file.class_map() {
+            let counts = (version != DxfVersion::R2000)
+                .then(|| crate::dxf_classes::instance_counts(file, &classes));
+            crate::dxf_classes::write(&mut writer, &classes, counts.as_ref());
+        }
+    }
+
+    if tables.is_empty() {
+        write_tables_section(&mut writer, &layers);
+    } else {
+        crate::dxf_tables::write(&mut writer, &tables);
+    }
 
     // BLOCKS — *Model_Space + *Paper_Space placeholders. Real block
     // expansion is deferred.
     write_blocks_section(&mut writer);
+
+    // ENTITIES — with decoded tables, the entities of model space and of the
+    // active paper space from the handle-driven object walk (see
+    // crate::dxf_entities); otherwise the five curve primitives below.
+    let decoded_entities = match &header {
+        Some(h) if !tables.is_empty() && crate::dxf_entities::writes(file.version(), version) => {
+            Some(crate::dxf_entities::build(
+                file,
+                version,
+                h,
+                &tables,
+                &object_handles,
+            ))
+        }
+        _ => None,
+    };
+    if let Some(entities) = &decoded_entities {
+        crate::dxf_entities::write(&mut writer, entities);
+        let decoded_objects = collect_decoded_objects(file);
+        write_objects_section(&mut writer, decoded_objects);
+        writer.finish();
+        return Ok(writer.take_output());
+    }
 
     // ENTITIES — walk the full object list via the handle map. For
     // pre-R2004 family (R13/R14/R2000) we currently have no
@@ -142,7 +196,7 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     if let Some(decoded_res) = file.decoded_entities() {
         let (decoded_list, _summary) = decoded_res?;
         for decoded in &decoded_list {
-            match decoded_entity_to_record(decoded) {
+            match decoded_entity_to_record(decoded, &entity_layer) {
                 Some(record) => entities.push(record),
                 None => {
                     let label = decoded_label(decoded);
@@ -184,6 +238,22 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
 
     writer.finish();
     Ok(writer.take_output())
+}
+
+/// The handles of the objects [`collect_decoded_objects`] writes to OBJECTS under
+/// their own type. A class-numbered or unknown object is written as an untyped
+/// record (a MATERIAL or VISUALSTYLE among them), so a reference to one is not a
+/// reference to the typed object the DXF names and is left out here.
+fn written_object_handles(file: &DwgFile) -> std::collections::HashSet<u64> {
+    match file.all_objects() {
+        Some(Ok(raws)) => raws
+            .iter()
+            .filter(|r| raw_to_decoded_object(r).is_some())
+            .filter(|r| !matches!(r.kind, ObjectType::Custom(_) | ObjectType::Unknown(_)))
+            .map(|r| r.handle.value)
+            .collect(),
+        _ => Default::default(),
+    }
 }
 
 /// Walk `file`'s object stream and synthesize a list of
@@ -313,12 +383,12 @@ fn raw_to_decoded_object(raw: &RawObject) -> Option<DecodedObject> {
 /// Best-effort conversion from a [`DecodedEntity`] to an
 /// [`EntityRecord`]. Returns `None` for any entity whose geometry
 /// isn't one of the five Curve-shaped primitives this pipeline emits.
-fn decoded_entity_to_record(e: &DecodedEntity) -> Option<EntityRecord> {
-    // Layer + color aren't yet surfaced uniformly across
-    // DecodedEntity. Default to "0" / ACI 7 (ByLayer equivalent);
-    // when common-entity decoding exposes them (L8-21+), wire
-    // through here.
-    let layer = "0".to_string();
+fn decoded_entity_to_record(e: &DecodedEntity, layer: &str) -> Option<EntityRecord> {
+    // Layer + color aren't yet surfaced uniformly across DecodedEntity: every
+    // entity goes on `layer`, chosen so that it is visible (see
+    // `crate::dxf_tables::visible_layer`), in ACI 7. The path runs for a drawing
+    // without readable tables, for a target before R2000 and for an R14 source.
+    let layer = layer.to_string();
     let aci = 7u8;
 
     match e {
