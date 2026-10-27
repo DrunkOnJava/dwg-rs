@@ -2335,7 +2335,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_dim_assoc -- ../dwg-corpus
 ```
 
-## 7w. ACSH_HISTORY_CLASS and ACSH_BOX_CLASS, derived from AutoCAD's own output (2026-10-26)
+## 7ay. ACSH_HISTORY_CLASS and ACSH_BOX_CLASS, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for the solid-history records AutoCAD writes for a
 primitive solid. `src/objects/sh_history.rs` reads two of them from the layout
@@ -2352,7 +2352,7 @@ R2007 on a string stream the list consumes entirely.
 
 ```text
 ACSH_HISTORY_CLASS  BL 90 (33), BL 91 (329), BL 92 (1), B 280, B 281
-ACSH_BOX_CLASS      AcDbEvalExpr (ARCHITECTURE.md §7u), BL 90, BL 91, BD x16 transform,
+ACSH_BOX_CLASS      AcDbEvalExpr (ARCHITECTURE.md §7aw), BL 90, BL 91, BD x16 transform,
                     colour, BL 92, BL 90, BL 91, BD x3 (40, 41, 42)
 ```
 

@@ -178,7 +178,7 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | WIPEOUTVARIABLES / ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION / ACDB_BLOCKREPRESENTATION_DATA / PDFDEFINITION / DBCOLOR | `closes` | src/objects/small_classes.rs | 42 of 42 corpus records on every release R14 to R2018; 50 values equal the DXF twin (ARCHITECTURE §7t, #152). |
 | BLOCKGRIPLOCATIONCOMPONENT / BLOCKLINEARGRIP / BLOCKVISIBILITYGRIP / BLOCKLINEARPARAMETER / BLOCKVISIBILITYPARAMETER / BLOCKSCALEACTION | `closes` | src/objects/dynamic_block.rs | 84 of 84 corpus records on every release R14 to R2018; 1,158 values equal the DXF twin; handles not decoded (ARCHITECTURE §7u, #152). |
 | DIMASSOC | `closes` | src/objects/dim_assoc.rs | 21 of 21 corpus records on every release R14 to R2018; 264 values equal the DXF twin; handles not decoded (ARCHITECTURE §7v, #152). |
-| ACSH_HISTORY_CLASS / ACSH_BOX_CLASS | `closes` | src/objects/sh_history.rs | 21 of 21 corpus records on every release R14 to R2018; 152 values equal the DXF twin on R2007 to R2018; ACSH_EXTRUSION_CLASS not decoded (ARCHITECTURE §7w, #152). |
+| ACSH_HISTORY_CLASS / ACSH_BOX_CLASS | `closes` | src/objects/sh_history.rs | 21 of 21 corpus records on every release R14 to R2018; 152 values equal the DXF twin on R2007 to R2018; ACSH_EXTRUSION_CLASS not decoded (ARCHITECTURE §7ay, #152). |
 | PROPERTYSET_DATA | `partial` | src/objects/acad_property_set_data.rs | Prefix only; no record in the corpus. |
 | PLOTSETTINGS | `closes` | src/objects/acad_plot_settings.rs | Read with LAYOUT. |
 | ACDBDETAILVIEWSTYLE / ACDBSECTIONVIEWSTYLE | `closes` | src/objects/acad_detail_view_style.rs, src/objects/acad_section_view_style.rs | Joint-boundary search, delta 0 (ARCHITECTURE §7d.4). |

@@ -158,9 +158,9 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7v).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
-    /// ACSH_HISTORY_CLASS (§7w).
+    /// ACSH_HISTORY_CLASS (§7ay).
     ShHistory(crate::objects::sh_history::ShHistory),
-    /// ACSH_BOX_CLASS (§7w).
+    /// ACSH_BOX_CLASS (§7ay).
     ShBox(Box<crate::objects::sh_history::ShBox>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
