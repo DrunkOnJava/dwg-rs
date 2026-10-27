@@ -747,6 +747,7 @@ pub fn section_of(label: &str) -> &'static str {
         "SOLID" => "§20.4.35",
         "RAY" => "§20.4.42",
         "XLINE" => "§20.4.43",
+        "LEADER" => "§20.4.47",
         "MTEXT" => "§20.4.46",
         "MULTILEADER" => "§20.4.48",
         "LINE" => "§20.4.21",
@@ -1020,6 +1021,7 @@ pub fn score(
             c.int("unknown", 71, i64::from(a.unknown), Some(0));
         }
         D::DimStyle(d) => score_dimstyle(&mut c, d),
+        D::Leader(l) => score_leader(&mut c, l),
         D::VPort(v) => score_vport(&mut c, v),
         D::View(v) => score_view(&mut c, v),
         D::BlockRecord(b) => score_block_record(&mut c, b, rec.handle, dwg),
@@ -1412,6 +1414,76 @@ fn score_style(c: &mut Ctx<'_>, s: &dwg::tables::style::StyleEntry) {
     c.real("last_height", 42, s.last_height, None);
     c.text("font_filename", 3, &s.font_filename, None);
     c.text("bigfont_filename", 4, &s.bigfont_filename, Some(""));
+}
+
+// §20.4.47 against the DXF Reference's AcDbLeader: 73 the annotation type,
+// 72 the path type, 71 the arrowhead flag, 74 the hook line direction, 75
+// the hook line flag, 40 and 41 the text height and width (written by the
+// DWG up to R2007; later records hold neither, so the export's two groups
+// are not decoded there), 76 the vertex count with 10 the vertices, 210
+// the normal, 211 the horizontal direction and 212 the block offset. When
+// the leader has a hook line (75 is 1) the export inserts the hook line's
+// start before the last vertex and counts it in 76, as the decoder's
+// probe measures; that vertex is derived, not decoded. The origin and the
+// end point projection have no DXF group in the spec, and the dimension
+// style and the annotation are handles.
+fn score_leader(c: &mut Ctx<'_>, l: &dwg::entities::leader::Leader) {
+    if !c.subclass("AcDbLeader") {
+        c.dwg_only("(the export has no AcDbLeader subclass)", ());
+        return;
+    }
+    c.int("annot_type", 73, i64::from(l.annot_type), None);
+    c.int("path_type", 72, i64::from(l.path_type), None);
+    c.int("arrowhead_on", 71, i64::from(l.arrowhead_on), None);
+    c.int(
+        "hookline_on_x_dir",
+        74,
+        i64::from(l.hookline_on_x_dir),
+        None,
+    );
+    if let (Some(h), Some(w)) = (l.box_height, l.box_width) {
+        c.real("box_height", 40, h, None);
+        c.real("box_width", 41, w, None);
+    }
+    let hook = c.peek(75).and_then(DxfValue::as_i64) == Some(1);
+    if let Some(v) = c.take(75) {
+        c.not_decoded("75 (hook line flag)", v.to_string());
+    }
+    let n = l.points.len();
+    let want = (n + usize::from(hook)) as i64;
+    match c.take(76).and_then(DxfValue::as_i64) {
+        Some(x) => c.derived(
+            "vertex count (a hook line adds one)",
+            "76",
+            x == want,
+            want.to_string(),
+            x.to_string(),
+        ),
+        None => c.dwg_only("vertex count", want),
+    }
+    for (k, p) in l.points.iter().enumerate() {
+        if hook && k + 1 == n {
+            if let Some(v) = c.take(10) {
+                c.not_decoded(
+                    "10 (the hook line's start, inserted by the export)",
+                    v.to_string(),
+                );
+            }
+            c.take(20);
+            c.take(30);
+        }
+        c.point3("points", 10, *p, None);
+    }
+    c.point3("extrusion", 210, l.extrusion, Some(Z));
+    c.point3("x_direction", 211, l.x_direction, None);
+    c.point3(
+        "offset_to_block_insertion",
+        212,
+        l.offset_to_block_insertion,
+        None,
+    );
+    c.dwg_only("origin", l.origin);
+    c.dwg_only("end_point_projection", l.end_point_projection);
 }
 
 // §20.4.68, for the fields the decoder surfaces. AutoCAD omits a DIMSTYLE
