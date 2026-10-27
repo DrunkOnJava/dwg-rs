@@ -50,7 +50,7 @@ the current capability matrix.
   1,484 runs between the records the map names, every run made of whole
   records with a valid CRC, 9,764 of them with a handle the map names at
   another offset and 1,913 with none (`examples/probe_unclaimed_runs`,
-  ARCHITECTURE.md §7av).
+  ARCHITECTURE.md §7ax).
 - **Walker-completeness gate:** `examples/probe_class_census` runs in
   CI over every canonical fixture with `--strict`;
   `tests/canonical_corpus.rs` asserts the class census exactly and

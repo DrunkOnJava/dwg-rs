@@ -435,7 +435,7 @@ value claims, until AutoCAD re-saves of them exist.
 ## 2026-10-27 — Public corpus: the US Forest Service R13 drawings (#345)
 
 The 22 AC1012 drawings of the entry above were written by SketchUp's exporter
-and by a writer that is not AutoCAD (ARCHITECTURE.md §7as), so the corpus gains
+and by a writer that is not AutoCAD (ARCHITECTURE.md §7au), so the corpus gains
 122 AC1012 drawings that the agency which made them says AutoCAD Release 13
 wrote: the US Forest Service Region 6 engineering CAD library, `pub/acad/dev/roads`
 (69 files) and `pub/acad/dev/trails` (53 files) on `ftp.fs.fed.us`. The trails

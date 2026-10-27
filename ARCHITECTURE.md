@@ -3669,7 +3669,7 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7as. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7au. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned
@@ -3875,7 +3875,7 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7at. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
+## 7av. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
 
 `probe_reference_closure` decides whether a class the walk reaches fewer of
 than `AcDb:Classes` declares is a missing record or an over-declaring file: it
@@ -3919,9 +3919,9 @@ unanswered (23 hard) on `line_R14.dwg`, 583 of 1,725 (28 hard) on
 hard) on `JXHMP4602-11083-b 铁片.dwg`, where the right boundary decodes 789,
 3,657, 7,866 and 1,304 references with none unanswered.
 
-## 7au. R13 through the decoders main added after the branch began (2026-10-26, #119)
+## 7aw. R13 through the decoders main added after the branch began (2026-10-26, #119)
 
-§7as opened AC1012 and found, in a scratch tree, that the decoders main
+§7au opened AC1012 and found, in a scratch tree, that the decoders main
 gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
 (#258), the R13/R14 DIMSTYLE block (#297) and LEADER (#249) each test the
 R13-R14 branch as `version == Version::R14` or
@@ -3965,7 +3965,7 @@ TEXT, VIEWPORT or TRACE record. Two other sets do: the US Forest Service R6
 library (122 drawings, public domain, "created in AutoCad Ver 13"; pinned by a
 later PR and measured here on lower-cased copies, because `coverage_report`
 skipped `.DWG` until #353) and Autodesk's own install-disc drawings (68
-distinct, local evidence only, §7as).
+distinct, local evidence only, §7au).
 
 | | Forest Service, 122 drawings | Autodesk discs, 68 distinct drawings |
 |---|---:|---:|
@@ -3985,7 +3985,7 @@ height).
 
 **TRACE reads BT and BE in their R13-R14 form too.** `trace::decode` never took
 the version, so TRACE kept the R2000+ flag-then-value forms of thickness and
-extrusion on R13 and R14, the bug §7as fixed for SOLID, ARC, CIRCLE, POINT and
+extrusion on R13 and R14, the bug §7au fixed for SOLID, ARC, CIRCLE, POINT and
 the polylines. TRACE shares SOLID's stream (§20.4.36), so `trace::decode_for`
 calls SOLID's. It moves the 3 TRACE records of the Forest Service set that
 errored; the other 162 closed before and still do.
@@ -4013,9 +4013,9 @@ for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"
 target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
 ```
 
-## 7av. R13 written by AutoCAD: the US Forest Service library, and the records the map no longer names (2026-10-27, #345)
+## 7ax. R13 written by AutoCAD: the US Forest Service library, and the records the map no longer names (2026-10-27, #345)
 
-None of the 22 R13 drawings of §7as is known to be AutoCAD's (§7as, "What is
+None of the 22 R13 drawings of §7au is known to be AutoCAD's (§7au, "What is
 not measured"). The US Forest Service Region 6 engineering CAD library is: 122
 AC1012 drawings, public domain, which the agency's own pages say were "created
 in AutoCad Ver 13" (CLEANROOM.md, "Public corpus: the US Forest Service R13
@@ -4037,15 +4037,15 @@ section as printed on all 122: the locator copies agree and the four bytes after
 image of 2,276 to 16,592 bytes. The header variables close on all 122 with 195
 slots, none of §9's four "R14+" shorts, in a section of exactly `ceil(bits / 8)`
 (0 extra bytes in all 122), which is the shape every AutoCAD-written R13 header
-has (§7as). The handle map resolves every entry (0 mismatches, 0 walk skips).
+has (§7au). The handle map resolves every entry (0 mismatches, 0 walk skips).
 
 ### What the decoders show
 
-With the decoders of §7au, `coverage_report` reads 345,236 records of the 122:
+With the decoders of §7aw, `coverage_report` reads 345,236 records of the 122:
 345,132 decode, 104 are `VP_ENT_HDR` (§20.4.70, no decoder) and none errors.
-Before the R13-R14 branches of §7au, 7,354 errored (TEXT 7,016, DIMSTYLE 126,
+Before the R13-R14 branches of §7aw, 7,354 errored (TEXT 7,016, DIMSTYLE 126,
 LEADER 116, VIEWPORT 52, ATTDEF 41, TRACE 3). These are the first R13 TEXT,
-VIEWPORT and TRACE records the corpus holds (§7au).
+VIEWPORT and TRACE records the corpus holds (§7aw).
 
 ### The stream holds records the map does not name
 
@@ -4075,9 +4075,9 @@ reading of this measurement, not something the specification states: §23.1 says
 how the map is read and nothing about what else the stream may hold. The walk
 that the map drives ignores these bytes, as it should, since the map names the
 live record of each handle. So "the walk tiles the stream with no byte between
-records" holds for the pinned R2004 family, the R14 drawings and the 22 §7as
+records" holds for the pinned R2004 family, the R14 drawings and the 22 §7au
 drawings, not for these 87; `tools/corpus/baseline.tsv` pins the `between` count
-of each. Autodesk's own install-disc drawings (local evidence, §7as) are mostly
+of each. Autodesk's own install-disc drawings (local evidence, §7au) are mostly
 tight: of their 68 distinct drawings one has a run (172 bytes, two records, one of
 whose handles the map names).
 
