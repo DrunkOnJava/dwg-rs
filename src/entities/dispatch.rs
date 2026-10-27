@@ -146,6 +146,11 @@ pub enum DecodedEntity {
     ImageDef(crate::entities::imagedef::ImageDef),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
+    /// ACDBPERSSUBENTMANAGER, a custom class with no spec section: derived
+    /// from AutoCAD's own output (ARCHITECTURE.md §7aq).
+    PersSubentManager(crate::objects::pers_subent::PersSubentManager),
+    /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
+    AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -266,6 +271,8 @@ impl DecodedEntity {
             | Self::ImageDef(_)
             | Self::ImageDefReactor(_)
             | Self::RasterVariables(_)
+            | Self::PersSubentManager(_)
+            | Self::AssocPersSubentManager(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -379,7 +386,20 @@ const OBJECT_TYPE_DIMENSION_LINEAR_SENTINEL: u16 = 0x15; // 21
 /// Supports IMAGE, MLEADER, and other post-spec entities whose type
 /// codes vary per file. Unknown class names fall through to
 /// [`DecodedEntity::Unhandled`].
+///
+/// The record's pre-R2007 text is read in [`RawObject::code_page`] (§3.2.5).
 pub fn decode_from_raw_with_class_map(
+    raw: &RawObject,
+    version: Version,
+    class_map: &crate::classes::ClassMap,
+    type_code: u16,
+) -> DecodedEntity {
+    crate::code_page::with_code_page(raw.code_page, || {
+        decode_with_class_map_in_page(raw, version, class_map, type_code)
+    })
+}
+
+fn decode_with_class_map_in_page(
     raw: &RawObject,
     version: Version,
     class_map: &crate::classes::ClassMap,
@@ -536,7 +556,13 @@ pub fn decode_from_raw_with_class_map(
 /// For custom-class entities (type codes ≥ 500 like IMAGE, MLEADER,
 /// TABLE), see [`decode_from_raw_with_class_map`] which resolves the
 /// code via [`crate::classes::ClassMap`] before dispatching.
+///
+/// The record's pre-R2007 text is read in [`RawObject::code_page`] (§3.2.5).
 pub fn decode_from_raw(raw: &RawObject, version: Version) -> DecodedEntity {
+    crate::code_page::with_code_page(raw.code_page, || decode_in_page(raw, version))
+}
+
+fn decode_in_page(raw: &RawObject, version: Version) -> DecodedEntity {
     let type_code = raw.type_code;
     let kind = raw.kind;
 
@@ -784,6 +810,16 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::ImageDefReactor),
+        // No spec section: the two persistent-subentity managers, derived from
+        // AutoCAD's own output (ARCHITECTURE.md §7aq).
+        "ACDBPERSSUBENTMANAGER" => crate::objects::pers_subent::decode_pers_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PersSubentManager),
+        "ACDBASSOCPERSSUBENTMANAGER" => crate::objects::pers_subent::decode_assoc_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::AssocPersSubentManager),
         "RASTERVARIABLES" | "ACDBRASTERVARIABLES" => {
             crate::objects::image_raster_variables::decode_object(
                 payload, body_start, inline_end, version,
@@ -1490,6 +1526,7 @@ mod tests {
             },
             raw: Vec::new(),
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Unhandled { .. }));
@@ -1513,6 +1550,7 @@ mod tests {
             },
             raw: Vec::new(),
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Error { .. }));
@@ -1536,6 +1574,7 @@ mod tests {
             },
             raw: Vec::new(),
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         assert!(matches!(decoded, DecodedEntity::Error { .. }));
@@ -1605,6 +1644,7 @@ mod tests {
             },
             raw: bytes,
             obj_size_bits: Some(obj_size_bits),
+            code_page: Default::default(),
         };
 
         match decode_from_raw(&raw, Version::R2004) {
@@ -1686,6 +1726,7 @@ mod tests {
                 },
                 raw: bytes,
                 obj_size_bits: Some(claimed),
+                code_page: Default::default(),
             };
             match decode_from_raw(&raw, Version::R2004) {
                 DecodedEntity::Error { message, .. } => {
@@ -1783,12 +1824,14 @@ mod tests {
             },
             raw: vec![0u8; 16],
             obj_size_bits: Some(64),
+            code_page: Default::default(),
         };
         assert_eq!(entity_data_end(&raw, Version::R2000), Some(64));
         assert_eq!(entity_data_end(&raw, Version::R2004), Some(64));
         assert_eq!(entity_data_end(&raw, Version::R2007), None);
         let r14 = RawObject {
             obj_size_bits: None,
+            code_page: Default::default(),
             ..raw
         };
         assert_eq!(entity_data_end(&r14, Version::R14), None);

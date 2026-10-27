@@ -35,6 +35,10 @@ exclude = [
 # that uses `dwg` as a crate dependency.
 thiserror = "2"
 byteorder = "1"
+# Pre-R2007 text is stored in the drawing's code page (§3.2.5); the
+# WHATWG single-byte and multi-byte tables decode it. MIT OR Apache-2.0
+# (the index data is BSD-3-Clause); builds for wasm32 and on MSRV 1.85.
+encoding_rs = "0.8"
 
 # CLI-only dependencies — gated behind the `cli` feature so library
 # consumers don't drag them in. Each `[[bin]]` declares
@@ -116,6 +120,10 @@ required-features = ["dxf-reader"]
 
 [[example]]
 name = "probe_dxf_entities"
+required-features = ["dxf-reader"]
+
+[[example]]
+name = "probe_dxf_classes"
 required-features = ["dxf-reader"]
 
 [[example]]

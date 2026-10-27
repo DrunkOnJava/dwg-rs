@@ -23,8 +23,21 @@
 //!   kind and listed; one the export creates itself (a handle at or above the
 //!   DWG's `$HANDSEED`) is not in the DWG.
 //!
+//! With `--section=BLOCKS` it also converts every drawing to every release the
+//! writer writes it to, and checks that the block each `INSERT` names (group 2) is
+//! a `BLOCK` the same output writes: an `INSERT` of a block left out is a failure.
+//! It checks the same outputs for `{BLKREFS` too: every INSERT handle a
+//! BLOCK_RECORD lists (331) is a written entity of the same output.
+//! `PROBE_DXF_ENTITIES_DROP_BLOCK=1` removes one written block from the INSERT check
+//! and one written entity from the BLKREFS check, a negative run that must exit 1.
+//! No corpus drawing has a block the writer has to leave out, so the same run also
+//! builds the entities of each drawing once per layer with that layer taken out of
+//! the tables: the `BLOCK` and `ENDBLK` on it can no longer be written, so no
+//! `INSERT` of such a block and no entity inside it may be written either, and the
+//! tables built from what is left must not list an entity that is not.
+//!
 //! Any disagreement, extra, unexplained omission, missing record, record out of
-//! order or unreadable output exits 1. AC1014 drawings are skipped (R12 and R14
+//! order, unresolved `INSERT` or unreadable output exits 1. AC1014 drawings are skipped (R12 and R14
 //! targets keep the default layer).
 //!
 //! # How to verify
@@ -37,13 +50,14 @@
 //! is the DXF with the same stem, or the stem plus `_ascii`. With no DWG at all it
 //! prints `NOT MEASURED` and exits 0.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use dwg::dxf::DxfVersion;
 use dwg::dxf_entities::kinds;
 use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
+use dwg::dxf_sections::HeaderGroup;
 use dwg::{DwgFile, Version};
 
 #[derive(Default, Clone)]
@@ -189,6 +203,241 @@ fn left_out(r: &DxfRecord) -> bool {
             "LWPOLYLINE" => flag & 128 != 0,
             _ => false,
         }
+}
+
+/// The `INSERT`s of `doc` and those whose block (group 2, compared without regard
+/// to case) is not a `BLOCK` of its `BLOCKS` section. `drop_one` first removes the
+/// first named block, the negative run.
+fn block_references(doc: &DxfDocument, drop_one: bool) -> (usize, Vec<String>) {
+    let lower = |r: &DxfRecord| {
+        r.first(2)
+            .and_then(DxfValue::as_str)
+            .map(str::to_ascii_lowercase)
+    };
+    let mut names: BTreeSet<String> = doc
+        .records
+        .iter()
+        .filter(|r| r.kind == "BLOCK" && doc.section_name(r) == "BLOCKS")
+        .filter_map(lower)
+        .collect();
+    if drop_one {
+        if let Some(n) = names.iter().find(|n| !n.starts_with('*')).cloned() {
+            names.remove(&n);
+        }
+    }
+    let (mut checked, mut bad) = (0, Vec::new());
+    for r in doc.records.iter().filter(|r| r.kind == "INSERT") {
+        checked += 1;
+        match lower(r) {
+            Some(n) if names.contains(&n) => {}
+            other => bad.push(format!(
+                "INSERT {:X} names block {:?}, which is not written",
+                r.handle.unwrap_or(0),
+                other
+            )),
+        }
+    }
+    (checked, bad)
+}
+
+/// The `{BLKREFS` handles of `doc`'s BLOCK_RECORDs and those that are not a record
+/// of its `ENTITIES` or `BLOCKS` section. `drop_one` treats the first handle as not
+/// written, the negative run.
+fn blkrefs_doc(doc: &DxfDocument, drop_one: bool) -> (usize, Vec<String>) {
+    let (mut checked, mut bad, mut first) = (0, Vec::new(), drop_one);
+    for r in doc.records.iter().filter(|r| r.kind == "BLOCK_RECORD") {
+        for (code, v) in brackets(r).get("BLKREFS").into_iter().flatten() {
+            let Some(h) = v.as_handle().filter(|_| *code == 331) else {
+                continue;
+            };
+            checked += 1;
+            let found = doc
+                .record_by_handle(h)
+                .is_some_and(|x| matches!(doc.section_name(x), "ENTITIES" | "BLOCKS"));
+            if !found || std::mem::take(&mut first) {
+                bad.push(format!(
+                    "BLOCK_RECORD {:X} lists {h:X} in its BLKREFS, which is not written",
+                    r.handle.unwrap_or(0)
+                ));
+            }
+        }
+    }
+    (checked, bad)
+}
+
+/// The `{BLKREFS` handles of `tables`' records that are not in `written`.
+fn blkrefs_tables(
+    tables: &[dwg::dxf_tables::Table],
+    written: &HashSet<u64>,
+) -> (usize, Vec<String>) {
+    let (mut checked, mut bad) = (0, Vec::new());
+    for r in tables.iter().flat_map(|t| &t.records) {
+        let mut open = false;
+        for g in &r.groups {
+            match g {
+                HeaderGroup::Text(102, t) => open = t == "{BLKREFS",
+                HeaderGroup::Handle(331, h) if open => {
+                    checked += 1;
+                    if !written.contains(h) {
+                        bad.push(format!(
+                            "BLOCK_RECORD {:X} lists {h:X} in its BLKREFS, which is not written",
+                            r.handle
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    (checked, bad)
+}
+
+#[derive(Default)]
+struct Gate {
+    runs: usize,
+    blocks_left_out: usize,
+    inserts_left_out: usize,
+    inserts: usize,
+    blkrefs: usize,
+    defined: usize,
+    failures: Vec<String>,
+    blkref_failures: Vec<String>,
+}
+
+/// Build the entities of `path` once per layer, with that layer out of the tables,
+/// and check every `INSERT` built names a block built, and that the tables built
+/// from the entities left list no entity that is not.
+fn gate_run(path: &Path) -> Result<Gate, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
+    let file = DwgFile::from_bytes(bytes).map_err(|e| format!("open: {e}"))?;
+    let mut g = Gate::default();
+    let Some(target) = dxf_version(file.version()) else {
+        return Ok(g);
+    };
+    if !dwg::dxf_entities::writes(file.version(), target) {
+        return Ok(g);
+    }
+    let header = file
+        .header_vars_strict()
+        .ok_or("no AcDb:Header")?
+        .map_err(|e| format!("header: {e}"))?;
+    let none = HashSet::new();
+    let tables = dwg::dxf_tables::build(&file, target, &header, &none, None);
+    let whole = dwg::dxf_entities::build(&file, target, &header, &tables, &none);
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+    let layers: Vec<String> = tables
+        .iter()
+        .filter(|t| t.name == "LAYER")
+        .flat_map(|t| t.records.iter().map(|r| r.name.clone()))
+        .collect();
+    let refused = "INSERT (its block is not written)";
+    for layer in layers {
+        let mut cut = tables.clone();
+        for t in cut.iter_mut().filter(|t| t.name == "LAYER") {
+            t.records.retain(|r| r.name != layer);
+        }
+        let e = dwg::dxf_entities::build(&file, target, &header, &cut, &none);
+        let text = |groups: &[HeaderGroup]| {
+            groups.iter().find_map(|g| match g {
+                HeaderGroup::Text(2, t) => Some(t.to_ascii_lowercase()),
+                _ => None,
+            })
+        };
+        let blocks: BTreeSet<String> = e
+            .blocks
+            .iter()
+            .filter_map(|b| text(&b.begin.groups))
+            .collect();
+        g.runs += 1;
+        g.blocks_left_out += whole.blocks.len() - e.blocks.len().min(whole.blocks.len());
+        g.inserts_left_out += [&e.skipped, &e.block_skipped]
+            .iter()
+            .map(|m| m.get(refused).copied().unwrap_or(0))
+            .sum::<usize>();
+        let known = e.handles();
+        let written_blocks: HashSet<u64> = e.blocks.iter().map(|b| b.block).collect();
+        let second = dwg::dxf_tables::build(&file, target, &header, &known, Some(&written_blocks));
+        // What the output holds is read back from the two sections' writers, not
+        // taken from `handles()`, which is what the tables were told.
+        let mut w = dwg::dxf::DxfWriter::with_version(target);
+        dwg::dxf_blocks::write(&mut w, &e);
+        dwg::dxf_entities::write(&mut w, &e);
+        w.finish();
+        let emitted = DxfDocument::parse(w.take_output().as_bytes())
+            .map_err(|e| format!("read back: {e}"))?;
+        let emitted: HashSet<u64> = emitted.handles().collect();
+        g.defined += known.len();
+        g.blkref_failures.extend(known.difference(&emitted).map(|h| {
+            format!(
+                "{name} without layer {layer:?}: {h:X} is told to the tables as written and is not in the output"
+            )
+        }));
+        let (n, bad) = blkrefs_tables(&second, &emitted);
+        g.blkrefs += n;
+        g.blkref_failures.extend(
+            bad.into_iter()
+                .map(|b| format!("{name} without layer {layer:?}: {b}")),
+        );
+        for r in e.records.iter().filter(|r| r.kind == "INSERT") {
+            g.inserts += 1;
+            let n = text(&r.groups);
+            if !n.as_ref().is_some_and(|n| blocks.contains(n)) {
+                g.failures.push(format!(
+                    "{name} without layer {layer:?}: INSERT {:X} names block {n:?}, which is not written",
+                    r.handle
+                ));
+            }
+        }
+    }
+    Ok(g)
+}
+
+#[derive(Default)]
+struct Refs {
+    conversions: usize,
+    inserts: usize,
+    blkrefs: usize,
+    bad_inserts: Vec<String>,
+    bad_blkrefs: Vec<String>,
+}
+
+/// Convert `path` to every release the writer writes it to and check each
+/// output's `INSERT`s and `{BLKREFS` handles.
+fn reference_run(path: &Path) -> Result<Refs, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
+    let file = DwgFile::from_bytes(bytes).map_err(|e| format!("open: {e}"))?;
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+    let drop_one = std::env::var_os("PROBE_DXF_ENTITIES_DROP_BLOCK").is_some();
+    let mut out = Refs::default();
+    for target in [
+        DxfVersion::R2000,
+        DxfVersion::R2004,
+        DxfVersion::R2007,
+        DxfVersion::R2010,
+        DxfVersion::R2013,
+        DxfVersion::R2018,
+    ] {
+        if !dwg::dxf_entities::writes(file.version(), target) {
+            continue;
+        }
+        let text = dwg::dxf_convert::convert_dwg_to_dxf(&file, target)
+            .map_err(|e| format!("convert to {target:?}: {e}"))?;
+        let doc = DxfDocument::parse(text.as_bytes()).map_err(|e| format!("read back: {e}"))?;
+        let (checked, bad) = block_references(&doc, drop_one);
+        out.conversions += 1;
+        out.inserts += checked;
+        out.bad_inserts.extend(
+            bad.into_iter()
+                .map(|b| format!("{name} to {target:?}: {b}")),
+        );
+        let (checked, bad) = blkrefs_doc(&doc, drop_one);
+        out.blkrefs += checked;
+        out.bad_blkrefs.extend(
+            bad.into_iter()
+                .map(|b| format!("{name} to {target:?}: {b}")),
+        );
+    }
+    Ok(out)
 }
 
 fn probe_file(
@@ -555,6 +804,42 @@ fn main() -> ExitCode {
             }
         }
     }
+    let mut refs = Refs::default();
+    let mut gate = Gate::default();
+    if section == "BLOCKS" {
+        for path in &dwgs {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
+            match gate_run(path) {
+                Ok(g) => {
+                    gate.runs += g.runs;
+                    gate.blocks_left_out += g.blocks_left_out;
+                    gate.inserts_left_out += g.inserts_left_out;
+                    gate.inserts += g.inserts;
+                    gate.blkrefs += g.blkrefs;
+                    gate.defined += g.defined;
+                    gate.failures.extend(g.failures);
+                    gate.blkref_failures.extend(g.blkref_failures);
+                }
+                Err(e) => {
+                    println!("{name:28} FAILED: {e}");
+                    failures.push(format!("{name}: {e}"));
+                }
+            }
+            match reference_run(path) {
+                Ok(r) => {
+                    refs.conversions += r.conversions;
+                    refs.inserts += r.inserts;
+                    refs.blkrefs += r.blkrefs;
+                    refs.bad_inserts.extend(r.bad_inserts);
+                    refs.bad_blkrefs.extend(r.bad_blkrefs);
+                }
+                Err(e) => {
+                    println!("{name:28} FAILED: {e}");
+                    failures.push(format!("{name}: {e}"));
+                }
+            }
+        }
+    }
     println!();
     println!(
         "{:14} {:>8} {:>7} {:>7} {:>6} {:>9} {:>6} {:>7} {:>10}",
@@ -582,12 +867,65 @@ fn main() -> ExitCode {
         );
     }
     println!("{skipped} drawings skipped (no twin or no AutoCAD export of the release)");
+    if section == "BLOCKS" {
+        if refs.conversions == 0 {
+            println!("NOT MEASURED: INSERT block references (no drawing converts to a release)");
+        } else {
+            println!(
+                "INSERT block references: {} INSERTs in {} conversions, {} naming a block that is not written",
+                refs.inserts,
+                refs.conversions,
+                refs.bad_inserts.len()
+            );
+        }
+        if refs.blkrefs == 0 {
+            println!(
+                "NOT MEASURED: BLKREFS handles (no BLOCK_RECORD of any output lists an INSERT)"
+            );
+        } else {
+            println!(
+                "BLKREFS handles: {} in {} conversions, {} not written",
+                refs.blkrefs,
+                refs.conversions,
+                refs.bad_blkrefs.len()
+            );
+        }
+        failures.extend(std::mem::take(&mut refs.bad_inserts));
+        failures.extend(std::mem::take(&mut refs.bad_blkrefs));
+    }
     for (k, n) in &reasons {
         if k.starts_with("relation: ") {
             println!("{k} x{n}");
         } else {
             println!("omitted: {k} x{n}");
         }
+    }
+    if section == "BLOCKS" {
+        if gate.blocks_left_out == 0 {
+            println!("NOT MEASURED: INSERT gate (no layer removed took a block out)");
+        } else {
+            println!(
+                "INSERT gate: {} builds, each without one layer: {} blocks left out, {} INSERTs of them left out, {} INSERTs written, {} naming a block that is not written",
+                gate.runs,
+                gate.blocks_left_out,
+                gate.inserts_left_out,
+                gate.inserts,
+                gate.failures.len()
+            );
+        }
+        if gate.blkrefs == 0 {
+            println!("NOT MEASURED: BLKREFS gate (no table built without a layer lists an INSERT)");
+        } else {
+            println!(
+                "BLKREFS gate: in the same {} builds, {} handles told to the tables as written and {} BLKREFS handles in them, {} not in the output",
+                gate.runs,
+                gate.defined,
+                gate.blkrefs,
+                gate.blkref_failures.len()
+            );
+        }
+        failures.extend(std::mem::take(&mut gate.failures));
+        failures.extend(std::mem::take(&mut gate.blkref_failures));
     }
     for f in &failures {
         println!("FAILED {f}");
