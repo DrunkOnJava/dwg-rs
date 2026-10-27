@@ -3501,6 +3501,95 @@ of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic bloc
   441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
   which is not decoded) or an embedded object (R2018); the probe counts them by kind.
 
+## 7as. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
+
+Two places hold pre-R2007 text that the crate never turned into a string. An XRECORD's
+body stayed opaque bytes (`XRecord::data`), and the extended entity data chain
+(§28, the `BS` size, application handle and payload that follows every object's handle)
+was read to be skipped (`common_entity::skip_extended_data`). `src/extended_data.rs` reads
+both as values for R13 to R2004: `extended_data::read` for the chain of a walked record and
+`extended_data::xrecord_values` for an XRECORD, each string decoded by
+`CodePage::decode` in the page the string itself names. R2007 and later (UTF-16) are refused.
+
+**Layouts, measured.** On every pre-R2007 drawing of the pinned corpus (24 drawings, 2,370
+XRECORDs and 1,263 records with extended data), the specification's two string layouts
+turn out to be one. §20.4.104 says "the string length (RC), the dwgcodepage (RC), and then
+the string" and §28 "1st byte of value is the length N; this is followed by a 2-byte short
+indicating the codepage": in the data both are the same three bytes before the characters,
+an `RS` length and an `RC` code page (a length below 256, a zero, the page). No string of
+the corpus is 256 bytes long (the longest is 250), so the data cannot say whether the
+length is an `RC` followed by a short or an `RS` followed by a byte; the reader takes the
+`RS` form, which is also the one that reads the XRECORD strings of every record to its
+last byte. Two more things the specification leaves open:
+
+| Value | XRECORD (§20.4.104) | Extended data (§28) |
+|---|---|---|
+| handle | 8 bytes, least significant first (330 to 369) | 8 bytes, most significant first, "read as hex" (codes 3 and 5), the layer of code 1003 resolving to the layer name the export writes |
+| the other widths | by the DXF group code's range: 16-bit for 60 to 79, 170 to 179, 270 to 279, 370 to 379 and 1070; 32-bit for 90 to 99, 420 to 429, 440 to 449 and 1071; one byte for 280 to 299; a double for 40 to 59, 140 to 149 and 460 to 469; three doubles for 10 to 39; a binary chunk with a length byte for 310 to 319 and 1004 | the item widths §28 lists |
+
+The XRECORD ranges are those of Autodesk's public DXF Reference (recalled, CLEANROOM.md),
+taken for a range only where a code of the range occurs in the corpus; every XRECORD body
+then closes exactly on its length (2,370 of 2,370). A code outside them (for instance 105,
+110 to 139, 160 to 169, 210 to 239, 320 to 329, 380 to 419, 999 and 1005 to 1013) is
+`Error::Unsupported`, never read at a guessed width, and `XRecord::data` is there to read as
+bytes.
+
+**Every string names the header's page.** 78,242 strings (76,926 in XRECORDs, 1,316 in
+extended data) carry a page byte, and every one equals the header's short: 29 or 30, in R14
+(27,153 strings), R2000 (25,751) and R2004 (25,338) alike. The decoder reads each string in
+the page it names (a number the table lacks reads as before), so the two agree here and a
+file whose strings named another page than its header would be read by its strings.
+
+**Against AutoCAD's exports.** `examples/probe_code_page.rs` sets each decoded record beside
+the export's record of the same handle, group by group (R2000 and R2004; R14 has no export):
+
+| Release | XRECORDs compared | Equal | Save-time | Extended data records compared | Equal | Tail only | Export only |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 227 | 225 | 2 | 410 | 410 | 2 | 1 |
+| AC1018 (2004) | 227 | 225 | 2 | 347 | 347 | 0 | 1 |
+
+1,211 of 1,211 compared records agree. The probe lets a value differ only where the save
+itself makes it anew, and only in two named records (`SAVE_TIME_XRECORDS`), under the same
+group code in the export, with every other value of the record and the count of groups still
+compared: in `#306` a handle the save gave another value (0x1020 in the DWG, 0x1487 in the
+export, the oracle's save-time rule) and in `#D09` a GUID and the path of the file the save
+wrote (`name.dwg` against the export's `name_ascii.dxf`). The "export only" record is the
+VPORT table header `#8`, which the DXF writer gives `1001 ACAD`, `1000 DbSaveVer`, `1071`
+and the DWG holds no extended data for; any other application data the export holds for a
+record the reader returns nothing for fails the probe. Applications are paired by identity:
+each application of the export (the value of its group `1001`) with the decoded
+application whose handle resolves, through the drawing's APPID entries, to the same
+name, and then item by item, so a wrong application handle fails. The 2 "tail only"
+records are the two MTEXT (`#9DA` and `#CDC` of `sample_AC1015`) whose `ACAD` application
+data begins with an `RTTcAl` block (a string `RTTcAl`, a short, a long and
+`$$NoName$$`) that the R2000 export leaves out; its other items equal ours, and that
+exact block, on an `ACAD` application of an MTEXT record, is the only prefix the probe lets
+the export lack. A decoded application the
+export omits altogether is counted and not compared (45 on the pinned corpus: the export
+drops several render applications' data).
+
+**A patched copy.** As in §7ap, strings rewritten in memory: the XRECORD string and the
+extended data string of the first record that holds one of six bytes or more sitting once in
+the file, their first four characters overwritten with `E9 B0 C0 FC` and their page byte (the
+eight bits before the characters) set to 29, 30 and 31, and read back through the new
+readers: XRECORD values 16 strings, 64 of 64 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
+before); extended data 2 strings, 8 of 8.
+
+**R14, and the assumption that the shorts mean there what they mean later.** Nothing in
+the corpus names an R14 page: AutoCAD's exports of the AC1014 drawings are R12 DXF, which
+carries no `$DWGCODEPAGE`. What is measured is weaker, and recorded as such. The strings of
+the R14 drawings (27,153 in XRECORDs and extended data) name 29 and 30, the same two numbers
+their headers carry; each of the seven nextgis R14 saves has an R2000 save of the same stem
+whose short is 29 and whose export names `ANSI_1251`, and the ACadSharp R14 and R2000 saves
+both carry 30. That is one project saved to two releases, not a statement by AutoCAD that
+the numbers keep their meaning; the rows apply to R14 on that footing and no export confirms
+it.
+
+**Not covered.** R2007 and later extended data and XRECORD strings (UTF-16); the unmeasured
+XRECORD ranges above; the length field's width for a string of 256 bytes or more; an
+extended data application the export omits; and the entities' own strings that sit in a
+record's extended data on an R13 drawing (the corpus holds none).
+
 ## 7at. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
 
 `src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
@@ -3514,7 +3603,7 @@ handles in key order). Records of a class named only in `AcDb:Classes`
 XRECORD's data is typed by the group code's range, as in DXF (`XRecord::items`): `RS`
 code, then a string, a real, three reals, a short or long integer, a byte, a handle of
 eight bytes or a chunk of binary data. Up to R2004 the data is read by
-`extended_data::xrecord_items` (§7aq), which decodes each string in the code page it
+`extended_data::xrecord_items` (§7as), which decodes each string in the code page it
 names and reads only the ranges the corpus measures, so an XRECORD with another code is
 counted `(not written)`; from R2007 a string is an `RS` length and UTF-16 units and
 `items` reads it here. An object is planned only when its record can be written, so a

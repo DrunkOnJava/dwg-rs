@@ -8,6 +8,18 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER decode on every release from R14 to R2018 (2026-10-27, #379, #152)
+
+The last two skipped types that had no decoder in progress. The spec prints neither, so their field lists are learned from AutoCAD's own DWG and DXF output under the 2026-10-26 `CLEANROOM.md` method. ACDBPERSSUBENTMANAGER is a `BL` version and three `BL`-counted `BL` arrays. ACDBASSOCPERSSUBENTMANAGER is a `BL` version, an id array, one array per id, a further array when the version is 2, and a closing `B` (group 290). All 14 records in the pinned corpus close on their data-stream boundary, and the value oracle scores both classes with 0 differences. The corpus moves from 15,527 to 15,541 decoded and from 547 to 533 skipped. Every field rests on one drawing (ACadSharp's `sample_base`), so the layout stays provisional until a controlled AutoCAD drawing confirms it (#348). A version word the corpus does not hold is reported as unhandled, never guessed.
+
+### Added — the value oracle scores SORTENTSTABLE (2026-10-27, #351)
+
+SORTENTSTABLE's decoded fields are compared with AutoCAD's DXF export of the same handle (§20.4.93).
+
+### Changed — README.md and STATUS.md render their measured numbers from the committed baselines (2026-10-27, #376)
+
+`tools/maintainer/readme_status.py` writes the coverage table, the totals and the DXF value oracle's totals from `tools/corpus/baseline.tsv` and `tools/oracle/baseline.tsv`. `--check` fails when a document disagrees with a baseline or has lost a block, and `tools/maintainer/audit.py` runs that check. README.md and RELEASE.md were brought up to `main` in the same change.
+
 ### Fixed — text before R2007 is decoded in the code page the header names (2026-10-27, closes #370)
 
 Pre-R2007 text was read as lossy UTF-8 at each reader. It is now decoded in the code page the file header names (§3.2.5) through one shared path, `CodePage::decode` (#374). v5.4.1 prints no table of the code page values, so the table is measured: the header short against the `$DWGCODEPAGE` of AutoCAD's own export of the same drawing (`examples/probe_code_page.rs`). It names two rows, 29 = ANSI_1251 (14 drawings) and 30 = ANSI_1252 (2 drawings); any other number is `CodePage::Unknown(n)`, whose text is read exactly as before, and the other Windows pages are not covered because no pinned drawing gives a number for them (`CLEANROOM.md` has the entry). `RawObject::code_page` is stamped by the walker from `DwgFile::code_page()`, and the shared `TV` readers (the tables, TEXT, ATTRIB, ATTDEF, MTEXT, TOLERANCE, IMAGEDEF, BLOCK and every object through `objects::modern::read_tv`), the class table, the header variables and the metadata sections read it back. `dxf_header`'s `$DWGCODEPAGE` name comes from the same table.
