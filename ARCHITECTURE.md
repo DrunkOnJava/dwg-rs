@@ -3133,7 +3133,7 @@ A layer of the `ENTITIES` section is the entity's own decoded layer; the placeho
 that put every entity on layer 0 (or on the first visible layer) is used only when the
 tables are not written.
 
-## 7ao. Pre-R2007 text is in the code page the header names (2026-10-27, #370)
+## 7ap. Pre-R2007 text is in the code page the header names (2026-10-27, #370)
 
 Before R2007 every `TV` is a run of single bytes in the drawing's code page, and
 §3.2.5 says where the page is named: "Bytes at 0x13 and 0x14 are a raw short
