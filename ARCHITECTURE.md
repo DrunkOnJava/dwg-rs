@@ -2931,7 +2931,7 @@ the probe checks that header against the export's on every drawing.
 A handle group is written only when the output defines the object it names, under
 its own type: the OBJECTS section writes dictionaries and plot style placeholders,
 so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It does not write
-a layout, a material or a visual style yet (§7at lists the kinds it does),
+a layout, a material or a visual style yet (§7au lists the kinds it does),
 so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
 and visual style names. An arrowhead block is named once BLOCKS writes it, which it
@@ -3590,7 +3590,7 @@ XRECORD ranges above; the length field's width for a string of 256 bytes or more
 extended data application the export omits; and the entities' own strings that sit in a
 record's extended data on an R13 drawing (the corpus holds none).
 
-## 7at. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
+## 7au. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
 
 `src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
 table records: DICTIONARY and ACDBDICTIONARYWDFLT (each entry as its key and handle,
