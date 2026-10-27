@@ -21,8 +21,11 @@ sequence is the one confirmed (see "Unverified prompt sequences").
 ## Before AutoCAD: generate
 
 ```sh
-python3 -I tools/autocad/generate.py --corpus ~/Library/Caches/dwg-corpus
+python3 -I tools/autocad/generate.py --scripted-only --corpus ~/Library/Caches/dwg-corpus
 ```
+
+`--scripted-only` leaves out the drawings built by hand (`MANUAL-CHECKLIST.md`), so the manifest and the
+checker list only what the scripts produce; without it they are listed and the checker asks for them.
 
 `--pins FILE` names another pins file. The 22 R13 drawings (SketchUp Cabin and 21 Sovol) are pinned by
 PR #323, not yet on `main`: until it lands, pass `--pins` the `tools/corpus/pins.tsv` of its branch,
@@ -30,7 +33,12 @@ and `--corpus` the folder that branch's `fetch.py` filled. Section 1 takes every
 pins it is given, so the US Forest Service drawings pinned on the R13 corpus branch are run too
 (`--sources sketchup,sovol` limits it to the 22). `--work DIR` moves the work folder (default `~/Library/Caches/dwg-autocad`;
 the path must be plain ASCII). `--template` names the drawing template for `NEW` (default
-`acadiso.dwt`). `--resume` leaves out what already has all its outputs.
+`acadiso.dwt`). Every run saves its options in `<work>/session.json`. `--resume` reads them back for
+whatever the command line does not give, and leaves out only what already has all its outputs and passes the
+checker's tests (non-empty, the right DWG magic or DXF `$ACADVER`): an empty or wrong file is built again.
+Always give the same `--work` when you resume; the checker's recovery commands do.
+`--keyword-prefix _` writes the DXF and Version keywords of SAVEAS with the underscore that selects the
+English keyword, for a session in another language (see the Russian and Japanese section).
 
 It stages each R13 drawing under an ASCII name (`<source>-<nn>-<sha8>.dwg`, sha256 checked against the
 pin), because the Sovol file names are Chinese and have spaces, and a script file is read in a code page.
@@ -38,8 +46,8 @@ The manifest ties each staged name back to the original file name and sha256.
 
 ## In AutoCAD
 
-Use the English interface for this run; the command names in the scripts carry `_.` and keywords `_`,
-but SAVEAS's format keywords do not. Sign-in and the trial are the maintainer's.
+Use the English interface for this run; the command names in the scripts carry `_.`, and SAVEAS's format
+keywords and the DXF `V` keyword are written as AutoCAD 2025 accepted them (`--keyword-prefix _` is for other languages). Sign-in and the trial are the maintainer's.
 
 Before the first command:
 
@@ -72,9 +80,10 @@ one, which is unverified on the Mac build.
 2. `s1-all.scr` opens each staged R13 drawing, `SAVEAS` R2000 DWG and `SAVEAS DXF` R2000 ASCII, then closes it.
 3. `build-all.scr` makes a fresh drawing per AutoLISP item (`NEW`, load the builder, build), and saves it
    as a master DWG in `<out>/masters/`.
-4. Build the manual masters from `MANUAL-CHECKLIST.md` (dynamic blocks, MATERIAL maps, DATATABLE, the typed
-   code-page drawing, and a fallback for any builder that refused).
-5. `python3 -I tools/autocad/generate.py --resume`, so `save-*.scr` cover the masters that now exist.
+4. Not in a scripted-only run: build the manual masters from `MANUAL-CHECKLIST.md` (dynamic blocks, MATERIAL
+   maps, DATATABLE, the typed code-page drawing, and a fallback for any builder that refused).
+5. `python3 -I tools/autocad/generate.py --work <work> --resume`, so `save-*.scr` cover the masters that now
+   exist.
 6. `-SCRIPT <work>/scripts/save-all.scr` reopens every master and saves each release (newest first) as DWG
    plus `SAVEAS DXF V <version> 16` ASCII DXF. Sections can run alone: `save-s2.scr`, `save-s3.scr`,
    `save-s4.scr`.
@@ -84,6 +93,77 @@ If a script stops at a prompt, press Esc and run the single-piece script that fa
 `scripts/items/build-<item>.scr` or `scripts/items/save-<item>.scr`. The checker prints which. The scripts set
 `FILEDIA` and `CMDDIA` to 0 at the start and back to 1 before the final `CLOSE` (a drawing-less AutoCAD
 cannot run `SETVAR`); a script that dies midway leaves them at 0, so run `FILEDIA` 1 and `CMDDIA` 1 yourself.
+
+## Code-page saves under Russian and Japanese
+
+The maintainer chose a scripted-only run with AutoCAD's own language set to Russian and then to Japanese for
+the code-page saves (#375: pages 1251 and 932). Only AutoCAD's language changes: a per-application
+`AppleLanguages` override on the AutoCAD bundle, removed afterwards; the macOS language is not touched. Do it
+after the English run is finished and checked. Each language gets its own work folder, so
+`session-info.txt` and the masters of one run are not overwritten by the next. `<AUTOCAD_BUNDLE_ID>` stands
+for the bundle id, read once AutoCAD is installed.
+
+1. Read the bundle id and keep it in a shell variable (the app name is whatever the install is called):
+
+   ```sh
+   BUNDLE=<AUTOCAD_BUNDLE_ID>
+   mdls -name kMDItemCFBundleIdentifier -raw "/Applications/<AutoCAD folder>/<AutoCAD app>.app"
+   ```
+
+2. Record any existing override. Expect `The domain/default pair ... does not exist`; if a value prints,
+   write it down, because step 9 writes it back instead of deleting:
+
+   ```sh
+   defaults read "$BUNDLE" AppleLanguages
+   ```
+
+3. Quit AutoCAD (Cmd+Q), then set Russian for this bundle only:
+
+   ```sh
+   defaults write "$BUNDLE" AppleLanguages -array ru
+   ```
+
+4. Generate the section 4 scripts in their own folder, with the English keyword prefix:
+
+   ```sh
+   python3 -I tools/autocad/generate.py --sections 4 --scripted-only --keyword-prefix _ --work ~/Library/Caches/dwg-autocad-ru
+   ```
+
+5. Start AutoCAD, open a blank drawing, and at the Command prompt (the underscore selects the English
+   command name):
+
+   ```
+   _-SCRIPT   <work>/scripts/00-start.scr
+   ```
+
+   Read `<out>/session-info.txt`. `LOCALE` must say Russian and `DWGCODEPAGE` must say `ANSI_1251`. If
+   `DWGCODEPAGE` still says `ANSI_1252`, the override changed the interface and not the page: quit AutoCAD,
+   go to step 9 and report it; the saves would carry the wrong page.
+6. Build, then save out:
+
+   ```
+   _-SCRIPT   <work>/scripts/build-s4.scr
+   ```
+
+   ```sh
+   python3 -I tools/autocad/generate.py --work ~/Library/Caches/dwg-autocad-ru --resume
+   ```
+
+   ```
+   _-SCRIPT   <work>/scripts/save-s4.scr
+   ```
+
+7. `python3 -I tools/autocad/check.py --work ~/Library/Caches/dwg-autocad-ru`. The R2004, R2000 and R12 DXFs
+   must show `$DWGCODEPAGE` `ANSI_1251`, with `high=` and `esc=` counts; the Cyrillic text shows whether the
+   page holds it as bytes or as `\U+XXXX`.
+8. Quit AutoCAD and repeat steps 3 to 7 with Japanese: `-array ja`, the folder
+   `~/Library/Caches/dwg-autocad-jp`, and `DWGCODEPAGE` `ANSI_932`.
+9. Remove the override: `defaults delete "$BUNDLE" AppleLanguages` (or `defaults write "$BUNDLE" AppleLanguages
+   -array <the value from step 2>`). `defaults read "$BUNDLE" AppleLanguages` must fail again with
+   `does not exist`. Start AutoCAD and confirm the interface is English.
+
+Whether AutoCAD for Mac follows `AppleLanguages`, and whether `DWGCODEPAGE` follows it, is unverified until the
+install exists; step 5's check is what settles it.
 
 ## Where outputs land
 

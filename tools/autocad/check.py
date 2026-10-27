@@ -7,7 +7,8 @@ the DXF record types the item is meant to produce (a count of 0 means AutoCAD si
 for the code-page drawings the number of bytes above 0x7F and of \\U+XXXX escapes in the DXF. Each file's
 byte count and sha256 are listed, so a corpus pins row is a copy of one line. Anything missing, empty or
 wrong is listed afterwards as the next step to run. DXFs are read as bytes, never decoded: a pre-R2007
-DXF holds code-page bytes.
+DXF holds code-page bytes. A `.FAILED.dwg` left by a builder error counts only while it is newer than the
+item's valid master and still a drawing.
 
 Usage:
 
@@ -20,6 +21,7 @@ import argparse
 import csv
 import hashlib
 import re
+import shlex
 import sys
 from collections import Counter
 from pathlib import Path
@@ -92,10 +94,23 @@ def inspect(row, out):
         if have < int(need) and res['status'] == 'ok':
             res['status'] = 'TYPES'
     if row['flags'] == 'text':
-        high = len(data) - len(data.translate(None, bytes(range(128))))
+        high = len(data.translate(None, bytes(range(128))))
         info.append(f'high={high} esc={len(ESCAPE.findall(data))}')
     res['info'] = ' '.join(info)
     return res
+
+
+def failure_artifacts(out, master_ok):
+    live = []
+    for p in sorted((out / 'masters').glob('*.FAILED.dwg')):
+        item = p.name[:-len('.FAILED.dwg')]
+        if p.read_bytes()[:4] != b'AC10':
+            continue
+        master = out / 'masters' / f'{item}.dwg'
+        if master_ok.get(item, False) and master.stat().st_mtime >= p.stat().st_mtime:
+            continue
+        live.append(p)
+    return live
 
 
 def next_steps(rows, results, work, out):
@@ -115,7 +130,7 @@ def next_steps(rows, results, work, out):
             else:
                 save[item] = r['script']
     steps = []
-    resume = 'python3 -I tools/autocad/generate.py --resume'
+    resume = f'python3 -I tools/autocad/generate.py --work {shlex.quote(str(work))} --resume'
 
     def group(found, whole, what):
         if not found:
@@ -135,7 +150,7 @@ def next_steps(rows, results, work, out):
     for item, spec in sorted(types.items()):
         steps.append(f'{item}: AutoCAD wrote too few of {spec}; read the builder text in the command line, '
                      f'then MANUAL-CHECKLIST.md#{item}')
-    for p in sorted((out / 'masters').glob('*.FAILED.dwg')):
+    for p in failure_artifacts(out, master_ok):
         steps.append(f'builder error: {p.name} was saved by the error handler; scroll back to its dwgrs: message')
     return steps
 

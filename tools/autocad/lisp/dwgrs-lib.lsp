@@ -99,9 +99,21 @@
   (command "_.SAVEAS" ver file)
   (setvar "EXPERT" ex))
 
+(defun dwgrs:retire-failure (item / f h)
+  ;; VERIFY: core AutoLISP cannot delete or rename a file, so the artifact is overwritten with a text note
+  (setq f (dwgrs:path (strcat "masters/" item ".FAILED.dwg")))
+  (if (findfile f)
+    (progn
+      (setq h (open f "w"))
+      (if h
+        (progn
+          (write-line "superseded by a successful rebuild" h)
+          (close h))))))
+
 (defun dwgrs:save-master (item / f)
   (setq f (dwgrs:path (strcat "masters/" item ".dwg")))
   (dwgrs:save-as "2018" f)
+  (dwgrs:retire-failure item)
   (dwgrs:say (strcat "saved master " f)))
 
 (defun dwgrs:run (item builder / *error*)

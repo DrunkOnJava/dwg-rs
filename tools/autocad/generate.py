@@ -8,6 +8,7 @@ Nothing here runs AutoCAD. The run writes, under --work (default ~/Library/Cache
     scripts/       *.scr files for AutoCAD's SCRIPT command
     out/           created empty; AutoCAD writes every output here
     manifest.tsv   every expected output with its expected magic or $ACADVER, for check.py
+    session.json   the options of this run, which --resume reads back
 
 Scripts, in the order a session runs them (tools/autocad/README.md has the runbook):
 
@@ -24,7 +25,13 @@ has all its outputs.
 Usage:
 
     python3 -I tools/autocad/generate.py [--corpus DIR] [--pins FILE] [--work DIR] [--template NAME]
-        [--sections 1,2,3,4] [--sources LIST] [--char-mode chr|escape] [--resume] [--allow-missing]
+        [--sections 1,2,3,4] [--sources LIST] [--char-mode chr|escape] [--scripted-only]
+        [--keyword-prefix _] [--resume] [--allow-missing]
+
+--scripted-only leaves out the drawings built by hand. --keyword-prefix _ writes the DXF and Version
+keywords of SAVEAS with the underscore that selects the English keyword, for a session in another
+language. Every run saves its options in <work>/session.json; --resume reads them back for whatever
+the command line does not give, and counts an output as done only when check.py would call it valid.
 
 The SAVEAS and DXF prompt sequences follow Autodesk's documented command line; the DXF form
 (SAVEAS DXF V <version> 16 <file>) and the R14 keyword LT98 also match the script that saved
@@ -34,11 +41,18 @@ the pinned ACadSharp sample_base twins (CLEANROOM.md, "Public corpus").
 import argparse
 import csv
 import hashlib
+import importlib.util
+import json
 import shutil
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.dont_write_bytecode = True
+_spec = importlib.util.spec_from_file_location('autocad_check', HERE / 'check.py')
+CHECK = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(CHECK)
+KEYWORD_PREFIX = ''
 REPO = HERE.parents[1]
 DEFAULT_PINS = REPO / 'tools' / 'corpus' / 'pins.tsv'
 DEFAULT_CORPUS = '~/Library/Caches/dwg-corpus'
@@ -263,7 +277,8 @@ def save_block(scr, base, rels, outdir):
     for rel in sorted(rels, key=RANK.get):
         ver, _magic, dxfver, _acad, dxftag = RELEASES[rel]
         scr.cmd('_.SAVEAS', ver, scr_path(outdir / f'{base}.{rel}.dwg'))
-        scr.cmd('_.SAVEAS', 'DXF', 'V', dxfver, '16', scr_path(outdir / f'{base}.{dxftag}.dxf'))
+        scr.cmd('_.SAVEAS', KEYWORD_PREFIX + 'DXF', KEYWORD_PREFIX + 'V', dxfver, '16',
+                scr_path(outdir / f'{base}.{dxftag}.dxf'))
 
 
 def applicable_types(item, rel):
@@ -286,11 +301,14 @@ class Plan:
     def add(self, **kw):
         self.rows.append(kw)
 
-    def present(self, rel_path):
-        return (self.out / rel_path).exists()
+    def valid(self, rel_path):
+        row = next((r for r in self.rows if r['path'] == rel_path), None)
+        if row is None:
+            return (self.out / rel_path).exists()
+        return CHECK.inspect(row, self.out)['status'] in ('ok', 'TYPES')
 
     def item_done(self, rel_paths):
-        return self.resume and all(self.present(p) for p in rel_paths)
+        return self.resume and all(self.valid(p) for p in rel_paths)
 
 
 COLUMNS = ['section', 'item', 'kind', 'release', 'path', 'expect', 'types', 'flags',
@@ -366,7 +384,7 @@ def item_paths(item):
 
 
 def items_plan(args, plan, sections, extra_s4):
-    items = [i for i in CATALOG if i.section[1:] in sections]
+    items = [i for i in CATALOG if i.section[1:] in sections and (i.lisp or not args.scripted_only)]
     items += extra_s4
     work, out = plan.work, plan.out
     for item in items:
@@ -499,20 +517,32 @@ def write_manifest(plan):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-    ap.add_argument('--corpus', default=DEFAULT_CORPUS)
-    ap.add_argument('--pins', default=str(DEFAULT_PINS))
+    ap.add_argument('--corpus')
+    ap.add_argument('--pins')
     ap.add_argument('--work', default=DEFAULT_WORK)
-    ap.add_argument('--template', default='acadiso.dwt')
-    ap.add_argument('--sections', default='1,2,3,4')
-    ap.add_argument('--sources', default='')
-    ap.add_argument('--char-mode', choices=('chr', 'escape'), default='chr')
+    ap.add_argument('--template')
+    ap.add_argument('--sections')
+    ap.add_argument('--sources')
+    ap.add_argument('--char-mode', choices=('chr', 'escape'))
+    ap.add_argument('--scripted-only', action='store_true', default=None)
+    ap.add_argument('--keyword-prefix', choices=('', '_'))
     ap.add_argument('--resume', action='store_true')
     ap.add_argument('--allow-missing', action='store_true')
     args = ap.parse_args()
+    work = Path(args.work).expanduser().resolve()
+    saved = {}
+    if args.resume and (work / 'session.json').is_file():
+        saved = json.loads((work / 'session.json').read_text())
+    fallback = {'corpus': DEFAULT_CORPUS, 'pins': str(DEFAULT_PINS), 'template': 'acadiso.dwt', 'sections': '1,2,3,4',
+                'sources': '', 'char_mode': 'chr', 'scripted_only': False, 'keyword_prefix': ''}
+    for key, default in fallback.items():
+        if getattr(args, key) is None:
+            setattr(args, key, saved.get(key, default))
+    global KEYWORD_PREFIX
+    KEYWORD_PREFIX = args.keyword_prefix
     sections = [s for s in args.sections.split(',') if s]
     if any(s not in ('1', '2', '3', '4') for s in sections):
         die('--sections takes 1, 2, 3 and 4')
-    work = Path(args.work).expanduser().resolve()
     out = work / 'out'
     check_path(work)
     check_path(args.template)
@@ -535,7 +565,7 @@ def main():
     extra = []
     if '4' in sections:
         for m in sorted((out / 'masters').glob('s4-*.dwg')):
-            if m.stem not in BY_NAME:
+            if not m.name.endswith('.FAILED.dwg') and m.stem not in BY_NAME:
                 extra.append(Item(m.stem, None, TEXTREL, [], 'extra code-page drawing found in masters'))
     items, n_build, n_save = items_plan(args, plan, [s for s in sections if s != '1'], extra)
     write_start(args, work, out)
@@ -545,6 +575,7 @@ def main():
     if '1' in sections:
         print(f'section 1        {staged} R13 drawings staged, {s1_todo} to run')
     print(f'sections 2 to 4  {n_build} AutoLISP items to build, {n_save} masters ready to save out')
+    (work / 'session.json').write_text(json.dumps({k: getattr(args, k) for k in fallback}, indent=1) + '\n')
     manual = [i.name for i in items if i.origin == 'manual' and not (out / 'masters' / f'{i.name}.dwg').exists()]
     if manual:
         print(f'manual masters   {len(manual)} not saved yet (MANUAL-CHECKLIST.md): {", ".join(manual)}')

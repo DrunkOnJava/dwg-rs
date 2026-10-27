@@ -16,7 +16,7 @@ names below follow Autodesk's public documentation and may differ in the Mac bui
 3. Save the master in the newest format, under the item's exact name:
    `SAVEAS`, format `2018`, file `<out>/masters/<item>.dwg`. With `FILEDIA` at 1 the dialog opens; type
    the path into its name field, or run `FILEDIA` 0 first and type it at the command line.
-4. When every master you want is saved, run `python3 -I tools/autocad/generate.py --resume`, then in
+4. When every master you want is saved, run `python3 -I tools/autocad/generate.py --work <work> --resume`, then in
    AutoCAD `-SCRIPT` with `<work>/scripts/save-all.scr`. It reopens each master and saves every release
    plus its ASCII DXF.
 5. `python3 -I tools/autocad/check.py` lists what is still missing.
@@ -181,11 +181,8 @@ the characters typed, so AutoCAD holds real Unicode and decides how a pre-R2007 
 Saves R2004, R2000 and R14 go through `save-all.scr` like every other item, and `check.py` prints each
 DXF's `$DWGCODEPAGE`, its high-byte count and its `\U+` escape count.
 
-### The locale repeat (needs the maintainer's agreement)
+### The locale repeat
 
-If AutoCAD for Mac follows the macOS language, the saves carry another code page under another language.
-Only with the maintainer's agreement to change the macOS language: set it to Russian, restart AutoCAD, run
-`00-start.scr` again (it rewrites `session-info.txt`; copy the old one aside first), build the drawing as
-`s4-ru-os` by typing, save its master, and do the same for Japanese as `s4-jp-os`. Any `s4-*.dwg` in
-`<out>/masters/` is picked up by `generate.py` and saved to R2004, R2000 and R14. Then restore the language.
-Without the agreement, #375 relies on public archives for pages 1251 and 932.
+The Russian and Japanese saves are a scripted run with AutoCAD's own language switched; the steps, with the
+exact `defaults` commands, are in README.md ("Code-page saves under Russian and Japanese"). The typed
+drawing above is not part of that run.
