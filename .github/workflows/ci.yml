@@ -467,6 +467,23 @@ jobs:
             echo "::error::no pinned drawing reached the DXF ENTITIES probe"
             exit 1
           fi
+      # dwg-to-dxf's CLASSES against AutoCAD's own export of the same drawing:
+      # every class written pairs with the export's, group for group, in its order.
+      - name: DXF CLASSES written by dwg-to-dxf against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --features dxf-reader --example probe_dxf_classes -- "$HOME/dwg-corpus" > dxf-classes-probe.log 2>&1
+          status=$?
+          set -e
+          cat dxf-classes-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' dxf-classes-probe.log; then
+            echo "::error::no pinned drawing reached the DXF CLASSES probe"
+            exit 1
+          fi
       # Measurements and the baseline a change would need; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.fetch.outputs.measured == 'true'
