@@ -200,6 +200,10 @@ struct Tally {
     /// How many of the drawing's strings hold a `\U+` and a `\M+` escape, and the first of each.
     escapes: [usize; 2],
     examples: [Option<String>; 2],
+    /// By header short: strings decoded, those `CodePage::encode` returns the bytes read
+    /// for, those that hold U+FFFD (an invalid sequence, never encoded back), and those
+    /// whose bytes differ.
+    round: BTreeMap<u16, [usize; 4]>,
 }
 
 const ESCAPES: [&str; 2] = ["\\U+", "\\M+"];
@@ -265,6 +269,21 @@ fn census(
         };
         tally.changed += usize::from(new != old);
         tally.texts.insert(new.to_string());
+        let slot = tally.round.entry(o.page.header_value()).or_default();
+        slot[0] += 1;
+        if new.contains('\u{FFFD}') {
+            slot[2] += 1;
+        } else if o.page.encode(new) == o.bytes {
+            slot[1] += 1;
+        } else {
+            slot[3] += 1;
+            *failed = true;
+            println!(
+                "  {release} {name} {what}: bytes {} decode to {new:?} and encode to {}",
+                hex(&o.bytes),
+                hex(&o.page.encode(new))
+            );
+        }
         let verdict = match rec.map(candidates) {
             Some(c) => {
                 tally.compared += 1;
@@ -1470,6 +1489,24 @@ fn main() -> ExitCode {
         println!(
             "  short {short:>3} {}: {strings} strings in {drawings} drawings",
             ESCAPES[*i]
+        );
+    }
+    let mut round: BTreeMap<u16, [usize; 4]> = BTreeMap::new();
+    for t in by_release.values() {
+        for (short, r) in &t.round {
+            let total = round.entry(*short).or_default();
+            for (a, b) in total.iter_mut().zip(r) {
+                *a += b;
+            }
+        }
+    }
+    println!(
+        "\nthe round trip, decode then encode (by header short): strings, back to their bytes, invalid sequences, differing"
+    );
+    for (short, [strings, same, invalid, differ]) in &round {
+        println!(
+            "  short {short:>3} ({}): {strings} strings, {same}, {invalid}, {differ}",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row")
         );
     }
     println!("\nstrings decoded, by release:");
