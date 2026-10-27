@@ -545,6 +545,23 @@ for `ANSI_1252`; every other number is read as before and counted.
   a number the corpus does not name. A page is added by a drawing and its export
   naming it, in the same pull request that adds the row.
 
+## 2026-10-27 — The writers' code page: AutoCAD's own R12, R2000, R2004 and R2007 output (#375)
+
+`CodePage::encode`, `dxf_convert::convert_dwg_to_dxf_bytes` and the DWG writer's header
+page write text in the drawing's code page. What decides how:
+
+- **Observed.** The one raw high byte of a pre-R2007 DXF export in the pinned corpus
+  (`sample_AC1009_ascii.dxf`, R12), and the ASCII escape `\U+2205` that AutoCAD's R2000
+  and R2004 saves and exports of the ACadSharp samples hold where the R2007 and later
+  saves of the same drawing hold the character U+2205 (data files, read as data).
+- **Autodesk's public DXF Reference, recalled.** That DXF before R2007 is text in the
+  `$DWGCODEPAGE` code page. `src/dxf_reader.rs` already reads on the same statement; no
+  vocabulary beyond it is taken.
+- **Never used.** Any third-party implementation of DWG or DXF, for the escape or for
+  anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
+  ezdxf's code, comments or data.
+
+
 ## 2026-10-27 — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER: derived from AutoCAD's own output
 
 By the method of the 2026-10-26 entry on classes the specification never
