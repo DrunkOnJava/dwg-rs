@@ -4001,7 +4001,7 @@ which is what keeps this round trip exact on the WHATWG encoders' extra mappings
 which the pinned strings use.
 
 
-## 7ay. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+## 7az. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
 the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,
