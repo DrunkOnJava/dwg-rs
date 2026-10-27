@@ -2,8 +2,9 @@
 //!
 //! # What this proves
 //!
-//! `section_map::DataPageHeader` names eight 4-byte fields after the §4.6
-//! table. For every data page of every R2004-family drawing given, this
+//! `section_map::DataPageHeader` once named eight 4-byte fields after the §4.6
+//! table, two of them wrongly; it now carries the layout this probe measures.
+//! For every data page of every R2004-family drawing given, this
 //! probe unmasks the 0x20 header (Sec_Mask, `0x4164536B` ^ the page's file
 //! offset, word by word) and counts how many pages agree with each reading
 //! of it, against the page map (§4.4) and section map (§4.5):
@@ -17,7 +18,7 @@
 //! - the data checksum as §4.2 over the stored bytes with seed 0, and the
 //!   header checksum as §4.2 over the header with its own field zeroed,
 //!   seeded with the data checksum;
-//! - the readings the legacy `DataPageHeader` labels imply, which should
+//! - the readings the former `DataPageHeader` labels implied, which should
 //!   agree with no page: a 4-byte start offset with a checksum at `0x14`,
 //!   a data checksum at `0x18`, and a page size that is the decompressed
 //!   size.
@@ -35,9 +36,11 @@
 //! ```
 //!
 //! Directories are searched recursively for `.dwg` files; with no argument
-//! it reads `../../samples`. Files that are not R2004-family are skipped;
-//! with no such file it prints `NOT MEASURED` and exits 0. With `--strict` a
-//! page that disagrees with the measured layout exits 1.
+//! it reads `../../samples`. An argument that holds no `.dwg` file is an
+//! error (exit 1): the probe never measures a different set than the one it
+//! was given. Files that are not R2004-family are skipped; with no such file
+//! it prints `NOT MEASURED` and exits 0. With `--strict` a page that
+//! disagrees with the measured layout exits 1.
 
 use dwg::cipher::section_page_mask;
 use dwg::crc::section_page_checksum;
@@ -81,7 +84,10 @@ fn files(path: &Path, out: &mut Vec<PathBuf>) {
         for entry in entries {
             files(&entry, out);
         }
-    } else if path.extension().is_some_and(|e| e == "dwg") {
+    } else if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("dwg"))
+    {
         out.push(path.to_path_buf());
     }
 }
@@ -156,15 +162,26 @@ fn measure(bytes: &[u8], tally: &mut Tally) -> Option<()> {
 
 fn main() -> ExitCode {
     let mut strict = false;
+    let mut given = false;
+    let mut empty = false;
     let mut paths = Vec::new();
     for arg in std::env::args().skip(1) {
         if arg == "--strict" {
             strict = true;
         } else {
+            given = true;
+            let before = paths.len();
             files(Path::new(&arg), &mut paths);
+            if paths.len() == before {
+                eprintln!("no .dwg file under {arg}");
+                empty = true;
+            }
         }
     }
-    if paths.is_empty() {
+    if empty {
+        return ExitCode::FAILURE;
+    }
+    if !given {
         files(Path::new("../../samples"), &mut paths);
     }
     let mut tally = Tally::default();
@@ -202,9 +219,9 @@ fn main() -> ExitCode {
         println!("{count:>6} / {n}  {label}");
     }
     let legacy = [
-        "legacy label: checksum at 0x14 = §4.2 over the header, seed 0",
-        "legacy label: data checksum at 0x18 = §4.2 over the stored bytes, seed 0",
-        "legacy label: page size at 0x0C = the decompressed size",
+        "former label: checksum at 0x14 = §4.2 over the header, seed 0",
+        "former label: data checksum at 0x18 = §4.2 over the stored bytes, seed 0",
+        "former label: page size at 0x0C = the decompressed size",
     ];
     for (label, count) in legacy.iter().zip(tally.legacy_labels) {
         println!("{count:>6} / {n}  {label}");

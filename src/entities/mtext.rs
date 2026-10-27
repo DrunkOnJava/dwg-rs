@@ -1,4 +1,4 @@
-//! MTEXT entity (§19.4.23) — multi-line text.
+//! MTEXT entity (§20.4.46, type 44) — multi-line text.
 //!
 //! Unlike TEXT, MTEXT stores a formatted paragraph that may span
 //! multiple lines, with embedded style codes (\\L for underline,
@@ -7,7 +7,7 @@
 //! direction vector, the rectangular width, the nominal text
 //! height, and the string itself.
 //!
-//! # Stream shape (R2000+)
+//! # Stream shape (§20.4.46)
 //!
 //! ```text
 //! BD3  insertion_point
@@ -22,23 +22,33 @@
 //! BD   extents_height        -- actual rendered height
 //! BD   extents_width         -- actual rendered width (after layout)
 //! TV   text_string           -- with embedded MTEXT control codes
-//! BS   linespace_style        -- R2000+
-//! BD   linespace_factor       -- R2000+
-//! B    unknown_b              -- R2000+ (spec calls it "unknown bit")
+//! (R2000+)
+//!   BS   linespace_style
+//!   BD   linespace_factor
+//!   B    unknown_b            -- the spec's "unknown bit"
 //! (R2004+)
 //!   BL   background_flags
-//!   (if background_flags & 0x01)
+//!   (if background_flags & 0x01, or 0x10 on R2018)
 //!     BD   background_scale_factor
 //!     CMC  background_color
 //!     BL   background_transparency
+//! (R2018+) the annotative / column block
 //! ```
 //!
-//! [`decode`] reads through `text_string` + `linespace_style/factor +
-//! unknown_b`, which covers the fields viewers actually render, and is
-//! the pre-R2007 path. R2007+ files go through
-//! [`decode_modern_split_stream`], which additionally consumes the
-//! background block because the split-stream layout is validated
-//! against a bit position and so cannot stop early.
+//! One field reader serves every release: [`decode`] reads the `TV`
+//! inline (R13 to R2004) and [`decode_modern_split_stream`] takes it
+//! from the R2007+ string stream.
+//!
+//! # Measured (2026-10-26, #226): the version branches as printed
+//!
+//! The inline reader used to read the R2000+ line spacing on R14 too
+//! and stop before the R2004+ background block, so all 36 MTEXT records
+//! of ACadSharp's R14 save and all 36 of its R2004 save errored (R2000,
+//! which has exactly the line spacing and nothing after it, closed).
+//! With §20.4.46's branches read as printed every MTEXT of the public
+//! corpus closes, and the values equal AutoCAD's DXF export of the same
+//! drawing on R2000 to R2018 (ARCHITECTURE.md §7t,
+//! `examples/probe_mtext.rs`).
 //!
 //! # Measured — `background_scale_factor` is a `BD`
 //!
@@ -72,8 +82,18 @@ pub struct MText {
     pub extents_height: f64,
     pub extents_width: f64,
     pub text: String,
+    /// `BS 73` line spacing style; R2000+ (0 on R13/R14, which do not
+    /// store it).
     pub linespace_style: i16,
+    /// `BD 44` line spacing factor; R2000+ (0.0 on R13/R14, which do
+    /// not store it).
     pub linespace_factor: f64,
+    /// `BL 90` background flags; R2004+ (0 before). `0x01` background
+    /// fill, `0x10` text frame (R2018).
+    pub background_flags: u32,
+    /// The R2004+ background block, written when `background_flags`
+    /// has `0x01` (or `0x10` on R2018).
+    pub background: Option<MTextBackground>,
     /// R2018+ `B` — the record stores "is NOT annotative"; this is its
     /// negation. `true` on pre-R2018 records, which do not carry it.
     pub is_annotative: bool,
@@ -88,46 +108,23 @@ pub struct MText {
     pub column_heights: Vec<f64>,
 }
 
-/// Decodes the `MText` payload that follows the common entity header.
+/// The R2004+ background block of an MTEXT record (§20.4.46).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MTextBackground {
+    /// `BD 45` background scale factor.
+    pub scale: f64,
+    /// `CMC 63` background colour. A colour byte announcing a colour or
+    /// book name is refused rather than read, since no corpus record
+    /// has one.
+    pub color: crate::entities::mleader::Cmc,
+    /// `BL 441` background transparency.
+    pub transparency: u32,
+}
+
+/// Decodes the §20.4.46 MTEXT payload that follows the common entity
+/// data, with the `TV` inline (R13 to R2004).
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
-    let insertion_point = read_bd3(c)?;
-    let extrusion = read_bd3(c)?;
-    let x_axis_direction = read_bd3(c)?;
-    let rect_width = c.read_bd()?;
-    let rect_height = if version.is_r2007_plus() {
-        Some(c.read_bd()?)
-    } else {
-        None
-    };
-    let nominal_text_height = c.read_bd()?;
-    let attachment_point = c.read_bs()?;
-    let drawing_direction = c.read_bs()?;
-    let extents_height = c.read_bd()?;
-    let extents_width = c.read_bd()?;
-    let text = read_tv(c, version)?;
-    let linespace_style = c.read_bs()?;
-    let linespace_factor = c.read_bd()?;
-    let _unknown_b = c.read_b()?;
-    Ok(MText {
-        insertion_point,
-        extrusion,
-        x_axis_direction,
-        rect_width,
-        rect_height,
-        nominal_text_height,
-        attachment_point,
-        drawing_direction,
-        extents_height,
-        extents_width,
-        text,
-        linespace_style,
-        linespace_factor,
-        is_annotative: true,
-        column_type: 0,
-        column_width: 0.0,
-        column_gutter: 0.0,
-        column_heights: Vec::new(),
-    })
+    read_fields(c, version, true)
 }
 
 /// Decode an R2007+ MTEXT whose text lives in the object's string
@@ -215,6 +212,13 @@ pub fn read_modern_fields_probe(c: &mut BitCursor<'_>, version: Version) -> Resu
 }
 
 pub(crate) fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Result<MText> {
+    read_fields(c, version, false)
+}
+
+/// The §20.4.46 field list on every release. `inline_text` reads the
+/// `TV` at its place in the field order (R13 to R2004); otherwise it is
+/// left empty for the caller to take from the R2007+ string stream.
+fn read_fields(c: &mut BitCursor<'_>, version: Version, inline_text: bool) -> Result<MText> {
     let insertion_point = read_bd3(c)?;
     let extrusion = read_bd3(c)?;
     let x_axis_direction = read_bd3(c)?;
@@ -231,11 +235,26 @@ pub(crate) fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Res
     let extents_width = c.read_bd()?;
     // `TV text` sits here in field order; on R2007+ its characters are
     // in the string stream and it consumes no data-stream bits.
-    let linespace_style = c.read_bs()?;
-    let linespace_factor = c.read_bd()?;
-    let _unknown_b = c.read_b()?;
+    let text = if inline_text {
+        read_tv(c, version)?
+    } else {
+        String::new()
+    };
+    // §20.4.46: line spacing and the unknown bit are R2000+. R13/R14
+    // store neither, and the two fields are left 0 rather than given a
+    // default the record does not hold.
+    let (linespace_style, linespace_factor) = if version == Version::R14 {
+        (0, 0.0)
+    } else {
+        let style = c.read_bs()?;
+        let factor = c.read_bd()?;
+        let _unknown_b = c.read_b()?;
+        (style, factor)
+    };
+    let mut background_flags = 0u32;
+    let mut background = None;
     if version.is_r2004_plus() {
-        let background_flags = c.read_bl()?;
+        background_flags = c.read_bl_u()?;
         // §20.4.46: the background block follows when bit 0x01 is set,
         // "or in case of R2018 bit 0x10" — the R2018 text-frame bit.
         let frame_bit = if matches!(version, Version::R2018) {
@@ -244,11 +263,30 @@ pub(crate) fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Res
             0
         };
         if background_flags & (0x01 | frame_bit) != 0 {
-            let _background_scale = c.read_bd()?;
-            let _background_color_index = c.read_bs_u()?;
-            let _background_color_rgb = c.read_bl_u()?;
-            let _background_color_byte = c.read_rc()?;
-            let _background_transparency = c.read_bl()?;
+            let scale = c.read_bd()?;
+            let index = c.read_bs()?;
+            let rgb = c.read_bl_u()?;
+            let color_byte = c.read_rc()?;
+            if color_byte & 0x03 != 0 {
+                return Err(Error::Unsupported {
+                    feature: format!(
+                        "MTEXT background colour byte 0x{color_byte:02X} announces a colour or \
+                         book name, which no corpus record has"
+                    ),
+                });
+            }
+            let transparency = c.read_bl_u()?;
+            background = Some(MTextBackground {
+                scale,
+                color: crate::entities::mleader::Cmc {
+                    index,
+                    rgb,
+                    color_byte,
+                    name: String::new(),
+                    book_name: String::new(),
+                },
+                transparency,
+            });
         }
     }
     let mut is_annotative = true;
@@ -304,7 +342,9 @@ pub(crate) fn read_modern_fields(c: &mut BitCursor<'_>, version: Version) -> Res
         drawing_direction,
         extents_height,
         extents_width,
-        text: String::new(),
+        text,
+        background_flags,
+        background,
         linespace_style,
         linespace_factor,
         is_annotative,
@@ -340,7 +380,7 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }
 

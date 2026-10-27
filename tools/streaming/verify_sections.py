@@ -166,18 +166,33 @@ def system_page(tag, raw):
     return page + bytes(-len(page) % 0x20)
 
 
-def build(sections):
+def build(sections, order=None, drop=(), dup=(), orphans=()):
     """sections: dicts with name, id, compressed, mx, size, encrypted and pages
-    of (start, raw bytes). A stored page's raw bytes are its whole stored data."""
+    of (start, raw bytes). A stored page's raw bytes are its whole stored data.
+    `order` permutes the data pages' places in the file and the page map;
+    `drop` leaves listed pages out of the file and the page map; `dup` lists a
+    page twice; `orphans` are (section dict, start, raw) pages in the page map
+    that no section lists."""
     pages, number = [], 0
+
+    def page(n, s, start, raw):
+        data = lz_literal(raw) + b'\0\0' if s['compressed'] == 2 else raw
+        return (n, s, start, data, (0x20 + len(data) + 0x1f) & ~0x1f)
     for s in sections:
         s['refs'] = []
         for start, raw in s['pages']:
             number += 1
-            data = lz_literal(raw) + b'\0\0' if s['compressed'] == 2 else raw
-            page_size = (0x20 + len(data) + 0x1f) & ~0x1f
-            pages.append((number, s, start, data, page_size))
-            s['refs'].append((number, len(data), start))
+            item = page(number, s, start, raw)
+            pages.append(item)
+            s['refs'].append((number, len(item[3]), start))
+    for n in dup:
+        pages.append(next(p for p in pages if p[0] == n))
+    for s, start, raw in orphans:
+        number += 1
+        pages.append(page(number, s, start, raw))
+    pages = [p for p in pages if p[0] not in drop]
+    if order is not None:
+        pages = [pages[i] for i in order]
     pm_number, sm_number = number + 1, number + 2
     entries = [(n, size) for n, _, _, _, size in pages]
     raw_pm = b''.join(struct.pack('<iI', n, size) for n, size in entries + [(pm_number, 0), (sm_number, 0)])
@@ -217,11 +232,32 @@ def build(sections):
     return bytes(head) + bytes(body)
 
 
-def constructed(encrypted=0):
+def repack(data, flagged=None):
+    """The sections of a real drawing, byte for byte, in a file built here
+    (literal-only compression, whole pages), with the encryption flag of the
+    section named `flagged` set to 1. The real drawing's section map has no
+    literal byte for that flag, so it cannot be forged in place."""
+    records = [json.loads(l) for l in vm.oracle(data)]
+    sections = [r for r in records if 'section' in r and 'name' in r]
+    _, blobs, _ = assemble(data)
+    out = []
+    for r, blob in zip(sections, blobs):
+        mx = r['max_page_size']
+        pages = []
+        for start in range(0, len(blob), mx):
+            chunk = blob[start:start + mx]
+            chunk = chunk.ljust(mx, b'\0') if r['compressed'] == 1 else chunk.ljust(4, b'\0')
+            pages.append((start, chunk))
+        out.append({'name': r['name'], 'id': r['section_id'], 'compressed': r['compressed'], 'mx': mx, 'size': r['size'],
+                    'encrypted': 1 if r['name'] == flagged else r['encrypted'], 'pages': pages})
+    return build(out)
+
+
+def constructed_sections(encrypted=0):
     mx = 0x400
-    return build([
+    return [
         # holes before both pages: [0, mx) and [2 mx, 3 mx)
-        {'name': 'AcDb:Sparse', 'id': 1, 'compressed': 2, 'mx': mx, 'size': 3 * mx + 600, 'encrypted': 0,
+        {'name': 'AcDb:Sp"ar\\se', 'id': 1, 'compressed': 2, 'mx': mx, 'size': 3 * mx + 600, 'encrypted': 0,
          'pages': [(mx, lcg(1, mx)), (3 * mx, lcg(2, 600))]},
         # a zero page past the end, and the hole before it
         {'name': 'AcDb:Stored', 'id': 2, 'compressed': 1, 'mx': 256, 'size': 1000, 'encrypted': 0,
@@ -236,7 +272,11 @@ def constructed(encrypted=0):
          'pages': [(0, lcg(9, 8))]},
         {'name': 'AcDb:Exact', 'id': 7, 'compressed': 2, 'mx': mx, 'size': mx + 500, 'encrypted': encrypted,
          'pages': [(0, lcg(10, mx)), (mx, lcg(11, 500))]},
-    ])
+    ]
+
+
+def constructed(encrypted=0, **options):
+    return build(constructed_sections(encrypted), **options)
 
 
 def main():
@@ -375,6 +415,27 @@ def main():
                 j += 96 + 16 * count
         assert moved, 'no section page could be moved by a literal byte'
         receipts.append({'moved_pages_match_oracles': moved})
+
+        # An encrypted section is refused by both readers. The sections of
+        # a real drawing are repackaged with the flag of AcDb:AcDbObjects set
+        # (a control without it reads equal to the drawing in both readers).
+        repacked = []
+        for name, data in corpus:
+            if name not in CORRUPTED or name == 'constructed.dwg':
+                continue
+            expected, _, _ = expectations[name]
+            done = [l for l in expected if l.startswith('{"section_done"')]
+            control = repack(data)
+            for args in ((), ('--legacy',)):
+                result = run(control, *args)
+                assert result[0] == 0 and [l for l in result[1].splitlines() if l.startswith('{"section_done"')] == done, \
+                    (name, args, 'repackaged drawing differs from the drawing')
+            forged = repack(data, 'AcDb:AcDbObjects')
+            for reader, args in (('streaming walker', ()), ('legacy reader', ('--legacy',))):
+                result = run(forged, *args)
+                assert result[0] != 0 and 'SectionEncrypted' in result[2] and 'panicked' not in result[2], (name, reader, result[2])
+            repacked.append(name)
+        receipts.append({'encrypted_section_refused_by': ['streaming walker', 'legacy reader'], 'repackaged_drawings': repacked})
 
         # Fresh-process resume. Stops are counted in steps of the data-page
         # walk (the map walk before it is not interrupted): every step of
@@ -575,6 +636,9 @@ def main():
             printed = result[1].splitlines()
             assert printed == expected[:len(printed)], (label, 'output is not a valid prefix')
             labels.append(label)
+        legacy = run(constructed(encrypted=1), '--legacy', name='constructed.dwg')
+        assert legacy[0] != 0 and 'SectionEncrypted' in legacy[2] and 'panicked' not in legacy[2], legacy[2]
+        labels.append('encrypted section, legacy reader')
         receipts.append({'file': 'constructed.dwg', 'corruptions_rejected': labels})
 
     report = {'scope': 'ODA 5.4.1 sections 4.5 and 4.6: R2004-family data pages (masked headers, both checksums, '
