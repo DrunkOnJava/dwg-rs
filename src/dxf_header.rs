@@ -31,10 +31,9 @@
 //!   ([`crate::dxf_tables`] writes the symbol tables): `$CLAYER` for a written
 //!   layer, `$TEXTSTYLE` and `$DIMTXSTY` for a written style, `$CELTYPE` and the
 //!   `$DIMLTYPE` family for a written linetype, `$DIMSTYLE` for a written dimension
-//!   style. An empty name (a null handle) is always kept. An arrowhead block
-//!   (`$DIMBLK` and its family) is kept only for the two blocks BLOCKS writes
-//!   ([`crate::dxf_tables::BLOCKS_EXPORTED`]), and every other name (`$CMLSTYLE`,
-//!   the UCS names) is omitted until those records are written.
+//!   style, the arrowhead blocks (`$DIMBLK` and its family) for a block BLOCKS
+//!   writes. An empty name (a null handle) is always kept, and every other name
+//!   (`$CMLSTYLE`, the UCS names) is omitted until those records are written.
 //! - An angle is degrees in DXF group 50 (`$ANGBASE`), radians in the database.
 //!   Before R2007 text that is not ASCII is written as `\U+XXXX` escapes, since
 //!   those releases read bytes in `$DWGCODEPAGE`.
@@ -478,11 +477,14 @@ impl Names {
             "$DIMSTYLE" => &self.defined.dimstyles,
             "$TEXTSTYLE" | "$DIMTXSTY" => &self.defined.styles,
             "$CELTYPE" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2" => &self.defined.ltypes,
-            // Only the blocks BLOCKS writes are in `defined.blocks`
-            // (`dxf_tables::BLOCKS_EXPORTED`): an arrowhead block it does not write
-            // is left unnamed until it does.
+            // Only the blocks BLOCKS writes are in `defined.blocks`; AutoCAD's own
+            // arrowheads are blocks named with a leading underscore that `$DIMBLK`
+            // names without it.
             "$DIMBLK" | "$DIMBLK1" | "$DIMBLK2" | "$DIMLDRBLK" => {
-                let defined = self.defined.blocks.iter().any(|n| n == &name);
+                let defined =
+                    self.defined.blocks.iter().any(|n| {
+                        n == &name || n.strip_prefix('_').is_some_and(|rest| rest == name)
+                    });
                 return (name.is_empty() || defined).then_some(name);
             }
             _ => return name.is_empty().then_some(name),
