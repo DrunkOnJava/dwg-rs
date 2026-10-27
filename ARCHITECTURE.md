@@ -2018,8 +2018,8 @@ the export omits: none. Every *omitted* variable has a stated reason: the local
 `$TDCREATE` and `$TDUPDATE` (the DWG holds universal time), `$ACADMAINTVER` (the
 file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or
 329), a true-colour `$CECOLOR`, `$CMATERIAL`, `$INTERFEREOBJVS` and `$INTERFEREVPVS`
-(handles to MATERIAL and VISUALSTYLE objects, which the converter exports as
-untyped placeholders, so the reference would point at the wrong thing), and every name for a symbol record the output does not
+(handles to MATERIAL and VISUALSTYLE objects, which OBJECTS does not write yet,
+so the reference would point at nothing), and every name for a symbol record the output does not
 define: the converter writes layer 0 and no other symbol table, so `$TEXTSTYLE`,
 `$CELTYPE`, `$DIMSTYLE`, `$CMLSTYLE`, a non-zero `$CLAYER` and the like are
 omitted until those tables are written (a DXF whose header names a style it never
@@ -2930,9 +2930,9 @@ the probe checks that header against the export's on every drawing.
 
 A handle group is written only when the output defines the object it names, under
 its own type: the OBJECTS section writes dictionaries and plot style placeholders,
-so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It writes a
-layout, a material or a visual style as an untyped record (they are class-numbered
-objects), so a block's 340 (when it names a layout), a layer's 347 and 348 and a
+so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It does not write
+a layout, a material or a visual style yet (§7aw lists the kinds it does),
+so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
 and visual style names. An arrowhead block is named once BLOCKS writes it, which it
 now does for every block record (`$DIMBLK` and its family, a DIMSTYLE's 341 to 344).
@@ -3101,7 +3101,7 @@ ACAD_TABLE, 3DSOLID, REGION, SHAPE, WIPEOUT, LEADER, IMAGE, PDFUNDERLAY), which 
 probe counts by kind; and six are R2018 records with an embedded object (five MTEXT, one
 multi-line ATTRIB) that nothing writes yet. What an entity omits has a reason the probe checks:
 extended data (1000 to 1071); a colour book colour's 420 and 430, which are in its
-`AcDbColor` object; a material's 347, written as an untyped record; reactors that are
+`AcDbColor` object; a material's 347, which OBJECTS does not write yet; reactors that are
 entities not all written; an extension dictionary the export made itself (its handle is
 at or above the DWG's `$HANDSEED`).
 
@@ -3799,6 +3799,167 @@ string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. 
 "description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
 after the insert-count run is wrong for these blocks. No layer of this change touches it.
 
+## 7av. BLOCK_HEADER: the insert-count run has no length cap (2026-10-27, #386)
+
+§20.4.52 puts, after the base point and the xref path, "Insert Count: a sequence of zero
+or more non-zero RC's, followed by a terminating 0 RC. The total number of these indicates
+how many insert handles will be present", then the description, the preview size and the
+preview bytes. The decoder read at most 257 of those RCs (`MAX_INSERT_COUNT`, "no realistic
+block carries more") and went on to the description from wherever it stood, so a block with
+more inserts than that misread everything after the run and the record errored, each in a
+different way: a reserved `BL` bit pattern, the bit cursor running out, a preview size of
+269,488,144 bytes (`0x10101010`, a `BL` read out of the run's bytes), or fields that closed 6,592 and
+7,216 bits past the boundary. The run now ends at its zero, and runs out of record only by
+the cursor's own bounds, in both decode paths (R2004 and earlier inline, R2007 and later
+from the data stream). `examples/probe_block_header_inserts.rs` is the evidence.
+
+It decodes every BLOCK_HEADER of the corpus and compares the run with the record's handle
+stream, which lists the block control, the reactors, the extension dictionary, a NULL, the
+owned entities (R2004 and later), the ENDBLK, one handle per insert and the layout (on R2000
+the first and last entity of a block that is not an xref). The record agrees when the handles
+after the extension dictionary number exactly that sum: a second count of the same run that
+reads none of its bytes. All 2,953 records of the 49 pinned drawings from R2000 to R2018 decode
+and agree, and the Corpus job runs it:
+
+| Release | Records | Decoded | Handle stream agrees | Run over 256 | Longest run |
+|---|---:|---:|---:|---:|---:|
+| R2000 | 51 | 51 | 51 | 0 | 10 |
+| R2004 | 2715 | 2715 | 2715 | 9 | 29895 |
+| R2007 | 48 | 48 | 48 | 0 | 10 |
+| R2010 | 48 | 48 | 48 | 0 | 10 |
+| R2013 | 48 | 48 | 48 | 0 | 10 |
+| R2018 | 43 | 43 | 43 | 0 | 10 |
+
+The nine records that errored before are the whole of the runs over 256, in four drawings of
+Seeed-Studio/OSHW-Jetson-Series (Apache-2.0) saved as R2004 by AutoCAD I.18.0.0; no other
+block of the corpus has a run that long (every byte of the run of `0x101` is `0x01`):
+
+| Drawing | Handle | Block | Insert handles | Owned objects | Before |
+|---|---|---|---:|---:|---|
+| A205_TOP | 0x101 | `SMOOTH_0$1` | 383 | 1 | reserved `BL` bit pattern |
+| A205_TOP | 0x151 | `SYM_TOP_3` | 426 | 8 | reserved `BL` bit pattern |
+| A205_TOP | 0x24CE | `STK_TOP_15` | 260 | 9 | bit cursor exhausted |
+| A205_TOP | 0x335E | `DRIL_HOLE_0` | 462 | 2 | fields end 6,592 bits past the boundary |
+| A205_TOP | 0x3501 | `SMOOTH_0$0254` | 14079 | 1 | preview of 269,488,144 bytes |
+| A206_TOP | 0x20CB | `STK_TOP_72` | 260 | 9 | bit cursor exhausted |
+| A206_TOP | 0x2875 | `SMOOTH_0$0254` | 29895 | 1 | preview of 269,488,144 bytes |
+| A206_TOP | 0x2AC6 | `DRIL_HOLE_0` | 384 | 2 | fields end 7,216 bits past the boundary |
+| A206_BOTTOM | 0x7A9 | `SMOOTH_0$0254` | 8493 | 1 | preview of 269,488,144 bytes |
+
+All nine now close on their data-stream boundary and agree with their handle stream, so the
+corpus baseline (`tools/corpus/baseline.tsv`) moves for those three drawings and no other:
+A205_TOP 35,002 decoded and 5 errored to 35,007 and 0, A206_TOP 50,626 and 3 to 50,629 and 0,
+A206_BOTTOM 13,367 and 1 to 13,368 and 0, and the ratchet check passes on the regenerated
+rows. No drawing of the corpus has an AutoCAD DXF export of these four, so the values of
+these records are not compared with an export: the boundary and the handle stream are the
+evidence (the name, flags and base point precede the run, so the fix does not touch them).
+Not corpus-measured: a run over 256 in an R2007 or later drawing (the longest
+there is 10; the same change applies to that path), and an R13 or R14 block (the field does
+not exist there).
+
+## 7aw. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
+
+`src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
+table records: DICTIONARY and ACDBDICTIONARYWDFLT (each entry as its key and handle,
+`350` for a soft-owner dictionary and `360` for a hard-owner one, with the default
+entry's `340`), DICTIONARYVAR, XRECORD, SCALE and ACDBPLACEHOLDER. The handle stream
+of an object is the one `tables::handles::refs` reads for a table record: owner,
+reactors, extension dictionary, then the object's own handles (a dictionary's item
+handles in key order). Records of a class named only in `AcDb:Classes`
+(DICTIONARYVAR, SCALE, ACDBDICTIONARYWDFLT) decode through the class map. An
+XRECORD's data is typed by the group code's range, as in DXF (`XRecord::items`): `RS`
+code, then a string, a real, three reals, a short or long integer, a byte, a handle of
+eight bytes or a chunk of binary data. Up to R2004 the data is read by
+`extended_data::xrecord_items` (§7as), which decodes each string in the code page it
+names and reads only the ranges the corpus measures, so an XRECORD with another code, or
+a string outside ASCII in a page the crate does not name, is counted `(not written)`; from R2007 a string is an `RS` length and UTF-16 units and
+`items` reads it here. An object is planned only when its record can be written, so a
+handle given to the tables, the entities or the dictionaries is always emitted. A dictionary entry whose object is not written
+(a MATERIAL, a VISUALSTYLE, a LAYOUT: typed writers come after this one) is left out,
+and the probe states why.
+
+### The order of the section
+
+AutoCAD's export walks the objects level by level from several roots: the named
+object dictionary first, then every object not owned by an object (an extension
+dictionary of a table, a table record, a block marker or an entity), in the order of
+its owner in TABLES, BLOCKS and ENTITIES, each root's dictionary entries in key order
+followed by its extension dictionary. A level is finished before the next starts, so
+a root's children come after all the roots. An object the walk does not reach follows
+in file order. The owner places are the table records in table order, the entities by
+their block and place in it (an attribute or a vertex by its parent's place), and a
+class-numbered entity (an ACAD_TABLE, an IMAGE) by its class's item id 0x1F2 against
+0x1F3 for an object. The probe checks the order of every paired record against the
+export's, and it holds on all 42 drawings. From the root dictionary alone the walk
+reproduces the whole order of the export for 32 of the 35 single-entity drawings
+(the other three have an extension dictionary of a table or an entity); the roots
+after it account for those and for the larger samples. No corpus dictionary has both
+entries and an extension dictionary, so their relative order is not measured.
+
+### Against AutoCAD's export
+
+`examples/probe_dxf_objects.rs` pairs every record written with the export's record
+and compares owner, groups (reals to AutoCAD's 16 decimals), dictionary entries (key,
+code and handle), the `{ACAD_REACTORS` and `{ACAD_XDICTIONARY` brackets and the order.
+The Corpus job runs it.
+
+| Kind | Written | Paired | Groups | Agree | Relation | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| ACDBDICTIONARYWDFLT | 42 | 42 | 294 | 294 | 0 | 0 | 0 | 0 |
+| ACDBPLACEHOLDER | 42 | 42 | 84 | 84 | 0 | 0 | 0 | 0 |
+| DICTIONARY | 930 | 905 | 7514 | 5809 | 0 | 0 | 0 | 1733 |
+| DICTIONARYVAR | 365 | 365 | 1825 | 1825 | 0 | 0 | 0 | 0 |
+| SCALE | 826 | 826 | 6608 | 6608 | 0 | 0 | 0 | 0 |
+| XRECORD | 296 | 223 | 2815 | 2741 | 84 | 0 | 0 | 0 |
+
+The export registers again objects it creates on load under handles of its own (at or
+above the DWG's `$HANDSEED`), extension dictionaries and what they hold: 72 DICTIONARYs,
+107 DICTIONARYVARs and 97 XRECORDs among the records written, paired by owner or by the key
+under which a paired dictionary holds them. 84 group values are relations the probe names:
+the editing time and save date of `DWGPROPS` (40, 42), the saved file's identity of
+`ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export registers
+again, the styles AutoCAD lists again in an `ACDB_RECOMPOSE_DATA` XRECORD (330; the probe
+compares every 330 after the record's owner, so an XRECORD's handles and a LAYOUT's block
+record are checked), and the tail of a round-trip XRECORD that AutoCAD consumes when it
+loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28 groups).
+2,223 dictionary entries are written and 1,705 left out: 1,652 name objects the output does
+not define, 53 objects the export made itself and 48 objects it leaves out. 10 of the 42
+drawings have no export of their release and are skipped.
+
+### Ownership is closed over what the output holds
+
+An object is written only when its owner is null, a table record, an entity or block
+marker the output holds, or another object that is written: `Plan::close` drops the rest
+(and, in turn, what they own) before any handle is told to a table record or an entity, and
+the entities forget the dropped objects as reactors and extension dictionaries. The objects
+dropped hang off entities the entity writer does not write yet (HATCH, DIMENSION,
+VIEWPORT, MLINE and the others it counts as skipped) and off objects not written yet, and
+come back by themselves as those kinds are written. Every record of the 42 drawings'
+OBJECTS sections is checked for the handles it names, and each structural class must
+resolve to a record of the same output:
+
+| Reference | Written before | To no record before | Written now | To no record now |
+|---|---:|---:|---:|---:|
+| owner (330) | 5944 | 1287 | 2501 | 0 |
+| reactor (330) | 4452 | 0 | 2296 | 0 |
+| extension dictionary (360) | 6 | 0 | 6 | 0 |
+| dictionary entry (350, 360) | 4452 | 0 | 2296 | 0 |
+| dictionary default (340) | 42 | 0 | 42 | 0 |
+| XRECORD data handle (an application's, not held to it) | 454 | 120 | 374 | 76 |
+
+The records left out are counted in the probe by kind with the reason "its owner is not
+written" (1,111 XRECORDs and 260 DICTIONARYs among them); an export record of a supported
+kind that is missing without that reason, or whose owner the output does hold, is still a
+failure. A synthetic check writes an XRECORD whose group 102 strings and application
+group 100 hold a newline and a character outside ASCII: after `AcDbXrecord` a group 100 or
+102 is application data, now escaped for the release like every other string (`^J` for the
+newline, `\U+00E9` for the accented letter on R2004), where before the newline split the
+record and the DXF no longer read (`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
+the writer and not a drawing. A second synthetic check writes an XRECORD whose application
+data holds `102 {ACAD_REACTORS` and a 330 to a handle no record has: the probe reads
+brackets only up to `100 AcDbXrecord`, as `DxfRecord::top_level` does, so that 330 counts
+as an application's handle and not as a dangling reactor, and a control XRECORD with a
+real reactor to an absent handle still counts as dangling.
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
