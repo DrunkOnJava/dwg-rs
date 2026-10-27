@@ -54,6 +54,7 @@ import shutil
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -96,7 +97,8 @@ def verify(path, row):
 def routes(row):
     token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
     auth = {'Authorization': f'Bearer {token}'} if token else {}
-    raw = (f'https://raw.githubusercontent.com/{row["repo"]}/{row["commit"]}/{row["path"]}', auth, False)
+    quoted = urllib.parse.quote(row['path'])
+    raw = (f'https://raw.githubusercontent.com/{row["repo"]}/{row["commit"]}/{quoted}', auth, False)
     blob = (
         f'https://api.github.com/repos/{row["repo"]}/git/blobs/{row["blob"]}',
         {'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', **auth},
