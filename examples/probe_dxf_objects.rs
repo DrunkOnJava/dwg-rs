@@ -589,7 +589,23 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             }
         }
 
-        let (a, b) = (body(r), body(want));
+        let (a, mut b) = (body(r), body(want));
+        // A GROUP lists only the members the output holds.
+        if kind == "GROUP" {
+            b.retain(|(code, v)| {
+                let held = *code == 340 && v.as_handle().is_some_and(|x| !defined(x));
+                if held {
+                    t.omitted_groups += 1;
+                    *o.reasons
+                        .entry(
+                            "GROUP member 340 (an entity the output does not write: an MLINE, a VIEWPORT)"
+                                .to_string(),
+                        )
+                        .or_default() += 1;
+                }
+                !held
+            });
+        }
         let n = a.len().max(b.len());
         for i in 0..n {
             match (a.get(i), b.get(i)) {

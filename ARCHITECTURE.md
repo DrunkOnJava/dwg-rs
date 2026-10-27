@@ -3769,7 +3769,7 @@ letter on R2004), where before the newline split the record and the DXF no longe
 (`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
 the writer and not a drawing.
 
-## 7au. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+## 7av. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
 the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,

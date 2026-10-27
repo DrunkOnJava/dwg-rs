@@ -543,7 +543,7 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             g.push(HeaderGroup::Text(300, grp.name.clone()));
             g.push(HeaderGroup::Int(70, i64::from(grp.unnamed)));
             g.push(HeaderGroup::Int(71, i64::from(grp.selectable)));
-            for m in &item.refs.rest {
+            for m in item.refs.rest.iter().filter(|m| defined.contains(m)) {
                 g.push(HeaderGroup::Handle(340, *m));
             }
             "GROUP"
