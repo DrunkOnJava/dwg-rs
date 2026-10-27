@@ -208,7 +208,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     let view_mode_bits = modern::read_4bits(c)?;
     // §20.4.64 gates `Render Mode RC 281` on R2000+; R13/R14 go
     // straight from the view mode to the lower-left corner.
-    let render_mode = if matches!(version, Version::R14) {
+    let render_mode = if version.is_r13_r14() {
         0
     } else {
         c.read_rc()?
@@ -245,7 +245,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<VportEntry> {
     // §20.4.64 gates the whole per-viewport UCS block on R2000+ as
     // well. Reading it on R14 walked the `*Active` record off the end
     // of its payload with one bit to spare.
-    let (ucs_per_vport, ucs) = if matches!(version, Version::R14) {
+    let (ucs_per_vport, ucs) = if version.is_r13_r14() {
         (false, None)
     } else {
         let _unknown = c.read_b()?;
@@ -382,7 +382,7 @@ pub(crate) fn decode_modern_split_stream(
     let view_mode_bits = modern::read_4bits(c)?;
     // §20.4.64 gates `Render Mode RC 281` on R2000+; R13/R14 go
     // straight from the view mode to the lower-left corner.
-    let render_mode = if matches!(version, Version::R14) {
+    let render_mode = if version.is_r13_r14() {
         0
     } else {
         c.read_rc()?

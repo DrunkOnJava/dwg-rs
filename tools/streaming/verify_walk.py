@@ -9,6 +9,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 import urllib.request
 import zlib
 
@@ -226,10 +227,10 @@ def main():
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
         corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 5)]
-        for manifest_name in ('walk-corpus.json', 'walk-acadsharp-corpus.json'):
-            manifest = json.loads(Path('tools/streaming', manifest_name).read_text())
+        for path in sorted(Path('tools/streaming').glob('walk-*corpus.json')):
+            manifest = json.loads(path.read_text(encoding='utf-8'))
             for item in manifest['files']:
-                url = f"{manifest['source'].replace('github.com', 'raw.githubusercontent.com')}/{manifest['commit']}/{item['name']}"
+                url = f"{manifest['source'].replace('github.com', 'raw.githubusercontent.com')}/{manifest['commit']}/{urllib.parse.quote(item['name'])}"
                 with urllib.request.urlopen(url, timeout=30) as src:
                     data = src.read(item['bytes'] + 1)
                 assert len(data) == item['bytes'] and hashlib.sha256(data).hexdigest() == item['sha256'], item['name']

@@ -14,10 +14,12 @@
 //!   `DIMPOST` and `DIMAPOST` sit under the `R2000+ Only` that opens
 //!   before `UCSORTHOREF`, and the `R13-R14` forms of the same names
 //!   come later as `T`.
-//! - **Releases.** [`R13`] to [`R2018`] are an ordinal, not a
-//!   [`crate::Version`]: the crate has no `AC1012` variant and no R13
-//!   drawing exists in the public corpus, so the R13 rows (which §9 always
-//!   groups with R14) are carried but never measured.
+//! - **Releases.** [`R13`] to [`R2018`] are an ordinal, one per
+//!   [`crate::Version`]. The R13 rows (which §9 always groups with R14) close
+//!   on `Cabin.dwg`, 195 slots to the stated end. The 21 Sovol R13 drawings
+//!   also write §9's four "R14+" shorts (each -1), which §9 says "do not seem
+//!   to be required", and size the section one byte past the byte holding the
+//!   last slot, so they are read with the R14 rows (ARCHITECTURE.md §7au).
 //!   `Pre-2004 Only` is R13 to R2000, `R13-R15` is R13 to R2000, and
 //!   `R13-R18` (`MENUNAME`) is R13 to R2004: §9's R15 and R18 are the
 //!   file-format generations AC1015 and AC1018.
@@ -36,7 +38,7 @@
 /// A release as an ordinal, oldest first.
 pub type Rel = u8;
 
-/// AC1012. Carried by the table, never decoded or measured here.
+/// AC1012.
 pub const R13: Rel = 0;
 /// AC1014.
 pub const R14: Rel = 1;

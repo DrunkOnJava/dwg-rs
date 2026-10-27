@@ -93,7 +93,7 @@ fn decode_entry(c: &mut BitCursor<'_>, version: Version) -> Result<ClassMapExten
     let app_name = read_tv(c, version)?;
     let cpp_class_name = read_tv(c, version)?;
     let dxf_record_name = read_tv(c, version)?;
-    let was_zombie = if version == Version::R14 {
+    let was_zombie = if version.is_r13_r14() {
         false
     } else {
         c.read_b()?

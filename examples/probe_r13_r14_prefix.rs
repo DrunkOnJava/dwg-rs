@@ -32,7 +32,7 @@
 //! ```
 
 use dwg::entities::DecodedEntity;
-use dwg::{DwgFile, ObjectType, Version};
+use dwg::{DwgFile, ObjectType};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -47,7 +47,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    if !matches!(file.version(), Version::R14) {
+    if !file.version().is_r13_r14() {
         eprintln!(
             "{path} is {} — this probe is about the R13/R14 prefix",
             file.version()

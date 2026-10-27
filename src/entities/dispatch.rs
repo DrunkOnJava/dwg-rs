@@ -1351,13 +1351,13 @@ fn decode_fixed_entity_body(
     let _ = strings;
     Ok(match type_code {
         OBJECT_TYPE_LINE => DecodedEntity::Line(line::decode_versioned(c, version)?),
-        OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode(c)?),
-        OBJECT_TYPE_CIRCLE => DecodedEntity::Circle(circle::decode(c)?),
-        OBJECT_TYPE_ARC => DecodedEntity::Arc(arc::decode(c)?),
+        OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode_for(c, version)?),
+        OBJECT_TYPE_CIRCLE => DecodedEntity::Circle(circle::decode_for(c, version)?),
+        OBJECT_TYPE_ARC => DecodedEntity::Arc(arc::decode_for(c, version)?),
         OBJECT_TYPE_ELLIPSE => DecodedEntity::Ellipse(ellipse::decode(c)?),
         OBJECT_TYPE_RAY => DecodedEntity::Ray(ray::decode(c)?),
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
-        OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
+        OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode_for(c, version)?),
         OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
         OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
@@ -1391,7 +1391,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_VERTEX_PFACE_FACE => {
             DecodedEntity::VertexPfaceFace(vertex::decode_pface_face(c)?)
         }
-        OBJECT_TYPE_POLYLINE_2D => DecodedEntity::Polyline(polyline::decode(c)?),
+        OBJECT_TYPE_POLYLINE_2D => DecodedEntity::Polyline(polyline::decode_for(c, version)?),
         OBJECT_TYPE_POLYLINE_3D => DecodedEntity::Polyline3d(polyline::decode_3d(c, version)?),
         OBJECT_TYPE_MLINE => DecodedEntity::MLine(Box::new(mline::decode(c)?)),
         OBJECT_TYPE_LWPOLYLINE => DecodedEntity::LwPolyline(lwpolyline::decode(c, version)?),

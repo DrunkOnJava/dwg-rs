@@ -12,8 +12,9 @@
 //! ```
 
 use crate::bitcursor::BitCursor;
-use crate::entities::{Point3D, Vec3D, read_be, read_bt};
+use crate::entities::{Point3D, Vec3D, read_be_for, read_bt_for};
 use crate::error::Result;
+use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Circle {
@@ -24,13 +25,20 @@ pub struct Circle {
 }
 
 /// Decodes the `Circle` payload that follows the common entity header.
+///
+/// Reads the R2000+ form; see [`decode_for`] for R13-R14, whose `BT` and `BE` are a bare `BD` and `3BD` (§2.8, §2.10).
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Circle> {
+    decode_for(c, Version::R2000)
+}
+
+/// Decodes the `Circle` payload for `version`: the `BT` thickness and `BE` extrusion take their R13-R14 form (§2.8, §2.10) there.
+pub fn decode_for(c: &mut BitCursor<'_>, version: Version) -> Result<Circle> {
     let cx = c.read_bd()?;
     let cy = c.read_bd()?;
     let cz = c.read_bd()?;
     let radius = c.read_bd()?;
-    let thickness = read_bt(c)?;
-    let extrusion = read_be(c)?;
+    let thickness = read_bt_for(c, version)?;
+    let extrusion = read_be_for(c, version)?;
     Ok(Circle {
         center: Point3D {
             x: cx,
