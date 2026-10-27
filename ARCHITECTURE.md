@@ -3839,9 +3839,10 @@ release (R2000 to R2018):
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | VISUALSTYLE | 1008 | 1008 | 62208 | 61944 | 264 | 0 | 0 | 5468 |
 
-1,008 is 24 styles in each of 42 drawings, all paired. The styles are back in the
-`ACAD_VISUALSTYLE` dictionaries too: 4,544 dictionary entries were written before and 5,552
-are now, the difference being these 1,008. The tables and header probes still exit 0.
+1,008 is 24 styles in each of 42 drawings, all paired. The styles are named in the
+`ACAD_VISUALSTYLE` dictionaries too (their entries were left out while the object was not
+written). These counts were measured before the ownership closure of §7au joined the stack;
+the Corpus job's probe log is the measurement of record for the head.
 
 What is not written, each counted by the probe with its reason:
 
