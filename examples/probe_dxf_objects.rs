@@ -114,8 +114,22 @@ fn same(a: &DxfValue, b: &DxfValue, digits: u8) -> bool {
 /// owner (330) and, for a dictionary, the entries.
 fn body(r: &DxfRecord) -> Vec<(u16, DxfValue)> {
     let dictionary = r.kind == "DICTIONARY" || r.kind == "ACDBDICTIONARYWDFLT";
+    // The record's own handle and owner are the first 5 and the first 330; a 330
+    // after them is a group of the object (an XRECORD's data, a LAYOUT's block
+    // record) and is compared.
+    let (mut handle, mut owner) = (false, false);
     r.top_level()
-        .filter(|g| ![5, 330].contains(&g.code))
+        .filter(|g| match g.code {
+            5 if !handle => {
+                handle = true;
+                false
+            }
+            330 if !owner => {
+                owner = true;
+                false
+            }
+            _ => true,
+        })
         .filter(|g| !(dictionary && matches!(g.code, 3 | 350 | 360)))
         .map(|g| (g.code, g.value.clone()))
         .collect()
@@ -473,6 +487,9 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                             ("XRECORD", "ACAD_LAST_SAVED_VERSION_INFO", 300 | 302 | 303) => Some(
                                 "the saved file's identity, which AutoCAD writes for its export",
                             ),
+                            ("XRECORD", "ACDB_RECOMPOSE_DATA", 330) => {
+                                Some("the styles AutoCAD lists again when it loads the file")
+                            }
                             _ => None,
                         }
                     };
@@ -506,6 +523,15 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                     o.failures.push(format!(
                         "{name} {kind} {h:X}: group {ca} (position {i}) written but absent from the export"
                     ));
+                }
+                (None, Some((330, _)))
+                    if kind == "XRECORD"
+                        && key_of.get(&x).is_some_and(|k| k == "ACDB_RECOMPOSE_DATA") =>
+                {
+                    t.relation += 1;
+                    *o.reasons
+                        .entry("relation: XRECORD group 330 (the styles AutoCAD lists again in ACDB_RECOMPOSE_DATA when it loads the file)".to_string())
+                        .or_default() += 1;
                 }
                 (None, Some((cb, _))) => {
                     t.omitted_groups += 1;

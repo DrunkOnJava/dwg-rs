@@ -195,6 +195,14 @@ impl XRecord {
             if bytes.last() == Some(&0) {
                 bytes.pop();
             }
+            // The bytes are in the drawing's code page, which the crate does not
+            // decode (#370); application data is not returned altered, so a string
+            // that is not ASCII is refused.
+            if !bytes.is_ascii() {
+                return Err(Error::SectionMap(
+                    "XRECORD string is not ASCII and its code page is not decoded (#370)".into(),
+                ));
+            }
             Ok(String::from_utf8_lossy(&bytes).into_owned())
         }
     }

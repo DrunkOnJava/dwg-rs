@@ -184,14 +184,22 @@ pub fn plan(file: &DwgFile, header: &HeaderVars) -> Plan {
             });
         }
         let reads = reads.filter(|_| supported);
-        match reads {
-            Some(r) => out.items.push(Item {
-                handle: raw.handle.value,
-                version,
-                decoded,
-                class,
-                refs: r,
-            }),
+        // An object is planned only when its record can be written, so the handles
+        // the tables, the entities and the dictionaries are given are all emitted.
+        let item = reads.map(|r| Item {
+            handle: raw.handle.value,
+            version,
+            decoded,
+            class: class.clone(),
+            refs: r,
+        });
+        match item {
+            Some(item) if record(&item, &HashSet::new()).is_some() => out.items.push(item),
+            Some(_) => {
+                *out.skipped
+                    .entry(format!("{} (not written)", class_label(raw, &class)))
+                    .or_default() += 1
+            }
             None => *out.skipped.entry(class_label(raw, &class)).or_default() += 1,
         }
     }
