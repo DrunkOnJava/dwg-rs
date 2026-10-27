@@ -12,7 +12,8 @@
 # - regenerates tools/corpus/baseline.tsv when the measured counts differ from the committed ones,
 #   commits oracle.tsv as tools/oracle/baseline.tsv when it differs (a refresh that took main's TSV
 #   on a conflict would otherwise drop the PR's new rows), rewrites the oracle's coverage notes in
-#   docs/data/spec-coverage.tsv and regenerates docs/spec-coverage.md;
+#   docs/data/spec-coverage.tsv, regenerates docs/spec-coverage.md, and renders the coverage in
+#   README.md and STATUS.md again (readme_status.py, citing this run) when it disagrees;
 # - commits and pushes whatever changed. Nothing is built or run locally.
 #
 # Exit: 0 pushed (new head in $TRAIN_STATE/refresh-<pr>/pushed.sha), 3 checked and nothing to change,
@@ -38,7 +39,10 @@ git merge --abort > /dev/null 2>&1
 git reset -q --hard
 git checkout -q --detach "$head" || exit 2
 
-git show origin/main:tools/corpus/baseline.tsv > "$D/main-baseline.tsv"
+# Main as the PR was refreshed onto it: if main moved since, land.sh refreshes the PR, and a newer
+# main must not turn this older measurement into a regression.
+mainref=$(cat "$OUT/main.sha" 2>/dev/null); git cat-file -e "${mainref:-x}^{commit}" 2>/dev/null || mainref=origin/main
+git show "$mainref:tools/corpus/baseline.tsv" > "$D/main-baseline.tsv"
 python3 -I tools/corpus/measure.py check --results "$D/corpus-results.json" --baseline "$D/main-baseline.tsv" > "$D/vs-main.log" 2>&1
 if grep -qE '^- (REGRESSION|MEASUREMENT FAILED)' "$D/vs-main.log"; then
   echo "REFUSED: CI run $run is worse than main's corpus baseline: $(grep -E '^- (REGRESSION|MEASUREMENT FAILED)' "$D/vs-main.log" | head -3 | tr '\n' ' ')"
@@ -54,9 +58,9 @@ fi
 if [ -s "$D/oracle.tsv" ] && [ -f tools/oracle/baseline.tsv ]; then
   prhead=$(cat "$OUT/pr-head.sha" 2>/dev/null); mb=$(cat "$OUT/merge-base.sha" 2>/dev/null)
   if [ -n "$prhead" ] && [ -n "$mb" ]; then
-    python3 -I "$TRAIN_HERE/oracle_base.py" "$mb" "$prhead" > "$D/main-oracle.tsv" || { echo "oracle_base.py FAILED"; exit 1; }
+    python3 -I "$TRAIN_HERE/oracle_base.py" "$mb" "$prhead" "$mainref" > "$D/main-oracle.tsv" || { echo "oracle_base.py FAILED"; exit 1; }
   else
-    git show origin/main:tools/oracle/baseline.tsv > "$D/main-oracle.tsv"
+    git show "$mainref:tools/oracle/baseline.tsv" > "$D/main-oracle.tsv"
   fi
   drops=$(python3 -I - "$D/main-oracle.tsv" "$D/oracle.tsv" <<'EOF'
 import sys
@@ -87,8 +91,14 @@ EOF
   fi
 fi
 
-[ -z "$changed" ] && { echo "CI run $run: no count worse than main, baselines already current"; exit 3; }
-git add tools/corpus/baseline.tsv tools/oracle/baseline.tsv docs/data/spec-coverage.tsv docs/spec-coverage.md
+if [ -f tools/maintainer/readme_status.py ] && ! python3 -I tools/maintainer/readme_status.py --check > "$D/readme-check.log" 2>&1; then
+  day=$(gh run view "$run" -R "$TRAIN_REPO" --json createdAt --jq '.createdAt[0:10]' 2>/dev/null)
+  python3 -I tools/maintainer/readme_status.py --write --run "$run" --date "$day" > "$D/readme.log" 2>&1 || { echo "readme_status.py --write FAILED: $(cat "$D/readme.log")"; exit 1; }
+  changed="${changed:+$changed, }README and STATUS coverage"
+fi
+
+[ -z "$changed" ] && { echo "CI run $run: no count worse than main, baselines and README already current"; exit 3; }
+git add tools/corpus/baseline.tsv tools/oracle/baseline.tsv docs/data/spec-coverage.tsv docs/spec-coverage.md README.md STATUS.md
 git commit -q -m "chore(corpus): commit the baselines CI run $run measured" || exit 1
 gh pr merge "$P" -R "$TRAIN_REPO" --disable-auto > /dev/null 2>&1
 git push -q origin "HEAD:refs/heads/$B" || { echo "push FAILED"; exit 2; }

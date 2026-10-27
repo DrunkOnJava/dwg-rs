@@ -8,8 +8,9 @@
 # merge, an ARCHITECTURE.md `## 7x.` section the PR adds whose letter main has since taken is moved
 # to the next free letter, with every §7x in lines the PR added (arch.py). Conflicts are resolved
 # only in generated or tabular files: tools/corpus/baseline.tsv, tools/oracle/baseline.tsv and
-# docs/spec-coverage.md take main's (the PR's CI run then measures the merge, and land.sh commits
-# the corpus counts it reports); ARCHITECTURE.md and CLEANROOM.md take main's entries then the PR's
+# docs/spec-coverage.md take main's, and so does the coverage readme_status.py renders into
+# README.md and STATUS.md when every conflicting line is rendered text (readme3.py); the PR's CI run
+# then measures the merge, and land.sh commits the baselines it reports and renders them again; ARCHITECTURE.md and CLEANROOM.md take main's entries then the PR's
 # when both appended at the same place; docs/data/spec-coverage.tsv and
 # tests/fixtures/spec-examples/*.tsv merge cell by cell (tsv3.py), where a coverage note both sides
 # rewrote keeps the PR's free text and the dropped text is posted on the PR. Any other conflict
@@ -48,6 +49,9 @@ if ! git merge --no-edit -q origin/main > "$OUT/merge.log" 2>&1; then
   for f in $(git diff --name-only --diff-filter=U); do
     case $f in
       tools/corpus/baseline.tsv|tools/oracle/baseline.tsv|docs/spec-coverage.md) git show "origin/main:$f" > "$f" ;;
+      README.md|STATUS.md)
+        python3 -I "$TRAIN_HERE/readme3.py" "$f" > "$OUT/readme3.log" 2>&1 || { say "REFUSED: real conflict in $f: $(cat "$OUT/readme3.log")"; git merge --abort; exit 4; }
+        say "took main's rendered coverage in $f" ;;
       ARCHITECTURE.md|CLEANROOM.md)
         python3 -I "$TRAIN_HERE/arch.py" resolve "$f" > "$OUT/arch.log" 2>&1 || { say "REFUSED: real conflict in $f: $(cat "$OUT/arch.log")"; git merge --abort; exit 4; }
         say "appended $f entries after main's" ;;
