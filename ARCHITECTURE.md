@@ -3799,6 +3799,38 @@ string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. 
 "description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
 after the insert-count run is wrong for these blocks. No layer of this change touches it.
 
+## 7av. The double-byte round trip, on the pinned drawings (2026-10-27, #375)
+
+#382 wrote `CodePage::encode` and proved it on the two single-byte pages the corpus then
+held (128 of 128 bytes of 1251 and of 1252); #384 named Shift_JIS and GBK and pinned
+nine drawings that hold their text. This section is the proof that the inverse holds on
+real double-byte strings, not on a chart: `examples/probe_code_page.rs` decodes every
+string of every pre-R2007 drawing with `CodePage::decode` and encodes the text back, and
+fails when the bytes differ from the bytes read.
+
+| Header short | Strings above ASCII, decoded | Encode back to their bytes | Hold U+FFFD | Differ |
+|---:|---:|---:|---:|---:|
+| 38 (`ANSI_932`, Shift_JIS) | 21 | 21 | 0 | 0 |
+| 39 (`ANSI_936`, GBK) | 16 | 12 | 4 | 0 |
+
+The 21 Shift_JIS strings are the names of the two Japanese layouts (`83 8C 83 43 83 41 83 45
+83 67 31` and `...32`, five two-byte characters and a digit), each as a dictionary entry and as
+the name of a LAYOUT object, in the four AC1014 drawings, and five more dictionary entries
+of `3d.dwg`; the 12 GBK strings are the two layout names (`B2 BC BE D6 31` and `...32`, two
+two-byte characters and a digit) in the same two places: the four AC1018 drawings hold the
+first, the AC1015 one both. Every
+string that decodes without an invalid sequence encodes to the bytes it came from,
+including those whose trail bytes are ASCII letters (`43`, `41`, `45`). The 4 that hold
+U+FFFD are the four 1,028-byte non-text "descriptions" of the BLOCK_HEADER records that
+error (#386, ARCHITECTURE.md 7au): bytes that are not text, so some of their pairs are not
+GBK, and an invalid sequence is not text to write back; the probe counts them and does
+not encode them. The check lives in the probe, so every row a later change adds is held
+to it.
+
+`CodePage::encode_char` returns bytes only when they decode back to the character (#382),
+which is what keeps this round trip exact on the WHATWG encoders' extra mappings, none of
+which the pinned strings use.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
