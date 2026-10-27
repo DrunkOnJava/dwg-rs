@@ -304,8 +304,9 @@ fn is_save_path(ours: &str, theirs: &str) -> bool {
 
 /// The one application item the DXF writer adds to a table's header that the DWG
 /// does not hold: `1001 ACAD`, `1000 DbSaveVer`, `1071` (the save's own version).
-fn is_save_version(groups: &[Group]) -> bool {
-    matches!(groups, [a, b] if a.code == 1000 && a.value.trim() == "DbSaveVer" && b.code == 1071)
+fn is_save_version(app: &str, groups: &[Group]) -> bool {
+    app.eq_ignore_ascii_case("ACAD")
+        && matches!(groups, [a, b] if a.code == 1000 && a.value.trim() == "DbSaveVer" && b.code == 1071)
 }
 
 fn is_guid(s: &str) -> bool {
@@ -400,12 +401,13 @@ struct ExtTally {
     eed_agree: usize,
     eed_partial: usize,
     eed_export_only: usize,
+    eed_apps_unpaired: usize,
     errors: usize,
 }
 
-/// The groups the export holds for each application of a record: those after each
-/// group 1001, up to the next.
-fn export_apps(rec: &Record) -> Vec<&[Group]> {
+/// The export's applications of a record, each with its name (the value of its group
+/// 1001) and the groups after it, up to the next 1001.
+fn export_apps(rec: &Record) -> Vec<(String, &[Group])> {
     let marks: Vec<usize> = rec
         .groups
         .iter()
@@ -416,19 +418,44 @@ fn export_apps(rec: &Record) -> Vec<&[Group]> {
     marks
         .iter()
         .enumerate()
-        .map(|(n, &at)| &rec.groups[at + 1..marks.get(n + 1).copied().unwrap_or(rec.groups.len())])
+        .map(|(n, &at)| {
+            let end = marks.get(n + 1).copied().unwrap_or(rec.groups.len());
+            (
+                rec.groups[at].value.trim().to_string(),
+                &rec.groups[at + 1..end],
+            )
+        })
         .collect()
 }
 
+/// The one block of leading items the R2000 export leaves out of an `ACAD` application, in
+/// the two MTEXT records that carry it: a string `RTTcAl`, a short, a long and the string
+/// `$$NoName$$`.
+fn is_rttcal_block(items: &[GroupItem]) -> bool {
+    matches!(
+        items,
+        [
+            GroupItem { code: 1000, value: GroupValue::Text { text: a, .. } },
+            GroupItem { code: 1070, value: GroupValue::Short(_) },
+            GroupItem { code: 1071, value: GroupValue::Long(_) },
+            GroupItem { code: 1000, value: GroupValue::Text { text: b, .. } },
+        ] if a == "RTTcAl" && b == "$$NoName$$"
+    )
+}
+
 /// How many leading items of `items` the export's `groups` leave out: `Some(0)` when
-/// they hold the same values, `Some(k)` when they hold those after the first `k`,
-/// `None` when they hold other values.
+/// they hold the same values, `Some(4)` when they hold those after the `RTTcAl` block
+/// (`is_rttcal_block`, the only prefix allowed to be missing), `None` when they hold
+/// other values.
 fn app_matches(
     items: &[GroupItem],
     groups: &[Group],
     layers: &BTreeMap<u64, String>,
 ) -> Option<usize> {
-    (0..=items.len()).find(|&k| {
+    [0, 4].into_iter().find(|&k| {
+        if k > items.len() || (k > 0 && !is_rttcal_block(&items[..k])) {
+            return false;
+        }
         let mut g = groups.iter();
         items[k..].iter().all(|i| group_matches(i, &mut g, layers)) && g.next().is_none()
     })
@@ -457,13 +484,19 @@ fn ext_census(
 ) {
     let version = file.version();
     let page = file.code_page();
-    let layers: BTreeMap<u64, String> = objects
-        .iter()
-        .filter_map(|raw| match decode_record_entity(raw, version, classes) {
-            DecodedEntity::Layer(l) => Some((raw.handle.value, l.header.name)),
-            _ => None,
-        })
-        .collect();
+    let mut layers: BTreeMap<u64, String> = BTreeMap::new();
+    let mut appids: BTreeMap<u64, String> = BTreeMap::new();
+    for raw in objects {
+        match decode_record_entity(raw, version, classes) {
+            DecodedEntity::Layer(l) => {
+                layers.insert(raw.handle.value, l.header.name);
+            }
+            DecodedEntity::AppId(a) => {
+                appids.insert(raw.handle.value, a.header.name);
+            }
+            _ => {}
+        }
+    }
     for raw in objects {
         let rec = twin.and_then(|t| t.record(raw.handle.value));
         match extended_data::read(raw, version) {
@@ -471,7 +504,7 @@ fn ext_census(
                 let theirs = rec.map(export_apps).unwrap_or_default();
                 if !theirs.is_empty() {
                     tally.eed_compared += 1;
-                    if theirs.iter().all(|t| is_save_version(t)) {
+                    if theirs.iter().all(|(app, t)| is_save_version(app, t)) {
                         tally.eed_agree += 1;
                         tally.eed_export_only += 1;
                     } else {
@@ -495,26 +528,48 @@ fn ext_census(
                     let theirs = export_apps(rec);
                     if !theirs.is_empty() || !apps.is_empty() {
                         tally.eed_compared += 1;
-                        let mut ours = apps.iter();
+                        let mut used = vec![false; apps.len()];
                         let mut partial = false;
-                        let all = theirs.iter().all(|t| {
-                            ours.any(|a| match app_matches(&a.items, t, &layers) {
-                                Some(k) => {
-                                    partial |= k > 0;
-                                    true
+                        let mut missing = None;
+                        for (app, groups) in &theirs {
+                            let found = apps.iter().enumerate().find_map(|(i, a)| {
+                                let ours = appids.get(&a.app.value)?;
+                                if used[i] || !ours.eq_ignore_ascii_case(app) {
+                                    return None;
                                 }
-                                None => false,
-                            })
-                        });
-                        if all {
-                            tally.eed_agree += 1;
-                            tally.eed_partial += usize::from(partial);
-                        } else {
-                            *failed = true;
-                            println!(
-                                "  {name} #{:X} extended data differs from the export's: {chain}",
-                                raw.handle.value
-                            );
+                                app_matches(&a.items, groups, &layers).map(|k| (i, k))
+                            });
+                            match found {
+                                Some((i, k)) => {
+                                    used[i] = true;
+                                    partial |= k > 0;
+                                    if k > 0 {
+                                        println!(
+                                            "  {name} #{:X} extended data: the export of {app} leaves out {:?}",
+                                            raw.handle.value,
+                                            &apps[i].items[..k]
+                                        );
+                                    }
+                                }
+                                None => {
+                                    missing = Some(app.clone());
+                                    break;
+                                }
+                            }
+                        }
+                        tally.eed_apps_unpaired += used.iter().filter(|u| !**u).count();
+                        match missing {
+                            None => {
+                                tally.eed_agree += 1;
+                                tally.eed_partial += usize::from(partial);
+                            }
+                            Some(app) => {
+                                *failed = true;
+                                println!(
+                                    "  {name} #{:X} extended data: no application of the chain is {app} with the export's values: {chain}",
+                                    raw.handle.value
+                                );
+                            }
                         }
                     }
                 }
@@ -1099,6 +1154,10 @@ fn main() -> ExitCode {
             failed = true;
         }
     }
+    println!(
+        "  {} decoded applications have no counterpart in the export and are not compared",
+        ext.values().map(|t| t.eed_apps_unpaired).sum::<usize>()
+    );
     println!(
         "  {ext_agree} of {ext_compared} records equal AutoCAD's export; {ext_strings} strings in all, each naming the header's page"
     );

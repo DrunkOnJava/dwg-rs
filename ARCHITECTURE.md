@@ -3363,10 +3363,16 @@ export, the oracle's save-time rule) and in `#D09` a GUID and the path of the fi
 wrote (`name.dwg` against the export's `name_ascii.dxf`). The "export only" record is the
 VPORT table header `#8`, which the DXF writer gives `1001 ACAD`, `1000 DbSaveVer`, `1071`
 and the DWG holds no extended data for; any other application data the export holds for a
-record the reader returns nothing for fails the probe. The 2 "tail only" records are the two MTEXT whose `ACAD` application data begins
-with an `RTTcAl` block (a string, a short, a long and `$$NoName$$`) that the R2000 export
-leaves out; its other items equal ours. An application the export omits altogether is not
-compared (the export drops several render applications' data).
+record the reader returns nothing for fails the probe. Applications are paired by identity:
+each application of the export (the value of its group `1001`) with the decoded
+application whose handle resolves, through the drawing's APPID entries, to the same
+name, and then item by item, so a wrong application handle fails. The 2 "tail only"
+records are the two MTEXT (`#9DA` and `#CDC` of `sample_AC1015`) whose `ACAD` application
+data begins with an `RTTcAl` block (a string `RTTcAl`, a short, a long and
+`$$NoName$$`) that the R2000 export leaves out; its other items equal ours, and that
+exact block is the only prefix the probe lets the export lack. A decoded application the
+export omits altogether is counted and not compared (45 on the pinned corpus: the export
+drops several render applications' data).
 
 **A patched copy.** As in §7ap, strings rewritten in memory: the XRECORD string and the
 extended data string of the first record that holds one of six bytes or more sitting once in
