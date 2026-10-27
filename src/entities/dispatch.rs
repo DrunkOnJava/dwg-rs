@@ -71,6 +71,8 @@ pub enum DecodedEntity {
     Attrib(attrib::Attrib),
     AttDef(attdef::AttDef),
     Insert(insert::Insert),
+    /// MINSERT (§20.4.10) — an INSERT repeated over a column and row grid.
+    MInsert(insert::MInsert),
     Block(block::Block),
     EndBlk(endblk::EndBlk),
     Vertex(vertex::Vertex),
@@ -191,6 +193,7 @@ impl DecodedEntity {
             Self::Attrib(_) => OBJECT_TYPE_ATTRIB,
             Self::AttDef(_) => OBJECT_TYPE_ATTDEF,
             Self::Insert(_) => OBJECT_TYPE_INSERT,
+            Self::MInsert(_) => OBJECT_TYPE_MINSERT,
             Self::Block(_) => OBJECT_TYPE_BLOCK,
             Self::EndBlk(_) => OBJECT_TYPE_ENDBLK,
             Self::Vertex(_) => OBJECT_TYPE_VERTEX_2D,
@@ -298,6 +301,7 @@ const OBJECT_TYPE_BLOCK: u16 = 0x04; // 4
 const OBJECT_TYPE_ENDBLK: u16 = 0x05; // 5
 const OBJECT_TYPE_SEQEND: u16 = 0x06; // 6
 const OBJECT_TYPE_INSERT: u16 = 0x07; // 7
+const OBJECT_TYPE_MINSERT: u16 = 0x08; // 8
 const OBJECT_TYPE_VERTEX_2D: u16 = 0x0A; // 10
 // VERTEX_3D / VERTEX_MESH / VERTEX_PFACE share one measured field list
 // (`RC flag, 3BD location`); VERTEX_PFACE_FACE has its own.
@@ -1257,6 +1261,7 @@ fn fixed_entity_label(type_code: u16) -> Option<&'static str> {
         OBJECT_TYPE_ATTRIB => "ATTRIB",
         OBJECT_TYPE_ATTDEF => "ATTDEF",
         OBJECT_TYPE_INSERT => "INSERT",
+        OBJECT_TYPE_MINSERT => "MINSERT",
         OBJECT_TYPE_BLOCK => "BLOCK",
         OBJECT_TYPE_ENDBLK => "ENDBLK",
         OBJECT_TYPE_SEQEND => "SEQEND",
@@ -1345,6 +1350,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_ATTRIB => DecodedEntity::Attrib(attrib::decode(c, version)?),
         OBJECT_TYPE_ATTDEF => DecodedEntity::AttDef(attdef::decode(c, version)?),
         OBJECT_TYPE_INSERT => DecodedEntity::Insert(insert::decode(c, version)?),
+        OBJECT_TYPE_MINSERT => DecodedEntity::MInsert(insert::decode_minsert(c, version)?),
         OBJECT_TYPE_BLOCK => DecodedEntity::Block(block::decode_field(c, version, strings)?),
         OBJECT_TYPE_ENDBLK => DecodedEntity::EndBlk(endblk::decode(c)?),
         OBJECT_TYPE_SEQEND => DecodedEntity::SeqEnd(seqend::decode(c)?),
@@ -1714,6 +1720,7 @@ mod tests {
             OBJECT_TYPE_ENDBLK,
             OBJECT_TYPE_SEQEND,
             OBJECT_TYPE_INSERT,
+            OBJECT_TYPE_MINSERT,
             OBJECT_TYPE_VERTEX_2D,
             OBJECT_TYPE_VERTEX_3D,
             OBJECT_TYPE_VERTEX_MESH,
