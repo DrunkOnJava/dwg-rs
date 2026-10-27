@@ -432,6 +432,30 @@ value claims, until AutoCAD re-saves of them exist.
   never redistributed. Their paths are Chinese part names with spaces;
   `fetch.py` percent-encodes the path for the raw route.
 
+## 2026-10-27 — Public corpus: the US Forest Service R13 drawings (#345)
+
+The 22 AC1012 drawings of the entry above were written by SketchUp's exporter
+and by a writer that is not AutoCAD (ARCHITECTURE.md §7aj), so the corpus gains
+122 AC1012 drawings that the agency which made them says AutoCAD Release 13
+wrote: the US Forest Service Region 6 engineering CAD library, `pub/acad/dev/roads`
+(69 files) and `pub/acad/dev/trails` (53 files) on `ftp.fs.fed.us`. The trails
+page says "These drawings are created in AutoCad Ver 13", and the roads page
+says Ver 13 and Ver 14; every one of the 122 is AC1012, and 57 have `$TDUPDATE`
+on or before 1997-01-31, before Release 14 shipped. The agency publishes them as
+public-domain drawings (its "Public Domain Drawings" page, as quoted in #345),
+and a US government work carries no copyright.
+
+The server no longer serves them, so each file is pinned to a Wayback Machine
+capture by exact URL, size and sha256 in `tools/corpus/pins.tsv` (the new `url`
+column; the capture's timestamp is in `commit`, the original path in `path`).
+The `id_` form of a capture serves the original bytes, and the hash check
+rejects anything else. `tools/corpus/fetch.py` fetches them for a run, spaces its
+requests to `web.archive.org` about a second apart, retries a refusal with
+back-off and **never commits them**. They are data files read only through this
+crate: no source code of any DWG implementation was consulted, and nothing else
+was fetched from the agency or from the Internet Archive. None has an AutoCAD DXF
+twin, so they support boundary claims only, as the other R13 drawings do.
+
 ## 2026-10-26 — correction to the 2026-08-30 MLEADERSTYLE entry
 
 The 2026-08-30 entry for #55 says ODA spec v5.4.1 §20.4 carries no
