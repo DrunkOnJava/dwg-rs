@@ -30,6 +30,7 @@
 //!
 //! | Magic    | Release                 | Status                                                                                      |
 //! |----------|-------------------------|---------------------------------------------------------------------------------------------|
+//! | `AC1012` | R13                     | Flat §3.2.6 container + object walk on 22 real drawings; boundaries only, no DXF twin exists |
 //! | `AC1014` | R14                     | Flat §3.2.6 container + object walk; 48.6% of records decode, no errors                     |
 //! | `AC1015` | 2000 / 2000i / 2002     | Flat §3.2.6 container + object walk; 84.4% of records decode, no errors                     |
 //! | `AC1018` | 2004 / 2005 / 2006      | Container + walk; 97.5% of records decode, no errors                                        |

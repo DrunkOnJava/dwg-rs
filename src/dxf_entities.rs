@@ -827,9 +827,7 @@ fn dictionary_entry(
 /// DXF of release `target`: from R2000 to R2000 or later. Anything else keeps
 /// the converter's primitive exporter.
 pub fn writes(source: Version, target: DxfVersion) -> bool {
-    !matches!(source, Version::R14)
-        && target.supports_subclass_markers()
-        && target != DxfVersion::R14
+    !source.is_r13_r14() && target.supports_subclass_markers() && target != DxfVersion::R14
 }
 
 /// The entities to write for `file` when the output targets `version`.

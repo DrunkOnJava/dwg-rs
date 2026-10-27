@@ -266,7 +266,7 @@ fn collect(path: &str) -> Result<(Version, Vec<Record>)> {
         // R13/R14 write the object-data size inside the common object
         // data rather than in the object prologue, so the boundary is
         // only knowable once the prefix has been read.
-        let data_end = if matches!(version, Version::R14) {
+        let data_end = if version.is_r13_r14() {
             Some(c.read_rl()? as usize)
         } else {
             dwg::object::data_end_bit(object, version)

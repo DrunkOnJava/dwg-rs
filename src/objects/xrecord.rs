@@ -65,7 +65,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<XRecord> {
     for _ in 0..data_bytes {
         data.push(c.read_rc()?);
     }
-    let cloning_flags = if version == Version::R14 {
+    let cloning_flags = if version.is_r13_r14() {
         0
     } else {
         c.read_bs()?

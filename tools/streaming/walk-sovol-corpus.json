@@ -1,0 +1,19 @@
+{
+  "source": "https://github.com/Sovol3d/SOVOL-ZERO",
+  "commit": "d745b00b87eab492a1917b6f16550f740fa1cffe",
+  "note": "Two R13 (AC1012) drawings in the five-locator layout, fetched by hash at acceptance time and never committed (the repository declares no licence). The first has an object-map chunk of 2034 bytes. Object counts agree across an independent framing parse, the legacy reader and the streaming walk.",
+  "files": [
+    {
+      "name": "PDF/钣金/JXHMP4602-01008-b 底座封板.dwg",
+      "bytes": 226133,
+      "sha256": "f6db361aa99c47a560da2bcafc41d4d5b3bbf9401319b9fb89a5dcd9aa285178",
+      "objects": 3902
+    },
+    {
+      "name": "PDF/钣金/JXHMP4602-11083-b 铁片.dwg",
+      "bytes": 55112,
+      "sha256": "39b3842f531dc1e1e90c9e57e90f49fa90e46900f7852682820539e1d3a02609",
+      "objects": 473
+    }
+  ]
+}

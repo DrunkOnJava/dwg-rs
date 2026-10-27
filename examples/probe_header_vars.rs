@@ -15,6 +15,10 @@
 //!    (R2007 and later), and the last stream ends inside the last byte of
 //!    the data. The padding is counted, not required: §9 calls it random and
 //!    it is all ones on every AutoCAD 2016 to 2025 file of the corpus.
+//!    An AC1012 header that carries §9's "R14+" shorts is read with the R14
+//!    rows and may end one byte before the end of its data: the 21 Sovol
+//!    drawings write them and size the section one byte long (the extra byte
+//!    is 00, 52 or 7F).
 //!
 //! Where the drawing has a DXF twin (AutoCAD's export of the same drawing,
 //! `tools/corpus/pins.tsv`), it then compares every variable it decoded

@@ -11,7 +11,7 @@ pub enum Error {
     #[error("Not a DWG file: expected ASCII magic \"AC10xx\" at offset 0, got {got:?}")]
     NotDwg { got: [u8; 6] },
 
-    #[error("Unsupported DWG version: {0:?} (known: AC1014 .. AC1032)")]
+    #[error("Unsupported DWG version: {0:?} (known: AC1012 .. AC1032)")]
     UnsupportedVersion([u8; 6]),
 
     #[error("File truncated: wanted {wanted} bytes at offset {offset}, file is {len} bytes")]

@@ -219,7 +219,7 @@ fn main() -> ExitCode {
             }
         }
         // R2000+ line spacing; R13/R14 do not store it.
-        if version != dwg::Version::R14 {
+        if !version.is_r13_r14() {
             check(73, &m.linespace_style.to_string(), group(73));
             check(44, &m.linespace_factor.to_string(), group(44));
         }
