@@ -2,7 +2,7 @@
 //! equal AutoCAD's DXF export?
 //!
 //! ODA spec v5.4.1 prints no layout for SUN; `src/entities/sun.rs` was derived from
-//! AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md §7y). For every SUN
+//! AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md §7ba). For every SUN
 //! of every drawing under the corpus directory this reports whether the decoder
 //! closed exactly on the record's data-stream boundary (with the string stream
 //! consumed) and compares each decoded value with the `SUN` whose handle (group 5)

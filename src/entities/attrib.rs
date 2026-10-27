@@ -71,7 +71,9 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Attrib> {
     let tag = read_tv(c, version)?;
     let field_length = c.read_bs()?;
     let flags = c.read_rc()?;
-    let lock_position = if matches!(version, Version::R2018) {
+    // §20.4.4: the lock-position flag is R2007+; this inline path
+    // serves R13 to R2004, which never write it.
+    let lock_position = if version.is_r2007_plus() {
         c.read_b()?
     } else {
         false
@@ -245,7 +247,7 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }
 
@@ -361,12 +363,12 @@ mod tests {
     fn roundtrip_invisible_constant_attrib() {
         let mut w = BitWriter::new();
         // minimal TEXT payload
-        w.write_rc(0x00);
+        w.write_rc(0xFF);
         w.write_rd(0.0);
         w.write_rd(0.0);
         w.write_b(true); // ext default
         w.write_b(true); // thickness default
-        w.write_bd(2.5);
+        w.write_rd(2.5);
         w.write_bs_u(3); // "ABC"
         w.write_rc(b'A');
         w.write_rc(b'B');

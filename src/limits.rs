@@ -221,6 +221,15 @@ impl Default for WalkerLimits {
     }
 }
 
+/// `n` bytes as a `usize`, capped at `usize::MAX` where `usize` is 32 bits.
+const fn saturating_bytes(n: u64) -> usize {
+    if n > usize::MAX as u64 {
+        usize::MAX
+    } else {
+        n as usize
+    }
+}
+
 impl WalkerLimits {
     /// Conservative default profile. Fits every real-world drawing
     /// encountered during dwg-rs development.
@@ -247,7 +256,7 @@ impl WalkerLimits {
     pub const fn permissive() -> Self {
         Self {
             max_handles: 10_000_000,
-            max_scan_bytes: 4 * 1024 * 1024 * 1024,
+            max_scan_bytes: saturating_bytes(4 << 30),
             max_block_nesting: 512,
             max_retained_references: 1_000_000,
         }
@@ -349,7 +358,7 @@ impl OpenLimits {
     pub fn permissive() -> Self {
         Self {
             max_file_bytes: 16 * 1024 * 1024 * 1024, // 16 GiB
-            max_section_bytes: 4 * 1024 * 1024 * 1024,
+            max_section_bytes: saturating_bytes(4 << 30),
             decompress: crate::lz77::DecompressLimits::permissive(),
             parse: ParseLimits::permissive(),
             walker: WalkerLimits::permissive(),

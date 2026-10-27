@@ -22,6 +22,7 @@
 pub mod appid;
 pub mod block_record;
 pub mod dimstyle;
+pub mod handles;
 pub mod layer;
 pub mod ltype;
 pub(crate) mod modern;
@@ -46,14 +47,15 @@ use crate::version::Version;
 /// B     Xdep                  (70, bit 16)  -- dependent on an xref
 /// ```
 ///
-/// That is §20.4.54's (and every other table section's) order up to
-/// R2010; the R2013+ split-stream decoders read `B, B, BS` instead
-/// (`tables::modern::read_entry_flags`). The field
-/// names are the spec's: the first bit is the 64-flag, the last the
-/// xref dependence. The DXF value oracle (#99) measures both on every
-/// table record of the corpus: the 64-flag is set on every entry AutoCAD
-/// writes to DWG (its DXF export never writes bit 64), and the Xdep bit
-/// equals bit 16 of the exported group 70.
+/// That is the order §20.4.54 (and every other table section) prints,
+/// and the order R2000 and R2004 records measurably hold. From R2007
+/// the name is in the string stream and two bits remain, read as
+/// `B 64-flag, B Xdep` with no `xrefindex+1`
+/// (`tables::modern::read_entry_flags`, #40). The
+/// DXF value oracle (#99) measures both flags on every table record of
+/// the corpus: the 64-flag is set on every entry AutoCAD writes to DWG
+/// (its DXF export never writes bit 64), and the Xdep bit equals bit 16
+/// of the exported group 70.
 ///
 /// This struct captures those shared fields. Per-kind decoders append
 /// to it.
@@ -62,6 +64,8 @@ pub struct TableEntryHeader {
     pub name: String,
     /// The 64-flag: bit 64 of the entry's DXF group 70.
     pub flag_64: bool,
+    /// `xrefindex+1`: 0 when the entry did not come from an xref. No
+    /// field of an R2007 or later record is read as it, so it is 0 there.
     pub xref_index_plus_1: i16,
     /// Xdep: the entry depends on an external reference (bit 16 of the
     /// entry's DXF group 70).
@@ -112,7 +116,7 @@ pub(crate) fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String>
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }
 

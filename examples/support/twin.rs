@@ -56,7 +56,7 @@ pub struct Twin {
 }
 
 impl Twin {
-    fn parse(bytes: &[u8]) -> Twin {
+    pub fn parse(bytes: &[u8]) -> Twin {
         let text = String::from_utf8_lossy(bytes);
         let mut lines = text.lines();
         let mut records: Vec<Record> = Vec::new();

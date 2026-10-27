@@ -27,7 +27,7 @@
 ///
 /// This is public-domain tabulated data, not source code, so it is safe to
 /// reproduce verbatim under any license.
-static CRC8_TABLE: [u16; 256] = [
+const CRC8_TABLE: [u16; 256] = [
     0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241, 0xC601, 0x06C0, 0x0780, 0xC741,
     0x0500, 0xC5C1, 0xC481, 0x0440, 0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
     0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841, 0xD801, 0x18C0, 0x1980, 0xD941,
@@ -52,14 +52,55 @@ static CRC8_TABLE: [u16; 256] = [
     0x4100, 0x81C1, 0x8081, 0x4040,
 ];
 
+/// Slicing tables for eight bytes at a time: row `k` of entry `i` is the state
+/// after byte `i` followed by `k` zero bytes, so `CRC8_TABLE` is row 0 and each
+/// further row folds one more zero byte into the one before it. Derived from
+/// the published table at compile time.
+static CRC8_SLICES: [[u16; 256]; 8] = {
+    let mut rows = [[0u16; 256]; 8];
+    rows[0] = CRC8_TABLE;
+    let mut k = 1;
+    while k < 8 {
+        let mut i = 0;
+        while i < 256 {
+            let prev = rows[k - 1][i];
+            rows[k][i] = (prev >> 8) ^ CRC8_TABLE[(prev & 0xFF) as usize];
+            i += 1;
+        }
+        k += 1;
+    }
+    rows
+};
+
 /// Compute DWG-flavor CRC-8 (16-bit output) over `data` starting from `seed`.
 ///
 /// The `seed` is the running state; for new calculations use 0 (or the
 /// section-specific seed defined in the spec). Returns the final 16-bit
 /// CRC that should match the bytes stored in the file.
+///
+/// Eight bytes are folded per step: the state is XORed into the low two bytes
+/// of the little-endian word and each byte of the result indexes the row for
+/// the bytes that follow it. The serial one-byte-per-step recurrence of the
+/// spec's text (§2.14.1) needs a table load before each next byte; this form
+/// has eight independent loads per word and gives the same value for every
+/// input, seed and length.
 pub fn crc8(seed: u16, data: &[u8]) -> u16 {
     let mut crc = seed;
-    for &b in data {
+    let mut words = data.chunks_exact(8);
+    for word in &mut words {
+        let x = u64::from_le_bytes([
+            word[0], word[1], word[2], word[3], word[4], word[5], word[6], word[7],
+        ]) ^ u64::from(crc);
+        crc = CRC8_SLICES[7][(x & 0xFF) as usize]
+            ^ CRC8_SLICES[6][((x >> 8) & 0xFF) as usize]
+            ^ CRC8_SLICES[5][((x >> 16) & 0xFF) as usize]
+            ^ CRC8_SLICES[4][((x >> 24) & 0xFF) as usize]
+            ^ CRC8_SLICES[3][((x >> 32) & 0xFF) as usize]
+            ^ CRC8_SLICES[2][((x >> 40) & 0xFF) as usize]
+            ^ CRC8_SLICES[1][((x >> 48) & 0xFF) as usize]
+            ^ CRC8_SLICES[0][(x >> 56) as usize];
+    }
+    for &b in words.remainder() {
         let idx = ((crc ^ b as u16) & 0xFF) as usize;
         crc = (crc >> 8) ^ CRC8_TABLE[idx];
     }
@@ -128,6 +169,68 @@ pub fn section_page_checksum(seed: u32, data: &[u8]) -> u32 {
         remaining = rest;
     }
     (sum2 << 16) | (sum1 & 0xFFFF)
+}
+
+/// Fold `data` into a running §4.2 checksum held as `(sum1, sum2, in_chunk)`
+/// and return the new state. The sums are reduced modulo 0xFFF1 each time
+/// `in_chunk` reaches 0x15B0 bytes, exactly where [`section_page_checksum`]
+/// reduces them, so a walk that feeds the bytes in slices of any size holds
+/// the same three numbers as a one-shot call at every byte (all arithmetic
+/// wraps modulo 2^32, as the byte-at-a-time recurrence's does).
+///
+/// The recurrence `sum1 += byte; sum2 += sum1` is a chain of two dependent
+/// additions per byte. Within a chunk, whole rows of eight bytes are instead
+/// run as eight independent lanes of that recurrence (byte `l` of every row
+/// feeds lane `l`), which needs only vertical additions, and the lanes are
+/// combined once per slice. After `rows` rows lane `l` holds `a1 = sum of its
+/// bytes` and `a2 = sum over its bytes of (rows - row index)`; byte `p = 8t +
+/// l` is owed `8 * rows - p` further additions of `sum1` into `sum2`, so
+/// `sum2` gains `8 * rows * sum1` (the carried value), `8 * sum(a2)` and loses
+/// `sum(l * a1[l])`.
+pub fn fold_section_checksum(
+    mut sum1: u32,
+    mut sum2: u32,
+    mut in_chunk: u32,
+    mut data: &[u8],
+) -> (u32, u32, u32) {
+    const CHUNK: u32 = 0x15B0;
+    while !data.is_empty() {
+        let room = (CHUNK - in_chunk) as usize;
+        let (now, later) = data.split_at(data.len().min(room));
+        let mut rows = now.chunks_exact(8);
+        let mut a1 = [0u32; 8];
+        let mut a2 = [0u32; 8];
+        for row in &mut rows {
+            for lane in 0..8 {
+                a1[lane] += u32::from(row[lane]);
+                a2[lane] += a1[lane];
+            }
+        }
+        let bytes = (now.len() / 8 * 8) as u32;
+        let (mut plain, mut weighted, mut skew) = (0u32, 0u32, 0u32);
+        for lane in 0..8 {
+            plain = plain.wrapping_add(a1[lane]);
+            weighted = weighted.wrapping_add(a2[lane]);
+            skew = skew.wrapping_add((lane as u32).wrapping_mul(a1[lane]));
+        }
+        sum2 = sum2
+            .wrapping_add(bytes.wrapping_mul(sum1))
+            .wrapping_add(weighted.wrapping_mul(8))
+            .wrapping_sub(skew);
+        sum1 = sum1.wrapping_add(plain);
+        for &b in rows.remainder() {
+            sum1 = sum1.wrapping_add(u32::from(b));
+            sum2 = sum2.wrapping_add(sum1);
+        }
+        in_chunk += now.len() as u32;
+        if in_chunk == CHUNK {
+            sum1 %= 0xFFF1;
+            sum2 %= 0xFFF1;
+            in_chunk = 0;
+        }
+        data = later;
+    }
+    (sum1, sum2, in_chunk)
 }
 
 // ================================================================
