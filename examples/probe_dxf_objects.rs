@@ -608,6 +608,9 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                         )
                     } else {
                         match (kind.as_str(), key, *ca) {
+                            ("ACDBDICTIONARYWDFLT", _, 340) if va.as_handle() == Some(0) => {
+                                Some("the default object is not written, so the handle is null")
+                            }
                             ("XRECORD", "DWGPROPS", 40 | 42) => Some(
                                 "the editing time and the save date, which AutoCAD updates when it exports",
                             ),

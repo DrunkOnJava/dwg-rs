@@ -299,7 +299,10 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             }
             if default {
                 g.push(HeaderGroup::Text(100, "AcDbDictionaryWithDefault".into()));
-                g.push(HeaderGroup::Handle(340, item.refs.rest[d.keys.len()]));
+                // The default entry is named only when the output holds it, else null.
+                let default = item.refs.rest[d.keys.len()];
+                let held = default == 0 || defined.contains(&default);
+                g.push(HeaderGroup::Handle(340, if held { default } else { 0 }));
                 "ACDBDICTIONARYWDFLT"
             } else {
                 "DICTIONARY"
