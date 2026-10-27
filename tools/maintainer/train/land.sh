@@ -1,15 +1,17 @@
 #!/bin/bash
 # Land one PR the merge train has refreshed: tools/maintainer/train/land.sh <pr>
 #
-# Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head, requires
-# zero unresolved review threads, and turns squash auto-merge on. If main moves in a path that can
-# change the generated files or the PR's ARCHITECTURE.md section suffix (src/ outside
-# src/streaming/, tools/corpus/, docs/data/, the spec example fixtures, ARCHITECTURE.md) between the refresh and the merge, it runs `DRY=1 refresh.sh` against the new
-# main: when every generated file comes out unchanged the PR keeps its CI results and lands;
-# otherwise auto-merge goes off and it exits 8 for a real refresh.
+# Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head. When
+# that job fails because the merge decodes different counts from the committed baseline,
+# ci_baseline.sh commits the counts the job measured (refusing any worse than main's) and the wait
+# starts again on the new head, at most three times. Then it requires zero unresolved review threads
+# and turns squash auto-merge on. If main moves in a path that can change the measured counts or the
+# PR's ARCHITECTURE.md section suffix (src/ outside src/streaming/, tools/corpus/, docs/data/, the
+# spec example fixtures, ARCHITECTURE.md) before the merge, auto-merge goes off and it exits 8 for
+# a fresh refresh. Nothing is built or run locally.
 #
 # Exit: 0 merged, 1 failing check, 2 unresolved threads (before or after auto-merge), 3 timeout, 4 someone else pushed,
-#       5 auto-merge refused, 6 closed, 7 went DIRTY, 8 main moved under it (refresh again).
+#       5 auto-merge refused, 6 closed, or a count worse than main's, 7 went DIRTY, 8 main moved under it (refresh again).
 {
 P=$1
 . "$(dirname "$0")/common.sh"
@@ -32,14 +34,9 @@ moved() {
   gh api "repos/$R/compare/$base...$now" --jq '.files[].filename' 2>/dev/null \
     | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/|ARCHITECTURE\.md$)'
 }
-still_valid() {
-  [ -d "$OUT" ] || return 1
-  DRY=1 bash "$TRAIN_HERE/refresh.sh" "$P" > "$OUT/dry.log" 2>&1 || return 1
-  base=$(cat "$OUT/main.sha" 2>/dev/null)
-  echo "#$P main moved; a dry refresh on ${base:0:9} leaves every generated file unchanged" >&2
-  return 0
-}
+note() { echo "$(date +%H:%M) TRAIN #$P $*" >> "$TRAIN_STATE/train.log"; }
 deadline=$(( $(date +%s) + 5400 ))
+regen=0
 while :; do
   [ "$(date +%s)" -gt $deadline ] && { echo "#$P TIMEOUT waiting for Corpus"; exit 3; }
   cur=$(gh pr view "$P" -R "$R" --json headRefOid --jq .headRefOid 2>/dev/null)
@@ -47,7 +44,15 @@ while :; do
   c=$(gh pr checks "$P" -R "$R" --json name,state --jq '.[]|select(.name=="Corpus (public DWG)")|.state' 2>/dev/null | head -1)
   case $c in
     SUCCESS) break ;;
-    FAILURE|CANCELLED|ERROR) echo "#$P Corpus=$c on ${head:0:9}"; exit 1 ;;
+    CANCELLED) echo "#$P Corpus=$c on ${head:0:9}"; exit 1 ;;
+    FAILURE|ERROR)
+      [ "$regen" -ge 3 ] && { echo "#$P Corpus=$c on ${head:0:9} after $regen regenerated baselines"; exit 1; }
+      msg=$(bash "$TRAIN_HERE/ci_baseline.sh" "$P" "$head" 2>&1); rc=$?
+      case $rc in
+        0) head=$(cat "$OUT/pushed.sha"); regen=$((regen + 1)); note "$msg"; deadline=$(( $(date +%s) + 5400 )) ;;
+        6) echo "#$P $msg"; exit 6 ;;
+        *) echo "#$P Corpus=$c on ${head:0:9}: $msg"; exit 1 ;;
+      esac ;;
   esac
   sleep 60
 done
@@ -58,7 +63,7 @@ unresolved() {
 }
 u=$(unresolved)
 [ "$u" != 0 ] && { echo "#$P Corpus green but $u unresolved review thread(s)"; exit 2; }
-if moved && ! still_valid; then echo "#$P main moved under it since the refresh"; exit 8; fi
+if moved; then echo "#$P main moved under it since the refresh"; exit 8; fi
 gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not enable auto-merge"; exit 5; }
 echo "#$P Corpus green, 0 threads, auto-merge on"
 while :; do
@@ -74,10 +79,6 @@ while :; do
   if moved; then
     [ "$(gh pr view "$P" -R "$R" --json state --jq .state 2>/dev/null)" = MERGED ] && continue
     gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1
-    if still_valid; then
-      gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not re-enable auto-merge"; exit 5; }
-      continue
-    fi
     echo "#$P main moved under it while waiting; auto-merge off"; exit 8
   fi
   f=$(gh pr checks "$P" -R "$R" --json name,state --jq '[.[]|select(.state=="FAILURE")|.name]|join(", ")' 2>/dev/null)
