@@ -5,7 +5,7 @@
 //! ODA spec v5.4.1 §20.3 names none of them in §20.4. Their field lists are
 //! derived from AutoCAD's own output under the method in `CLEANROOM.md`
 //! (2026-10-26): the data bits of every corpus record against the DXF object
-//! of the same handle. ARCHITECTURE.md §7t holds the evidence and says what
+//! of the same handle. ARCHITECTURE.md §7av holds the evidence and says what
 //! each field was checked against.
 //!
 //! ```text
@@ -116,7 +116,7 @@ fn open_and_finish<T>(
 }
 
 /// Decode a WIPEOUTVARIABLES record: one `BS` (DXF group 70), derived from
-/// AutoCAD's output (ARCHITECTURE.md §7t), ending on the data-stream boundary.
+/// AutoCAD's output (ARCHITECTURE.md §7av), ending on the data-stream boundary.
 pub(crate) fn decode_wipeout_variables(
     payload: &[u8],
     body_start: usize,
@@ -138,7 +138,7 @@ pub(crate) fn decode_wipeout_variables(
 }
 
 /// Decode an ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION record: one `BS` (DXF
-/// group 70), derived from AutoCAD's output (ARCHITECTURE.md §7t).
+/// group 70), derived from AutoCAD's output (ARCHITECTURE.md §7av).
 pub(crate) fn decode_dynamic_block_purge_preventer(
     payload: &[u8],
     body_start: usize,
@@ -161,7 +161,7 @@ pub(crate) fn decode_dynamic_block_purge_preventer(
 
 /// Decode an ACDB_BLOCKREPRESENTATION_DATA record: one `BS` (DXF group 70)
 /// and a hard handle in the handle stream, derived from AutoCAD's output
-/// (ARCHITECTURE.md §7t).
+/// (ARCHITECTURE.md §7av).
 pub(crate) fn decode_block_representation_data(
     payload: &[u8],
     body_start: usize,
@@ -183,7 +183,7 @@ pub(crate) fn decode_block_representation_data(
 }
 
 /// Decode a PDFDEFINITION record: `TV` file name and `TV` page (DXF groups 1
-/// and 2), derived from AutoCAD's output (ARCHITECTURE.md §7t).
+/// and 2), derived from AutoCAD's output (ARCHITECTURE.md §7av).
 pub(crate) fn decode_pdf_definition(
     payload: &[u8],
     body_start: usize,
@@ -206,7 +206,7 @@ pub(crate) fn decode_pdf_definition(
 
 /// Decode a DBCOLOR record: a `BS` index before R2004, from R2004 a `BS`, a
 /// `BL` colour word, an `RC` flag and the `TV`s the flag names (DXF groups
-/// 420 and 430), derived from AutoCAD's output (ARCHITECTURE.md §7t).
+/// 420 and 430), derived from AutoCAD's output (ARCHITECTURE.md §7av).
 pub(crate) fn decode_db_color(
     payload: &[u8],
     body_start: usize,

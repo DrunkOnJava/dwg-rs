@@ -144,15 +144,15 @@ pub enum DecodedEntity {
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7s).
     Material(Box<crate::objects::acad_material::Material>),
-    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7t).
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7av).
     WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
-    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7t).
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7av).
     DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
-    /// ACDB_BLOCKREPRESENTATION_DATA (§7t).
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7av).
     BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
-    /// PDFDEFINITION (§7t).
+    /// PDFDEFINITION (§7av).
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
-    /// DBCOLOR (§7t).
+    /// DBCOLOR (§7av).
     DbColor(crate::objects::small_classes::DbColor),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {

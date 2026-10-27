@@ -2149,7 +2149,7 @@ The R2018 DXF writer in `dxf_sections.rs` still emits a MATERIAL as its name
 only; surfacing these fields there, and a MATERIAL scorer in the DXF value
 oracle, are separate changes.
 
-## 7t. Five small classes, derived from AutoCAD's own output (2026-10-26)
+## 7av. Five small classes, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for WIPEOUTVARIABLES,
 ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA,
