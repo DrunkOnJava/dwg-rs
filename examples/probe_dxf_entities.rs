@@ -1,12 +1,14 @@
-//! `dwg-to-dxf`'s ENTITIES section against AutoCAD's own DXF export (#126).
+//! `dwg-to-dxf`'s ENTITIES and BLOCKS sections against AutoCAD's own DXF export
+//! (#126).
 //!
 //! # What this proves
 //!
 //! For each DWG that has an AutoCAD DXF export of the same drawing, the probe
 //! converts it with [`dwg::dxf_convert::convert_dwg_to_dxf`] to the DWG's own
-//! release, reads the output back with [`dwg::dxf_reader`] and pairs every
-//! record of its ENTITIES section with the export's ENTITIES record of the same
-//! handle. A paired record must agree group by group:
+//! release, reads the output back with [`dwg::dxf_reader`] and pairs every record
+//! of one section (`ENTITIES`, or `BLOCKS` with `--section=BLOCKS`) with the
+//! export's record of the same handle there. A paired record must agree group by
+//! group, and in the order AutoCAD writes them:
 //!
 //! - every group written has the export's code and equal values (text and
 //!   integers exactly, reals to the precision AutoCAD printed); a group the
@@ -14,21 +16,21 @@
 //! - the `102 {ACAD_REACTORS` and `{ACAD_XDICTIONARY` brackets are compared as
 //!   wholes;
 //! - a group of the export that the record lacks is **omitted**, and needs a
-//!   stated reason (extended data, 1000 to 1071; a layer-independent true
-//!   colour's index; proxy graphics, 92 and 310);
+//!   stated reason (extended data, 1000 to 1071; a colour book colour's RGB and
+//!   name; proxy graphics, 92 and 310);
 //! - a record of the export of a kind the converter writes, with no record
 //!   written, is a failure; one of a kind it does not write yet is counted by
 //!   kind and listed; one the export creates itself (a handle at or above the
 //!   DWG's `$HANDSEED`) is not in the DWG.
 //!
-//! Any disagreement, extra, unexplained omission, missing record or unreadable
-//! output exits 1. AC1014 drawings are skipped (R12 and R14 targets keep the
-//! default layer).
+//! Any disagreement, extra, unexplained omission, missing record, record out of
+//! order or unreadable output exits 1. AC1014 drawings are skipped (R12 and R14
+//! targets keep the default layer).
 //!
 //! # How to verify
 //!
 //! ```text
-//! cargo run --release --features dxf-reader --example probe_dxf_entities -- <file-or-dir> ...
+//! cargo run --release --features dxf-reader --example probe_dxf_entities -- [--section=BLOCKS] <file-or-dir> ...
 //! ```
 //!
 //! Directories are searched recursively for `.dwg` and `.dxf` files; a DWG's twin
@@ -94,12 +96,23 @@ fn dxf_version(v: Version) -> Option<DxfVersion> {
     })
 }
 
+/// Whether the decoded `a` is what AutoCAD printed as `b`: it prints 16
+/// significant digits and at most 16 decimal places, so the tolerance is half a
+/// unit of the coarser of the two, plus four ulps for the parse and, for angles,
+/// the radian-to-degree conversion (the oracle's rule, `dxf_oracle/scorers.rs`).
 fn close(a: f64, b: f64, digits: u8) -> bool {
     if a == b {
         return true;
     }
-    let rel = 10f64.powi(-(i32::from(digits.max(2)) - 1)) * 2.0;
-    (a - b).abs() <= a.abs().max(b.abs()) * rel
+    let significant = i32::from(digits.max(16));
+    let exponent = if b == 0.0 {
+        0
+    } else {
+        b.abs().log10().floor() as i32
+    };
+    let unit = 10f64.powi(exponent - significant + 1).max(10f64.powi(-16));
+    let ulp = f64::EPSILON * a.abs().max(b.abs());
+    (a - b).abs() <= 0.5 * unit + 4.0 * ulp
 }
 
 fn same(a: &DxfValue, b: &DxfValue, digits: u8) -> bool {
@@ -156,38 +169,10 @@ struct Outcome {
     failures: Vec<String>,
 }
 
-/// `out` without its BLOCKS section, which is still the converter's placeholder
-/// (its BLOCK records carry no handle, which the reader refuses).
-fn without_blocks(out: &str) -> String {
-    let lines: Vec<&str> = out.lines().collect();
-    let mut kept: Vec<&str> = Vec::with_capacity(lines.len());
-    let mut i = 0;
-    let mut skipping = false;
-    while i + 1 < lines.len() {
-        let (code, value) = (lines[i].trim(), lines[i + 1].trim());
-        if !skipping
-            && code == "0"
-            && value == "SECTION"
-            && lines.get(i + 3).map(|l| l.trim()) == Some("BLOCKS")
-        {
-            skipping = true;
-        }
-        if !skipping {
-            kept.push(lines[i]);
-            kept.push(lines[i + 1]);
-        }
-        if skipping && code == "0" && value == "ENDSEC" {
-            skipping = false;
-        }
-        i += 2;
-    }
-    kept.join("\n") + "\n"
-}
-
-fn entities(doc: &DxfDocument) -> Vec<&DxfRecord> {
+fn entities<'d>(doc: &'d DxfDocument, section: &str) -> Vec<&'d DxfRecord> {
     doc.records
         .iter()
-        .filter(|r| doc.section_name(r) == "ENTITIES")
+        .filter(|r| doc.section_name(r) == section)
         .collect()
 }
 
@@ -206,7 +191,11 @@ fn left_out(r: &DxfRecord) -> bool {
         }
 }
 
-fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<Outcome>, String> {
+fn probe_file(
+    path: &Path,
+    twins: &BTreeMap<String, PathBuf>,
+    section: &str,
+) -> Result<Option<Outcome>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
     let file = DwgFile::from_bytes(bytes).map_err(|e| format!("open: {e}"))?;
     let Some(target) = dxf_version(file.version()) else {
@@ -224,8 +213,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
     let seed = header.get_handle("$HANDSEED").map_or(u64::MAX, |h| h.value);
     let out =
         dwg::dxf_convert::convert_dwg_to_dxf(&file, target).map_err(|e| format!("convert: {e}"))?;
-    let ours = DxfDocument::parse(without_blocks(&out).as_bytes())
-        .map_err(|e| format!("read back: {e}"))?;
+    let ours = DxfDocument::parse(out.as_bytes()).map_err(|e| format!("read back: {e}"))?;
     let digits = theirs.real_precision();
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
     let mut o = Outcome {
@@ -233,13 +221,60 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         reasons: BTreeMap::new(),
         failures: Vec::new(),
     };
-    let our_recs = entities(&ours);
-    let their_recs = entities(&theirs);
+    let our_recs = entities(&ours, section);
+    let their_recs = entities(&theirs, section);
     let by_handle: BTreeMap<u64, &DxfRecord> = their_recs
         .iter()
         .filter_map(|r| r.handle.map(|h| (h, *r)))
         .collect();
     let supported = kinds(target);
+    let their_index: BTreeMap<u64, usize> = their_recs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, r)| r.handle.map(|h| (h, i)))
+        .collect();
+    // A block the export registers again under another handle (the tables probe
+    // pairs its record by name): its BLOCK, its entities and its ENDBLK have new
+    // handles too, so they cannot be paired by handle.
+    let (mut our_skip, mut their_skip): (BTreeSet<u64>, BTreeSet<u64>) = Default::default();
+    if section == "BLOCKS" {
+        let lower = |r: &DxfRecord| {
+            r.first(2)
+                .and_then(DxfValue::as_str)
+                .map(str::to_ascii_lowercase)
+        };
+        let our_handles: BTreeSet<u64> = our_recs.iter().filter_map(|r| r.handle).collect();
+        let mut our_blocks: BTreeSet<u64> = BTreeSet::new();
+        let mut their_blocks: BTreeSet<u64> = BTreeSet::new();
+        for a in our_recs.iter().filter(|r| {
+            r.kind == "BLOCK"
+                && r.handle
+                    .is_some_and(|h| !by_handle.contains_key(&h) && h < seed)
+        }) {
+            let twin = their_recs.iter().find(|b| {
+                b.kind == "BLOCK"
+                    && b.handle.is_some_and(|h| !our_handles.contains(&h))
+                    && lower(b) == lower(a)
+            });
+            if let (Some(b), Some(ao)) = (twin, a.owner) {
+                our_blocks.insert(ao);
+                their_blocks.extend(b.owner);
+            }
+        }
+        for (recs, blocks, skip) in [
+            (&our_recs, &our_blocks, &mut our_skip),
+            (&their_recs, &their_blocks, &mut their_skip),
+        ] {
+            for r in recs.iter() {
+                if let (Some(h), Some(ow)) = (r.handle, r.owner) {
+                    if blocks.contains(&ow) || skip.contains(&ow) {
+                        skip.insert(h);
+                    }
+                }
+            }
+        }
+    }
+    let mut last_index = 0usize;
     let mut paired: BTreeSet<u64> = BTreeSet::new();
     for r in &our_recs {
         let kind = r.kind.clone();
@@ -250,6 +285,14 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                 .push(format!("{name} {kind}: written without a handle"));
             continue;
         };
+        if our_skip.contains(&h) {
+            *o.reasons
+                .entry(format!(
+                    "{kind} of a block the export registered again under another handle"
+                ))
+                .or_default() += 1;
+            continue;
+        }
         let Some(want) = by_handle.get(&h).copied() else {
             o.failures.push(format!(
                 "{name} {kind} {h:X}: written but AutoCAD's ENTITIES has no such record"
@@ -265,6 +308,13 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         }
         paired.insert(h);
         t.paired += 1;
+        let at = their_index[&h];
+        if at < last_index {
+            o.failures.push(format!(
+                "{name} {kind} {h:X}: written before a record AutoCAD's {section} has ahead of it"
+            ));
+        }
+        last_index = at;
         if r.owner != want.owner {
             o.failures.push(format!(
                 "{name} {kind} {h:X}: owner {:?} but AutoCAD wrote {:?}",
@@ -342,6 +392,27 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                 ));
             } else if a.len() == b.len() && a.iter().zip(&b).all(|(x, y)| same(x, y, digits)) {
                 t.agree += 1;
+            } else if kind == "BLOCK"
+                && matches!(code, 2 | 3)
+                && matches!(
+                    file.version(),
+                    Version::R2000 | Version::R2004 | Version::R2007
+                )
+                && b.first().and_then(|v| v.as_str()).is_some_and(|n| {
+                    n.strip_prefix("*U")
+                        .is_some_and(|d| !d.is_empty() && d.bytes().all(|c| c.is_ascii_digit()))
+                })
+                && !a
+                    .first()
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|n| n.starts_with('*'))
+            {
+                *o.reasons
+                    .entry(
+                        "relation: BLOCK name (AutoCAD loads this release's dynamic block as an anonymous *U block)"
+                            .into(),
+                    )
+                    .or_default() += 1;
             } else {
                 t.disagree += 1;
                 o.failures.push(format!(
@@ -375,7 +446,12 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             }
         }
         // The groups both write come in the same order.
-        let shared: BTreeSet<u16> = codes.intersection(&their_codes).copied().collect();
+        let count = |x: &DxfRecord, c: u16| x.top_level().filter(|g| g.code == c).count();
+        let shared: BTreeSet<u16> = codes
+            .intersection(&their_codes)
+            .copied()
+            .filter(|c| count(r, *c) == count(want, *c))
+            .collect();
         let in_order = |x: &DxfRecord| -> Vec<u16> {
             x.top_level()
                 .map(|g| g.code)
@@ -392,7 +468,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
     }
     for r in &their_recs {
         let Some(h) = r.handle else { continue };
-        if paired.contains(&h) || h >= seed {
+        if paired.contains(&h) || h >= seed || their_skip.contains(&h) {
             continue;
         }
         let t = o.tallies.entry(r.kind.clone()).or_default();
@@ -419,7 +495,17 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
 }
 
 fn main() -> ExitCode {
-    let mut paths: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let section = args
+        .iter()
+        .find_map(|a| a.strip_prefix("--section="))
+        .unwrap_or("ENTITIES")
+        .to_string();
+    let mut paths: Vec<PathBuf> = args
+        .iter()
+        .filter(|a| !a.starts_with("--"))
+        .map(PathBuf::from)
+        .collect();
     if paths.is_empty() {
         paths.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples"));
     }
@@ -443,7 +529,7 @@ fn main() -> ExitCode {
     let (mut compared, mut skipped) = (0usize, 0usize);
     for path in &dwgs {
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("?");
-        match probe_file(path, &twins) {
+        match probe_file(path, &twins, &section) {
             Ok(Some(o)) => {
                 compared += 1;
                 failures.extend(o.failures);
@@ -497,7 +583,11 @@ fn main() -> ExitCode {
     }
     println!("{skipped} drawings skipped (no twin or no AutoCAD export of the release)");
     for (k, n) in &reasons {
-        println!("omitted: {k} x{n}");
+        if k.starts_with("relation: ") {
+            println!("{k} x{n}");
+        } else {
+            println!("omitted: {k} x{n}");
+        }
     }
     for f in &failures {
         println!("FAILED {f}");

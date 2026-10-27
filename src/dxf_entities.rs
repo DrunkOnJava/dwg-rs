@@ -1,8 +1,10 @@
-//! The DXF `ENTITIES` section from the decoded drawing entities.
+//! The DXF `ENTITIES` and `BLOCKS` sections from the decoded drawing entities.
 //!
-//! [`build`] turns each decoded entity of model space and of the active paper
-//! space into the record AutoCAD's own DXF export writes for it, and [`write()`]
-//! emits them. A record is the handle, the reactors and extension dictionary
+//! [`build`] turns each decoded entity of the drawing into the record AutoCAD's
+//! own DXF export writes for it: those of model space and of the active paper
+//! space for [`write()`], which emits the `ENTITIES` section, and those of every
+//! other block, with each block's `BLOCK` and `ENDBLK`, for
+//! [`crate::dxf_blocks`]. A record is the handle, the reactors and extension dictionary
 //! the handle stream names, the owner (the block record), the `AcDbEntity`
 //! subclass (layer, linetype, colour, lineweight, linetype scale, visibility,
 //! transparency, material) and the groups of the entity's own subclasses, under
@@ -20,6 +22,7 @@ use crate::entities::{DecodedEntity, Point2D, Point3D};
 use crate::entity_refs::{EntityRefs, entity_refs};
 use crate::header_vars::{HeaderVars, lineweight_hundredths};
 use crate::object::RawObject;
+use crate::object_type::ObjectType;
 use crate::reader::DwgFile;
 use crate::version::Version;
 
@@ -28,6 +31,11 @@ use crate::version::Version;
 /// written only with its parent. `MTEXT` waits for R2018's own form of it.
 pub fn kinds(version: DxfVersion) -> Vec<&'static str> {
     let mut out = vec![
+        "BLOCK",
+        "ENDBLK",
+        "ATTDEF",
+        "ATTRIB",
+        "INSERT",
         "LINE",
         "POINT",
         "CIRCLE",
@@ -56,9 +64,11 @@ pub struct EntityRecord {
     pub kind: &'static str,
     /// The entity's handle.
     pub handle: u64,
-    /// The owner: the model space or paper space block record, or the block the
-    /// entity is in.
+    /// The owner: a block record, or the entity a child (an attribute, a vertex)
+    /// belongs to.
     pub owner: u64,
+    /// The block record the entity is in, whatever its owner.
+    pub block: u64,
     /// The reactors written.
     pub reactors: Vec<u64>,
     /// The extension dictionary written.
@@ -70,10 +80,44 @@ pub struct EntityRecord {
 /// The entities of a drawing as the converter writes them.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Entities {
-    /// Entities of model space and of the active paper space, in file order.
+    /// Entities of every block, in file order.
     pub records: Vec<EntityRecord>,
-    /// Entities left out, by kind.
+    /// The `BLOCK` and `ENDBLK` records of every block record, in table order.
+    pub blocks: Vec<BlockRecords>,
+    /// The model space block record.
+    pub model_space: u64,
+    /// The active paper space block record.
+    pub paper_space: u64,
+    /// Entities of model space and the active paper space left out, by kind.
     pub skipped: BTreeMap<String, usize>,
+    /// Entities of the other blocks left out, by kind.
+    pub block_skipped: BTreeMap<String, usize>,
+}
+
+/// The `BLOCK` and `ENDBLK` of one block record.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockRecords {
+    /// The block record the pair belongs to.
+    pub block: u64,
+    /// Its `BLOCK`.
+    pub begin: EntityRecord,
+    /// Its `ENDBLK`.
+    pub end: EntityRecord,
+}
+
+impl Entities {
+    /// The handles of every record written, entities and block markers.
+    pub fn handles(&self) -> HashSet<u64> {
+        self.records
+            .iter()
+            .map(|r| r.handle)
+            .chain(
+                self.blocks
+                    .iter()
+                    .flat_map(|b| [b.begin.handle, b.end.handle]),
+            )
+            .collect()
+    }
 }
 
 struct Ctx<'a> {
@@ -450,6 +494,30 @@ fn own_groups(
             }
             "ATTRIB"
         }
+        DecodedEntity::AttDef(a) => {
+            if a.mtext.is_some() {
+                return None;
+            }
+            g.push(sub("AcDbText"));
+            g.extend(text_groups(&a.text, first_ref(refs, &ctx.styles), false)?);
+            g.push(sub("AcDbAttributeDefinition"));
+            if from_r2010(ctx.version) {
+                g.push(HeaderGroup::Int(280, 0));
+            }
+            g.push(HeaderGroup::Text(3, a.prompt.clone()));
+            g.push(HeaderGroup::Text(2, a.tag.clone()));
+            g.push(HeaderGroup::Int(70, i64::from(a.flags)));
+            if a.field_length != 0 {
+                g.push(HeaderGroup::Int(73, i64::from(a.field_length)));
+            }
+            if a.text.v_align != 0 {
+                g.push(HeaderGroup::Int(74, i64::from(a.text.v_align)));
+            }
+            if from_r2007(ctx.version) {
+                g.push(HeaderGroup::Int(280, i64::from(a.lock_position)));
+            }
+            "ATTDEF"
+        }
         DecodedEntity::Insert(i) => {
             if !(finite3(&i.insertion_point)
                 && finite3(&i.scale)
@@ -808,21 +876,29 @@ pub fn build(
             "ByBlock",
         ),
     };
+    out.model_space = ctx.model_space;
+    out.paper_space = ctx.paper_space;
     let seed = header.get_handle("$HANDSEED").map_or(u64::MAX, |h| h.value);
     let mut defined: HashSet<u64> = objects.clone();
     for t in tables {
         defined.extend(t.records.iter().map(|r| r.handle));
     }
-    // Entities written so far: handle -> (kind for a child's subclass, paper space).
-    let mut written: BTreeMap<u64, (&'static str, bool)> = BTreeMap::new();
+    let is_paper = |block: u64| {
+        block_names
+            .get(&block)
+            .is_some_and(|n| n.starts_with("*Paper_Space"))
+    };
+    // Entities written so far: handle -> (kind for a child's subclass, paper space, block).
+    let mut written: BTreeMap<u64, (&'static str, bool, u64)> = BTreeMap::new();
     // The entity each entity's `next` link names, and the parents with the handles
     // that list their children.
     let mut next_of: HashMap<u64, u64> = HashMap::new();
     let mut parents: Vec<(u64, usize, Vec<u64>)> = Vec::new();
-    for raw in raws
-        .iter()
-        .filter(|r| r.is_entity() && r.handle.value < seed)
-    {
+    for raw in raws.iter().filter(|r| {
+        r.is_entity()
+            && r.handle.value < seed
+            && !matches!(r.kind, ObjectType::Block | ObjectType::EndBlk)
+    }) {
         let decoded = crate::entities::decode_from_raw(raw, file_version);
         let Ok((common, refs)) = entity_refs(raw, file_version) else {
             *out.skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
@@ -845,9 +921,9 @@ pub fn build(
                 | DecodedEntity::VertexPfaceFace(_)
                 | DecodedEntity::SeqEnd(_)
         );
-        let (parent, paper_space) = if child {
+        let (parent, block) = if child {
             match written.get(&owner) {
-                Some((kind, paper)) => (Some(*kind), *paper),
+                Some((kind, _, block)) => (Some(*kind), *block),
                 None => {
                     *out.skipped
                         .entry(format!(
@@ -858,34 +934,24 @@ pub fn build(
                     continue;
                 }
             }
-        } else if owner == ctx.model_space {
-            (None, false)
-        } else if owner == ctx.paper_space {
-            (None, true)
+        } else if block_names.contains_key(&owner) {
+            (None, owner)
         } else {
             continue;
         };
-        // An INSERT is written only with the definition of its block, which
-        // BLOCKS does not write for a user block yet.
-        if let DecodedEntity::Insert(_) = &decoded {
-            let written_block = refs
-                .rest
-                .first()
-                .and_then(|h| ctx.blocks.get(h))
-                .is_some_and(|n| crate::dxf_tables::BLOCKS_EXPORTED.contains(n));
-            if !written_block {
-                *out.skipped
-                    .entry("INSERT (its block is not written yet)".to_string())
-                    .or_default() += 1;
-                continue;
-            }
-        }
+        let paper_space = is_paper(block);
+        let in_entities = block == ctx.model_space || block == ctx.paper_space;
+        let skipped = if in_entities {
+            &mut out.skipped
+        } else {
+            &mut out.block_skipped
+        };
         let Some((kind, own)) = own_groups(&decoded, &refs, &ctx, parent) else {
-            *out.skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
+            *skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
             continue;
         };
         let Some(mut groups) = common_groups(&common, &refs, paper_space, &ctx, &defined) else {
-            *out.skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
+            *skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
             continue;
         };
         groups.extend(own);
@@ -894,7 +960,7 @@ pub fn build(
         } else {
             kind
         };
-        written.insert(raw.handle.value, (label, paper_space));
+        written.insert(raw.handle.value, (label, paper_space, block));
         match kind {
             "POLYLINE" => parents.push((raw.handle.value, 0, refs.rest.clone())),
             "INSERT" => parents.push((raw.handle.value, 1, refs.rest.clone())),
@@ -904,6 +970,7 @@ pub fn build(
             kind,
             handle: raw.handle.value,
             owner,
+            block,
             reactors: if refs.reactors.iter().all(|h| defined.contains(h)) {
                 refs.reactors.clone()
             } else {
@@ -918,6 +985,15 @@ pub fn build(
         &parents,
         &next_of,
         file_version.is_r2004_plus(),
+    );
+    out.blocks = block_markers(
+        &raws,
+        file_version,
+        &ctx,
+        tables,
+        &block_names,
+        seed,
+        &defined,
     );
     out
 }
@@ -999,6 +1075,110 @@ fn order_children(
     }
 }
 
+/// The `BLOCK` and `ENDBLK` of each block record of the `BLOCK_RECORD` table, in
+/// its order. A block record whose pair does not both decode is left out.
+fn block_markers(
+    raws: &[RawObject],
+    file_version: Version,
+    ctx: &Ctx<'_>,
+    tables: &[Table],
+    block_names: &BTreeMap<u64, String>,
+    seed: u64,
+    defined: &HashSet<u64>,
+) -> Vec<BlockRecords> {
+    let mut begins: BTreeMap<u64, (crate::common_entity::CommonEntityData, EntityRefs, u64)> =
+        BTreeMap::new();
+    let mut ends: BTreeMap<u64, (crate::common_entity::CommonEntityData, EntityRefs, u64)> =
+        BTreeMap::new();
+    for raw in raws.iter().filter(|r| r.handle.value < seed) {
+        let into = match raw.kind {
+            ObjectType::Block => &mut begins,
+            ObjectType::EndBlk => &mut ends,
+            _ => continue,
+        };
+        let Ok((common, refs)) = entity_refs(raw, file_version) else {
+            continue;
+        };
+        let owner = match (refs.owner, common.raw_mode) {
+            (Some(o), _) => o,
+            (None, 1) => ctx.paper_space,
+            _ => ctx.model_space,
+        };
+        into.insert(owner, (common, refs, raw.handle.value));
+    }
+    let records: BTreeMap<u64, crate::tables::block_record::BlockRecord> = raws
+        .iter()
+        .filter(|r| r.kind == ObjectType::BlockHeader && r.handle.value < seed)
+        .filter_map(
+            |r| match crate::entities::decode_from_raw(r, file_version) {
+                DecodedEntity::BlockRecord(b) => Some((r.handle.value, b)),
+                _ => None,
+            },
+        )
+        .collect();
+    let Some(table) = tables.iter().find(|t| t.name == "BLOCK_RECORD") else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for rec in &table.records {
+        let block = rec.handle;
+        let (Some((bc, br, bh)), Some((ec, er, eh)), Some(b), Some(name)) = (
+            begins.get(&block),
+            ends.get(&block),
+            records.get(&block),
+            block_names.get(&block),
+        ) else {
+            continue;
+        };
+        let paper_space = name.starts_with("*Paper_Space");
+        let (Some(mut bg), Some(eg)) = (
+            common_groups(bc, br, paper_space, ctx, defined),
+            common_groups(ec, er, paper_space, ctx, defined),
+        ) else {
+            continue;
+        };
+        if !(b.base_point.x.is_finite() && b.base_point.y.is_finite() && b.base_point.z.is_finite())
+        {
+            continue;
+        }
+        let flags = i64::from(b.is_anonymous)
+            | i64::from(b.has_attribs) << 1
+            | i64::from(b.is_xref) << 2
+            | i64::from(b.xref_overlay) << 3
+            | if b.header.is_xref_dependent { 16 } else { 0 };
+        bg.push(sub("AcDbBlockBegin"));
+        bg.push(HeaderGroup::Text(2, name.clone()));
+        bg.push(HeaderGroup::Int(70, flags));
+        p3(&mut bg, 10, b.base_point);
+        bg.push(HeaderGroup::Text(3, name.clone()));
+        bg.push(HeaderGroup::Text(1, b.xref_path.clone()));
+        if !b.description.is_empty() {
+            bg.push(HeaderGroup::Text(4, b.description.clone()));
+        }
+        let mut eg = eg;
+        eg.push(sub("AcDbBlockEnd"));
+        let marker = |kind: &'static str, handle: u64, refs: &EntityRefs, groups| EntityRecord {
+            kind,
+            handle,
+            owner: block,
+            block,
+            reactors: if refs.reactors.iter().all(|h| defined.contains(h)) {
+                refs.reactors.clone()
+            } else {
+                Vec::new()
+            },
+            xdictionary: refs.xdictionary.filter(|h| defined.contains(h)),
+            groups,
+        };
+        out.push(BlockRecords {
+            block,
+            begin: marker("BLOCK", *bh, br, bg),
+            end: marker("ENDBLK", *eh, er, eg),
+        });
+    }
+    out
+}
+
 /// `groups` with their text escaped for the release `version` (see
 /// `dxf_header::escape_text`); markers are plain ASCII already.
 fn escaped(groups: &[HeaderGroup], version: DxfVersion) -> Vec<HeaderGroup> {
@@ -1019,33 +1199,44 @@ fn bracket(w: &mut crate::dxf::DxfWriter, name: &str, groups: &[HeaderGroup]) {
     w.write_string(102, "}");
 }
 
-/// Write `entities` as an `ENTITIES` section.
+/// Write one record: its type and handle, its reactors and extension dictionary,
+/// its owner and its groups.
+pub(crate) fn write_record(w: &mut crate::dxf::DxfWriter, r: &EntityRecord) {
+    write_groups(
+        w,
+        &[
+            HeaderGroup::Text(0, r.kind.into()),
+            HeaderGroup::Handle(5, r.handle),
+        ],
+    );
+    if !r.reactors.is_empty() {
+        let rs: Vec<HeaderGroup> = r
+            .reactors
+            .iter()
+            .map(|h| HeaderGroup::Handle(330, *h))
+            .collect();
+        bracket(w, "ACAD_REACTORS", &rs);
+    }
+    if let Some(x) = r.xdictionary {
+        bracket(w, "ACAD_XDICTIONARY", &[HeaderGroup::Handle(360, x)]);
+    }
+    write_groups(w, &[HeaderGroup::Handle(330, r.owner)]);
+    write_groups(w, &escaped(&r.groups, w.version()));
+}
+
+/// Write `entities` as an `ENTITIES` section: the entities of model space and of
+/// the active paper space.
 pub fn write(w: &mut crate::dxf::DxfWriter, entities: &Entities) {
     w.begin_section("ENTITIES");
     for (kind, n) in &entities.skipped {
         w.write_comment(&format!("skipped: {kind} x{n}"));
     }
-    for r in &entities.records {
-        write_groups(
-            w,
-            &[
-                HeaderGroup::Text(0, r.kind.into()),
-                HeaderGroup::Handle(5, r.handle),
-            ],
-        );
-        if !r.reactors.is_empty() {
-            let rs: Vec<HeaderGroup> = r
-                .reactors
-                .iter()
-                .map(|h| HeaderGroup::Handle(330, *h))
-                .collect();
-            bracket(w, "ACAD_REACTORS", &rs);
-        }
-        if let Some(x) = r.xdictionary {
-            bracket(w, "ACAD_XDICTIONARY", &[HeaderGroup::Handle(360, x)]);
-        }
-        write_groups(w, &[HeaderGroup::Handle(330, r.owner)]);
-        write_groups(w, &escaped(&r.groups, w.version()));
+    for r in entities
+        .records
+        .iter()
+        .filter(|r| r.block == entities.model_space || r.block == entities.paper_space)
+    {
+        write_record(w, r);
     }
     w.end_section();
 }

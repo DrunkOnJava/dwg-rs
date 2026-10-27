@@ -122,13 +122,6 @@ pub struct Defined {
     pub blocks: Vec<String>,
 }
 
-/// The blocks the BLOCKS section writes: only the two it writes empty.
-///
-/// A name or handle that selects any other block (`$DIMBLK`, a DIMSTYLE's arrowhead
-/// blocks) points at a definition that never reaches the DXF, so it is not written.
-/// Lift this when BLOCKS writes each block's contents.
-pub const BLOCKS_EXPORTED: [&str; 2] = ["*Model_Space", "*Paper_Space"];
-
 /// The layer the primitive exporter's entities go on while they carry no layer of
 /// their own: `0` when it is visible and plottable (not frozen, not off, and no
 /// group 290 of 0), else the first layer that is, so that geometry is not hidden
@@ -154,8 +147,10 @@ pub fn visible_layer(tables: &[Table]) -> Option<String> {
         .map(|r| r.name.clone())
 }
 
-/// The names `tables` define.
-pub fn defined(tables: &[Table]) -> Defined {
+/// The names `tables` define. `blocks` are the block records the BLOCKS section
+/// writes (`None`: all of them); a block it does not write is not defined, so no
+/// name or handle selects it.
+pub fn defined(tables: &[Table], blocks: Option<&HashSet<u64>>) -> Defined {
     let names = |t: &str| {
         tables
             .iter()
@@ -168,10 +163,17 @@ pub fn defined(tables: &[Table]) -> Defined {
         styles: names("STYLE"),
         ltypes: names("LTYPE"),
         dimstyles: names("DIMSTYLE"),
-        blocks: names("BLOCK_RECORD")
-            .into_iter()
-            .filter(|n| BLOCKS_EXPORTED.contains(&n.as_str()))
-            .collect(),
+        blocks: tables
+            .iter()
+            .find(|x| x.name == "BLOCK_RECORD")
+            .map(|x| {
+                x.records
+                    .iter()
+                    .filter(|r| blocks.is_none_or(|b| b.contains(&r.handle)))
+                    .map(|r| r.name.clone())
+                    .collect()
+            })
+            .unwrap_or_default(),
     }
 }
 
@@ -869,6 +871,19 @@ fn dimstyle_groups(
             }
         }
     }
+    // AutoCAD writes a dimension style's groups in ascending code order, the
+    // fill colour (a second 70) after the fill mode (69) and the lineweights
+    // (371, 372) after the handles.
+    let key = |g: &HeaderGroup| match g {
+        HeaderGroup::Int(70, _) => 69.5,
+        HeaderGroup::Text(c, _)
+        | HeaderGroup::Int(c, _)
+        | HeaderGroup::Real(c, _)
+        | HeaderGroup::Handle(c, _) => f64::from(*c),
+    };
+    let mut body = g.split_off(3);
+    body.sort_by(|a, b| key(a).total_cmp(&key(b)));
+    g.extend(body);
     Some(g)
 }
 
@@ -891,7 +906,10 @@ fn block_record_groups(
         HeaderGroup::Text(100, "AcDbBlockTableRecord".into()),
         HeaderGroup::Text(2, name.to_string()),
     ];
-    let expected = refs.map(|_| {
+    // The handles before the inserts: the NULL, the `BLOCK`, on R2000 the first
+    // and last entity (unless an xref), on R2004 and later the owned entities, and
+    // the `ENDBLK`.
+    let before = refs.map(|_| {
         let mut n = 2;
         if matches!(file_version, crate::version::Version::R2000) && !b.is_xref && !b.xref_overlay {
             n += 2;
@@ -899,17 +917,33 @@ fn block_record_groups(
         if file_version.is_r2004_plus() {
             n += b.num_owned_objects.unwrap_or(0) as usize;
         }
-        n + 1 + b.insert_count + 1
+        n + 1
     });
-    if let (Some(r), Some(n)) = (refs, expected) {
-        if r.rest.len() == n {
+    if let (Some(r), Some(before)) = (refs, before) {
+        if r.rest.len() == before + b.insert_count + 1 {
             let layout = r.rest[r.rest.len() - 1];
             if layout == 0 {
                 g.push(HeaderGroup::Handle(340, 0));
             } else if defined.contains(&layout) {
                 g.push(HeaderGroup::Handle(340, layout));
             }
+            // The preview bitmap follows the layout, then the INSERTs of the
+            // block (when all of them are written).
+            for chunk in b.preview.chunks(127) {
+                let hex: String = chunk.iter().map(|x| format!("{x:02X}")).collect();
+                g.push(HeaderGroup::Text(310, hex));
+            }
+            let inserts = &r.rest[before..before + b.insert_count];
+            if !inserts.is_empty() && inserts.iter().all(|h| defined.contains(h)) {
+                g.push(HeaderGroup::Text(102, "{BLKREFS".into()));
+                g.extend(inserts.iter().map(|h| HeaderGroup::Handle(331, *h)));
+                g.push(HeaderGroup::Text(102, "}".into()));
+            }
+        } else {
+            push_preview(&mut g, &b.preview);
         }
+    } else {
+        push_preview(&mut g, &b.preview);
     }
     if from_r2007(version) {
         if let (Some(units), Some(explodable), Some(scaling)) =
@@ -920,11 +954,46 @@ fn block_record_groups(
             g.push(HeaderGroup::Int(281, i64::from(scaling)));
         }
     }
-    for chunk in b.preview.chunks(127) {
+    g
+}
+
+/// The preview bitmap as `310` groups of 127 bytes.
+fn push_preview(g: &mut Vec<HeaderGroup>, preview: &[u8]) {
+    for chunk in preview.chunks(127) {
         let hex: String = chunk.iter().map(|x| format!("{x:02X}")).collect();
         g.push(HeaderGroup::Text(310, hex));
     }
-    g
+}
+
+/// The handles of a table's records in the order its control object lists them
+/// (§20.4.x: `BL` numentries, then NULL and the extension dictionary where there
+/// is one, then the entries as soft owners), or `None` when the list does not read.
+fn control_order(
+    raws: &[crate::object::RawObject],
+    kind: ObjectType,
+    file_version: crate::version::Version,
+    tail_first: bool,
+) -> Option<Vec<u64>> {
+    let raw = raws.iter().find(|r| r.kind == kind)?;
+    let mut c = crate::object::body_cursor(raw, file_version).ok()?;
+    crate::common_entity::read_common_object_data_full(&mut c, file_version).ok()?;
+    let n = c.read_bl().ok()? as usize;
+    let refs = crate::tables::handles::refs(raw, file_version).ok()?;
+    let head = refs.rest.get(..n)?;
+    if !tail_first {
+        return Some(head.to_vec());
+    }
+    // The handles after the entries are the table's two built-in records
+    // (§20.4.53 LTYPE: ByBlock and ByLayer; §20.4.52 BLOCK: model space and
+    // paper space), which AutoCAD's export writes ahead of the others.
+    let tail = &refs.rest[n..];
+    Some(
+        tail.iter()
+            .chain(head)
+            .copied()
+            .filter(|h| *h != 0)
+            .collect(),
+    )
 }
 
 /// The handles after the dimstyles in the DIMSTYLE control object's list: the
@@ -957,8 +1026,10 @@ fn dimstyle_extras(
 
 /// The tables to write for `file` when the output targets `version`.
 ///
-/// `objects` holds the handles the OBJECTS section writes: a handle group that
-/// names one of them is written, any other is left out.
+/// `objects` holds the handles the OBJECTS section writes and, once they are
+/// built, the entities and block markers: a handle group that names one of them
+/// is written, any other is left out. `blocks` are the block records BLOCKS
+/// writes (`None`: all of them), which an arrowhead reference may name.
 ///
 /// Empty for targets before R2000, for a file with no readable header or
 /// object stream, and when no LAYER record decodes (the converter then keeps
@@ -968,6 +1039,7 @@ pub fn build(
     version: DxfVersion,
     header: &HeaderVars,
     objects: &HashSet<u64>,
+    blocks: Option<&HashSet<u64>>,
 ) -> Vec<Table> {
     if !version.supports_subclass_markers() || version == DxfVersion::R14 {
         return Vec::new();
@@ -1010,9 +1082,9 @@ pub fn build(
             .map(|r| r.handle.value),
     );
     let exported_blocks: HashSet<u64> = block_names
-        .iter()
-        .filter(|(_, n)| BLOCKS_EXPORTED.contains(&n.as_str()))
-        .map(|(h, _)| *h)
+        .keys()
+        .filter(|h| blocks.is_none_or(|b| b.contains(h)))
+        .copied()
         .collect();
     let has_ucs = raws.iter().any(|r| r.kind == ObjectType::Ucs);
     let has_view = raws.iter().any(|r| r.kind == ObjectType::View);
@@ -1146,6 +1218,26 @@ pub fn build(
         .any(|t| t.name == "LAYER" && !t.records.is_empty())
     {
         return Vec::new();
+    }
+    // Each table lists its records in the order its control object does, which
+    // is the order AutoCAD's export writes them (the object stream's differs).
+    for (table, kind, tail_first) in [
+        ("VPORT", ObjectType::VportControl, false),
+        ("LTYPE", ObjectType::LtypeControl, true),
+        ("LAYER", ObjectType::LayerControl, false),
+        ("STYLE", ObjectType::StyleControl, false),
+        ("VIEW", ObjectType::ViewControl, false),
+        ("APPID", ObjectType::AppIdControl, false),
+        ("DIMSTYLE", ObjectType::DimStyleControl, false),
+        ("BLOCK_RECORD", ObjectType::BlockControl, true),
+    ] {
+        let Some(order) = control_order(&raws, kind, file_version, tail_first) else {
+            continue;
+        };
+        if let Some(t) = tables.iter_mut().find(|t| t.name == table) {
+            let at = |h: u64| order.iter().position(|x| *x == h).unwrap_or(usize::MAX);
+            t.records.sort_by_key(|r| at(r.handle));
+        }
     }
     // An empty UCS table is the drawing's own: none of its UCS records exists.
     tables.retain(|t| {

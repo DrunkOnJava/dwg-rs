@@ -121,9 +121,36 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
         Some(Ok(h)) if h.closed => Some(h),
         _ => None,
     };
-    let tables = match &header {
-        Some(h) => crate::dxf_tables::build(file, version, h, &object_handles),
+    // The tables are built twice when entities are written: once for the layer,
+    // linetype, style and block names the entities refer to, and again knowing
+    // the handles of the entities and block markers that are written, which the
+    // reactors and insert lists of a table record name.
+    let first_tables = match &header {
+        Some(h) => crate::dxf_tables::build(file, version, h, &object_handles, None),
         None => Vec::new(),
+    };
+    let decoded_entities = match &header {
+        Some(h)
+            if !first_tables.is_empty() && crate::dxf_entities::writes(file.version(), version) =>
+        {
+            Some(crate::dxf_entities::build(
+                file,
+                version,
+                h,
+                &first_tables,
+                &object_handles,
+            ))
+        }
+        _ => None,
+    };
+    let tables = match (&header, &decoded_entities) {
+        (Some(h), Some(e)) => {
+            let mut known = object_handles.clone();
+            known.extend(e.handles());
+            let blocks: std::collections::HashSet<u64> = e.blocks.iter().map(|b| b.block).collect();
+            crate::dxf_tables::build(file, version, h, &known, Some(&blocks))
+        }
+        _ => first_tables,
     };
     let entity_layer = crate::dxf_tables::visible_layer(&tables)
         .map(|n| crate::dxf_header::escape_text(version, &n))
@@ -134,7 +161,10 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
             ..Default::default()
         }
     } else {
-        crate::dxf_tables::defined(&tables)
+        let blocks: Option<std::collections::HashSet<u64>> = decoded_entities
+            .as_ref()
+            .map(|e| e.blocks.iter().map(|b| b.block).collect());
+        crate::dxf_tables::defined(&tables, blocks.as_ref())
     };
 
     // HEADER — auto-emits $ACADVER from writer.version(); the rest is the
@@ -149,25 +179,17 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
         crate::dxf_tables::write(&mut writer, &tables);
     }
 
-    // BLOCKS — *Model_Space + *Paper_Space placeholders. Real block
-    // expansion is deferred.
-    write_blocks_section(&mut writer);
+    // BLOCKS — with decoded entities, one block per block record with its
+    // entities (see crate::dxf_blocks); otherwise the *Model_Space and
+    // *Paper_Space placeholders.
+    match &decoded_entities {
+        Some(entities) => crate::dxf_blocks::write(&mut writer, entities),
+        None => write_blocks_section(&mut writer),
+    }
 
-    // ENTITIES — with decoded tables, the entities of model space and of the
-    // active paper space from the handle-driven object walk (see
-    // crate::dxf_entities); otherwise the five curve primitives below.
-    let decoded_entities = match &header {
-        Some(h) if !tables.is_empty() && crate::dxf_entities::writes(file.version(), version) => {
-            Some(crate::dxf_entities::build(
-                file,
-                version,
-                h,
-                &tables,
-                &object_handles,
-            ))
-        }
-        _ => None,
-    };
+    // ENTITIES — with decoded entities, those of model space and of the active
+    // paper space (see crate::dxf_entities); otherwise the five curve
+    // primitives below.
     if let Some(entities) = &decoded_entities {
         crate::dxf_entities::write(&mut writer, entities);
         let decoded_objects = collect_decoded_objects(file);
