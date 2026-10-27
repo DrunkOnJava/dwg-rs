@@ -47,6 +47,16 @@
 //! - A `101` group starts an embedded object (R2018 MTEXT and multi-line
 //!   attributes) whose codes repeat the record's; lookups stop there.
 //! - R12 DXF has no subclass markers: the whole record is the scope.
+//! - MULTILEADER nests its parts in marker groups (`300 CONTEXT_DATA{`,
+//!   `302 LEADER{`, `304 LEADER_LINE{`, closed by `301`, `303`, `305`) whose
+//!   fields reuse each other's codes (90, 91, 92, 290, 291, 40, 10, 11,
+//!   170, 171, 271 to 273); each part is scored within its own groups, in
+//!   the context before and after its leader roots, in each root before and
+//!   after its lines, and in the entity's tail after `301`.
+//! - A colour before R2004 is a bare index in the DWG, which the export
+//!   writes as the matching 32-bit word; a true colour the older file
+//!   cannot hold stays `different` (MULTILEADER's text background on R2000,
+//!   #381).
 //!
 //! # Tolerance for reals
 //!
@@ -75,7 +85,7 @@
 //! exactly.
 
 use crate::corpus::DwgRecord;
-use dwg::dxf_reader::{DxfDocument, DxfRecord, DxfValue};
+use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
 use dwg::entities::{DecodedEntity, Point2D, Point3D};
 use dwg::objects::color::ObjectColor;
 use std::collections::BTreeMap;
@@ -738,6 +748,7 @@ pub fn section_of(label: &str) -> &'static str {
         "RAY" => "§20.4.42",
         "XLINE" => "§20.4.43",
         "MTEXT" => "§20.4.46",
+        "MULTILEADER" => "§20.4.48",
         "LINE" => "§20.4.21",
         "POINT" => "§20.4.31",
         "ELLIPSE" => "§20.4.39",
@@ -1094,6 +1105,7 @@ pub fn score(
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
+        D::MLeader(m) => score_mleader(&mut c, m),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
         _ => return Err("no scorer yet".into()),
@@ -1907,6 +1919,464 @@ fn score_lwpolyline(c: &mut Ctx<'_>, p: &dwg::entities::lwpolyline::LwPolyline) 
         }
     }
     c.scope = (s, e);
+}
+
+/// The DXF 90-range word a MULTILEADER colour (`CMC`) exports as: the
+/// 32-bit true-colour word as a signed integer. Before R2004 the DWG holds
+/// the bare index, which the export writes as the matching word (see
+/// [`color_word`]).
+fn cmc_word(c: &dwg::entities::mleader::Cmc) -> i64 {
+    let word = if c.rgb != 0 {
+        c.rgb
+    } else {
+        match c.index {
+            0 => 0xC100_0000,
+            256 => 0xC000_0000,
+            257 => 0xC800_0000,
+            n => 0xC300_0000 | u32::from(n as u16),
+        }
+    };
+    i64::from(word as i32)
+}
+
+/// Where the parts of an `AcDbMLeader` subclass sit among its groups. The
+/// export nests the embedded context in `300 CONTEXT_DATA{` ... `301 }`,
+/// each leader root in `302 LEADER{` ... `303 }` and each leader line in
+/// `304 LEADER_LINE{` ... `305 }`; the context's own fields come before
+/// the first root and after the last, a root's before its first line and
+/// after its last.
+struct MLeaderLayout {
+    head: (usize, usize),
+    context_before: (usize, usize),
+    roots: Vec<MLeaderRootLayout>,
+    context_after: (usize, usize),
+    tail: (usize, usize),
+    markers: Vec<usize>,
+}
+
+struct MLeaderRootLayout {
+    before: (usize, usize),
+    lines: Vec<(usize, usize)>,
+    after: (usize, usize),
+}
+
+fn marker_at(g: &DxfGroup, code: u16, text: &str) -> bool {
+    g.code == code && g.value.as_str() == Some(text)
+}
+
+fn mleader_layout(groups: &[DxfGroup], (s, e): (usize, usize)) -> Option<MLeaderLayout> {
+    let open = (s..e).find(|&i| marker_at(&groups[i], 300, "CONTEXT_DATA{"))?;
+    let mut markers = vec![open];
+    let mut roots: Vec<MLeaderRootLayout> = Vec::new();
+    let mut ctx_end = None;
+    let mut i = open + 1;
+    while i < e {
+        let g = &groups[i];
+        if marker_at(g, 302, "LEADER{") {
+            markers.push(i);
+            let mut root = MLeaderRootLayout {
+                before: (i + 1, i + 1),
+                lines: Vec::new(),
+                after: (i + 1, i + 1),
+            };
+            let mut j = i + 1;
+            let mut last_end = i + 1;
+            while j < e && !marker_at(&groups[j], 303, "}") {
+                if marker_at(&groups[j], 304, "LEADER_LINE{") {
+                    markers.push(j);
+                    if root.lines.is_empty() {
+                        root.before = (i + 1, j);
+                    }
+                    let start = j + 1;
+                    while j < e && !marker_at(&groups[j], 305, "}") {
+                        j += 1;
+                    }
+                    if j >= e {
+                        return None;
+                    }
+                    markers.push(j);
+                    root.lines.push((start, j));
+                    last_end = j + 1;
+                }
+                j += 1;
+            }
+            if j >= e {
+                return None;
+            }
+            if root.lines.is_empty() {
+                root.before = (i + 1, j);
+            }
+            root.after = (last_end, j);
+            markers.push(j);
+            roots.push(root);
+            i = j;
+        } else if marker_at(g, 301, "}") {
+            markers.push(i);
+            ctx_end = Some(i);
+            break;
+        }
+        i += 1;
+    }
+    let ctx_end = ctx_end?;
+    let first_root = roots.first().map_or(ctx_end, |r| r.before.0 - 1);
+    // Without roots the context's interior is one range, for both lookups.
+    let after_roots = roots.last().map_or(open + 1, |r| r.after.1 + 1);
+    Some(MLeaderLayout {
+        head: (s, open),
+        context_before: (open + 1, first_root),
+        roots,
+        context_after: (after_roots, ctx_end),
+        tail: (ctx_end + 1, e),
+        markers,
+    })
+}
+
+// §20.4.48 with §20.4.86's embedded MLeaderAnnotContext, against the DXF
+// Reference's AcDbMLeader groups, which the export nests: the context in
+// 300 CONTEXT_DATA{ .. 301 }, each leader root in 302 LEADER{ .. 303 } and
+// each leader line in 304 LEADER_LINE{ .. 305 }. Angles are radians on both
+// sides; colours are the CMC's 32-bit word (before R2004 the DWG holds the
+// bare index and the export writes the matching word). The handles
+// (340-344) are not decoded. The break points of a leader line are read and
+// dropped by the decoder.
+fn score_mleader(c: &mut Ctx<'_>, m: &dwg::entities::mleader::MLeader) {
+    if !c.subclass("AcDbMLeader") {
+        c.dwg_only("(the export has no AcDbMLeader subclass)", ());
+        return;
+    }
+    let Some(lay) = mleader_layout(&c.record().groups, c.scope) else {
+        c.dwg_only("(the export has no complete CONTEXT_DATA block)", ());
+        return;
+    };
+    for &i in &lay.markers {
+        c.take_at(i);
+    }
+    let ctx = &m.context;
+    c.scope = lay.head;
+    if m.legacy.is_none() {
+        c.int("class_version", 270, i64::from(m.class_version), None);
+    }
+
+    c.scope = lay.context_before;
+    c.real("context.overall_scale", 40, ctx.overall_scale, None);
+    c.point3(
+        "context.content_base_point",
+        10,
+        ctx.content_base_point,
+        None,
+    );
+    c.real("context.text_height", 41, ctx.text_height, None);
+    c.real("context.arrow_head_size", 140, ctx.arrow_head_size, None);
+    c.real("context.landing_gap", 145, ctx.landing_gap, None);
+    c.int(
+        "context.left_attachment",
+        174,
+        i64::from(ctx.left_attachment),
+        None,
+    );
+    c.int(
+        "context.right_attachment",
+        175,
+        i64::from(ctx.right_attachment),
+        None,
+    );
+    c.int(
+        "context.text_align_type",
+        176,
+        i64::from(ctx.text_align_type),
+        None,
+    );
+    c.int(
+        "context.attachment_type",
+        177,
+        i64::from(ctx.attachment_type),
+        None,
+    );
+    c.int("context.has_text", 290, i64::from(ctx.text.is_some()), None);
+    if let Some(t) = &ctx.text {
+        c.text("text.label", 304, &t.label, None);
+        c.point3("text.normal", 11, t.normal, None);
+        c.point3("text.location", 12, t.location, None);
+        c.point3("text.direction", 13, t.direction, None);
+        c.real("text.rotation", 42, t.rotation, None);
+        c.real("text.boundary_width", 43, t.boundary_width, None);
+        c.real("text.boundary_height", 44, t.boundary_height, None);
+        c.real("text.line_spacing_factor", 45, t.line_spacing_factor, None);
+        c.int(
+            "text.line_spacing_style",
+            170,
+            i64::from(t.line_spacing_style),
+            None,
+        );
+        c.int("text.color", 90, cmc_word(&t.color), None);
+        c.int("text.alignment", 171, i64::from(t.alignment), None);
+        c.int(
+            "text.flow_direction",
+            172,
+            i64::from(t.flow_direction),
+            None,
+        );
+        c.int(
+            "text.background_color",
+            91,
+            cmc_word(&t.background_color),
+            None,
+        );
+        c.real("text.background_scale", 141, t.background_scale, None);
+        c.int(
+            "text.background_transparency",
+            92,
+            i64::from(t.background_transparency),
+            None,
+        );
+        c.int(
+            "text.background_fill_enabled",
+            291,
+            i64::from(t.background_fill_enabled),
+            None,
+        );
+        c.int(
+            "text.background_mask_fill_on",
+            292,
+            i64::from(t.background_mask_fill_on),
+            None,
+        );
+        c.int("text.column_type", 173, i64::from(t.column_type), None);
+        c.int(
+            "text.text_height_automatic",
+            293,
+            i64::from(t.text_height_automatic),
+            None,
+        );
+        c.real("text.column_width", 142, t.column_width, None);
+        c.real("text.column_gutter", 143, t.column_gutter, None);
+        c.int(
+            "text.column_flow_reversed",
+            294,
+            i64::from(t.column_flow_reversed),
+            None,
+        );
+        for (i, w) in t.column_sizes.iter().enumerate() {
+            c.real(&format!("text.column_sizes[{i}]"), 144, *w, None);
+        }
+        c.int("text.word_break", 295, i64::from(t.word_break), None);
+        c.dwg_only("text.unknown_flag", t.unknown_flag);
+    }
+    // §20.4.86 reads the has-block bit only when there is no text, so on a
+    // text multileader the DWG does not hold the export's 296.
+    if ctx.text.is_some() {
+        if let Some(v) = c.take(296) {
+            c.not_decoded(
+                "296 (has block; the DWG stores it only without text)",
+                v.to_string(),
+            );
+        }
+    } else {
+        c.int(
+            "context.has_block",
+            296,
+            i64::from(ctx.block.is_some()),
+            None,
+        );
+    }
+    if let Some(b) = &ctx.block {
+        c.point3("block.normal", 14, b.normal, None);
+        c.point3("block.location", 15, b.location, None);
+        c.point3("block.scale", 16, b.scale, None);
+        c.real("block.rotation", 46, b.rotation, None);
+        c.int("block.color", 93, cmc_word(&b.color), None);
+        for (i, v) in b.transform.iter().enumerate() {
+            c.real(&format!("block.transform[{i}]"), 47, *v, None);
+        }
+    }
+    c.point3("context.base_point", 110, ctx.base_point, None);
+    c.point3("context.base_direction", 111, ctx.base_direction, None);
+    c.point3("context.base_vertical", 112, ctx.base_vertical, None);
+    c.int(
+        "context.normal_reversed",
+        297,
+        i64::from(ctx.normal_reversed),
+        None,
+    );
+
+    c.derived(
+        "context.leader_root_count (302 LEADER{ blocks)",
+        "302",
+        ctx.leader_roots.len() == lay.roots.len(),
+        ctx.leader_roots.len().to_string(),
+        lay.roots.len().to_string(),
+    );
+    for (k, (root, rl)) in ctx.leader_roots.iter().zip(&lay.roots).enumerate() {
+        let n = format!("roots[{k}]");
+        c.scope = rl.before;
+        c.int(
+            &format!("{n}.content_valid"),
+            290,
+            i64::from(root.content_valid),
+            None,
+        );
+        c.int(
+            &format!("{n}.unknown_flag"),
+            291,
+            i64::from(root.unknown_flag),
+            None,
+        );
+        c.point3(
+            &format!("{n}.connection_point"),
+            10,
+            root.connection_point,
+            None,
+        );
+        c.point3(&format!("{n}.direction"), 11, root.direction, None);
+        for (j, (a, b)) in root.break_points.iter().enumerate() {
+            c.point3(&format!("{n}.break_points[{j}].start"), 12, *a, None);
+            c.point3(&format!("{n}.break_points[{j}].end"), 13, *b, None);
+        }
+        c.int(&format!("{n}.index"), 90, i64::from(root.index), None);
+        c.real(
+            &format!("{n}.landing_distance"),
+            40,
+            root.landing_distance,
+            None,
+        );
+        c.derived(
+            &format!("{n}.line_count (304 LEADER_LINE{{ blocks)"),
+            "304",
+            root.lines.len() == rl.lines.len(),
+            root.lines.len().to_string(),
+            rl.lines.len().to_string(),
+        );
+        for (l, (line, range)) in root.lines.iter().zip(&rl.lines).enumerate() {
+            let n = format!("{n}.lines[{l}]");
+            c.scope = *range;
+            for (p, pt) in line.points.iter().enumerate() {
+                c.point3(&format!("{n}.points[{p}]"), 10, *pt, None);
+            }
+            c.int(&format!("{n}.index"), 91, i64::from(line.index), None);
+            if m.legacy.is_none() {
+                c.int(
+                    &format!("{n}.leader_type"),
+                    170,
+                    i64::from(line.leader_type),
+                    None,
+                );
+                c.int(&format!("{n}.color"), 92, cmc_word(&line.color), None);
+                c.int(
+                    &format!("{n}.line_weight"),
+                    171,
+                    i64::from(line.line_weight),
+                    None,
+                );
+                c.real(&format!("{n}.arrow_size"), 40, line.arrow_size, None);
+                c.int(
+                    &format!("{n}.override_flags"),
+                    93,
+                    i64::from(line.override_flags),
+                    None,
+                );
+            }
+        }
+        if m.legacy.is_none() {
+            c.scope = rl.after;
+            c.int(
+                &format!("{n}.attachment_direction"),
+                271,
+                i64::from(root.attachment_direction),
+                None,
+            );
+        }
+    }
+
+    if m.legacy.is_none() {
+        c.scope = lay.context_after;
+        c.int(
+            "context.bottom_attachment",
+            272,
+            i64::from(ctx.bottom_attachment),
+            None,
+        );
+        c.int(
+            "context.top_attachment",
+            273,
+            i64::from(ctx.top_attachment),
+            None,
+        );
+    }
+
+    c.scope = lay.tail;
+    c.int("override_flags", 90, i64::from(m.override_flags), None);
+    c.int("leader_type", 170, i64::from(m.leader_type), None);
+    c.int("leader_color", 91, cmc_word(&m.leader_color), None);
+    c.int("line_weight", 171, i64::from(m.line_weight), None);
+    c.int("landing_enabled", 290, i64::from(m.landing_enabled), None);
+    c.int("dogleg_enabled", 291, i64::from(m.dogleg_enabled), None);
+    c.real("landing_distance", 41, m.landing_distance, None);
+    c.real("arrow_head_size", 42, m.arrow_head_size, None);
+    c.int("content_type", 172, i64::from(m.content_type), None);
+    c.int("left_attachment", 173, i64::from(m.left_attachment), None);
+    c.int("right_attachment", 95, i64::from(m.right_attachment), None);
+    c.int("text_angle_type", 174, i64::from(m.text_angle_type), None);
+    c.int("unknown_175", 175, i64::from(m.unknown_175), None);
+    c.int("text_color", 92, cmc_word(&m.text_color), None);
+    c.int(
+        "text_frame_enabled",
+        292,
+        i64::from(m.text_frame_enabled),
+        None,
+    );
+    c.int("block_color", 93, cmc_word(&m.block_color), None);
+    c.point3("block_scale", 10, m.block_scale, None);
+    c.real("block_rotation", 43, m.block_rotation, None);
+    c.int(
+        "block_attachment_type",
+        176,
+        i64::from(m.block_attachment_type),
+        None,
+    );
+    c.int("is_annotative", 293, i64::from(m.is_annotative), None);
+    if let Some(l) = &m.legacy {
+        c.int(
+            "legacy.text_direction_negative",
+            294,
+            i64::from(l.text_direction_negative),
+            None,
+        );
+        c.int("legacy.ipe_align", 178, i64::from(l.ipe_align), None);
+        c.int(
+            "legacy.justification",
+            179,
+            i64::from(l.justification),
+            None,
+        );
+        c.real("legacy.scale_factor", 45, l.scale_factor, None);
+        c.dwg_only("legacy.arrow_heads_default", &l.arrow_heads_default);
+        c.dwg_only("legacy.block_labels", &l.block_labels);
+    } else {
+        c.int(
+            "attachment_direction",
+            271,
+            i64::from(m.attachment_direction),
+            None,
+        );
+        c.int(
+            "bottom_attachment",
+            272,
+            i64::from(m.bottom_attachment),
+            None,
+        );
+        c.int("top_attachment", 273, i64::from(m.top_attachment), None);
+        c.dwg_only("undocumented_mc", m.undocumented_mc);
+        c.dwg_only("undocumented_flag", m.undocumented_flag);
+        // R2013+ only: the DWG and the export both lack it on R2010.
+        if c.peek(295).is_some() {
+            c.int(
+                "leader_extended_to_text",
+                295,
+                i64::from(m.leader_extended_to_text),
+                None,
+            );
+        }
+    }
 }
 
 use dwg::objects::acad_visual_style::{AcadVisualStyle, VisualStyleColor, VisualStyleValue};
