@@ -7,7 +7,7 @@
 //! of those values, and they are not Windows code page numbers (29 and 30 are
 //! 1251 and 1252, 38 is 932, 39 is 936): they are AutoCAD's own enumeration. The
 //! table here holds the numbers real drawings have named, each by the evidence
-//! ARCHITECTURE.md §7ar records: the `$DWGCODEPAGE` of AutoCAD's DXF export of the
+//! ARCHITECTURE.md §7au records: the `$DWGCODEPAGE` of AutoCAD's DXF export of the
 //! same drawing, or a known text (a localized layout name, a Greek word) found in
 //! the drawing's bytes in the page. A number outside the table is
 //! [`CodePage::Unknown`] and its text is read as it was before the table existed,
@@ -36,7 +36,7 @@ use std::cell::{Cell, RefCell};
 ///
 /// The shorts are AutoCAD's own enumeration of code pages, not Windows code page
 /// numbers (29 and 30 are 1251 and 1252, but 38 is 932 and 39 is 936). Only the
-/// values measured on real drawings are named (ARCHITECTURE.md §7ar).
+/// values measured on real drawings are named (ARCHITECTURE.md §7au).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CodePage {
     /// Header short 28, `$DWGCODEPAGE` `ANSI_1250`: Windows-1250 (Central European).
@@ -159,6 +159,50 @@ impl CodePage {
             }
         });
         text
+    }
+
+    /// The bytes this code page holds `c` as, for a character the page can hold:
+    /// `Some` (one byte, or two on a double-byte page) for ASCII under every page
+    /// and for the characters of a named page, the inverse of
+    /// [`decode`](Self::decode) (the bytes are returned only when they decode back to
+    /// `c`, which excludes the WHATWG encoders' extra mappings, such as U+00A5 to
+    /// 0x5C on Shift_JIS); `None` for a character outside the page and for
+    /// every character above ASCII under [`CodePage::Unknown`].
+    pub fn encode_char(self, c: char) -> Option<Vec<u8>> {
+        if c.is_ascii() {
+            return Some(vec![u8::try_from(u32::from(c)).ok()?]);
+        }
+        let mut buf = [0u8; 4];
+        let (bytes, _, unmappable) = self.encoding()?.encode(c.encode_utf8(&mut buf));
+        if unmappable {
+            return None;
+        }
+        let bytes = bytes.into_owned();
+        self.decode(&bytes).chars().eq([c]).then_some(bytes)
+    }
+
+    /// `text` as the bytes a pre-R2007 writer stores: each character the page
+    /// holds as its bytes ([`encode_char`](Self::encode_char)), every other
+    /// character as the escape `\U+XXXX` (four uppercase hexadecimal digits of each
+    /// UTF-16 unit) that AutoCAD's own R2000 and R2004 saves hold for a character
+    /// their page cannot (ARCHITECTURE.md §7at). The result is ASCII under
+    /// [`CodePage::Unknown`], where no character is known to be in the page. Text
+    /// that is already such an escape, as MTEXT's `\U+00B0` is, passes unchanged:
+    /// a backslash is ASCII.
+    pub fn encode(self, text: &str) -> Vec<u8> {
+        let mut out = Vec::with_capacity(text.len());
+        let mut units = [0u16; 2];
+        for c in text.chars() {
+            match self.encode_char(c) {
+                Some(bytes) => out.extend_from_slice(&bytes),
+                None => {
+                    for unit in c.encode_utf16(&mut units) {
+                        out.extend_from_slice(format!("\\U+{unit:04X}").as_bytes());
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// `bytes` as text in this code page; for a byte above 0x7F under
