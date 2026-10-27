@@ -18,8 +18,9 @@
 //! - STYLE: name, flags (70: shape file 1, vertical 4, Xdep 16), 40, 41, 50
 //!   (degrees), 71, 42, 3, 4.
 //! - LTYPE: name, flags (70), description (3), alignment (72), dash count (73),
-//!   pattern length (40) and each dash length (49) with its flag (74). A
-//!   linetype with a shape or text dash is not written.
+//!   pattern length (40) and each dash length (49) with its flag (74); a text or
+//!   shape dash also its shape number (75), style (340), scale (46), rotation
+//!   (50), offsets (44, 45) and text (9, from the linetype's text area).
 //! - APPID: name and flags (70). `ACAD_SPLINE_DATA` is left out: AutoCAD's export
 //!   omits it on every corpus drawing that holds it.
 //!
@@ -127,6 +128,31 @@ pub struct Defined {
 /// blocks) points at a definition that never reaches the DXF, so it is not written.
 /// Lift this when BLOCKS writes each block's contents.
 pub const BLOCKS_EXPORTED: [&str; 2] = ["*Model_Space", "*Paper_Space"];
+
+/// The layer the primitive exporter's entities go on while they carry no layer of
+/// their own: `0` when it is visible and plottable (not frozen, not off, and no
+/// group 290 of 0), else the first layer that is, so that geometry is not hidden
+/// or kept out of a plot by a layer 0 the drawing froze, switched off or made
+/// non-plotting. `None` when no layer qualifies (or there is no LAYER table).
+pub fn visible_layer(tables: &[Table]) -> Option<String> {
+    let layers = tables.iter().find(|t| t.name == "LAYER")?;
+    let visible = |r: &&Record| {
+        let int = |code: i32| {
+            r.groups.iter().find_map(|g| match g {
+                HeaderGroup::Int(c, v) if *c == code => Some(*v),
+                _ => None,
+            })
+        };
+        int(70).unwrap_or(0) & 1 == 0 && int(62).unwrap_or(0) >= 0 && int(290) != Some(0)
+    };
+    layers
+        .records
+        .iter()
+        .filter(visible)
+        .find(|r| r.name == "0")
+        .or_else(|| layers.records.iter().find(visible))
+        .map(|r| r.name.clone())
+}
 
 /// The names `tables` define.
 pub fn defined(tables: &[Table]) -> Defined {
@@ -295,13 +321,49 @@ fn style_groups(s: &crate::tables::style::StyleEntry) -> Option<Vec<HeaderGroup>
     ])
 }
 
-fn ltype_groups(l: &crate::tables::ltype::LtypeEntry) -> Option<Vec<HeaderGroup>> {
-    if l.dashes.iter().any(|d| d.shape_flag != 0) || !l.pattern_length.is_finite() {
+/// The text of a text dash: the NUL-terminated string at byte `offset` of the
+/// linetype's text area (one byte a character up to R2004, UTF-16LE from R2007).
+/// The NUL-terminated text at `offset` of a linetype's text area. Before R2007 the
+/// bytes are in the drawing's code page; every legacy `TV` reader of the crate
+/// decodes them as lossy UTF-8 (#370), and so does this, so a linetype's text and
+/// every other legacy string agree.
+fn dash_text(area: &[u8], offset: usize, wide: bool) -> Option<String> {
+    let tail = area.get(offset..)?;
+    if wide {
+        let units: Vec<u16> = tail
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .take_while(|u| *u != 0)
+            .collect();
+        String::from_utf16(&units).ok()
+    } else {
+        let bytes: Vec<u8> = tail.iter().copied().take_while(|b| *b != 0).collect();
+        Some(String::from_utf8_lossy(&bytes).into_owned())
+    }
+}
+
+/// The groups of a LTYPE: per dash its length (49) and flags (74), and for a
+/// text or shape dash its shape number (75), style (340), scale (46), rotation
+/// (50), offsets (44, 45) and text (9). The style is the handle after the xref
+/// block's, one per dash; a list that is not 1 + the dash count long is not read.
+/// Bit 8 of a dash's flags (the DWG sets it on a text dash) is written from R2013
+/// and cleared before, as AutoCAD's exports do.
+fn ltype_groups(
+    l: &crate::tables::ltype::LtypeEntry,
+    refs: Option<&EntryRefs>,
+    file_version: crate::version::Version,
+    version: DxfVersion,
+    defined: &HashSet<u64>,
+) -> Option<Vec<HeaderGroup>> {
+    if !l.pattern_length.is_finite() || l.dashes.iter().any(|d| !d.length.is_finite()) {
         return None;
     }
-    if l.dashes.iter().any(|d| !d.length.is_finite()) {
-        return None;
-    }
+    let complex = l.dashes.iter().any(|d| d.shape_flag != 0);
+    let styles = match refs {
+        Some(r) if r.rest.len() == 1 + l.dashes.len() => Some(&r.rest[1..]),
+        _ if complex => return None,
+        _ => None,
+    };
     let mut g = vec![
         HeaderGroup::Text(100, "AcDbLinetypeTableRecord".into()),
         HeaderGroup::Text(2, l.header.name.clone()),
@@ -311,9 +373,50 @@ fn ltype_groups(l: &crate::tables::ltype::LtypeEntry) -> Option<Vec<HeaderGroup>
         HeaderGroup::Int(73, l.dashes.len() as i64),
         HeaderGroup::Real(40, l.pattern_length),
     ];
-    for d in &l.dashes {
+    for (i, d) in l.dashes.iter().enumerate() {
         g.push(HeaderGroup::Real(49, d.length));
-        g.push(HeaderGroup::Int(74, 0));
+        let flag = if matches!(version, DxfVersion::R2013 | DxfVersion::R2018) {
+            d.shape_flag
+        } else {
+            d.shape_flag & !0x08
+        };
+        g.push(HeaderGroup::Int(74, i64::from(flag)));
+        if d.shape_flag == 0 {
+            continue;
+        }
+        if !finite(&[d.scale, d.rotation, d.x_offset, d.y_offset]) {
+            return None;
+        }
+        // A text dash holds its text's offset in the text area where a shape dash
+        // holds its shape number; DXF's 75 is the shape number, and AutoCAD's
+        // export writes 0 for a text dash.
+        g.push(HeaderGroup::Int(
+            75,
+            if d.has_text() {
+                0
+            } else {
+                i64::from(d.shape_number)
+            },
+        ));
+        if let Some(h) = styles
+            .and_then(|s| s.get(i))
+            .copied()
+            .filter(|h| *h != 0 && defined.contains(h))
+        {
+            g.push(HeaderGroup::Handle(340, h));
+        }
+        g.push(HeaderGroup::Real(46, d.scale));
+        g.push(HeaderGroup::Real(50, d.rotation.to_degrees()));
+        g.push(HeaderGroup::Real(44, d.x_offset));
+        g.push(HeaderGroup::Real(45, d.y_offset));
+        if d.has_text() {
+            let text = dash_text(
+                &l.text_area,
+                usize::try_from(d.shape_number).ok()?,
+                file_version.is_r2007_plus(),
+            )?;
+            g.push(HeaderGroup::Text(9, text));
+        }
     }
     Some(g)
 }
@@ -345,7 +448,7 @@ fn flag(on: bool) -> i64 {
     i64::from(on)
 }
 
-fn from_r2007(version: DxfVersion) -> bool {
+pub(crate) fn from_r2007(version: DxfVersion) -> bool {
     matches!(
         version,
         DxfVersion::R2007 | DxfVersion::R2010 | DxfVersion::R2013 | DxfVersion::R2018
@@ -917,7 +1020,9 @@ pub fn build(
     let mut ltypes: BTreeMap<u64, (String, bool)> = BTreeMap::new();
     for raw in raws.iter().filter(|r| r.kind == ObjectType::Ltype) {
         if let DecodedEntity::Ltype(l) = crate::entities::decode_from_raw(raw, file_version) {
-            let written = raw.handle.value < seed && ltype_groups(&l).is_some();
+            let lt_refs = crate::tables::handles::refs(raw, file_version).ok();
+            let written = raw.handle.value < seed
+                && ltype_groups(&l, lt_refs.as_ref(), file_version, version, &defined).is_some();
             ltypes.insert(raw.handle.value, (l.header.name.clone(), written));
             if !written {
                 defined.remove(&raw.handle.value);
@@ -968,7 +1073,11 @@ pub fn build(
                     )
                 }
                 DecodedEntity::Style(s) => ("STYLE", s.header.name.clone(), style_groups(&s)),
-                DecodedEntity::Ltype(l) => ("LTYPE", l.header.name.clone(), ltype_groups(&l)),
+                DecodedEntity::Ltype(l) => (
+                    "LTYPE",
+                    l.header.name.clone(),
+                    ltype_groups(&l, refs.as_ref(), file_version, version, &defined),
+                ),
                 // AutoCAD's export leaves this internal application out of the
                 // APPID table on all four drawings of the corpus that hold it.
                 DecodedEntity::AppId(a) if a.header.name == "ACAD_SPLINE_DATA" => continue,
@@ -1058,31 +1167,6 @@ fn escaped(groups: &[HeaderGroup], version: DxfVersion) -> Vec<HeaderGroup> {
             other => other.clone(),
         })
         .collect()
-}
-
-/// The layer the converter's entities go on while they carry no layer of their
-/// own: `0` when it is visible and plottable (not frozen, not off, and no group
-/// 290 of 0), else the first layer that is, so that geometry is not hidden or
-/// kept out of a plot by a layer 0 the drawing froze, switched off or made
-/// non-plotting. `None` when no layer qualifies (or there is no LAYER table).
-pub fn visible_layer(tables: &[Table]) -> Option<String> {
-    let layers = tables.iter().find(|t| t.name == "LAYER")?;
-    let visible = |r: &&Record| {
-        let int = |code: i32| {
-            r.groups.iter().find_map(|g| match g {
-                HeaderGroup::Int(c, v) if *c == code => Some(*v),
-                _ => None,
-            })
-        };
-        int(70).unwrap_or(0) & 1 == 0 && int(62).unwrap_or(0) >= 0 && int(290) != Some(0)
-    };
-    layers
-        .records
-        .iter()
-        .filter(visible)
-        .find(|r| r.name == "0")
-        .or_else(|| layers.records.iter().find(visible))
-        .map(|r| r.name.clone())
 }
 
 fn bracket(w: &mut crate::dxf::DxfWriter, name: &str, groups: &[HeaderGroup]) {
