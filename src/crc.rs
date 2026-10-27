@@ -171,6 +171,68 @@ pub fn section_page_checksum(seed: u32, data: &[u8]) -> u32 {
     (sum2 << 16) | (sum1 & 0xFFFF)
 }
 
+/// Fold `data` into a running §4.2 checksum held as `(sum1, sum2, in_chunk)`
+/// and return the new state. The sums are reduced modulo 0xFFF1 each time
+/// `in_chunk` reaches 0x15B0 bytes, exactly where [`section_page_checksum`]
+/// reduces them, so a walk that feeds the bytes in slices of any size holds
+/// the same three numbers as a one-shot call at every byte (all arithmetic
+/// wraps modulo 2^32, as the byte-at-a-time recurrence's does).
+///
+/// The recurrence `sum1 += byte; sum2 += sum1` is a chain of two dependent
+/// additions per byte. Within a chunk, whole rows of eight bytes are instead
+/// run as eight independent lanes of that recurrence (byte `l` of every row
+/// feeds lane `l`), which needs only vertical additions, and the lanes are
+/// combined once per slice. After `rows` rows lane `l` holds `a1 = sum of its
+/// bytes` and `a2 = sum over its bytes of (rows - row index)`; byte `p = 8t +
+/// l` is owed `8 * rows - p` further additions of `sum1` into `sum2`, so
+/// `sum2` gains `8 * rows * sum1` (the carried value), `8 * sum(a2)` and loses
+/// `sum(l * a1[l])`.
+pub fn fold_section_checksum(
+    mut sum1: u32,
+    mut sum2: u32,
+    mut in_chunk: u32,
+    mut data: &[u8],
+) -> (u32, u32, u32) {
+    const CHUNK: u32 = 0x15B0;
+    while !data.is_empty() {
+        let room = (CHUNK - in_chunk) as usize;
+        let (now, later) = data.split_at(data.len().min(room));
+        let mut rows = now.chunks_exact(8);
+        let mut a1 = [0u32; 8];
+        let mut a2 = [0u32; 8];
+        for row in &mut rows {
+            for lane in 0..8 {
+                a1[lane] += u32::from(row[lane]);
+                a2[lane] += a1[lane];
+            }
+        }
+        let bytes = (now.len() / 8 * 8) as u32;
+        let (mut plain, mut weighted, mut skew) = (0u32, 0u32, 0u32);
+        for lane in 0..8 {
+            plain = plain.wrapping_add(a1[lane]);
+            weighted = weighted.wrapping_add(a2[lane]);
+            skew = skew.wrapping_add((lane as u32).wrapping_mul(a1[lane]));
+        }
+        sum2 = sum2
+            .wrapping_add(bytes.wrapping_mul(sum1))
+            .wrapping_add(weighted.wrapping_mul(8))
+            .wrapping_sub(skew);
+        sum1 = sum1.wrapping_add(plain);
+        for &b in rows.remainder() {
+            sum1 = sum1.wrapping_add(u32::from(b));
+            sum2 = sum2.wrapping_add(sum1);
+        }
+        in_chunk += now.len() as u32;
+        if in_chunk == CHUNK {
+            sum1 %= 0xFFF1;
+            sum2 %= 0xFFF1;
+            in_chunk = 0;
+        }
+        data = later;
+    }
+    (sum1, sum2, in_chunk)
+}
+
 // ================================================================
 // Writer-side helpers (L12-02): symmetric inverse of the read-side
 // section CRC checks. Callers assemble a section payload, reserve
