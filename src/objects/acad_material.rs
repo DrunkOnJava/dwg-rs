@@ -6,7 +6,7 @@
 //! own output under the method recorded in `CLEANROOM.md` (2026-10-26):
 //! the data bits of every MATERIAL record in the pinned public corpus,
 //! compared with the `AcDbMaterial` object AutoCAD exported to DXF for the
-//! same handle. ARCHITECTURE.md §7au holds the table of what each field was
+//! same handle. ARCHITECTURE.md §7ba holds the table of what each field was
 //! checked against.
 //!
 //! # Field list — derived, 212 records on seven releases
@@ -264,7 +264,7 @@ fn read_body(
 
 /// Decode a MATERIAL straight from its raw object payload: the field list
 /// of the module docs, derived from AutoCAD's own output (CLEANROOM.md,
-/// 2026-10-26; ARCHITECTURE.md §7au), ending exactly on the data-stream
+/// 2026-10-26; ARCHITECTURE.md §7ba), ending exactly on the data-stream
 /// boundary and, from R2007, with every string-stream entry consumed.
 pub(crate) fn decode_object(
     payload: &[u8],
@@ -307,7 +307,7 @@ pub struct AcadMaterial {
 /// Read the strings and the measured data-field budget of one
 /// ACAD_MATERIAL record, without its data fields: the measurement entry
 /// point of the module before `decode_object` closed the field list
-/// (ARCHITECTURE.md §7au). It does not run the boundary check.
+/// (ARCHITECTURE.md §7ba). It does not run the boundary check.
 pub fn read_strings(
     payload: &[u8],
     body_start: usize,

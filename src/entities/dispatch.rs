@@ -145,7 +145,7 @@ pub enum DecodedEntity {
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
-    /// AutoCAD's own output (ARCHITECTURE.md §7au).
+    /// AutoCAD's own output (ARCHITECTURE.md §7ba).
     Material(Box<crate::objects::acad_material::Material>),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
