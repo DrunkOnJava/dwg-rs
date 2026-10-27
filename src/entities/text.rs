@@ -77,7 +77,7 @@ pub struct Text {
 /// Decodes the §20.4.3 TEXT payload that follows the common entity
 /// data, with the `TV` inline (R13 to R2004).
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Text> {
-    if version == Version::R14 {
+    if version.is_r13_r14() {
         return read_r13_r14_fields(c, version);
     }
     read_r2000_fields(c, |c| read_tv(c, version))

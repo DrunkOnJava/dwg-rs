@@ -1166,7 +1166,7 @@ fn dispatch_table_entry(
         }
         // R13/R14 lay the dimension variables out in their own order and
         // widths (§20.4.68's "R13 & R14 Only" block).
-        ObjectType::DimStyle if matches!(version, Version::R14) => {
+        ObjectType::DimStyle if version.is_r13_r14() => {
             crate::tables::dimstyle::decode_r13_r14(c, version)
                 .map(DecodedEntity::DimStyle)
                 .map_err(|e| e.to_string())
@@ -1322,7 +1322,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_RAY => DecodedEntity::Ray(ray::decode(c)?),
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
         OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode_for(c, version)?),
-        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
+        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode_for(c, version)?),
         OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
