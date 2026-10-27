@@ -2946,7 +2946,7 @@ Three differences are relations the probe names, not disagreements:
 
 The probe also prints the numbers per release.
 
-## 7al. R2007's object records are R2000's (2026-10-26, #205)
+## 7am. R2007's object records are R2000's (2026-10-26, #205)
 
 The streaming object walker for R2007 (`src/streaming/r2007_objects.rs`) frames
 the `AcDb:AcDbObjects` section of an `AC1021` file into records without the

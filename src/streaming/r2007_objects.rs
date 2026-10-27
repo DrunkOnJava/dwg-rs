@@ -6,7 +6,7 @@
 //! [`super::records`]. Every other section's data passes through as the file
 //! walker reports it. A record is `MS` size, `MS` bytes of payload and a CRC,
 //! the layout of R2000 (`RecordFormat::R2000`): on every object section of the
-//! pinned corpus (ARCHITECTURE.md §7al) the records tile the section exactly
+//! pinned corpus (ARCHITECTURE.md §7am) the records tile the section exactly
 //! after its four-byte prologue and every CRC and every handle agrees with the
 //! `AcDb:Handles` map. A record's payload (everything between its `MS` and its
 //! CRC, the bytes the legacy `RawObject::raw` holds) is handed out as it

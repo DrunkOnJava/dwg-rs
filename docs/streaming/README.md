@@ -688,7 +688,7 @@ through as the file walker reports it (`R2007ObjectStep::Walk`). An R2007 record
 is the `MS` size, `MS` bytes of payload and a CRC over the bytes from the `MS`
 through the last payload byte (seed 0xC0C1), after the four-byte `RL 0x0DCA`
 prologue, with no `MC`: the layout of R2000 (`RecordFormat::R2000`), not of
-R2010. ARCHITECTURE.md §7al measures it on all eight pinned R2007 drawings
+R2010. ARCHITECTURE.md §7am measures it on all eight pinned R2007 drawings
 (2,237 records). The type, the `RL` size in bits and the handle are read from
 the payload's first bits, which on R2007 and later lie in the data stream; the
 string stream (where `TV` text lives, §7a) and the handle stream (where `H`
