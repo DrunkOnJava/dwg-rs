@@ -3961,7 +3961,7 @@ brackets only up to `100 AcDbXrecord`, as `DxfRecord::top_level` does, so that 3
 as an application's handle and not as a dangling reactor, and a control XRECORD with a
 real reactor to an absent handle still counts as dangling.
 
-## 7ax. AcDb:Classes as AutoCAD writes it, and a writer that matches it (2026-10-27, #45)
+## 7ay. AcDb:Classes as AutoCAD writes it, and a writer that matches it (2026-10-27, #45)
 
 `write_class_map` was "not a byte-exact AutoCAD emitter" (#45): it round-tripped through
 `ClassMap::parse` and no further. `examples/probe_class_roundtrip.rs` reads each
