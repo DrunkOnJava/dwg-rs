@@ -74,7 +74,8 @@ pub struct Leader {
     /// `3BD` offset to the block insertion point (DXF 212).
     pub offset_to_block_insertion: Vec3D,
     /// `3BD` end point projection (R14+): the offset from the last point
-    /// to the annotation.
+    /// to the annotation. R13 stores none (§20.4.47), so it is the zero
+    /// vector there.
     pub end_point_projection: Vec3D,
     /// `BD` DIMGAP × DIMSCALE at creation; R13-R14 only.
     pub dimgap: Option<f64>,
@@ -133,8 +134,12 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Leader> {
     let extrusion = read_bd3(c)?;
     let x_direction = read_bd3(c)?;
     let offset_to_block_insertion = read_bd3(c)?;
-    let end_point_projection = read_bd3(c)?;
-    let r13_r14 = version == Version::R14;
+    let end_point_projection = if version == Version::R13 {
+        Vec3D::default()
+    } else {
+        read_bd3(c)?
+    };
+    let r13_r14 = version.is_r13_r14();
     let dimgap = if r13_r14 { Some(c.read_bd()?) } else { None };
     let (box_height, box_width) = if version.is_r2010_plus() {
         (None, None)

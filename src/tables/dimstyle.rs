@@ -592,7 +592,7 @@ pub fn decode_with_vars(
     raw: &crate::object::RawObject,
     version: Version,
 ) -> Result<(DimStyleEntry, Vec<DimVar>)> {
-    if matches!(version, Version::R14) {
+    if version.is_r13_r14() {
         return Err(crate::error::Error::SectionMap(
             "R13/R14 DIMSTYLE variables are not surfaced".into(),
         ));

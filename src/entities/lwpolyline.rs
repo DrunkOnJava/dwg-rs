@@ -179,7 +179,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LwPolyline> {
     }
 
     let mut vertices = Vec::with_capacity(num_points);
-    if version == Version::R14 {
+    if version.is_r13_r14() {
         // §20.4.85: R13-R14 write every vertex as a `2RD`.
         for _ in 0..num_points {
             vertices.push(Point2D {

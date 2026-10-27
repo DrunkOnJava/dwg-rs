@@ -173,7 +173,7 @@ pub fn decode(
     let center = read_bd3(c)?;
     let width = c.read_bd()?;
     let height = c.read_bd()?;
-    let view = if version == Version::R14 {
+    let view = if version.is_r13_r14() {
         None
     } else {
         Some(decode_view(c, version, strings)?)

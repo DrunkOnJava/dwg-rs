@@ -28,13 +28,16 @@ fn append_bits(dst: &mut BitWriter, src: &BitWriter) {
 }
 
 /// The LINE body §20.4.21 prescribes for R13/R14: two plain `3BD`s,
-/// then the thickness and extrusion defaults.
+/// then the thickness as a bare `BD` (§2.10) and the extrusion as a bare
+/// `3BD` (§2.8); the one-bit defaults are the R2000+ forms.
 fn write_r13_r14_line_body(w: &mut BitWriter, start: (f64, f64, f64), end: (f64, f64, f64)) {
     for v in [start.0, start.1, start.2, end.0, end.1, end.2] {
         w.write_bd(v);
     }
-    w.write_b(true); // BT thickness: default 0.0
-    w.write_b(true); // BE extrusion: default (0, 0, 1)
+    w.write_bd(0.0); // BT thickness
+    for v in [0.0, 0.0, 1.0] {
+        w.write_bd(v); // BE extrusion
+    }
 }
 
 /// The LINE body §20.4.21 prescribes for R2000+: a `Z's are zero` flag,

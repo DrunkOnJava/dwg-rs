@@ -56,7 +56,7 @@ pub struct Line {
 /// `RD` + `DD` form; see the module docs. The cursor must already be
 /// positioned past the common entity preamble.
 pub fn decode_versioned(c: &mut BitCursor<'_>, version: Version) -> Result<Line> {
-    if matches!(version, Version::R14) {
+    if version.is_r13_r14() {
         return decode_r13_r14(c);
     }
     decode(c)
@@ -69,8 +69,8 @@ pub fn decode_versioned(c: &mut BitCursor<'_>, version: Version) -> Result<Line>
 pub fn decode_r13_r14(c: &mut BitCursor<'_>) -> Result<Line> {
     let start = read_bd3(c)?;
     let end = read_bd3(c)?;
-    let thickness = read_bt(c)?;
-    let extrusion = read_be(c)?;
+    let thickness = c.read_bd()?;
+    let extrusion = read_bd3(c)?;
     Ok(Line {
         start,
         end,

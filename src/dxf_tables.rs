@@ -249,7 +249,7 @@ fn layer_groups(
 ) -> Vec<HeaderGroup> {
     // R13 and R14 store no plot flag and no lineweight: the decoder leaves them
     // clear, which is not the drawing saying the layer does not plot.
-    let stored = !matches!(file_version, crate::version::Version::R14);
+    let stored = !file_version.is_r13_r14();
     let mut flags = xdep(&l.header);
     if l.flags & 1 != 0 {
         flags |= 1;
@@ -604,7 +604,7 @@ fn view_groups(
     defined: &HashSet<u64>,
 ) -> Option<Vec<HeaderGroup>> {
     // R13 and R14 store neither a render mode nor an associated UCS.
-    let r2000_plus = !matches!(file_version, crate::version::Version::R14);
+    let r2000_plus = !file_version.is_r13_r14();
     let reals = [
         v.view_height,
         v.view_width,
