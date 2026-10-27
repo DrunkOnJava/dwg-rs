@@ -2378,7 +2378,7 @@ of the R2004+ colour, and every value beyond the one box and one history pair th
 corpus holds (saved on seven releases). The handles (groups 360 and 347) are in the
 handle stream and are not decoded. ACSH_EXTRUSION_CLASS (one record per release)
 follows the same base and node and adds a sweep base with 672 bits of profile data and
-two more 16-value matrices; §7ac decodes it.
+two more 16-value matrices; §7be decodes it.
 
 ```sh
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
@@ -2603,7 +2603,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_eval_graph -- ../dwg-corpus
 ```
 
-## 7ac. ACSH_EXTRUSION_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
+## 7be. ACSH_EXTRUSION_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
 
 ODA spec v5.4.1 prints no layout for the solid-history record AutoCAD writes for an
 extrusion. `src/objects/sh_history.rs` reads it from the layout below, derived by the
@@ -2611,7 +2611,7 @@ CLEANROOM.md method of 2026-10-26: the data bits of the seven records in `sample
 (one per release, R14 to R2018) against the object of the same handle in the DXF
 export. All seven close, from R2007 on a string stream the list consumes entirely, and
 328 values equal the DXF with 0 differences. It completes the family of ARCHITECTURE.md
-§7w: the same evaluation base and history node as the box, then a sweep base.
+§7ay: the same evaluation base and history node as the box, then a sweep base.
 
 | Release | Records | Close | Values compared | Differ |
 |---|---:|---:|---:|---:|

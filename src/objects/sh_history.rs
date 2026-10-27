@@ -29,7 +29,7 @@
 //! flag above 3, and an integer wider than the short forms the corpus holds, are
 //! refused with [`crate::error::Error::Unsupported`]. ACSH_EXTRUSION_CLASS follows the
 //! same evaluation base and node, then the sweep base with its profile data and two
-//! more matrices (ARCHITECTURE.md §7ac).
+//! more matrices (ARCHITECTURE.md §7be).
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -251,7 +251,7 @@ fn read_array<const N: usize>(c: &mut BitCursor<'_>) -> Result<[f64; N]> {
 }
 
 /// Decode an ACSH_EXTRUSION_CLASS record from the layout of the module docs (derived
-/// from AutoCAD's output, ARCHITECTURE.md §7ac), ending exactly on the data-stream
+/// from AutoCAD's output, ARCHITECTURE.md §7be), ending exactly on the data-stream
 /// boundary and, from R2007, with the string stream consumed.
 pub(crate) fn decode_extrusion(
     payload: &[u8],

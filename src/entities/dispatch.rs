@@ -168,7 +168,7 @@ pub enum DecodedEntity {
     ShHistory(crate::objects::sh_history::ShHistory),
     /// ACSH_BOX_CLASS (§7w).
     ShBox(Box<crate::objects::sh_history::ShBox>),
-    /// ACSH_EXTRUSION_CLASS (§7ac).
+    /// ACSH_EXTRUSION_CLASS (§7be).
     ShExtrusion(Box<crate::objects::sh_history::ShExtrusion>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
