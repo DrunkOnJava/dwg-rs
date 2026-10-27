@@ -11,7 +11,7 @@
 //! follows, in file order.
 //!
 //! Written: DICTIONARY and ACDBDICTIONARYWDFLT (the key and handle of each
-//! entry), DICTIONARYVAR, XRECORD, SCALE and ACDBPLACEHOLDER. A dictionary entry
+//! entry), DICTIONARYVAR, XRECORD, SCALE, VISUALSTYLE and ACDBPLACEHOLDER. A dictionary entry
 //! whose object is not written is left out, and [`Objects::skipped`] counts the
 //! objects not written by kind.
 
@@ -26,6 +26,7 @@ use crate::entity_refs::entity_refs;
 use crate::header_vars::HeaderVars;
 use crate::object::RawObject;
 use crate::object_type::ObjectType;
+use crate::objects::acad_visual_style::{AcadVisualStyle, VisualStyleColor, VisualStyleValue};
 use crate::objects::xrecord::XValue;
 use crate::reader::DwgFile;
 use crate::tables::handles::{EntryRefs, refs};
@@ -43,6 +44,7 @@ pub fn kinds(version: Version) -> Vec<&'static str> {
         "SCALE",
         "LAYOUT",
         "GROUP",
+        "VISUALSTYLE",
         "ACDBPLACEHOLDER",
     ];
     if !matches!(version, Version::R2018) {
@@ -178,6 +180,7 @@ pub fn plan(file: &DwgFile, header: &HeaderVars) -> Plan {
                 | DecodedEntity::Layout(_)
                 | DecodedEntity::Group(_)
                 | DecodedEntity::MLineStyle(_)
+                | DecodedEntity::VisualStyle(_)
         );
         let reads = refs(raw, version).ok();
         if let Some(r) = &reads {
@@ -253,6 +256,153 @@ fn aci_of(c: &crate::objects::color::ObjectColor) -> i64 {
         0xC3 => i64::from(c.rgb & 0xFF),
         _ => i64::from(c.index),
     }
+}
+
+/// The DXF colour number of a VISUALSTYLE colour that is not an RGB one: ByLayer
+/// 256, ByBlock 0, none 257, an index its own number. Before R2004 a colour is the
+/// bare index.
+fn visual_style_aci(c: &VisualStyleColor) -> i64 {
+    match c.method() {
+        0xC0 => 256,
+        0xC1 => 0,
+        0xC3 => i64::from(c.payload()),
+        0xC8 => 257,
+        _ => i64::from(c.index),
+    }
+}
+
+/// One property of a VISUALSTYLE with the group its release gives it.
+enum StyleProperty {
+    Short(i32, i16),
+    Double(i32, f64),
+    Bool(i32, bool),
+    Color(i32, VisualStyleColor),
+    Text(String),
+}
+
+/// The groups of a VISUALSTYLE (the object §20.4 does not prescribe; its values
+/// are the fields `acad_visual_style` measures and its groups are AutoCAD's own
+/// export's). Three layouts follow the release the drawing was saved by:
+///
+/// - R2000 to R2007: one group per property, `70` the style, `71` to `173` the
+///   properties and the internal-use flag `291` last; an RGB colour is its
+///   RGB (`421` to `425`, from R2004 only) and no index: the export also writes
+///   the nearest index (`63` to `67`) of a true colour, which the DWG does not
+///   store (its index word is 0) and which is not written. The export also writes
+///   the constants `62` (5), `174` (0) and `45` (0.0),
+///   which no decoded field holds and which are not written.
+/// - R2010: the head `177` (format version) and `291`, then each property with
+///   its `176` flag.
+/// - R2013 and R2018: the head, the count `70` of the property list, then every
+///   property as a typed group (`90` integer, `40` real, `290` boolean, `62` and
+///   `420` colour, `1` text) with its `176` flag, the 28 named ones and the
+///   decoder's extended ones.
+fn visual_style_groups(
+    g: &mut Vec<HeaderGroup>,
+    v: &AcadVisualStyle,
+    version: Version,
+) -> Option<()> {
+    use StyleProperty::{Bool, Color, Double, Short, Text};
+    let reals = [
+        v.face_opacity,
+        v.face_specular,
+        v.edge_crease_angle,
+        v.edge_opacity,
+        v.display_brightness,
+    ];
+    if !reals.iter().all(|x| x.is_finite()) {
+        return None;
+    }
+    let listed = matches!(version, Version::R2013 | Version::R2018);
+    let named = vec![
+        Short(71, v.face_lighting_model),
+        Short(72, v.face_lighting_quality),
+        Short(73, v.face_color_mode),
+        Short(90, v.face_modifier),
+        Double(40, v.face_opacity),
+        Double(41, v.face_specular),
+        Color(63, v.face_mono_color),
+        Short(74, v.edge_model),
+        Short(91, v.edge_style),
+        Color(64, v.edge_intersection_color),
+        Color(65, v.edge_obscured_color),
+        Short(75, v.edge_obscured_linetype),
+        Short(175, v.edge_intersection_linetype),
+        Double(42, v.edge_crease_angle),
+        Short(92, v.edge_modifier),
+        Color(66, v.edge_color),
+        Double(43, v.edge_opacity),
+        Short(76, v.edge_width),
+        Short(77, v.edge_overhang),
+        Short(78, v.edge_jitter),
+        Color(67, v.edge_silhouette_color),
+        Short(79, v.edge_silhouette_width),
+        Short(170, v.edge_halo_gap),
+        Short(171, v.edge_isoline_count),
+        Bool(290, v.edge_hide_precision),
+        Short(93, v.edge_style_apply),
+        Double(44, v.display_brightness),
+        Short(173, v.display_shadow_type),
+    ];
+    let mut props: Vec<(StyleProperty, Option<i16>)> = Vec::new();
+    for (i, p) in named.into_iter().enumerate() {
+        props.push((p, v.property_flags.get(i).copied()));
+    }
+    for p in &v.extended {
+        let value = match &p.value {
+            VisualStyleValue::Short(x) => Short(90, *x),
+            VisualStyleValue::Double(x) if x.is_finite() => Double(40, *x),
+            VisualStyleValue::Double(_) => return None,
+            VisualStyleValue::Bool(x) => Bool(290, *x),
+            VisualStyleValue::Color(c) => Color(62, *c),
+            VisualStyleValue::Text(t) => Text(t.clone()),
+        };
+        props.push((value, Some(p.flag)));
+    }
+    g.push(HeaderGroup::Text(100, "AcDbVisualStyle".into()));
+    g.push(HeaderGroup::Text(2, v.description.clone()));
+    g.push(HeaderGroup::Int(70, i64::from(v.internal_style_type)));
+    let flagged = version.is_r2010_plus();
+    if flagged {
+        g.push(HeaderGroup::Int(177, i64::from(v.format_version)));
+        g.push(HeaderGroup::Int(291, i64::from(v.is_internal_use_only)));
+    }
+    if listed {
+        g.push(HeaderGroup::Int(70, i64::try_from(props.len()).ok()?));
+    }
+    for (p, flag) in props {
+        match p {
+            Short(code, x) => g.push(HeaderGroup::Int(
+                if listed { 90 } else { code },
+                i64::from(x),
+            )),
+            Double(code, x) => g.push(HeaderGroup::Real(if listed { 40 } else { code }, x)),
+            Bool(code, x) => g.push(HeaderGroup::Int(
+                if listed { 290 } else { code },
+                i64::from(x),
+            )),
+            Color(code, c) => {
+                let (index_code, rgb_code) = if listed {
+                    (62, 420)
+                } else {
+                    (code, code + 358)
+                };
+                if c.method() == 0xC2 && version.is_r2004_plus() {
+                    g.push(HeaderGroup::Int(rgb_code, i64::from(c.payload())));
+                } else {
+                    g.push(HeaderGroup::Int(index_code, visual_style_aci(&c)));
+                }
+            }
+            Text(t) => g.push(HeaderGroup::Text(1, t)),
+        }
+        if flagged {
+            g.push(HeaderGroup::Int(176, i64::from(flag?)));
+        }
+    }
+    if !flagged {
+        g.push(HeaderGroup::Int(291, i64::from(v.is_internal_use_only)));
+    }
+    Some(())
 }
 
 /// The groups of an MLINESTYLE. The DWG's flag bits are not DXF's; a line's
@@ -499,6 +649,10 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             mline_style_groups(&mut g, m, item.version)?;
             "MLINESTYLE"
         }
+        DecodedEntity::VisualStyle(v) => {
+            visual_style_groups(&mut g, v, item.version)?;
+            "VISUALSTYLE"
+        }
         DecodedEntity::Placeholder(_) => "ACDBPLACEHOLDER",
         _ => return None,
     };
@@ -554,6 +708,7 @@ pub fn build(
                     DecodedEntity::Layout(_) => "LAYOUT",
                     DecodedEntity::Group(_) => "GROUP",
                     DecodedEntity::MLineStyle(_) => "MLINESTYLE",
+                    DecodedEntity::VisualStyle(_) => "VISUALSTYLE",
                     _ => "ACDBPLACEHOLDER",
                 };
                 *out.skipped

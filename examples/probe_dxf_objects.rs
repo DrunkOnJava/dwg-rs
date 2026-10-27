@@ -473,7 +473,42 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             }
         }
 
-        let (a, b) = (body(r), body(want));
+        let (a, mut b) = (body(r), body(want));
+        // Up to R2007 the export writes three constants no decoded field holds: group
+        // 62 (5), 174 (0) and 45 (0.0), the same in every style of every release.
+        if kind == "VISUALSTYLE" {
+            // A true colour: the export writes the nearest index (62 to 67) before
+            // the RGB group (420 to 425), and the DWG stores no index for it.
+            let flagless = !file.version().is_r2010_plus();
+            let mut kept = Vec::with_capacity(b.len());
+            for (i, g) in b.iter().enumerate() {
+                let next = b.get(i + 1).map(|n| n.0);
+                let derived = matches!(
+                    (g.0, next),
+                    (63, Some(421))
+                        | (64, Some(422))
+                        | (65, Some(423))
+                        | (66, Some(424))
+                        | (67, Some(425))
+                        | (62, Some(420))
+                );
+                let constant = flagless && matches!(g.0, 62 | 174 | 45);
+                if derived || constant {
+                    t.omitted_groups += 1;
+                    let why = if derived {
+                        "a true colour's nearest index, which the export derives and the DWG does not store"
+                    } else {
+                        "a constant of the export, in every style, that no decoded field holds"
+                    };
+                    *o.reasons
+                        .entry(format!("VISUALSTYLE group {} ({why})", g.0))
+                        .or_default() += 1;
+                } else {
+                    kept.push(g.clone());
+                }
+            }
+            b = kept;
+        }
         let n = a.len().max(b.len());
         for i in 0..n {
             match (a.get(i), b.get(i)) {
@@ -499,6 +534,18 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                             ),
                             ("XRECORD", "ACAD_LAST_SAVED_VERSION_INFO", 300 | 302 | 303) => Some(
                                 "the saved file's identity, which AutoCAD writes for its export",
+                            ),
+                            ("VISUALSTYLE", _, 72)
+                                if !file.version().is_r2010_plus()
+                                    && r.first(2).and_then(DxfValue::as_str)
+                                        == Some("Realistic") =>
+                            {
+                                Some(
+                                    "the export writes 3 for Realistic's lighting quality where an R2000 to R2007 DWG stores 2",
+                                )
+                            }
+                            ("VISUALSTYLE", _, 177) => Some(
+                                "the export writes the current format version, 3, where an R2013 or R2018 DWG stores 2",
                             ),
                             ("XRECORD", "ACDB_RECOMPOSE_DATA", 330) => {
                                 Some("the styles AutoCAD lists again when it loads the file")
