@@ -733,6 +733,7 @@ pub fn section_of(label: &str) -> &'static str {
         "POLYLINE_2D" => "§20.4.16",
         "POLYLINE_3D" => "§20.4.17",
         "3DFACE" => "§20.4.32",
+        "SPLINE" => "§20.4.40",
         "POLYLINE_PFACE" => "§20.4.33",
         "SOLID" => "§20.4.35",
         "RAY" => "§20.4.42",
@@ -835,6 +836,7 @@ pub fn score(
             c.real("end_param", 42, e.end_param, None);
         }
         D::LwPolyline(p) => score_lwpolyline(&mut c, p),
+        D::Spline(sp) => score_spline(&mut c, sp),
         // §20.4.6: the name, 2 and 3 in the DXF.
         D::Block(b) => {
             c.subclass("AcDbBlockBegin");
@@ -1856,6 +1858,76 @@ fn score_layout(c: &mut Ctx<'_>, l: &dwg::objects::acad_layout::AcadLayout) {
         c.dwg_only("viewport_count", l.viewport_count);
     }
     c.whole();
+}
+
+// §20.4.40 against the DXF Reference's AcDbSpline: 70 the flags (closed 1,
+// periodic 2, rational 4, planar 8 and others the decoder does not
+// surface), 71 the degree, 72, 73 and 74 the knot, control point and fit
+// point counts, 42, 43 and 44 the knot, control point and fit tolerances,
+// 12 and 13 the fit tangents, then 40 the knots, 41 the weights of a
+// rational spline, 10 the control points and 11 the fit points. The
+// control form has no fit points (74 is 0); only it occurs in a file with
+// a DXF twin. The scenario, the R2013+ flags and the knot parameter have
+// no DXF group.
+fn score_spline(c: &mut Ctx<'_>, s: &dwg::entities::spline::Spline) {
+    if !c.subclass("AcDbSpline") {
+        c.dwg_only("(the export has no AcDbSpline subclass)", ());
+        return;
+    }
+    c.int("degree", 71, i64::from(s.degree), None);
+    if let Some(k) = &s.control {
+        c.bit("closed", 70, 1, k.closed);
+        c.bit("periodic", 70, 2, k.periodic);
+        c.bit("rational", 70, 4, k.rational);
+        if let Some(x) = c.peek(70).and_then(DxfValue::as_i64) {
+            if x & !7 != 0 {
+                c.not_decoded(
+                    "70 (bits other than closed, periodic and rational)",
+                    (x & !7).to_string(),
+                );
+            }
+        }
+        c.done(70);
+        c.int("knot count", 72, k.knots.len() as i64, None);
+        c.int(
+            "control point count",
+            73,
+            k.control_points.len() as i64,
+            None,
+        );
+        c.real("knot_tolerance", 42, k.knot_tolerance, None);
+        c.real("control_tolerance", 43, k.control_tolerance, None);
+        for x in &k.knots {
+            c.real("knots", 40, *x, None);
+        }
+        if k.rational {
+            for w in &k.weights {
+                c.real("weights", 41, *w, None);
+            }
+        }
+        for p in &k.control_points {
+            c.point3("control_points", 10, *p, None);
+        }
+    }
+    match &s.fit {
+        Some(f) => {
+            c.int("fit point count", 74, f.fit_points.len() as i64, None);
+            c.real("fit tolerance", 44, f.tolerance, None);
+            c.point3("begin_tangent", 12, f.begin_tangent, None);
+            c.point3("end_tangent", 13, f.end_tangent, None);
+            for p in &f.fit_points {
+                c.point3("fit_points", 11, *p, None);
+            }
+        }
+        None => c.int("fit point count", 74, 0, None),
+    }
+    c.dwg_only("scenario", s.scenario);
+    if let Some(f) = s.flag1 {
+        c.dwg_only("flag1 (R2013+)", f);
+    }
+    if let Some(k) = s.knot_param {
+        c.dwg_only("knot_param (R2013+)", k);
+    }
 }
 
 // §20.4.85: 90 count, 70 flag, 43 constant width, 38 elevation, 39

@@ -299,6 +299,20 @@ R2000	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2000	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2000	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2000	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2000	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2000	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2000	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2000	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2000	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2000	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2000	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2000	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2000	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2000	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2000	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2000	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2000	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2000	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2000	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2000	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2000	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -967,6 +981,20 @@ R2004	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2004	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2004	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2004	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2004	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2004	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2004	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2004	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2004	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2004	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2004	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2004	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2004	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2004	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2004	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2004	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2004	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2004	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2004	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2004	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2004	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -1646,6 +1674,20 @@ R2007	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2007	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2007	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2007	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2007	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2007	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2007	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2007	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2007	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2007	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2007	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2007	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2007	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2007	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2007	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2007	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2007	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2007	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2007	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2007	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2007	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -2270,6 +2312,20 @@ R2010	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2010	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2010	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2010	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2010	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2010	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2010	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2010	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2010	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2010	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2010	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2010	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2010	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2010	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2010	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2010	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2010	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2010	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2010	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2010	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2010	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -2954,6 +3010,32 @@ R2013	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2013	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2013	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2013	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2013	§20.4.40	SPLINE	begin_tangent.x	12	0	0	0	1
+R2013	§20.4.40	SPLINE	begin_tangent.y	22	0	0	0	1
+R2013	§20.4.40	SPLINE	begin_tangent.z	32	0	0	0	1
+R2013	§20.4.40	SPLINE	closed	70&1	1	0	0	0
+R2013	§20.4.40	SPLINE	control point count	73	1	0	0	0
+R2013	§20.4.40	SPLINE	control_points.x	10	4	0	0	0
+R2013	§20.4.40	SPLINE	control_points.y	20	4	0	0	0
+R2013	§20.4.40	SPLINE	control_points.z	30	4	0	0	0
+R2013	§20.4.40	SPLINE	control_tolerance	43	1	0	0	0
+R2013	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2013	§20.4.40	SPLINE	end_tangent.x	13	0	0	0	1
+R2013	§20.4.40	SPLINE	end_tangent.y	23	0	0	0	1
+R2013	§20.4.40	SPLINE	end_tangent.z	33	0	0	0	1
+R2013	§20.4.40	SPLINE	fit point count	74	1	0	1	0
+R2013	§20.4.40	SPLINE	fit tolerance	44	0	0	0	1
+R2013	§20.4.40	SPLINE	fit_points.x	11	0	0	0	2
+R2013	§20.4.40	SPLINE	fit_points.y	21	0	0	0	2
+R2013	§20.4.40	SPLINE	fit_points.z	31	0	0	0	2
+R2013	§20.4.40	SPLINE	flag1 (R2013+)	-	0	0	0	2
+R2013	§20.4.40	SPLINE	knot count	72	1	0	0	0
+R2013	§20.4.40	SPLINE	knot_param (R2013+)	-	0	0	0	2
+R2013	§20.4.40	SPLINE	knot_tolerance	42	1	0	0	0
+R2013	§20.4.40	SPLINE	knots	40	8	0	0	0
+R2013	§20.4.40	SPLINE	periodic	70&2	1	0	0	0
+R2013	§20.4.40	SPLINE	rational	70&4	1	0	0	0
+R2013	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2013	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2013	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2013	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -3638,6 +3720,32 @@ R2018	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2018	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2018	§20.4.4	ATTRIB	v_align	74	2	2	0	0
 R2018	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2018	§20.4.40	SPLINE	begin_tangent.x	12	0	0	0	1
+R2018	§20.4.40	SPLINE	begin_tangent.y	22	0	0	0	1
+R2018	§20.4.40	SPLINE	begin_tangent.z	32	0	0	0	1
+R2018	§20.4.40	SPLINE	closed	70&1	1	0	0	0
+R2018	§20.4.40	SPLINE	control point count	73	1	0	0	0
+R2018	§20.4.40	SPLINE	control_points.x	10	4	0	0	0
+R2018	§20.4.40	SPLINE	control_points.y	20	4	0	0	0
+R2018	§20.4.40	SPLINE	control_points.z	30	4	0	0	0
+R2018	§20.4.40	SPLINE	control_tolerance	43	1	0	0	0
+R2018	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2018	§20.4.40	SPLINE	end_tangent.x	13	0	0	0	1
+R2018	§20.4.40	SPLINE	end_tangent.y	23	0	0	0	1
+R2018	§20.4.40	SPLINE	end_tangent.z	33	0	0	0	1
+R2018	§20.4.40	SPLINE	fit point count	74	1	0	1	0
+R2018	§20.4.40	SPLINE	fit tolerance	44	0	0	0	1
+R2018	§20.4.40	SPLINE	fit_points.x	11	0	0	0	2
+R2018	§20.4.40	SPLINE	fit_points.y	21	0	0	0	2
+R2018	§20.4.40	SPLINE	fit_points.z	31	0	0	0	2
+R2018	§20.4.40	SPLINE	flag1 (R2013+)	-	0	0	0	2
+R2018	§20.4.40	SPLINE	knot count	72	1	0	0	0
+R2018	§20.4.40	SPLINE	knot_param (R2013+)	-	0	0	0	2
+R2018	§20.4.40	SPLINE	knot_tolerance	42	1	0	0	0
+R2018	§20.4.40	SPLINE	knots	40	8	0	0	0
+R2018	§20.4.40	SPLINE	periodic	70&2	1	0	0	0
+R2018	§20.4.40	SPLINE	rational	70&4	1	0	0	0
+R2018	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2018	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2018	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2018	§20.4.42	RAY	direction.z	31	1	0	0	0
