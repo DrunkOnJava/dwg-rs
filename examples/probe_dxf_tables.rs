@@ -177,12 +177,7 @@ fn brackets(r: &DxfRecord) -> BTreeMap<String, Vec<(u16, DxfValue)>> {
 }
 
 /// Why the converter may omit group `code` of a `table` record the export writes.
-fn group_reason(
-    table: &str,
-    code: u16,
-    theirs: &DxfRecord,
-    doc: &DxfDocument,
-) -> Option<&'static str> {
+fn group_reason(table: &str, code: u16, theirs: &DxfRecord) -> Option<&'static str> {
     match (table, code) {
         (_, 1000..=1071) => Some("extended data is not decoded for table records"),
         ("BLOCK_RECORD", 340) => Some("the layout object is not written to OBJECTS"),
@@ -473,7 +468,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                     continue;
                 }
                 t.omitted_groups += 1;
-                match group_reason(table, *code, want, &theirs) {
+                match group_reason(table, *code, want) {
                     Some(why) => *o.reasons.entry(format!("{table} group {code} ({why})")).or_default() += 1,
                     None => o.failures.push(format!(
                         "{name} {table} {h:X}: AutoCAD writes group {code} and the record omits it with no stated reason"
