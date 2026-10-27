@@ -2290,7 +2290,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_dynamic_blocks -- ../dwg-corpus
 ```
 
-## 7v. DIMASSOC, derived from AutoCAD's own output (2026-10-26)
+## 7ax. DIMASSOC, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for DIMASSOC, the record that ties a dimension
 to the points it measures. `src/objects/dim_assoc.rs` reads it from the layout
