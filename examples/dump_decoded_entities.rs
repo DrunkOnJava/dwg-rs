@@ -443,6 +443,25 @@ fn print_entity(i: usize, e: &DecodedEntity) {
                 ins.has_attribs
             );
         }
+        DecodedEntity::MInsert(m) => {
+            println!(
+                "[{i}] MINSERT  insertion=({:.6}, {:.6}, {:.6}) scale=({:.6}, {:.6}, {:.6}) \
+                 rotation={:.6}rad has_attribs={} columns={} rows={} \
+                 column_spacing={:.6} row_spacing={:.6}",
+                m.insert.insertion_point.x,
+                m.insert.insertion_point.y,
+                m.insert.insertion_point.z,
+                m.insert.scale.x,
+                m.insert.scale.y,
+                m.insert.scale.z,
+                m.insert.rotation,
+                m.insert.has_attribs,
+                m.num_cols,
+                m.num_rows,
+                m.col_spacing,
+                m.row_spacing
+            );
+        }
         DecodedEntity::Spline(s) => {
             let knots_n = s.control.as_ref().map(|c| c.knots.len()).unwrap_or(0);
             let ctrl_n = s
