@@ -10,9 +10,9 @@ file	source	release	decoded	skipped	errored	walk_skips	handle_mismatches	census	
 2d.dwg	bookviewerapp3	AC1014	311	6	0	0	0	-	0	0	0	0	317
 3d.dwg	bookviewerapp3	AC1014	456	46	0	0	0	-	0	0	0	0	502
 A205_BOTTOM.dwg	oshw-jetson	AC1018	5557	4	0	0	0	-	0	21446	0	0	0
-A205_TOP.dwg	oshw-jetson	AC1018	35002	4	5	0	0	CELLSTYLEMAP 2>1;DICTIONARYVAR 12>6	0	148264	0	0	0
-A206_BOTTOM.dwg	oshw-jetson	AC1018	13367	4	1	0	0	-	0	59450	0	0	0
-A206_TOP.dwg	oshw-jetson	AC1018	50626	4	3	0	0	CELLSTYLEMAP 2>1;DICTIONARYVAR 12>6	0	224033	0	0	0
+A205_TOP.dwg	oshw-jetson	AC1018	35007	4	0	0	0	CELLSTYLEMAP 2>1;DICTIONARYVAR 12>6	0	148264	0	0	0
+A206_BOTTOM.dwg	oshw-jetson	AC1018	13368	4	0	0	0	-	0	59450	0	0	0
+A206_TOP.dwg	oshw-jetson	AC1018	50629	4	0	0	0	CELLSTYLEMAP 2>1;DICTIONARYVAR 12>6	0	224033	0	0	0
 Draw.dwg	bookviewerapp3	AC1014	308	6	0	0	0	-	0	0	0	0	314
 Draw2.dwg	bookviewerapp3	AC1014	314	12	0	0	0	-	0	0	0	0	326
 arc_2000.dwg	nextgis	AC1015	207	4	0	0	0	-	0	573	0	0	0

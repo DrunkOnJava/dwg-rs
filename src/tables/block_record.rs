@@ -126,10 +126,6 @@ pub struct BlockRecord {
     pub block_scaling: Option<u8>,
 }
 
-/// Cap on the insert-count run of §20.4.52: a non-zero `RC` per insert
-/// handle, terminated by a zero. No realistic block carries more.
-const MAX_INSERT_COUNT: usize = 256;
-
 /// Cap on the §20.4.52 binary preview blob of one BLOCK_HEADER.
 const MAX_PREVIEW_BYTES: usize = 1_000_000;
 
@@ -187,13 +183,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let mut insert_count = 0;
     let mut preview = Vec::new();
     if !matches!(version, Version::R14) {
-        // Insert-count run: zero or more non-zero `RC`s, then a zero.
-        for _ in 0..=MAX_INSERT_COUNT {
-            if c.read_rc()? == 0 {
-                break;
-            }
-            insert_count += 1;
-        }
+        insert_count = read_insert_count(c)?;
         description = read_tv(c, version)?;
         let preview_bytes = c.read_bl_u()? as usize;
         if preview_bytes > MAX_PREVIEW_BYTES {
@@ -301,13 +291,13 @@ pub(crate) fn decode_modern_split_stream(
 }
 
 /// Read the insert-count run: zero or more non-zero `RC` values
-/// terminated by `0x00` (§20.4.52), and how many there were.
+/// terminated by `0x00` (§20.4.52), and how many there were. The run is as long
+/// as the block has insert handles, which a drawing can make hundreds, so it is
+/// bounded by the record's own bytes (the cursor errors when they end), not by a
+/// count.
 fn read_insert_count(c: &mut BitCursor<'_>) -> Result<usize> {
     let mut n = 0;
-    for _ in 0..=256 {
-        if c.read_rc()? == 0 {
-            return Ok(n);
-        }
+    while c.read_rc()? != 0 {
         n += 1;
     }
     Ok(n)
