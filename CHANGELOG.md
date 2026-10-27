@@ -24,6 +24,10 @@ The file header's short at 0x13 (§3.2.5) is AutoCAD's own enumeration, not a Wi
 
 `CodePage::encode` turns a character the page holds into its byte (two on a double-byte page) and any other into AutoCAD's `\U+XXXX`. `convert_dwg_to_dxf_bytes` writes R12 to R2004 in that page, `classes::write_tv` encodes through the page in force, and `DwgFile::to_bytes` writes the drawing's page into the header, which used to be 0.
 
+### Added — dwg-to-dxf writes VISUALSTYLE objects (2026-10-27, #413, #66)
+
+The 24 built-in visual styles of every pinned drawing are written in the three layouts AutoCAD's own exports use, and `probe_dxf_objects` pairs each with the export: in the Corpus job, 1,008 written and paired, 61,944 of 62,208 groups equal, 264 that differ only by a stated relation, and none that disagree.
+
 ### Added — dwg-to-dxf writes LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #373, #126)
 
 LAYOUT (its plot settings, then the layout and its handles), GROUP (description, flags and one `340` per member the output holds) and MLINESTYLE (name, flags, description, fill colour, angles and each line's offset, colour and linetype), each paired with AutoCAD's export by `probe_dxf_objects`. A layout with a non-finite coordinate, or a plot view named only by a handle the output lacks, is refused or resolved before it is written.

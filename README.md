@@ -138,7 +138,7 @@ passed.
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
-| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371), ENTITIES (15 kinds) and OBJECTS (the dictionary family, XRECORD, SCALE and placeholders, #372; LAYOUT, GROUP and MLINESTYLE, #373) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382) |
+| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371), ENTITIES (15 kinds) and OBJECTS (the dictionary family, XRECORD, SCALE and placeholders, #372; LAYOUT, GROUP and MLINESTYLE, #373; VISUALSTYLE, #413) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382) |
 | DXF reader | Alpha | ASCII DXF keyed by handle, used by the value oracle |
 | DWG writer | Alpha | Assembles an R2004-family file this crate reads back; no CAD application has been checked against it |
 | SVG and PDF export | Alpha | SVG writer and a paged-SVG PDF path; output quality follows the decoded geometry |

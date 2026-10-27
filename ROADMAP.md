@@ -39,7 +39,7 @@ generated from its data file.
 | Spec coverage | Every §20.4 prescription and data section has a state, with its evidence | [`docs/spec-coverage.md`](docs/spec-coverage.md) |
 | Text | Pre-R2007 text in the ten code pages real drawings prove, read and written back (#374, #380, #382, #384) | ARCHITECTURE.md §7ap, §7as, §7at, §7au |
 | Writer | R2004-family section round-trips; no file shown to open in AutoCAD (the AutoCAD trial, #383) | ARCHITECTURE.md §8 |
-| Exports, viewer, Python | DXF HEADER, CLASSES, tables, BLOCKS, ENTITIES and OBJECTS (dictionaries, XRECORD, SCALE, LAYOUT, GROUP, MLINESTYLE) written and paired with AutoCAD's exports; SVG, glTF and PDF checked syntactically; the viewer has stubs; Python has type stubs only | README.md's capability matrix |
+| Exports, viewer, Python | DXF HEADER, CLASSES, tables, BLOCKS, ENTITIES and OBJECTS (dictionaries, XRECORD, SCALE, LAYOUT, GROUP, MLINESTYLE, VISUALSTYLE) written and paired with AutoCAD's exports; SVG, glTF and PDF checked syntactically; the viewer has stubs; Python has type stubs only | README.md's capability matrix |
 | CI | Every pull request reads the pinned public corpus: decode counts, closure, class census and the DXF oracle are ratcheted (Corpus job) | `.github/workflows/ci.yml` |
 | Releases | Nothing published; the April v0.1.0-alpha.1 draft was deleted and its tag kept (#111) | GitHub releases, crates.io |
 
