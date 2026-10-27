@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Render the measured coverage in README.md and STATUS.md from tools/corpus/baseline.tsv.
+"""Render the measured coverage in README.md and STATUS.md from the committed baselines.
 
-The `Corpus (public DWG)` CI job fails unless baseline.tsv equals what it measures, so a
-table rendered from the baseline on `main` is the CI measurement on `main`. The rendered
-text sits between HTML comment markers:
+The `Corpus (public DWG)` CI job fails unless tools/corpus/baseline.tsv and
+tools/oracle/baseline.tsv equal what it measures, so text rendered from them on `main` is
+the CI measurement on `main`. The rendered text sits between HTML comment markers:
 
 - `<!-- corpus-table:begin -->` / `<!-- corpus-table:end -->` in README.md: the
   per-release table;
 - `<!-- corpus-summary:begin -->` / `<!-- corpus-summary:end -->` in README.md and
   STATUS.md: the one-line totals;
+- `<!-- oracle-summary:begin -->` / `<!-- oracle-summary:end -->` in README.md: the DXF
+  value oracle's totals;
 - `<!-- corpus-run:begin -->` / `<!-- corpus-run:end -->`: the CI run that measured it.
 
-`--check` compares the table and the totals only, so a newer run on `main` with the same
-numbers does not fail it. tools/maintainer/audit.py runs the same check.
+`--check` compares the measured text only, so a newer run on `main` with the same numbers
+does not fail it. tools/maintainer/audit.py runs the same check.
 
 Usage:
 
@@ -32,6 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "tools" / "corpus" / "baseline.tsv"
+ORACLE = ROOT / "tools" / "oracle" / "baseline.tsv"
 DOCS = (ROOT / "README.md", ROOT / "STATUS.md")
 REPO = "DrunkOnJava/dwg-rs"
 RELEASES = [
@@ -89,8 +92,20 @@ def summary(rs):
     )
 
 
+def oracle():
+    with ORACLE.open() as f:
+        rs = list(csv.DictReader(f, delimiter="\t"))
+    t = {k: sum(int(r[k]) for r in rs) for k in ("equal", "default", "different", "dwg_only")}
+    types = len({r["type"] for r in rs})
+    return (
+        f"{sum(t.values()):,} field comparisons on {types} types: {t['equal']:,} equal, "
+        f"{t['default']:,} equal to the DXF default, {t['different']:,} different and "
+        f"{t['dwg_only']:,} present only in the DWG"
+    )
+
+
 def blocks(rs):
-    return {"corpus-table": table(rs), "corpus-summary": summary(rs)}
+    return {"corpus-table": table(rs), "corpus-summary": summary(rs), "oracle-summary": oracle()}
 
 
 def pattern(name):
@@ -123,9 +138,9 @@ def stale():
             found = pattern(name).findall(text)
             for _, have, _ in found:
                 if have.strip() != body.strip():
-                    problems.append(f"{doc.name} {name} disagrees with tools/corpus/baseline.tsv")
-        if doc.name == "README.md" and not pattern("corpus-table").search(text):
-            problems.append("README.md has no corpus-table block")
+                    problems.append(f"{doc.name} {name} disagrees with its baseline")
+        if doc.name == "README.md":
+            problems += [f"README.md has no {n} block" for n in want if not pattern(n).search(text)]
     return problems
 
 

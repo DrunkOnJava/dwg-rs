@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40471959010](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40471959010) on 2026-10-27<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40485054993](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40485054993) on 2026-10-27<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on 52 public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -83,10 +83,10 @@ provisional until a controlled AutoCAD drawing confirms it (#348).
 add up, not that the values are right. The DXF value oracle
 ([`examples/dxf_oracle/`](./examples/dxf_oracle/main.rs)) pairs every decoded
 record with the same handle in AutoCAD's DXF export and scores each field. On
-`main` it pairs 8,688 records of 54 types: 105,690 fields equal, 11,142
-equal to the DXF default, 283 different and 6,722 present only in the DWG
+`main` it scores <!-- oracle-summary:begin -->123,903 field comparisons on 53 types: 105,756 equal, 11,142 equal to the DXF default, 283 different and 6,722 present only in the DWG<!-- oracle-summary:end -->
 ([`tools/oracle/baseline.tsv`](./tools/oracle/baseline.tsv) pins the result,
-and CI fails when it moves). Another 52 decoded types have no scorer yet.
+and CI fails when it moves). Decoded types with no scorer yet are listed as
+unscored in the oracle summary the Corpus job uploads.
 
 **Not yet in the table:** R13 (AC1012). The reader for it is in review (#323),
 pinned on 22 public R13 drawings, none of them written by AutoCAD R13 itself

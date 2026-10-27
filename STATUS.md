@@ -19,7 +19,7 @@ the current capability matrix.
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
 - **Current real-file decode coverage, measured in CI** (the
-  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40471959010](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40471959010) on 2026-10-27<!-- corpus-run:end -->, on the public drawings
+  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40485054993](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40485054993) on 2026-10-27<!-- corpus-run:end -->, on the public drawings
   pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->15,527 decoded / 547 skipped / **0 errored** / 96.6 % on 52 drawings. Per version: R14 97.5 %, R2000 96.7 %, R2004 96.7 %, R2007 96.5 %, R2010 96.4 %, R2013 95.6 %, R2018 96.0 %.<!-- corpus-summary:end -->
   The 308 errors of the 2026-10-26 measurement were closed by #226,
   #227, #228 and #71; `sample_AC1032.dwg` comes from ACadSharp's MIT
