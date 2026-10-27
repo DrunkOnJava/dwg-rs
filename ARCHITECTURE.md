@@ -3200,12 +3200,12 @@ and the new decode both return them and agree with the export. No decoded,
 skipped or errored count and no oracle row moved (below).
 
 **A patched copy.** With no such string to read, the path is proved on real
-drawings altered in memory (nothing is written). For each of the 18 uncompressed
-drawings that hold one (the MTEXT "Sample annotation" of `sample_AC1014.dwg` and
-`sample_AC1015.dwg`, and a table-entry name of each of the 16 drawings' LTYPE
-tables) the string's first four characters are overwritten, at the bit they sit
-at, with `E9 B0 C0 FC`, and the record is read back under the drawing's own
-header short, under 29, under 30 and under 31, a number the table lacks:
+drawings altered in memory (nothing is written). For each of the 16 uncompressed
+drawings (the eight AC1014 and the eight AC1015) and each kind of record that
+holds a string, the first string of six bytes or more that sits once in the file
+has its first four characters overwritten, at the bit they sit at, with
+`E9 B0 C0 FC`, and the record is read back under the drawing's own header short,
+under 29, under 30 and under 31, a number the table lacks:
 
 | Header short | Reads as | Before the code page |
 |---:|---|---|
@@ -3213,26 +3213,59 @@ header short, under 29, under 30 and under 31, a number the table lacks:
 | 30 | `é°Àü` + the rest (Windows-1252's own chart) | U+FFFD ×4 |
 | 31 | the bytes, as before, and counted as unknown | U+FFFD ×4 |
 
-72 of 72 reads match, and each of the 16 table-entry names reaches
-`dwg-to-dxf`'s TABLES as `\U+XXXX` escapes of the characters its page gives
-(`\U+00E9\U+00B0\U+00C0\U+00FC` under 30, `\U+0439\U+00B0\U+0410\U+044C` under 29),
-where it wrote `\U+FFFD` before. The corpus's own twins do not show how AutoCAD
-exports an in-page character: the `\U+XXXX` form is the writer's choice
-(`src/dxf_header.rs`), measured against nothing but the escapes the twins hold
-as literal text.
+153 strings in 24 kinds of record, 612 of 612 reads as the table says:
 
-**Counts.** @@MEASURE@@
+| Kind of record | Strings | Reads right | `dwg-to-dxf` TABLES holds it |
+|---|---:|---:|---:|
+| AppId | 16 | 64 of 64 | 16 of 16 |
+| DimStyle | 16 | 64 of 64 | 8 of 8 |
+| Layer | 1 | 4 of 4 | 1 of 1 |
+| Ltype | 16 | 64 of 64 | 16 of 16 |
+| Style | 2 | 8 of 8 | 2 of 2 |
+| Vport | 8 | 32 of 32 | 8 of 8 |
+| BlockHeader | 1 | 4 of 4 | - |
+| Block | 8 | 32 of 32 | - |
+| Text, Attrib, Attdef | 2, 2, 2 | 8 of 8 each | - |
+| MText, Tolerance | 2, 2 | 8 of 8 each | - |
+| Dictionary, ACDBDICTIONARYWDFLT, DICTIONARYVAR | 16, 16, 1 | 64, 64, 4 of the same | - |
+| LAYOUT, SCALE, IMAGEDEF, MULTILEADER | 2 each | 8 of 8 each | - |
+| ACDBDETAILVIEWSTYLE, ACDBSECTIONVIEWSTYLE | 16 each | 64 of 64 each | - |
+| HATCH, Hatch | 1 each | 4 of 4 each | - |
+
+The 51 table-entry names reach `dwg-to-dxf` as `\U+XXXX` escapes of the
+characters their page gives (`\U+00E9\U+00B0\U+00C0\U+00FC` under 30,
+`\U+0439\U+00B0\U+0410\U+044C` under 29), where they were `\U+FFFD` before. The
+corpus's own twins do not show how AutoCAD exports an in-page character: the
+`\U+XXXX` form is the writer's choice (`src/dxf_header.rs`), measured against
+nothing but the escapes the twins hold as literal text. The first run of this
+probe named one reader that takes a `RawObject` without the dispatcher:
+`tables::dimstyle::decode_with_vars`, which DXF TABLES calls for DIMSTYLE (0 of 8
+before, 8 of 8 now); it puts the record's page in force itself. No other reader
+of the crate takes a record that way. The `from_utf8_lossy` calls left in
+`src/` are `CodePage`'s own fallback, the ASCII section names of the R2004
+section map and the DXF reader's.
+
+**Counts.** On `main` at `5851283` with this change merged: `measure.py check`
+matches all 52 rows (15,527 records decoded, 547 skipped, 0 errored), so no
+baseline is regenerated; the DXF oracle's regenerated table is identical to
+`tools/oracle/baseline.tsv` (105,690 values equal, 11,142 default, 283 different,
+6,722 DWG-only); `probe_header_vars`, `probe_dxf_header`, `probe_dxf_tables`,
+`probe_dxf_entities`, `probe_entity_colour`, `probe_text` and `probe_mtext` read
+0 differences; `cargo test --release --all-features` passes (921 tests). Text
+content changes no field width, and none moved.
 
 **Owed.** The writers still emit strings as UTF-8 (`file_writer.rs` names,
 the element encoders): the inverse of this decode, a page-aware encoder, is not
-in this change. XRECORD strings (§20.4.104: an `RC` code page byte after the length) and extended
-entity data strings (§28: a 2-byte code page short) carry a code page of their
-own beside each string; the crate does not decode them (XRECORD keeps its bytes,
-the extended data chain is skipped). `dxf_tables::dash_text` (#358) reads a complex linetype's
-text area as the `TV` readers do and must take `CodePage::decode` with the
-file's page when that lands. The diagnostic `read_tv` copies in `examples/trace_*`
-and the field-list probes still decode as UTF-8; they print strings and compare
-none.
+in this change. XRECORD strings (§20.4.104: an `RC` code page byte after the
+length) and extended entity data strings (§28: a 2-byte code page short) carry a
+code page of their own beside each string; the crate does not decode them
+(XRECORD keeps its bytes, the extended data chain is skipped).
+`dxf_tables::dash_text` (#358) takes `CodePage::decode` with the record's page
+(`ltype_groups` is handed `RawObject::code_page`); the corpus's complex
+linetypes have ASCII text, so the probe above patches an LTYPE's name and no
+data reads that text area through a non-ASCII byte. The diagnostic `read_tv`
+copies in `examples/trace_*` and the field-list probes still decode as UTF-8;
+they print strings and compare none.
 
 ## 8. Write pipeline (current scope)
 
