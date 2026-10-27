@@ -8,6 +8,10 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Changed — the merge train builds and tests nothing locally (2026-10-27, #408)
+
+Every build, test and corpus measurement is a GitHub Actions run on the pull request. The train merges main in and pushes, then commits the corpus and oracle baselines and README coverage that the PR's own CI run measured, refusing anything worse than main. A PR stacked on another waits until GitHub retargets it to main.
+
 ### Added — the pre-R2007 code pages real drawings prove: 1250, 1253, 1254, 1257 and the double-byte 932, 936, 949 and 950 (2026-10-27, #384, #375)
 
 The file header's short at 0x13 (§3.2.5) is AutoCAD's own enumeration, not a Windows code page number, so each new row is backed by a drawing: the `$DWGCODEPAGE` of AutoCAD's DXF export of the same file, or a known text found in its bytes. Shorts 28, 32, 33, 36, 38, 39, 40 and 41 join 29 and 30. Nine public drawings from three MIT and Apache-2.0 repositories are pinned for it, and `tools/corpus/fetch.py` percent-encodes paths with spaces and Chinese. A short no drawing names still decodes as lossy UTF-8.
