@@ -167,8 +167,8 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     };
     // The objects OBJECTS writes are planned first: a table record or entity
     // names an object by handle only when the output defines it.
-    let objects_plan = header.as_ref().map(|h| crate::dxf_objects::plan(file, h));
-    let object_handles = objects_plan
+    let mut objects_plan = header.as_ref().map(|h| crate::dxf_objects::plan(file, h));
+    let mut object_handles = objects_plan
         .as_ref()
         .map(crate::dxf_objects::Plan::handles)
         .unwrap_or_default();
@@ -180,7 +180,7 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
         Some(h) => crate::dxf_tables::build(file, version, h, &object_handles, None),
         None => Vec::new(),
     };
-    let decoded_entities = match &header {
+    let mut decoded_entities = match &header {
         Some(h)
             if !first_tables.is_empty() && crate::dxf_entities::writes(file.version(), version) =>
         {
@@ -194,6 +194,21 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
         }
         _ => None,
     };
+    // Ownership is closed over what the entities and tables write before any
+    // handle is told to a table record: an object owned by something left out
+    // (an unsupported entity's extension dictionary and what it owns) is dropped.
+    if let (Some(plan), Some(e)) = (objects_plan.as_mut(), decoded_entities.as_mut()) {
+        let mut emitted = e.handles();
+        for t in &first_tables {
+            emitted.insert(t.handle);
+            emitted.extend(t.records.iter().map(|r| r.handle));
+        }
+        let gone = plan.close(&emitted);
+        if !gone.is_empty() {
+            e.forget(&gone);
+            object_handles = plan.handles();
+        }
+    }
     let tables = match (&header, &decoded_entities) {
         (Some(h), Some(e)) => {
             let mut known = object_handles.clone();

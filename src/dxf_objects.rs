@@ -96,6 +96,59 @@ impl Plan {
     pub fn handles(&self) -> HashSet<u64> {
         self.items.iter().map(|i| i.handle).collect()
     }
+
+    /// Close ownership over what the output holds: an object is kept only when its
+    /// owner is null, one of `emitted` (the table records, entities and block
+    /// markers written) or an object that is kept, so no record names an owner the
+    /// output lacks and nothing is left in an orphaned ownership tree (the
+    /// extension dictionary of an entity the writer omits, and everything it owns).
+    /// Returns the handles of the objects dropped, counted in the skipped objects.
+    pub fn close(&mut self, emitted: &HashSet<u64>) -> HashSet<u64> {
+        let mut kept: HashSet<u64> = HashSet::new();
+        loop {
+            let before = kept.len();
+            for i in &self.items {
+                let owner = i.refs.owner;
+                if owner == 0 || emitted.contains(&owner) || kept.contains(&owner) {
+                    kept.insert(i.handle);
+                }
+            }
+            if kept.len() == before {
+                break;
+            }
+        }
+        let mut gone = HashSet::new();
+        let mut labels: Vec<String> = Vec::new();
+        self.items.retain(|i| {
+            if kept.contains(&i.handle) {
+                return true;
+            }
+            gone.insert(i.handle);
+            labels.push(item_label(i));
+            false
+        });
+        for l in labels {
+            *self
+                .skipped
+                .entry(format!("{l} (its owner is not written)"))
+                .or_default() += 1;
+        }
+        gone
+    }
+}
+
+fn item_label(item: &Item) -> String {
+    match &item.decoded {
+        DecodedEntity::Dictionary(_) => "DICTIONARY",
+        DecodedEntity::DictionaryVar(_) => "DICTIONARYVAR",
+        DecodedEntity::XRecord(_) => "XRECORD",
+        DecodedEntity::Scale(_) => "SCALE",
+        DecodedEntity::Layout(_) => "LAYOUT",
+        DecodedEntity::Group(_) => "GROUP",
+        DecodedEntity::MLineStyle(_) => "MLINESTYLE",
+        _ => "ACDBPLACEHOLDER",
+    }
+    .to_string()
 }
 
 fn class_label(raw: &RawObject, class: &Option<String>) -> String {
@@ -336,13 +389,7 @@ pub fn build(
                 by_handle.insert(item.handle, r);
             }
             None => {
-                let label = match &item.decoded {
-                    DecodedEntity::Dictionary(_) => "DICTIONARY",
-                    DecodedEntity::DictionaryVar(_) => "DICTIONARYVAR",
-                    DecodedEntity::XRecord(_) => "XRECORD",
-                    DecodedEntity::Scale(_) => "SCALE",
-                    _ => "ACDBPLACEHOLDER",
-                };
+                let label = item_label(item);
                 *out.skipped
                     .entry(format!("{label} (not written)"))
                     .or_default() += 1;

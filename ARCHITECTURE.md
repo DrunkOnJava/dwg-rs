@@ -3719,28 +3719,55 @@ The Corpus job runs it.
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | ACDBDICTIONARYWDFLT | 42 | 42 | 294 | 294 | 0 | 0 | 0 | 0 |
 | ACDBPLACEHOLDER | 42 | 42 | 84 | 84 | 0 | 0 | 0 | 0 |
-| DICTIONARY | 2147 | 2113 | 14529 | 12778 | 0 | 0 | 0 | 1779 |
+| DICTIONARY | 930 | 905 | 7514 | 5809 | 0 | 0 | 0 | 1733 |
 | DICTIONARYVAR | 365 | 365 | 1825 | 1825 | 0 | 0 | 0 | 0 |
 | SCALE | 826 | 826 | 6608 | 6608 | 0 | 0 | 0 | 0 |
-| XRECORD | 2522 | 2348 | 233042 | 232952 | 184 | 0 | 0 | 0 |
+| XRECORD | 296 | 223 | 2815 | 2741 | 84 | 0 | 0 | 0 |
 
 The export registers again objects it creates on load under handles of its own (at or
-above the DWG's `$HANDSEED`): 1,020 DICTIONARYs, 107 DICTIONARYVARs and 1,111
-XRECORDs, extension dictionaries and what they hold, paired by owner or by the key
-under which a paired dictionary holds them. 208 records the export does not have at
-all are written from the DWG and left unpaired with a stated reason: 34 dictionaries
-(28 extension dictionaries of owners the export writes without one, 6 whose owner it
-does not write) and 174 XRECORDs (58 held by entries its dictionaries lack, 34 inside
-the dictionaries it leaves out, 82 whose owner it does not write). 184 group values are relations the probe names: the editing time
-and save date of `DWGPROPS` (40, 42), the saved file's identity of
-`ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export
-registers again, the styles AutoCAD lists again in an `ACDB_RECOMPOSE_DATA` XRECORD (330; the
-probe compares every 330 after the record's owner, so an XRECORD's handles and a LAYOUT's
-block record are checked), and the tail of a round-trip XRECORD that AutoCAD consumes when it
-loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28
-groups); 1,670 entries name objects not written yet, 81 name objects the export made
-itself, and 58 name objects it leaves out. 10 of the 42 drawings have no export of
-their release and are skipped.
+above the DWG's `$HANDSEED`), extension dictionaries and what they hold: 72 DICTIONARYs,
+107 DICTIONARYVARs and 97 XRECORDs among the records written, paired by owner or by the key
+under which a paired dictionary holds them. 84 group values are relations the probe names:
+the editing time and save date of `DWGPROPS` (40, 42), the saved file's identity of
+`ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export registers
+again, the styles AutoCAD lists again in an `ACDB_RECOMPOSE_DATA` XRECORD (330; the probe
+compares every 330 after the record's owner, so an XRECORD's handles and a LAYOUT's block
+record are checked), and the tail of a round-trip XRECORD that AutoCAD consumes when it
+loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28 groups).
+2,223 dictionary entries are written and 1,705 left out: 1,652 name objects the output does
+not define, 53 objects the export made itself and 48 objects it leaves out. 10 of the 42
+drawings have no export of their release and are skipped.
+
+### Ownership is closed over what the output holds
+
+An object is written only when its owner is null, a table record, an entity or block
+marker the output holds, or another object that is written: `Plan::close` drops the rest
+(and, in turn, what they own) before any handle is told to a table record or an entity, and
+the entities forget the dropped objects as reactors and extension dictionaries. The objects
+dropped hang off entities the entity writer does not write yet (HATCH, DIMENSION,
+VIEWPORT, MLINE and the others it counts as skipped) and off objects not written yet, and
+come back by themselves as those kinds are written. Every record of the 42 drawings'
+OBJECTS sections is checked for the handles it names, and each structural class must
+resolve to a record of the same output:
+
+| Reference | Written before | To no record before | Written now | To no record now |
+|---|---:|---:|---:|---:|
+| owner (330) | 5944 | 1287 | 2501 | 0 |
+| reactor (330) | 4452 | 0 | 2296 | 0 |
+| extension dictionary (360) | 6 | 0 | 6 | 0 |
+| dictionary entry (350, 360) | 4452 | 0 | 2296 | 0 |
+| dictionary default (340) | 42 | 0 | 42 | 0 |
+| XRECORD data handle (an application's, not held to it) | 454 | 120 | 374 | 76 |
+
+The records left out are counted in the probe by kind with the reason "its owner is not
+written" (1,111 XRECORDs and 260 DICTIONARYs among them); an export record of a supported
+kind that is missing without that reason, or whose owner the output does hold, is still a
+failure. A synthetic check writes an XRECORD whose group 102 strings hold a newline and a
+character outside ASCII: group 102 after `AcDbXrecord` is application data, now escaped
+for the release like every other string (`^J` for the newline, `\U+00E9` for the accented
+letter on R2004), where before the newline split the record and the DXF no longer read
+(`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
+the writer and not a drawing.
 
 ## 8. Write pipeline (current scope)
 
