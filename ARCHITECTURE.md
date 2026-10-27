@@ -3707,7 +3707,7 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7ak. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
+## 7at. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
 
 `probe_reference_closure` decides whether a class the walk reaches fewer of
 than `AcDb:Classes` declares is a missing record or an over-declaring file: it
@@ -3751,7 +3751,7 @@ unanswered (23 hard) on `line_R14.dwg`, 583 of 1,725 (28 hard) on
 hard) on `JXHMP4602-11083-b 铁片.dwg`, where the right boundary decodes 789,
 3,657, 7,866 and 1,304 references with none unanswered.
 
-## 7at. R13 through the decoders main added after the branch began (2026-10-26, #119)
+## 7au. R13 through the decoders main added after the branch began (2026-10-26, #119)
 
 §7as opened AC1012 and found, in a scratch tree, that the decoders main
 gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
