@@ -1,0 +1,13 @@
+{
+  "source": "https://github.com/DomCR/ACadSharp",
+  "commit": "c30a97ce4697e649e562fbeb52057aa9f73f7744",
+  "note": "The R2007 drawing of ACadSharp's samples (MIT), written by AutoCAD 2025: its objects section has pages of up to 70,912 bytes and 273 codewords, which no nextgis drawing has. Fetched by hash at acceptance time and never committed.",
+  "files": [
+    {
+      "name": "samples/sample_AC1021.dwg",
+      "bytes": 1063168,
+      "sha256": "70b5efec9a3c230a9892e810154a760fe72311b1e730fb582f22950135da770a",
+      "magic": "AC1021"
+    }
+  ]
+}

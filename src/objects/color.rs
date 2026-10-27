@@ -52,13 +52,27 @@ pub(crate) fn read(
     strings: &mut Option<StringReader<'_>>,
     version: Version,
 ) -> Result<ObjectColor> {
-    let index = c.read_bs_u()?;
     if !version.is_r2004_plus() {
+        let index = c.read_bs_u()?;
         return Ok(ObjectColor {
             index,
             ..ObjectColor::default()
         });
     }
+    read_tc(c, strings, version)
+}
+
+/// Read one `TC` — §2's key calls it "True Color: the same format as
+/// `CMC` in R2004+" — on whatever release the record is from. An object
+/// that stores its colours as `TC` on every release (TABLESTYLE does, see
+/// `crate::objects::acad_table_style`) reads through here rather than
+/// through [`read`], which takes the one-`BS` form before R2004.
+pub(crate) fn read_tc(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+) -> Result<ObjectColor> {
+    let index = c.read_bs_u()?;
     let rgb = c.read_bl_u()?;
     let color_byte = c.read_rc()?;
     let color_name = if color_byte & 1 != 0 {
