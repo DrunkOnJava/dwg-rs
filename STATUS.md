@@ -1,13 +1,17 @@
-# Status — 2026-08-30, real-file coverage 2026-10-26
+# Status — 2026-08-30 snapshot, real-file coverage current
 
 A plain-text snapshot of what has shipped in this crate, organized
 by the task-tracker labels, so contributors can orient without
-scrolling the changelog.
+scrolling the changelog. The coverage line below is rendered from
+`tools/corpus/baseline.tsv` by `tools/maintainer/readme_status.py`;
+the rest of this page is the 2026-08-30 snapshot. README.md carries
+the current capability matrix.
 
 ## Summary
 
-- **Lib tests:** 774 passing in default/debug and release-all-features
-  profiles, clippy + fmt clean.
+- **Tests:** `cargo test --release --all-features` ran 921 tests, all
+  passing, on 2026-10-27; clippy and fmt clean. (The 2026-08-30
+  snapshot had 774 lib tests.)
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
@@ -15,14 +19,10 @@ scrolling the changelog.
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
 - **Current real-file decode coverage, measured in CI** (the
-  `Corpus (public DWG)` job, [run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288), on 52 public drawings
-  pinned in `tools/corpus/pins.tsv`): 13,781 decoded / 1,985 skipped /
-  **308 errored** / 85.7%. Per version: R14 55.8%, R2000 92.3%,
-  R2004 91.8%, R2007 93.4%, R2010 95.4%, R2013 94.7%, R2018 93.7%
-  (4 drawings). The 19 files every earlier number came from still
-  measure 3,911 / 525 / 9 / 88.0%; the 299 new errors are records only
-  the added drawings hold (#226, #227, #228, #71), and
-  `sample_AC1032.dwg`'s origin is now known: ACadSharp's MIT
+  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40471959010](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40471959010) on 2026-10-27<!-- corpus-run:end -->, on the public drawings
+  pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->15,527 decoded / 547 skipped / **0 errored** / 96.6 % on 52 drawings. Per version: R14 97.5 %, R2000 96.7 %, R2004 96.7 %, R2007 96.5 %, R2010 96.4 %, R2013 95.6 %, R2018 96.0 %.<!-- corpus-summary:end -->
+  The 308 errors of the 2026-10-26 measurement were closed by #226,
+  #227, #228 and #71; `sample_AC1032.dwg` comes from ACadSharp's MIT
   `samples/`, saved by AutoCAD 2025 (#96, CLEANROOM.md).
 - **All nineteen corpus files now decode.** Until #104/#110 the nine
   R14 / R2000 / R2007 files reported `n/a (no-handle-map)` — no record
