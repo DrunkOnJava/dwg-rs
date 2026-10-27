@@ -358,6 +358,21 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                 )),
             }
         }
+        // The groups both write come in the same order.
+        let shared: BTreeSet<u16> = codes.intersection(&their_codes).copied().collect();
+        let in_order = |x: &DxfRecord| -> Vec<u16> {
+            x.top_level()
+                .map(|g| g.code)
+                .filter(|c| shared.contains(c) && ![100, 330, 5].contains(c))
+                .collect()
+        };
+        if in_order(r) != in_order(want) {
+            o.failures.push(format!(
+                "{name} {kind} {h:X}: groups {:?} but AutoCAD wrote them {:?}",
+                in_order(r),
+                in_order(want)
+            ));
+        }
     }
     for r in &their_recs {
         let Some(h) = r.handle else { continue };
