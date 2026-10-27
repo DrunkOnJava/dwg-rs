@@ -890,14 +890,45 @@ the uninterrupted run's output; and the kernel refuses 80 sampled bit flips of a
 native checkpoint, its first and last byte and a wrong identity (83 refusals), as
 the native build does.
 
+The R2007 object stream crosses both ways too: `run_r2007_objects` walks for a
+number of steps and leaves a `DWGQ` checkpoint, and `resume_r2007_objects` restores
+one, given the saved payload CRC-32 and length, and finishes the walk, printing the
+lines `stream_r2007_objects` prints. `tools/streaming/verify_wasm_r2007_objects.py`
+is its acceptance run (above, in the R2007 object records section).
+
 ## Checkpoint contract
 
-A checkpoint contains the source identity and length, phase, byte position,
-current target, locator count/index/mask, failure marker and all retained
-partial header bytes. The wire form is canonical, versioned and little
-endian. Its current maximum is 157 bytes (97 consumed header bytes plus 60
-bytes of metadata/checksum). The holder and every scratch buffer fit within
-one declared 256-byte chunk.
+Every walker can be stopped between two steps and resumed in a fresh process,
+or in the wasm32 kernel, from its checkpoint and the source identity alone.
+There are ten kinds. Each has its own canonical, versioned, little-endian wire
+form with a four-byte marker and a CRC-32 of everything before it as its last
+four bytes:
+
+| Marker | Type | Holds | Size |
+| --- | --- | --- | --- |
+| `DWGH` | `Checkpoint` | the §3.2 header parser: identity, length, phase, position, locator state, retained header bytes | at most 157 bytes |
+| `DWGW` | `WalkCheckpoint` | the R13 to R2000 container walk: the header checkpoint (replayed) and the walk cursors | at most 256 bytes |
+| `DWG4` | `R2004Checkpoint` | the §4.1 header of an R2004-family file | at most 316 bytes (bounded at 336) |
+| `DWGZ` | `Lz77Checkpoint` | the §4.7 decoder between calls: cursors, pending run, totals and the last `min(produced, 0xC000)` output bytes | `54 + kept + 4`, at most 49,210 bytes |
+| `DWGM` | `R2004MapCheckpoint` | the header checkpoint, the decoder checkpoint while a page is decoded, and the page map and section map cursors | at most about 50 KB |
+| `DWGS` | `R2004SectionCheckpoint` | one section's fields, the page in hand, the cursors and, mid LZ77 page, the decoder checkpoint | at most about 50 KB |
+| `DWGF` | `R2004WalkCheckpoint` | the whole-file walk: the section table (at most 64 slots), the map walker's checkpoint and, mid page, the section walker's | at most about 100 KB |
+| `DWGO` | `R2004ObjectCheckpoint` | the `DWGF` checkpoint, the object section's id, the record framer's cursors and the section bytes not yet framed (at most 256) | at most about 100 KB |
+| `DWGR` | `R2007Checkpoint` | the R2007 walk: cursors, the verified 0x110-byte header and each reader's progress; page geometry is derived on restore, never stored | at most `2 * R2007_WINDOW + 8192` bytes |
+| `DWGQ` | `R2007ObjectCheckpoint` | the `DWGR` checkpoint, the object section's index, the framer's cursors and the section bytes not yet framed (at most 256) | at most about 140 KB |
+
+The sizes are the compile-time bounds in `src/streaming/checkpoint.rs` and
+`r2007_checkpoint.rs` as each walker's section above states them; they do not
+grow with the file. Restore checks the complete length and the marker and
+version before copying, checks the CRC-32, rejects a source identity other than
+the one the caller passes (every kind but `DWGZ`, which holds no source: where
+its compressed bytes come from is the caller's), and then requires a state the
+walk can reach. Embedded checkpoints are restored by their own restore. No
+source byte is read to rebuild state. Each walker's section says what its
+reachability check covers; the two object-record sections also say what a
+forged checkpoint can get past.
+
+The `DWGH` layout, the smallest, as the others are built:
 
 | Byte offset | Encoding |
 | --- | --- |
@@ -912,24 +943,29 @@ one declared 256-byte chunk.
 | 56 | Consumed prefix, including any partial field |
 | Last 4 | CRC32 of all preceding checkpoint bytes |
 
-Restore checks the complete length before copying, rejects incompatible
-versions and source identities, checks CRC, then validates phase and counters
-by replaying only the retained bytes **inside the checkpoint**. No source
-bytes are read to reconstruct state. Failure snapshots restore the same
-failure. The next request starts at the first unconsumed source byte.
+A `DWGH` checkpoint's maximum is 157 bytes (97 consumed header bytes plus 60
+bytes of metadata and checksum); the holder and every scratch buffer fit within
+one declared 256-byte chunk. Restore replays the retained bytes inside the
+checkpoint to validate the phase and counters. Failure snapshots restore the
+same failure; the next request starts at the first unconsumed source byte.
 
 The caller supplies identity from a trusted content manifest or immutable
-object version; the parser does not reread a multi-gigabyte source to hash
-it. CRC detects accidental checkpoint corruption and provides no authenticity
+object version; the parser does not reread a multi-gigabyte source to hash it.
+CRC detects accidental checkpoint corruption and provides no authenticity
 guarantee. The caller owns atomic custody of saved state and any already
-committed output. `header()` is an inspection API, not an exactly-once event
-queue. Full object/decompression checkpoints remain open in #207.
+committed output: what a walk emitted (its output cursors, and the digest and
+length of an open record's payload) is the caller's state, and the example entry
+points save it beside the checkpoint (`<checkpoint>.caller`). `header()` is an
+inspection API, not an exactly-once event queue.
 
-The R2007 object stream crosses both ways too: `run_r2007_objects` walks for a
-number of steps and leaves a `DWGQ` checkpoint, and `resume_r2007_objects` restores
-one, given the saved payload CRC-32 and length, and finishes the walk, printing the
-lines `stream_r2007_objects` prints. `tools/streaming/verify_wasm_r2007_objects.py`
-is its acceptance run (above, in the R2007 object records section).
+Fresh-process resume, rejection of corrupt, truncated, resealed and wrong-identity
+checkpoints, and native-to-wasm32 restore are acceptance steps of the required
+Streaming E2E job, one per walker (see Current evidence).
+
+What no checkpoint holds is a partly decoded object: the streaming grammar frames
+records and decodes no object body (#205), so there is no object-level state to
+save. **NOT MEASURED:** a restore inside a browser (the kernel runs under node,
+V8), and a source larger than the manifests' largest file (1,312,281 bytes).
 
 ## Repeatable acceptance
 
@@ -967,36 +1003,60 @@ python3 tools/streaming/verify_wasm_r2007_objects.py target/debug/examples/strea
 python3 tools/streaming/probe_r2007_checks.py <the eight pinned R2007 drawings>
 ```
 
-Run these on the project's build host. The workflow uploads
-`streaming-evidence.json` and the generated schedule JSONL files. It checks
+Run these on the project's build host. The workflow uploads the
+`streaming-evidence` artifact: one `*-evidence.json` per step and the generated
+schedule JSONL files. The header step checks
 12 synthetic version/count combinations, the canonical R2000 fixture,
 bytewise and short delivery,
 truncation at every header byte, malformed input, two hash-pinned real
 R14/R2000 headers, 128 generated schedules per real file, 98 fresh-process
 resume positions, actual source-read continuity, pending delivery, corrupt
 and inconsistent checkpoints, source mismatch and failure-state restore.
-The real-file manifest records header fields, not object counts. No real R13
-file, multi-gigabyte model or independent object-count oracle has passed
-this reader. The kernel WASM compile does not establish browser runtime;
-cross-runtime checkpoint acceptance is established only for the R2004 walks,
-the R2004 object stream, the R2007 walk and the R2007 object stream (above).
+The header manifest records header fields only; the walk manifest records object
+counts and the LZ77 manifest page counts and decompressed bytes, and each
+walker's output is compared at run time with an independent Python parse and, where
+the legacy reader reads the same thing, with the legacy reader (the sections
+above). **NOT MEASURED:** a real R13 file (the corpus
+holds none that AutoCAD wrote, #345), a multi-gigabyte model, and any browser
+runtime: the kernel WASM compile does not establish one. Cross-runtime
+checkpoint acceptance is established for the R2004 walks, the R2004 object
+stream, the R2007 walk and the R2007 object stream (above).
 
 ## Current evidence
 
-[Run 40234765141](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40234765141)
-passed on `a6dc6baa2d449e3f33db3bba0e3998803cc87834`: native executable
-acceptance, proptest schedules, fresh-process resume and the native/WASM
-no-allocator kernel builds. The evidence artifact identifies the built
-binary by SHA-256. The same commit also passed the existing three WASM
-wrapper build targets. Repository-wide checks are reported separately by the
-PR; these claims do not establish a complete model parse or release readiness.
+[Run 40532346151](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40532346151)
+passed the required Streaming E2E job on `main` at `e7c53e1` (October 27,
+2026): the grammar-isolation and bounded-state gate, the native and wasm32
+`no_std` no-allocator kernel builds, and every acceptance step below. Its
+`streaming-evidence` artifact holds one `*-evidence.json` per step, each naming
+the SHA-256 of the binary it ran, and the generated schedule JSONL files.
+
+| Step | Evidence file | Measured |
+| --- | --- | --- |
+| §3.2 header | `streaming-evidence.json` | 16 cases passed |
+| R13 to R2000 container walk | `walk-evidence.json` | 5,835 records over 17 files, each equal to an independent framing parse and the legacy reader |
+| §4.7 LZ77 decoder | `lz77-evidence.json` | 25 files, 266 pages, 6,097,392 decompressed bytes |
+| R2004-family header | `r2004-evidence.json` | 25 files |
+| Page map and section map | `map-evidence.json` | 25 files, 371 pages, 306 sections, 321 section pages |
+| Data pages and sections | `sections-evidence.json` | 26 files, 313 sections, 332 pages, 1,902,760 bytes, 4 holes, 2 zero pages |
+| Whole R2004-family file | `file-evidence.json` | 28 files (25 pinned), 327 sections, 354 pages, 1,916,832 bytes |
+| R2004-family object records | `objects-evidence.json` | 32 pinned files, 8,027 records, 6,858,006 object bytes |
+| Whole R2007 file | `r2007-evidence.json` | 11 files (8 pinned, 3 built), 115 sections, 153 pages, 4,966 data codewords, 3,067,696 bytes |
+| R2007 object records | `r2007-objects-evidence.json` | 16 files (8 pinned, 8 built), 2,496 records, 2,465,701 object bytes |
+| `AsyncSource` over HTTP range | `source-evidence.json` | 5 cases passed (R13 to R2000 walk only) |
+| Native to wasm32 and back | `wasm-evidence.json`, `wasm-objects-evidence.json`, `wasm-r2007-evidence.json`, `wasm-r2007-objects-evidence.json` | all passed, under node |
+
+These claims do not establish a complete model parse, a browser runtime or
+release readiness. **NOT MEASURED:** a multi-gigabyte model, a real R13 file, and
+the allocation behaviour of the streaming buffers beyond their compile-time
+bounds.
 
 The canonical R2000 fixture's writer used to omit the file-header CRC and
 sentinel, so the strict reader rejected it ([#214](https://github.com/DrunkOnJava/dwg-rs/issues/214)).
 The generator now writes both and the acceptance run checks that file
-under every chunk size from 1 to 32 bytes. Its other sections remain
-placeholders. The audit and complete ordered work
-are in [audit.md](audit.md) and [#204](https://github.com/DrunkOnJava/dwg-rs/issues/204).
+under every chunk size from 1 to 32 bytes. The audit and complete ordered work
+are in [audit.md](audit.md), [task-ledger.md](task-ledger.md) and
+[#204](https://github.com/DrunkOnJava/dwg-rs/issues/204).
 
 ## Throughput
 
