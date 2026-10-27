@@ -59,12 +59,29 @@
 //! in [`ObjectWalkSummary::unknown_types`] and keeps going.
 
 use crate::bitcursor::{BitCursor, Handle};
+use crate::code_page::CodePage;
 use crate::error::{Error, Result};
 use crate::limits::WalkerLimits;
 use crate::object_type::ObjectType;
 use crate::version::Version;
 
-/// A single undecoded object extracted from the R2004+ object stream.
+/// A single undecoded object extracted from the object stream.
+///
+/// # Framing
+///
+/// A record on disk is
+///
+/// ```text
+/// MS size | MC handle-stream size (R2010+) | data, string and handle streams | CRC (2 bytes)
+/// ```
+///
+/// [`raw`](Self::raw) holds everything between the `MS` and the CRC, so
+/// on R2010+ it starts with the `MC`. [`size_bytes`](Self::size_bytes)
+/// is the `MS` value verbatim, which does **not** count that `MC`
+/// (#77): on R2010+ `raw.len() == size_bytes + mc_width`, before R2010
+/// they are equal. Use [`byte_len`](Self::byte_len) for the record's
+/// length and [`mc_width`](Self::mc_width) for the difference, not
+/// `size_bytes` (#83).
 #[derive(Debug, Clone)]
 pub struct RawObject {
     /// Byte offset into the decompressed section where this object begins.
@@ -99,9 +116,28 @@ pub struct RawObject {
     /// can check itself against. `None` on R13/R14 (no such field) and
     /// on R2010+ (replaced by the leading `MC` handle-stream size).
     pub obj_size_bits: Option<u32>,
+    /// The drawing's text code page (§3.2.5), the one every pre-R2007 `TV` of
+    /// this record is in. The walker stamps it from the file header through
+    /// [`ObjectWalker::with_code_page`]; the default, for a walker not told,
+    /// is [`CodePage::default`], which reads that text as UTF-8 as before.
+    pub code_page: CodePage,
 }
 
 impl RawObject {
+    /// Length in bytes of [`raw`](Self::raw): the whole record between
+    /// its `MS` and its CRC, including the R2010+ leading `MC` that
+    /// [`size_bytes`](Self::size_bytes) does not count.
+    pub fn byte_len(&self) -> usize {
+        self.raw.len()
+    }
+
+    /// Width in bytes of the R2010+ leading `MC` handle-stream-size
+    /// field (an `MC`, §2.6; #77): `byte_len() - size_bytes`, so `0` before
+    /// R2010.
+    pub fn mc_width(&self) -> usize {
+        self.raw.len().saturating_sub(self.size_bytes as usize)
+    }
+
     /// Whether this object is an entity (drawable) or a non-entity
     /// (control, table, dictionary, ...).
     pub fn is_entity(&self) -> bool {
@@ -131,6 +167,8 @@ pub struct ObjectWalker<'a> {
     records_visited: usize,
     /// Accumulator behind [`ObjectWalkSummary::handle_mismatches`].
     handle_mismatches: Vec<(u64, u64, u64)>,
+    /// Stamped on every [`RawObject`] the walker yields.
+    code_page: CodePage,
 }
 
 /// A single handle-driven walk step. In handle-driven mode the
@@ -191,9 +229,56 @@ pub struct ObjectWalkSummary {
     /// still yielded (with the map's handle, as before) — the
     /// disagreement is reported, not enforced.
     pub handle_mismatches: Vec<(u64, u64, u64)>,
+    /// Handle-driven mode only: how many references the walked records'
+    /// handle streams hold, resolved per §2.13 (see
+    /// [`handle_references`]).
+    pub references_decoded: usize,
+    /// Handle-driven mode only: every reference whose target the
+    /// `AcDb:Handles` map does not list, as `(from, to, code)`.
+    ///
+    /// §2.13 lets a soft pointer (codes 2 and 4) name an object that is
+    /// no longer in the drawing; a hard one (codes 3 and 5) may not, so
+    /// an unanswered hard reference means a record the drawing depends
+    /// on is missing. [`dangling_soft_pointers`](Self::dangling_soft_pointers)
+    /// and [`unanswered_hard_references`](Self::unanswered_hard_references)
+    /// split the list (#81).
+    ///
+    /// At most [`WalkerLimits::max_retained_references`] are kept; the
+    /// rest are counted in
+    /// [`unanswered_references_suppressed`](Self::unanswered_references_suppressed),
+    /// since a handle stream is input-controlled and every byte of it can
+    /// be a reference (`examples/probe_reference_cap.rs`).
+    pub unanswered_references: Vec<(u64, u64, u8)>,
+    /// Unanswered references past
+    /// [`WalkerLimits::max_retained_references`]: counted, not kept.
+    pub unanswered_references_suppressed: usize,
+    /// Handle-driven mode only: every unanswered hard reference (codes 3
+    /// and 5, §2.13), counted whether or not it is retained, so a closure
+    /// check stays exact past the retention cap.
+    pub unanswered_hard_count: usize,
+    /// Handle-driven mode only: records whose handle stream cannot be
+    /// located (R13/R14 state no boundary for it), so their references
+    /// go unchecked.
+    pub references_unchecked: usize,
 }
 
 impl ObjectWalkSummary {
+    /// The soft pointers (codes 2 and 4, §2.13) whose target is not in
+    /// the drawing, as `(from, to, code)` — allowed, and reported (#81).
+    pub fn dangling_soft_pointers(&self) -> impl Iterator<Item = &(u64, u64, u8)> {
+        self.unanswered_references
+            .iter()
+            .filter(|(_, _, code)| matches!(code, 2 | 4))
+    }
+
+    /// The hard references (codes 3 and 5, §2.13) whose target is not in
+    /// the drawing, as `(from, to, code)` — each one a missing record.
+    pub fn unanswered_hard_references(&self) -> impl Iterator<Item = &(u64, u64, u8)> {
+        self.unanswered_references
+            .iter()
+            .filter(|(_, _, code)| matches!(code, 3 | 5))
+    }
+
     /// Count of records the walker stepped over (read but could not
     /// parse into a [`RawObject`]).
     pub fn skipped_count(&self) -> usize {
@@ -246,6 +331,7 @@ impl<'a> ObjectWalker<'a> {
             limits: WalkerLimits::default(),
             records_visited: 0,
             handle_mismatches: Vec::new(),
+            code_page: CodePage::default(),
         }
     }
 
@@ -267,6 +353,7 @@ impl<'a> ObjectWalker<'a> {
             limits: WalkerLimits::default(),
             records_visited: 0,
             handle_mismatches: Vec::new(),
+            code_page: CodePage::default(),
         }
     }
 
@@ -281,6 +368,14 @@ impl<'a> ObjectWalker<'a> {
     /// [`collect_all_lossy`]: Self::collect_all_lossy
     pub fn with_limits(mut self, limits: WalkerLimits) -> Self {
         self.limits = limits;
+        self
+    }
+
+    /// Stamp every record this walker yields with the drawing's text code
+    /// page (§3.2.5), as [`crate::reader::DwgFile::code_page`] reads it from the
+    /// file header, so the decoders read its pre-R2007 text in that page.
+    pub fn with_code_page(mut self, code_page: CodePage) -> Self {
+        self.code_page = code_page;
         self
     }
 
@@ -377,6 +472,31 @@ impl<'a> ObjectWalker<'a> {
             }
         }
         summary.handle_mismatches = std::mem::take(&mut self.handle_mismatches);
+        if let Some(map) = self.handle_map {
+            let known: std::collections::HashSet<u64> =
+                map.entries.iter().map(|e| e.handle).collect();
+            let cap = self.limits.max_retained_references;
+            for obj in &out {
+                let checked = for_each_handle_reference(obj, self.version, |target, code| {
+                    summary.references_decoded += 1;
+                    if !known.contains(&target) {
+                        if matches!(code, 3 | 5) {
+                            summary.unanswered_hard_count += 1;
+                        }
+                        if summary.unanswered_references.len() < cap {
+                            summary
+                                .unanswered_references
+                                .push((obj.handle.value, target, code));
+                        } else {
+                            summary.unanswered_references_suppressed += 1;
+                        }
+                    }
+                });
+                if !checked {
+                    summary.references_unchecked += 1;
+                }
+            }
+        }
         (out, summary)
     }
 }
@@ -545,6 +665,7 @@ impl<'a> ObjectWalker<'a> {
             handle,
             raw,
             obj_size_bits,
+            code_page: self.code_page,
         }))
     }
 }
@@ -679,6 +800,61 @@ pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
         return crate::string_stream::data_field_end(&raw.raw, version);
     }
     raw.obj_size_bits.map(|b| b as usize)
+}
+
+/// The object references in a record's handle stream, each resolved to
+/// an absolute handle with its §2.13 code: codes 2 to 5 carry the
+/// handle outright, 6 and 8 are the record's own handle plus and minus
+/// one, and 0xA and 0xC add the encoded offset to it or subtract it.
+///
+/// The handle stream starts where the record's data (and, on R2007+,
+/// string) area ends: the §19.1 string-stream trailer on R2007+, the `RL`
+/// object-data size on R2000 and R2004. R13/R14 state no such boundary
+/// in a form this crate reads, so they return `None`.
+pub fn handle_references(obj: &RawObject, version: Version) -> Option<Vec<(u64, u8)>> {
+    let mut out = Vec::new();
+    for_each_handle_reference(obj, version, |target, code| out.push((target, code))).then_some(out)
+}
+
+/// The allocation-free form of [`handle_references`]: calls `f(target,
+/// code)` for each reference and returns `false` when the record has no
+/// locatable handle stream.
+pub fn for_each_handle_reference(
+    obj: &RawObject,
+    version: Version,
+    mut f: impl FnMut(u64, u8),
+) -> bool {
+    let start = if version.is_r2007_plus() {
+        crate::string_stream::data_section_end(&obj.raw, version)
+    } else {
+        obj.obj_size_bits.map(|b| b as usize)
+    };
+    let Some(start) = start else {
+        return false;
+    };
+    let total = obj.raw.len() * 8;
+    if start >= total {
+        return true;
+    }
+    let mut c = BitCursor::new(&obj.raw);
+    if crate::string_stream::seek(&mut c, start).is_err() {
+        return true;
+    }
+    while c.position_bits() + 8 <= total {
+        let Ok(h) = c.read_handle() else { break };
+        let target = match h.code {
+            2..=5 => h.value,
+            6 => obj.handle.value.wrapping_add(1),
+            8 => obj.handle.value.wrapping_sub(1),
+            0xA => obj.handle.value.wrapping_add(h.value),
+            0xC => obj.handle.value.wrapping_sub(h.value),
+            _ => continue,
+        };
+        if target != 0 {
+            f(target, h.code);
+        }
+    }
+    true
 }
 
 #[cfg(test)]
@@ -857,6 +1033,7 @@ mod tests {
             errored_count: 0,
             unknown_types: Vec::new(),
             handle_mismatches: Vec::new(),
+            ..Default::default()
         };
         assert_eq!(s.confidence(), 1.0);
     }
@@ -877,6 +1054,7 @@ mod tests {
             errored_count: 20,
             unknown_types: Vec::new(),
             handle_mismatches: Vec::new(),
+            ..Default::default()
         };
         assert_eq!(s.confidence(), 0.5);
     }

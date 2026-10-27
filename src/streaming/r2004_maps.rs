@@ -10,7 +10,7 @@
 use super::lz77::Lz77Decoder;
 use super::r2004::{R2004Header, R2004HeaderParser};
 use super::{Request, SourceIdentity, StreamError};
-use crate::crc::section_page_checksum;
+use crate::crc::{fold_section_checksum, section_page_checksum};
 
 const SYS_HEADER: usize = 0x14;
 const PAGE_MAP_TYPE: u32 = 0x4163_0e3b;
@@ -130,6 +130,10 @@ pub struct R2004MapWalker {
     pub(super) section_page: u32,
     pub(super) last_start: u64,
     pub(super) first_ref: bool,
+    /// Walk only the page map: after its last entry the walk is finished,
+    /// without entering the section map. Set by the whole-file walker for
+    /// its second pass; never part of a map checkpoint.
+    pub(super) pages_only: bool,
     pub(super) failure: Option<StreamError>,
 }
 
@@ -173,8 +177,20 @@ impl R2004MapWalker {
             section_page: 0,
             last_start: 0,
             first_ref: true,
+            pages_only: false,
             failure: None,
         }
+    }
+
+    /// A walker at this one's page map again, with this one's verified
+    /// header, reading its entries only. Fixed size, no source bytes.
+    pub(super) fn pages(&self) -> Result<Self, StreamError> {
+        let top = self.top()?;
+        let mut walker = Self::new(self.source());
+        walker.header = self.header.clone();
+        walker.pages_only = true;
+        walker.enter_page(SystemKind::PageMap, top.page_map_address, 0);
+        Ok(walker)
     }
 
     /// Source identity is part of the state and checkpoint contract.
@@ -314,16 +330,8 @@ impl R2004MapWalker {
                 Ok(MapStep::Framing)
             }
             Stage::Check => {
-                for &byte in input {
-                    self.sum1 = self.sum1.wrapping_add(u32::from(byte));
-                    self.sum2 = self.sum2.wrapping_add(self.sum1);
-                    self.in_chunk += 1;
-                    if self.in_chunk == CHUNK {
-                        self.sum1 %= 0xfff1;
-                        self.sum2 %= 0xfff1;
-                        self.in_chunk = 0;
-                    }
-                }
+                (self.sum1, self.sum2, self.in_chunk) =
+                    fold_section_checksum(self.sum1, self.sum2, self.in_chunk, input);
                 self.done += input.len() as u32;
                 Ok(MapStep::Framing)
             }
@@ -611,6 +619,10 @@ impl R2004MapWalker {
             SystemKind::PageMap => {
                 if !self.self_seen {
                     return Err(StreamError::PageMapSelf);
+                }
+                if self.pages_only {
+                    self.stage = Stage::Done;
+                    return Ok(MapStep::Finished);
                 }
                 if self.section_map_size == 0 {
                     return Err(StreamError::SectionMapMissing);

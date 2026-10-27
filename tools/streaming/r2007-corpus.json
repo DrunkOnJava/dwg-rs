@@ -1,0 +1,49 @@
+{
+  "source": "https://github.com/nextgis/dwg_samples",
+  "commit": "ff05d5a89ce123da511ed93c5fe5e6df85e02ab8",
+  "note": "Every R2007 DWG at this commit, fetched by hash at acceptance time and never committed (the repository declares no licence). The acceptance run of verify_r2007.py re-checks every count it reports.",
+  "files": [
+    {
+      "name": "arc_2007.dwg",
+      "bytes": 66304,
+      "sha256": "be24c4ba804f6042a8b4f2133d814fc47004656dcc8b4f7c6070aed5e7f0b218",
+      "magic": "AC1021"
+    },
+    {
+      "name": "circle_2007.dwg",
+      "bytes": 66560,
+      "sha256": "0b02184b8e16ed9a726e89bcc11733f950db50d88fd04e018fe1966405dfacab",
+      "magic": "AC1021"
+    },
+    {
+      "name": "ellipse_2007.dwg",
+      "bytes": 69120,
+      "sha256": "ef55ffdb02cd79f23a1dab8095925dd25de7abc9afb6fb05f394200a53b68acd",
+      "magic": "AC1021"
+    },
+    {
+      "name": "line_2007.dwg",
+      "bytes": 66304,
+      "sha256": "8e13e44ac6a0f43ba7906c9fa93cb8f10da510647d163cd46c97d01d245363a5",
+      "magic": "AC1021"
+    },
+    {
+      "name": "point2d_2007.dwg",
+      "bytes": 66048,
+      "sha256": "965c3e0cc8bdd58926276fc2245ef97fd933a86d0c7f7d863b247c92e0871750",
+      "magic": "AC1021"
+    },
+    {
+      "name": "point3d_2007.dwg",
+      "bytes": 66048,
+      "sha256": "4d46ed43787fe97f8eef17e529396a4c33fef7c1d22c40816b2e61bfc6e89474",
+      "magic": "AC1021"
+    },
+    {
+      "name": "polyline2d_line_2007.dwg",
+      "bytes": 66304,
+      "sha256": "d778a455475c59fe322bab37bfcbc139d96f2cc0b13daa0b2fc7ad61f2e44aa5",
+      "magic": "AC1021"
+    }
+  ]
+}
