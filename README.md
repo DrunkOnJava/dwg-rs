@@ -138,7 +138,7 @@ passed.
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
-| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371) and ENTITIES (15 kinds) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382); OBJECTS in review (#372, #373) |
+| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371), ENTITIES (15 kinds) and OBJECTS (the dictionary family, XRECORD, SCALE and placeholders, #372) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382); LAYOUT, GROUP and MLINESTYLE in review (#373) |
 | DXF reader | Alpha | ASCII DXF keyed by handle, used by the value oracle |
 | DWG writer | Alpha | Assembles an R2004-family file this crate reads back; no CAD application has been checked against it |
 | SVG and PDF export | Alpha | SVG writer and a paged-SVG PDF path; output quality follows the decoded geometry |
@@ -192,7 +192,7 @@ ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
   CI gate that holds it to what `AcDb:Classes` declares
 - Entity and object decoding, boundary-checked on every release, with the
   values scored against AutoCAD's DXF exports
-- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables, BLOCKS and ENTITIES from the decoded records
+- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables, BLOCKS, ENTITIES and OBJECTS from the decoded records
 - An experimental R2004-family write path: bit writer, LZ77 encoder, section
   framer, Sec_Mask, the CRCs and checksums real files carry, and assembly via
   `DwgFile::to_bytes()`

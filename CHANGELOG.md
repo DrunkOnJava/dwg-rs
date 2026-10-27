@@ -24,6 +24,10 @@ The file header's short at 0x13 (§3.2.5) is AutoCAD's own enumeration, not a Wi
 
 `CodePage::encode` turns a character the page holds into its byte (two on a double-byte page) and any other into AutoCAD's `\U+XXXX`. `convert_dwg_to_dxf_bytes` writes R12 to R2004 in that page, `classes::write_tv` encodes through the page in force, and `DwgFile::to_bytes` writes the drawing's page into the header, which used to be 0.
 
+### Added — dwg-to-dxf writes the OBJECTS section (2026-10-27, #372, #126)
+
+The dictionary family (DICTIONARY, ACDBDICTIONARYWDFLT, DICTIONARYVAR), XRECORD, SCALE and ACDBPLACEHOLDER are written in AutoCAD's order with their owners, reactors and extension dictionaries, and `probe_dxf_objects` in the Corpus job pairs every record with AutoCAD's export. An object is written only when its whole owner chain is, so no group 330, 340 or 360 names a record the output lacks; XRECORD application data in groups 100 and 102 is escaped and written in the drawing's code page. The placeholder records the converter used to write for every object are gone.
+
 ### Added — dwg-to-dxf writes the BLOCKS section (2026-10-27, #371, #126)
 
 One block per `BLOCK_RECORD`, in the table's order, with its `BLOCK`, its entities and its `ENDBLK`, paired with AutoCAD's export by `probe_dxf_entities --section=BLOCKS` in the Corpus job. INSERTs, ATTRIBs and ATTDEFs are written once the block they name is, and the tables name only blocks the output holds.
