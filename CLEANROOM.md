@@ -572,6 +572,26 @@ subclass markers in the twins and the class names in `AcDb:Classes` was used
 DWG or DXF implementation was consulted: only the data files of the corpus were
 read, never ACadSharp's code.
 
+
+## 2026-10-27 — XRECORD values and extended entity data: layouts measured, value widths from the DXF Reference (#375)
+
+`src/extended_data.rs` reads an XRECORD's data and the extended entity data chain as
+values. How each part was settled:
+
+- **Measured on AutoCAD's own output.** The string layout (an `RS` length, an `RC` code
+  page byte, the bytes), the byte order of an extended data handle (most significant first)
+  and of an XRECORD handle (least significant first), and every width of §28: read against
+  the DXF groups of AutoCAD's export of the same drawing, record by record
+  (`examples/probe_code_page.rs`), on the pinned `nextgis/dwg_samples` and ACadSharp
+  `samples/` drawings (data files).
+- **Autodesk's public DXF Reference, recalled.** The ranges of DXF group codes that give an
+  XRECORD value its type (16-bit, 32-bit, double, point, handle, binary chunk), taken only
+  for a range where a code of it occurs in those drawings. No other vocabulary.
+- **Never used.** Any third-party implementation of DWG or DXF, for a width, a byte order or
+  anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
+  ezdxf's code, comments or data.
+
+
 ## 2026-10-27 — AutoCAD trial scripts: AutoCAD's command prompts (ACadSharp's save script, MIT, and Autodesk's public documentation)
 
 `tools/autocad/` drives AutoCAD itself to produce evidence drawings: SAVEAS and
