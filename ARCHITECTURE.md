@@ -3063,7 +3063,7 @@ space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decode
 records: 17 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
 3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface
 forms, VERTEX, SEQEND). An INSERT, with the ATTRIBs and SEQEND under it, is written
-only when BLOCKS (§7ao) writes the block it names (the blocks written are decided
+only when BLOCKS (§7ap) writes the block it names (the blocks written are decided
 first; an INSERT of any other is counted as `INSERT (its block is not written)`), so
 no output holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
 decode, is counted in a `999 skipped` comment. `examples/probe_dxf_entities.rs`
@@ -3155,7 +3155,7 @@ true-colour word (420) and transparency (440) are stored RGB word first and tran
 second: the common data read them the other way round, which closed every record on its
 boundary (both are a `BL`) and was never compared.
 
-## 7ao. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
+## 7ap. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
 
 `src/dxf_blocks.rs` writes one block per `BLOCK_RECORD` of the table, in its order: the
 `BLOCK` (its handle from the block record's handle stream, its layer, name, flags, base
