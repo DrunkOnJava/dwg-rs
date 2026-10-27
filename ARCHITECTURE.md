@@ -3572,8 +3572,10 @@ drops several render applications' data).
 extended data string of the first record that holds one of six bytes or more sitting once in
 the file, their first four characters overwritten with `E9 B0 C0 FC` and their page byte (the
 eight bits before the characters) set to 29, 30 and 31, and read back through the new
-readers: XRECORD values 16 strings, 64 of 64 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
-before); extended data 2 strings, 8 of 8.
+readers: XRECORD values 24 strings, 96 of 96 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
+before); extended data 3 strings, 12 of 12 (R14, R2000 and, since the DWG writer assembles
+the patched R2004 drawings, R2004; the string's own page byte is patched there and the
+header keeps the drawing's page).
 
 **R14, and the assumption that the shorts mean there what they mean later.** Nothing in
 the corpus names an R14 page: AutoCAD's exports of the AC1014 drawings are R12 DXF, which
@@ -3643,8 +3645,8 @@ corpus, with the strings rewritten in memory as in §7ap:
 |---|---|
 | `encode` is `decode`'s inverse on every byte above 0x7F of each named page | 128 of 128 for `ANSI_1251` and for `ANSI_1252` |
 | The escapes: U+2205 and U+0439 under 1252, U+00E9 under 1251 and under an unnamed page, MTEXT's own `94\U+00B0` | each as above |
-| 239 strings in 25 kinds of record (R14, R2000 and R2004), read under the drawing's own page, 29, 30 and 31; the R2004 drawings re-assembled by the DWG writer with that short as the header's page | 956 of 956 reads as the code page charts say |
-| The 85 table-entry names of those drawings written by `dwg-to-dxf` (R2000 target, bytes) | 340 of 340 checks: under 29 and 30 the patched bytes `E9 B0 C0 FC` and the rest of the name verbatim, under 31 the `\U+FFFD` escapes of what was read |
+| 266 strings in 27 kinds of record (R14, R2000 and R2004, XRECORD values and extended data included), read under the drawing's own page, 29, 30 and 31; the R2004 drawings re-assembled by the DWG writer with that short as the header's page | 1,064 of 1,064 reads as the code page charts say |
+| The 87 table-entry names of those drawings written by `dwg-to-dxf` (R2000 target, bytes) | 348 of 348 checks: under 29 and 30 the patched bytes `E9 B0 C0 FC` and the rest of the name verbatim, under 31 the `\U+FFFD` escapes of what was read |
 | `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
 | R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
 
