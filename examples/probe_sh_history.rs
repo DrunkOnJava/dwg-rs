@@ -3,7 +3,7 @@
 //!
 //! ODA spec v5.4.1 prints no layout for either; `src/objects/sh_history.rs` was
 //! derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7w). For every record of the two classes under the corpus directory this
+//! §7ay). For every record of the two classes under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary (from R2007 with the string stream consumed) and compares each
 //! decoded value with the object of the same handle in the DXF twin: for the
