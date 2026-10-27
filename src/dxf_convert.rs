@@ -140,6 +140,13 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     let header_vars: Vec<HeaderEntry> = crate::dxf_header::header_entries(file, version, &defined);
     write_header_section(&mut writer, &header_vars);
 
+    // CLASSES — the drawing's class table, for a target of R2000 or later.
+    if version.supports_subclass_markers() && version != DxfVersion::R14 {
+        if let Some(Ok(classes)) = file.class_map() {
+            crate::dxf_classes::write(&mut writer, &classes, file.version().is_r2004_plus());
+        }
+    }
+
     if tables.is_empty() {
         write_tables_section(&mut writer, &layers);
     } else {
