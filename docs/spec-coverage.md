@@ -174,7 +174,7 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | Class | State | Code | Note |
 |---|---|---|---|
 | VISUALSTYLE | `closes` | src/objects/acad_visual_style.rs | 456 of 456 corpus records on every release (ARCHITECTURE §7d.1). |
-| MATERIAL | `closes` | src/objects/acad_material.rs | 212 of 212 corpus records on every release R14 to R2018; layout derived from AutoCAD's DWG and DXF output, 13,058 values equal the DXF twin by handle, fields no DXF group shows are named unknown_* (ARCHITECTURE §7ba, #49, #152). |
+| MATERIAL | `closes` | src/objects/acad_material.rs | 212 of 212 corpus records on every release R14 to R2018; layout derived from AutoCAD's DWG and DXF output, 13,058 values equal the DXF twin by handle, fields no DXF group shows are named unknown_* (ARCHITECTURE §7bb, #49, #152). |
 | PROPERTYSET_DATA | `partial` | src/objects/acad_property_set_data.rs | Prefix only; no record in the corpus. |
 | ACDBASSOCPERSSUBENTMANAGER / ACDBPERSSUBENTMANAGER | `closes` | src/objects/pers_subent.rs | 14 of 14 corpus records on every release R14 to R2018, all from one drawing; 120 values equal the DXF twin by handle (R2000 to R2018, 6 of 7 releases); where each array ends and what each value means are unverified (ARCHITECTURE §7aq, #152). |
 | PLOTSETTINGS | `closes` | src/objects/acad_plot_settings.rs | Read with LAYOUT. |

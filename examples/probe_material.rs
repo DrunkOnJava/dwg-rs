@@ -5,7 +5,7 @@
 //!
 //! ODA spec v5.4.1 prints no MATERIAL layout, so `src/objects/acad_material.rs`
 //! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7ba). For every MATERIAL of every drawing under the corpus directory this
+//! §7bb). For every MATERIAL of every drawing under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary, from R2007 with every string-stream entry consumed, on every
 //! release from R14 to R2018, and compares each decoded value with the

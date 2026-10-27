@@ -4122,7 +4122,7 @@ No pinned layout holds one (all 132 are written), so a synthetic check of the pr
 (`layout_is_finite`, the one the planner uses) refuses all 63 cases, a NaN, an infinity and a
 negative infinity in each of the 18 coordinates of the six points and in one real of each other kind.
 
-## 7ba. MATERIAL, derived from AutoCAD's own output (2026-10-26, #49, #152)
+## 7bb. MATERIAL, derived from AutoCAD's own output (2026-10-26, #49, #152)
 
 ODA spec v5.4.1 lists MATERIAL in §20.3 and prints no layout for it (§20.4
 has no entry), and the 65 records measured in §7d fixed only the budgets a
