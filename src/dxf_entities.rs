@@ -155,9 +155,33 @@ fn common_groups(
             ctx.linetypes.get(&refs.linetype?)?.to_string(),
         )),
     }
+    // The order of AutoCAD's exports, measured pairwise on every entity of the
+    // corpus: 67, 8, 6, 347, 62, 420, 430, 440, 60, 370. The linetype scale (48)
+    // follows the colour (62, 420); its place against 440 and 60 is not measured,
+    // since no corpus record holds both.
+    if from_r2007(ctx.version) {
+        let material = match refs.material_flags {
+            1 => ctx.material_by_block,
+            3 => refs.material,
+            _ => None,
+        };
+        if let Some(m) = material.filter(|m| defined.contains(m)) {
+            g.push(HeaderGroup::Handle(347, m));
+        }
+    }
     let index = i64::from(c.color_raw & 0x01FF);
     if index != 256 {
         g.push(HeaderGroup::Int(62, index));
+    }
+    if from_r2004(ctx.version) {
+        if let Some(rgb) = c.color_rgb {
+            if rgb >> 24 == 0xC2 {
+                g.push(HeaderGroup::Int(420, i64::from(rgb & 0xFF_FFFF)));
+            }
+        }
+        if let Some(alpha) = c.color_alpha {
+            g.push(HeaderGroup::Int(440, i64::from(alpha)));
+        }
     }
     if (c.ltype_scale - 1.0).abs() > 0.0 {
         if !c.ltype_scale.is_finite() {
@@ -170,26 +194,6 @@ fn common_groups(
     }
     if let Some(w) = lineweight_hundredths(c.lineweight).filter(|w| *w != -1) {
         g.push(HeaderGroup::Int(370, i64::from(w)));
-    }
-    if from_r2004(ctx.version) {
-        if let Some(rgb) = c.color_rgb {
-            if rgb >> 24 == 0xC2 {
-                g.push(HeaderGroup::Int(420, i64::from(rgb & 0xFF_FFFF)));
-            }
-        }
-        if let Some(alpha) = c.color_alpha {
-            g.push(HeaderGroup::Int(440, i64::from(alpha)));
-        }
-    }
-    if from_r2007(ctx.version) {
-        let material = match refs.material_flags {
-            1 => ctx.material_by_block,
-            3 => refs.material,
-            _ => None,
-        };
-        if let Some(m) = material.filter(|m| defined.contains(m)) {
-            g.push(HeaderGroup::Handle(347, m));
-        }
     }
     Some(g)
 }
