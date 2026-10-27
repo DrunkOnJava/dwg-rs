@@ -3308,7 +3308,7 @@ data reads that text area through a non-ASCII byte. The diagnostic `read_tv`
 copies in `examples/trace_*` and the field-list probes still decode as UTF-8;
 they print strings and compare none.
 
-## 7aq. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
+## 7ar. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
 
 Two places hold pre-R2007 text that the crate never turned into a string. An XRECORD's
 body stayed opaque bytes (`XRecord::data`), and the extended entity data chain
