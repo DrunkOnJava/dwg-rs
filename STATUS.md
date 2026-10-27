@@ -256,8 +256,8 @@ the current capability matrix.
 - 11 launch posts (blog, HN, r/rust, r/cad, LinkedIn, Reddit,
   Twitter, LibreCAD/FreeCAD/QCAD forums, ODA community).
 - 11 DEV docs (CONTRIBUTING, CLEANROOM, THREAT_MODEL, EXTENDING_DECODERS,
-  entity-decoder cargo-generate template, synthetic DWG generator,
-  GitHub Discussions, issue + PR templates).
+  entity-decoder cargo-generate template, GitHub Discussions,
+  issue + PR templates).
 
 ### Security (SEC-series)
 - `DecompressLimits` + LZ77 output cap (SEC-01, 02, 03, 04).
