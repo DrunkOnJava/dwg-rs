@@ -154,7 +154,7 @@ fn main() -> Result<()> {
                     let _ = c.read_rc()?;
                 }
             }
-            if matches!(version, Version::R14) {
+            if version.is_r13_r14() {
                 data_end = Some(c.read_rl()? as usize);
             }
             let num_reactors = c.read_bl()?;

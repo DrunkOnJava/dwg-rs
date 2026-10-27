@@ -169,6 +169,9 @@ pub struct ObjectWalker<'a> {
     handle_mismatches: Vec<(u64, u64, u64)>,
     /// Stamped on every [`RawObject`] the walker yields.
     code_page: CodePage,
+    /// The class table, for R13/R14 records of a custom class: whether
+    /// such a record is an entity decides where its `RL` sits (§10.1).
+    classes: Option<&'a crate::classes::ClassMap>,
 }
 
 /// A single handle-driven walk step. In handle-driven mode the
@@ -257,8 +260,10 @@ pub struct ObjectWalkSummary {
     /// check stays exact past the retention cap.
     pub unanswered_hard_count: usize,
     /// Handle-driven mode only: records whose handle stream cannot be
-    /// located (R13/R14 state no boundary for it), so their references
-    /// go unchecked.
+    /// located, so their references go unchecked. On R13/R14 that is a
+    /// record of a custom class the walker was not given the class table
+    /// for ([`ObjectWalker::with_classes`]), or one whose `RL` is not
+    /// plausible (§20.1, §20.4.1).
     pub references_unchecked: usize,
 }
 
@@ -332,6 +337,7 @@ impl<'a> ObjectWalker<'a> {
             records_visited: 0,
             handle_mismatches: Vec::new(),
             code_page: CodePage::default(),
+            classes: None,
         }
     }
 
@@ -354,7 +360,18 @@ impl<'a> ObjectWalker<'a> {
             records_visited: 0,
             handle_mismatches: Vec::new(),
             code_page: CodePage::default(),
+            classes: None,
         }
+    }
+
+    /// Give the walker the drawing's class table so that
+    /// [`collect_all_lossy`](Self::collect_all_lossy) can locate the handle
+    /// stream of an R13/R14 record of a custom class: §10.1 marks each class
+    /// as producing entities (`0x1F2`) or objects (`0x1F3`), and an entity's
+    /// `RL` follows a graphics block that an object's does not (§20.4.1).
+    pub fn with_classes(mut self, classes: &'a crate::classes::ClassMap) -> Self {
+        self.classes = Some(classes);
+        self
     }
 
     /// Override the [`WalkerLimits`] applied by [`collect_all`],
@@ -477,21 +494,28 @@ impl<'a> ObjectWalker<'a> {
                 map.entries.iter().map(|e| e.handle).collect();
             let cap = self.limits.max_retained_references;
             for obj in &out {
-                let checked = for_each_handle_reference(obj, self.version, |target, code| {
-                    summary.references_decoded += 1;
-                    if !known.contains(&target) {
-                        if matches!(code, 3 | 5) {
-                            summary.unanswered_hard_count += 1;
+                let checked = for_each_handle_reference_in(
+                    obj,
+                    self.version,
+                    self.classes,
+                    |target, code| {
+                        summary.references_decoded += 1;
+                        if !known.contains(&target) {
+                            if matches!(code, 3 | 5) {
+                                summary.unanswered_hard_count += 1;
+                            }
+                            if summary.unanswered_references.len() < cap {
+                                summary.unanswered_references.push((
+                                    obj.handle.value,
+                                    target,
+                                    code,
+                                ));
+                            } else {
+                                summary.unanswered_references_suppressed += 1;
+                            }
                         }
-                        if summary.unanswered_references.len() < cap {
-                            summary
-                                .unanswered_references
-                                .push((obj.handle.value, target, code));
-                        } else {
-                            summary.unanswered_references_suppressed += 1;
-                        }
-                    }
-                });
+                    },
+                );
                 if !checked {
                     summary.references_unchecked += 1;
                 }
@@ -803,14 +827,17 @@ pub fn data_end_bit(raw: &RawObject, version: Version) -> Option<usize> {
 }
 
 /// The object references in a record's handle stream, each resolved to
-/// an absolute handle with its §2.13 code: codes 2 to 5 carry the
-/// handle outright, 6 and 8 are the record's own handle plus and minus
-/// one, and 0xA and 0xC add the encoded offset to it or subtract it.
+/// an absolute handle with its §2.13 code: codes 2 to 5 carry the handle
+/// outright, 6 and 8 are the record's own handle plus and minus one, and
+/// 0xA and 0xC add the encoded offset to it or subtract it.
 ///
 /// The handle stream starts where the record's data (and, on R2007+,
 /// string) area ends: the §19.1 string-stream trailer on R2007+, the `RL`
-/// object-data size on R2000 and R2004. R13/R14 state no such boundary
-/// in a form this crate reads, so they return `None`.
+/// object-data size on R2000 and R2004, and on R13/R14 the `RL` §20.1 and
+/// §20.4.1 place after the EED chain or the graphics block
+/// ([`r13_r14_data_end`]). An R13/R14 record of a custom class is only
+/// locatable with the class table, so this form returns `None` for it; see
+/// [`for_each_handle_reference_in`].
 pub fn handle_references(obj: &RawObject, version: Version) -> Option<Vec<(u64, u8)>> {
     let mut out = Vec::new();
     for_each_handle_reference(obj, version, |target, code| out.push((target, code))).then_some(out)
@@ -822,10 +849,30 @@ pub fn handle_references(obj: &RawObject, version: Version) -> Option<Vec<(u64, 
 pub fn for_each_handle_reference(
     obj: &RawObject,
     version: Version,
+    f: impl FnMut(u64, u8),
+) -> bool {
+    for_each_handle_reference_in(obj, version, None, f)
+}
+
+/// [`for_each_handle_reference`] with the drawing's class table, which an
+/// R13/R14 record of a custom class needs to say whether it is an entity
+/// (§10.1: item class id `0x1F2`) or an object (`0x1F3`).
+pub fn for_each_handle_reference_in(
+    obj: &RawObject,
+    version: Version,
+    classes: Option<&crate::classes::ClassMap>,
     mut f: impl FnMut(u64, u8),
 ) -> bool {
     let start = if version.is_r2007_plus() {
         crate::string_stream::data_section_end(&obj.raw, version)
+    } else if version.is_r13_r14() {
+        let is_entity = match obj.kind {
+            ObjectType::Custom(code) => classes
+                .and_then(|map| map.by_type_code(code))
+                .map(|class| class.item_class_id == ENTITY_ITEM_CLASS_ID),
+            kind => Some(kind.is_entity()),
+        };
+        is_entity.and_then(|entity| r13_r14_data_end(obj, entity).ok())
     } else {
         obj.obj_size_bits.map(|b| b as usize)
     };
@@ -855,6 +902,48 @@ pub fn for_each_handle_reference(
         }
     }
     true
+}
+
+/// §10.1 item class id of a class that produces entities; `0x1F3` is the
+/// one that produces objects.
+const ENTITY_ITEM_CLASS_ID: u16 = 0x1F2;
+
+/// The bit at which an R13/R14 record's data stream ends and its handle
+/// stream begins: the `RL` "size of object in bits, not including end
+/// handles" that §20.1 and §20.4.1 print under "R13-R14 Only", after the
+/// EED chain of a non-entity object or after the graphics block of an
+/// entity (`is_entity`). Reads `BS` type, `H` handle, the EED chain, for an
+/// entity the graphics-present flag and any graphics, then the `RL`.
+///
+/// Fails when the field cannot be read or is not a bit position inside the
+/// record after its own end: a value no handle stream can start at.
+pub fn r13_r14_data_end(obj: &RawObject, is_entity: bool) -> Result<usize> {
+    let mut c = BitCursor::new(&obj.raw);
+    c.read_bs_u()?;
+    c.read_handle()?;
+    crate::common_entity::skip_extended_data(&mut c)?;
+    if is_entity && c.read_b()? {
+        let bytes = c.read_rl()? as usize;
+        if bytes.saturating_mul(8) > c.remaining_bits() {
+            return Err(Error::Truncated {
+                offset: (c.position_bits() / 8) as u64,
+                wanted: bytes,
+                len: obj.raw.len() as u64,
+            });
+        }
+        for _ in 0..bytes {
+            c.read_rc()?;
+        }
+    }
+    let rl = c.read_rl()? as usize;
+    if rl < c.position_bits() || rl > obj.raw.len() * 8 {
+        return Err(Error::SectionMap(format!(
+            "R13/R14 object size {rl} bits is not inside the record ({} bits, prefix ends at {})",
+            obj.raw.len() * 8,
+            c.position_bits()
+        )));
+    }
+    Ok(rl)
 }
 
 #[cfg(test)]

@@ -406,6 +406,56 @@ script that contains no DWG or DXF implementation. Nothing under its
 `src/` and none of its reader-derived test data (the `*_tree.json` files)
 was opened.
 
+## 2026-10-26 — Public corpus: the R13 (AC1012) drawings (#119)
+
+AutoCAD can no longer save R13, and neither the nextgis nor the ACadSharp
+set holds one, so the corpus gains 22 AC1012 drawings found in two public
+repositories. Both are pinned in `tools/corpus/pins.tsv` exactly like the
+sources above (repository, commit, size, sha256, git blob id), fetched for
+a run by `tools/corpus/fetch.py` and **never committed**. They are data
+files: no source code from either repository was consulted. Neither has an
+AutoCAD DXF twin, and neither records its authoring application (R13 has
+no `AcDb:AppInfo`), so these drawings support boundary claims only, not
+value claims, until AutoCAD re-saves of them exist.
+
+- **`SketchUp/sketchup-developer-tools`** at
+  `06e7d5f1690a85bdccebaec8e3c652b91a538ba2`. **Apache-2.0** (the
+  repository's `LICENSE`). One drawing, `Cabin.dwg` from the importer
+  sanity test (`testup/tests/functional_tests/TC_importers_sanity/`):
+  222,587 bytes, four locator records (the R13 C3 layout, with the image
+  data at the end of the file). SketchUp's own test states what the file
+  holds: 4,232 edges, 19 layers and 11 block definitions.
+- **`Sovol3d/SOVOL-ZERO`** at `d745b00b87eab492a1917b6f16550f740fa1cffe`.
+  **No licence is stated**, so its 21 sheet-metal, machined-part,
+  foam-packaging and rail drawings under `PDF/` (55 to 247 KB, five
+  locator records, codepage 39) are fetched for a run by pinned hash and
+  never redistributed. Their paths are Chinese part names with spaces;
+  `fetch.py` percent-encodes the path for the raw route.
+
+## 2026-10-27 — Public corpus: the US Forest Service R13 drawings (#345)
+
+The 22 AC1012 drawings of the entry above were written by SketchUp's exporter
+and by a writer that is not AutoCAD (ARCHITECTURE.md §7au), so the corpus gains
+122 AC1012 drawings that the agency which made them says AutoCAD Release 13
+wrote: the US Forest Service Region 6 engineering CAD library, `pub/acad/dev/roads`
+(69 files) and `pub/acad/dev/trails` (53 files) on `ftp.fs.fed.us`. The trails
+page says "These drawings are created in AutoCad Ver 13", and the roads page
+says Ver 13 and Ver 14; every one of the 122 is AC1012, and 57 have `$TDUPDATE`
+on or before 1997-01-31, before Release 14 shipped. The agency publishes them as
+public-domain drawings (its "Public Domain Drawings" page, as quoted in #345),
+and a US government work carries no copyright.
+
+The server no longer serves them, so each file is pinned to a Wayback Machine
+capture by exact URL, size and sha256 in `tools/corpus/pins.tsv` (the new `url`
+column; the capture's timestamp is in `commit`, the original path in `path`).
+The `id_` form of a capture serves the original bytes, and the hash check
+rejects anything else. `tools/corpus/fetch.py` fetches them for a run, spaces its
+requests to `web.archive.org` about a second apart, retries a refusal with
+back-off and **never commits them**. They are data files read only through this
+crate: no source code of any DWG implementation was consulted, and nothing else
+was fetched from the agency or from the Internet Archive. None has an AutoCAD DXF
+twin, so they support boundary claims only, as the other R13 drawings do.
+
 ## 2026-10-26 — correction to the 2026-08-30 MLEADERSTYLE entry
 
 The 2026-08-30 entry for #55 says ODA spec v5.4.1 §20.4 carries no

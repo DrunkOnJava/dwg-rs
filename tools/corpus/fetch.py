@@ -11,6 +11,7 @@ Layout under --dest (stable; the DXF value oracle reads it too):
     <dest>/nextgis/arc_2000.dxf            AutoCAD's DXF export of that drawing
     <dest>/acadsharp/sample_AC1032.dwg     DomCR/ACadSharp samples/, AutoCAD 2025
     <dest>/acadsharp/sample_AC1032_ascii.dxf
+    <dest>/usfs/801-1.dwg                  US Forest Service R6 library, AutoCAD R13
 
 A DWG's DXF twin is its `twin` column and sits in the same directory.
 --legacy-samples DIR also copies the 19 rows marked `tests` into DIR, flat:
@@ -24,6 +25,15 @@ blob id; each route is retried before the other is tried, and GITHUB_TOKEN
 (or GH_TOKEN) is sent when set. The contents API is deliberately not a route:
 its raw media type re-encodes non-UTF-8 text, which turned the 0xD8 of an
 ANSI_1252 DXF into two UTF-8 bytes.
+
+A row with a `url` (the US Forest Service drawings, which exist only as
+Wayback Machine captures) has that one route. web.archive.org refuses fast
+fetches, so its requests are spaced WAYBACK_INTERVAL apart and a refusal
+(HTTP 429, 503, a reset connection) is retried WAYBACK_ATTEMPTS times with a
+doubling back-off from WAYBACK_BACKOFF seconds, still inside --deadline. A
+capture is immutable, so a body that does not match its pin is a truncated or
+substituted transfer: it is requested up to WAYBACK_COPIES times before the
+mismatch is reported (and then it fails the job like any other).
 
 pins.tsv is the one list of corpus files. --cross-check takes other JSON
 manifests that name files of a pinned commit (tools/streaming/*-corpus.json)
@@ -54,6 +64,7 @@ import shutil
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -61,6 +72,13 @@ PINS = Path(__file__).resolve().with_name('pins.tsv')
 UNREACHABLE = 69
 ATTEMPTS = 3
 OUTAGE_AFTER = 3
+WAYBACK_HOST = 'web.archive.org'
+WAYBACK_INTERVAL = 1.1
+WAYBACK_ATTEMPTS = 6
+WAYBACK_BACKOFF = 5
+WAYBACK_COPIES = 3
+MAX_BACKOFF = 60
+last_request = {}
 
 
 def read_pins(path=PINS):
@@ -94,9 +112,12 @@ def verify(path, row):
 
 
 def routes(row):
+    if row.get('url', '-') != '-':
+        return [(row['url'], {}, False)]
     token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
     auth = {'Authorization': f'Bearer {token}'} if token else {}
-    raw = (f'https://raw.githubusercontent.com/{row["repo"]}/{row["commit"]}/{row["path"]}', auth, False)
+    quoted = urllib.parse.quote(row['path'])
+    raw = (f'https://raw.githubusercontent.com/{row["repo"]}/{row["commit"]}/{quoted}', auth, False)
     blob = (
         f'https://api.github.com/repos/{row["repo"]}/git/blobs/{row["blob"]}',
         {'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', **auth},
@@ -113,14 +134,27 @@ class Unreachable(Exception):
     pass
 
 
+def pace(url, deadline):
+    host = urllib.parse.urlsplit(url).hostname
+    if host != WAYBACK_HOST:
+        return
+    wait = last_request.get(host, 0) + WAYBACK_INTERVAL - time.monotonic()
+    if wait > 0:
+        time.sleep(min(wait, max(0, deadline - time.monotonic())))
+    last_request[host] = time.monotonic()
+
+
 def download(row, deadline):
     failures = []
     gone = 0
     for url, headers, encoded in routes(row):
-        for attempt in range(ATTEMPTS):
+        wayback = urllib.parse.urlsplit(url).hostname == WAYBACK_HOST
+        attempts = WAYBACK_ATTEMPTS if wayback else ATTEMPTS
+        for attempt in range(attempts):
             left = deadline - time.monotonic()
             if left <= 0:
                 raise Unreachable('; '.join(failures[-2:] + ['fetch deadline reached']))
+            pace(url, deadline)
             request = urllib.request.Request(url, headers={'User-Agent': 'dwg-rs-corpus-fetch', **headers})
             try:
                 with urllib.request.urlopen(request, timeout=min(60, max(1, left))) as response:
@@ -134,8 +168,9 @@ def download(row, deadline):
                 failures.append(f'{url}: HTTP {e.code}')
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, ValueError, KeyError) as e:
                 failures.append(f'{url}: {e!r}')
-            if attempt + 1 < ATTEMPTS:
-                time.sleep(max(0, min(2 ** (attempt + 1), deadline - time.monotonic())))
+            if attempt + 1 < attempts:
+                delay = WAYBACK_BACKOFF * 2 ** attempt if wayback else 2 ** (attempt + 1)
+                time.sleep(max(0, min(delay, MAX_BACKOFF, deadline - time.monotonic())))
     if gone == len(routes(row)):
         raise Gone('; '.join(failures))
     raise Unreachable('; '.join(failures[-2:]))
@@ -186,19 +221,27 @@ def main():
             unreachable.append(f'{row["path"]}: not requested, {OUTAGE_AFTER} files in a row were unreachable')
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            data = download(row, deadline)
-        except Gone as e:
-            mismatched.append(f'{row["repo"]}@{row["commit"][:12]} no longer serves {row["path"]} ({e})')
-            continue
-        except Unreachable as e:
-            unreachable.append(f'{row["path"]}: {e}')
-            in_a_row += 1
-            continue
-        in_a_row = 0
         partial = target.with_name(target.name + '.partial')
-        partial.write_bytes(data)
-        problem = verify(partial, row)
+        for copy in range(WAYBACK_COPIES if row.get('url', '-') != '-' else 1):
+            try:
+                data = download(row, deadline)
+            except Gone as e:
+                mismatched.append(f'{row["repo"]}@{row["commit"][:12]} no longer serves {row["path"]} ({e})')
+                problem = 'gone'
+                break
+            except Unreachable as e:
+                unreachable.append(f'{row["path"]}: {e}')
+                in_a_row += 1
+                problem = 'unreachable'
+                break
+            in_a_row = 0
+            partial.write_bytes(data)
+            problem = verify(partial, row)
+            if problem is None:
+                break
+        if problem in ('gone', 'unreachable'):
+            partial.unlink(missing_ok=True)
+            continue
         if problem is not None:
             partial.unlink()
             mismatched.append(f'{row["repo"]}@{row["commit"][:12]}:{row["path"]} is {problem}')

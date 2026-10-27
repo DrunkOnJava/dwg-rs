@@ -45,7 +45,12 @@ the current capability matrix.
   does not count (841 of 841 inter-record runs agreed; 772 one-byte +
   70 two-byte fields + the 4-byte prologue = 916). #77 sized the
   walker's slice accordingly, and **every R2004+ corpus file now tiles
-  its object stream with zero bytes between records.**
+  its object stream with zero bytes between records.** The R13 drawings of
+  the US Forest Service library do not: 87 of its 122 hold 688,866 bytes in
+  1,484 runs between the records the map names, every run made of whole
+  records with a valid CRC, 9,764 of them with a handle the map names at
+  another offset and 1,913 with none (`examples/probe_unclaimed_runs`,
+  ARCHITECTURE.md §7ax).
 - **Walker-completeness gate:** `examples/probe_class_census` runs in
   CI over every canonical fixture with `--strict`;
   `tests/canonical_corpus.rs` asserts the class census exactly and
@@ -53,8 +58,9 @@ the current capability matrix.
   `examples/probe_reference_closure` decides whether a shortfall is a
   missing record or an over-declaring file — stream tiling, hard-
   reference closure, and owner-dictionary census. In CI the walk is
-  closed on all 44 R2000-to-R2018 drawings and NOT MEASURED on the 8
-  R14 ones, whose records expose no handle-stream boundary (#84); every
+  closed on all 74 pinned drawings, R13 to R2018: no bytes between
+  records and no unanswered hard reference, with 82,012 references
+  decoded on the 30 R13 and R14 ones (#84); every
   file's shortfalls are pinned in `tools/corpus/baseline.tsv`, and the
   new ones are #230. Both known shortfalls are files that
   declare instances they do not contain: TABLECONTENT / TABLEGEOMETRY

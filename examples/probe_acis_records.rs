@@ -135,7 +135,7 @@ fn read_preamble(c: &mut BitCursor<'_>, version: Version, marker_bits: usize) ->
         let _has_edge_visualstyle = c.read_b()?;
     }
     let invisibility = c.read_bs()?;
-    let lineweight = if matches!(version, Version::R14) {
+    let lineweight = if version.is_r13_r14() {
         0
     } else {
         c.read_rc()?

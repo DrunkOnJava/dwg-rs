@@ -274,7 +274,7 @@ fn read_common_object_prefix(
     for _ in 0..MAX_EED_ITERATIONS {
         let size = c.read_bs_u()? as usize;
         if size == 0 {
-            let obj_size_bits = if matches!(version, Version::R14) {
+            let obj_size_bits = if version.is_r13_r14() {
                 Some(c.read_rl()?)
             } else {
                 None

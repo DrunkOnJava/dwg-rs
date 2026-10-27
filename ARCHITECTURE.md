@@ -3669,6 +3669,451 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
+## 7au. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+
+Until this section the crate refused every AC1012 file at the version gate,
+and the corpus held none. Twenty-two real R13 drawings are now pinned
+(CLEANROOM.md, "Public corpus: the R13 drawings"): SketchUp's `Cabin.dwg`
+and 21 sheet-metal, machined-part, foam and rail drawings of Sovol3d/SOVOL-ZERO.
+AutoCAD can no longer save R13 and none of the 22 has a DXF twin, so everything
+below is a **boundary** claim: a field list ends exactly on the record's own
+data-stream boundary, or it does not. No value is compared with AutoCAD's, and
+nothing here is marked `complete`.
+
+### What R13 shares with R14, and the one thing that changed
+
+`Version::R13` is a new variant; every place the crate tested "is R14" for an
+R13-R14 branch (the `RL` object size after the EED chain or the graphics block,
+`Isbylayerlt`, `Nolinks`, the R13-R14 INSERT, 3DFACE, TOLERANCE, LINE and
+table-entry layouts) now asks `Version::is_r13_r14`. Nothing else in the
+container needed code: the §3.2.6 locator list, the unframed object stream,
+the §4.4 object map with absolute offsets, the §10.1 class list and the
+object prologue are the R14 ones.
+
+| | `Cabin.dwg` | the 21 Sovol drawings |
+|---|---|---|
+| locator records | 4 (the R13 C3 layout without record 4) | 5 |
+| locator CRC XOR (§3.2.6) | 0x8101, the first count-4 file measured | 0x3CC4 |
+| bytes 0x06-0x0C (§3.2.1) | `00 00 00 00 00 04 01` | `00 00 00 00 00 00 01` |
+| code page (0x13) | 30 | 39 |
+| image data (§14.2 sentinel at the §3.2.2 seeker) | at the end of the file, 0x2F9FC | right after the file header, 0x58 (overall size 18,623 in all 21) |
+| §26 second header | at the end of locator 3, 53 bytes, as §3.2.6 says for C3 | the same |
+
+`examples/probe_r13_container.rs` re-reads the framing independently of the
+reader and checks, per file, the locator CRC and the sentinel after it, the
+image sentinel, the §9 and §10.1 sections (both sentinels, the `RL`, the CRC
+seeded 0xC0C1, and locator size = 38 + `RL`) and every §23.1 chunk's CRC with
+the map ending on its locator. All six pass on all 22 files. No three-locator
+(R13 C2) drawing is among the 22, so that layout, and the PRE-R13C3 image
+position, are untested here. Autodesk's own R13 drawings use three locators
+(67 of the 68 distinct drawings on its install discs) or four (one, with a §26
+tail ending `18 78 01 04`) and pass the same framing checks (#345; "Autodesk's
+discs" below). The US Forest Service set, pinned next, has four locators in all
+122 drawings, so the three-locator layout stays out of the pinned corpus.
+
+The §9 header variables decode strictly on all 22, to the stated size. The
+R13 rows of the table close `Cabin.dwg` as they are (195 slots, the R14
+files' 199 less §9's four "R14+" shorts). The 21 Sovol headers read their R13
+slots plausibly (the control-object handles are 3.1.06 to 3.1.0B, the
+dictionaries 5.1.0D, 5.1.17, 3.1.0C) and then hold 84 bits: four BS of
+`00` + `FFFF`, 18 bits each (72 bits), and 12 bits of padding. The four are
+§9's "R14+" block, "unknown short (type 5/6 only) ... these do not seem to be
+required", so §9 itself says a writer may omit them; this one writes -1 in all
+four where AutoCAD's R14 files hold arbitrary values (`line_R14.dwg`: -32079,
+7245, -8010, 30738), and writes 0 where AutoCAD writes 256 in the first short
+(§9's "R13-R14 Only" unknown short). The 12 bits are the 4 bits that end the
+byte holding the last slot (`1010` in all 21) and one whole byte more (`00` in
+19 files, `52` and `7F` in the others): the Sovol section size is
+`ceil(bits / 8) + 1` (403 to 404 bytes, 395 to 396). The padding bits do not
+tell the writers apart: Autodesk's own R13 discs pad `0000` in 196 of 263
+headers and `1111` in 6, so `1111` is R14 evidence only (#345). What holds on
+every AutoCAD-written R13 header measured (263 on the discs, 122 of the Forest
+Service set) is 195 slots, without §9's four "R14+" shorts, in a section of
+exactly `ceil(bits / 8)`; the Sovol writer's four -1 shorts and extra byte
+break both. The decoder reads an AC1012 header with the R14
+rows when the R13 rows leave a whole byte or more, and lets that header end
+one byte before its data does. That early end is a tolerance for this
+writer's R13 variant, confined to AC1012: no AutoCAD-written R13 header has
+the extra byte, so it is not AutoCAD's format, and no other release gets it.
+`Cabin.dwg` is untouched by either rule, and the end-inside-the-last-byte rule
+for every other release is unchanged.
+
+The §26 second header's head is verified on all 22 (its sentinel sits where
+locator 3 ends; the self-address and `AC1012` read as printed). Its body
+follows §26 on `Cabin.dwg` only: the locator copies agree with the first
+header and 14 handle records follow, but the bytes after `AC1012` read
+`00 00 00 00 00 04` and the four fixed bytes `18 30 01 04`, where §26 prints
+`18 78 01 04` for R13. The byte after `18` varies on Autodesk's own
+three-locator files (`30`, `78`, `08`), so `Cabin.dwg`'s `18 30 01 04` is
+not evidence against AutoCAD (the last byte is the locator count, 3 or 4). The
+21 Sovol second headers do not follow the order §26
+prints after the version string. The reader does not use this section.
+
+### The walk
+
+`DwgFile::open` now opens all 22. Every handle-map entry lands on a record
+whose own handle repeats it (27,714 records, 0 mismatches, 0 skipped), the
+records tile the file from the end of the class section to the start of the
+object map with **0 bytes between them**, and every class reaches its declared
+`num_objects` (`probe_class_census`). `tools/streaming/verify_walk.py` walks
+`Cabin.dwg` and two Sovol drawings with the independent streaming grammar and
+gets the same records as the legacy reader and as its own framing parse; the
+same holds for the other 20 (`stream_walk`, each against `stream_walk --legacy`).
+
+| source | records | decoded | skipped | errored |
+|---|---|---|---|---|
+| `Cabin.dwg` | 3,590 | 3,353 | 0 | 237 |
+| Sovol, 21 drawings | 24,124 | 23,901 | 21 | 202 |
+
+(Measured with main at 4ec356a merged in.) The 439 errors are ATTRIB and ATTDEF
+(179 and 57, `Cabin.dwg`), the R13/R14 DIMSTYLE block (161, one in `Cabin.dwg`)
+and LEADER (42, Sovol); the 21 skipped are one `SUN` class record per Sovol
+file. Each error is a decoder that reached main with its R13-R14 branch tested
+as `== Version::R14`, so R13 takes the R2000 branch and misses its boundary:
+on R14 and every later release the same decoders close all of them. MTEXT is the
+one that asked `is_r13_r14()`: all 3,968 MTEXT records of the Sovol drawings
+error until it does, and close once it does.
+
+### Where R13 departs from the text
+
+1. **§23.1 chunk length.** "Each section is cut off at a maximum length of
+   2032" is a limit on the *entries*: the big-endian size field counts its own
+   two bytes, so a full chunk reads 2034 (§7ac found the same on ACadSharp's
+   AutoCAD-saved `sample_AC1014.dwg`, 2033, and `sample_AC1015.dwg`, 2034).
+   Seven of the 22 R13 drawings hold such chunks too (`Cabin.dwg` 2033; three
+   Sovol at 2034, three at 2033), which the streaming walk's old bound of 2032
+   rejected with `MapChunk`. The bound is 2034 on main; `verify_walk.py` now
+   also walks `Cabin.dwg` and two Sovol drawings through the same bound.
+2. **§2.8 and §2.10: BE and BT on R13-R14 are a bare `3BD` and `BD`.** The
+   helpers read the R2000+ flag-then-value forms on every release, which agrees
+   with the R13-R14 form only when the thickness is 0 and the extrusion is
+   (0,0,1), the case every R14 file of the corpus is in. LINE `0x28` of
+   `Cabin.dwg` (RL boundary 605): six BDs end at bit 469; read as BD + 3BD the
+   record gives thickness 1.0, extrusion (−1, −3.0e-16, 0) and ends on bit 605;
+   read as BT + BE it reads a reserved `11` BD tag and ends on bit 543. LINE
+   `0x30` (boundary 413) gives thickness 80, extrusion (0,0,1), bit 413. 18 LINE
+   and 2 POLYLINE_2D records of `Cabin.dwg` close that errored before;
+   `read_bt_for` and `read_be_for` take the version, and LINE, POINT, CIRCLE,
+   ARC, SOLID and POLYLINE_2D use them. No R14 or R2000 row of the baseline
+   moved.
+3. **§20.4.44 DICTIONARY: the unknown byte is "R14 Only".** R13 writes nothing
+   between `Numitems` and the first name. All 88 R13 DICTIONARY records missed
+   their `RL` boundary (by exactly 8 bits when the dictionary is empty); with the byte read
+   only on R14 they all close.
+4. **§20.4.47 LEADER: `Endptproj` is "R14+", not "R13-R14".** R13 has no end
+   point projection. With the LEADER decoder as merged, all 42 Sovol LEADER
+   records error when the three `BD`s are read on R13, and all 42 close when
+   R13 skips them.
+5. **The R13-R14 branches other decoders wrote as `== Version::R14`.** MTEXT
+   and LWPOLYLINE are fixed here. TEXT, ATTRIB, ATTDEF, LEADER and the R13/R14
+   DIMSTYLE block reached main as `== Version::R14`; with each read as
+   `is_r13_r14()` (and point 4), **every one of the 27,714 R13 records decodes
+   or is one of the 21 `SUN` records**: `Cabin.dwg` 3,590 decoded, 0 skipped, 0
+   errored; the 21 Sovol drawings 24,103 decoded, 21 skipped (the `SUN` class),
+   0 errored.
+   Where a field is "R13-R14 Only" the two releases share it; no other R13
+   difference turned up.
+
+§9 prints a block of four unknown shorts (types 5 and 6 of the header
+variables) as "R14+", so it is not R13's, and §20.4.58's text-area note ("first byte is
+always 0 for R13 ... in R14 it is not a valid data start from byte 0") is a
+difference in content, not in framing; neither is measured here, and both
+belong to the decoders that read them.
+
+### Autodesk's discs: local evidence, never fetched or committed
+
+Autodesk's own R13, R13 C3, R13 C4 and R13 C4a install discs hold AC1012
+sample drawings (`ACADCOM/SAMPLE`, `ACADCOM/TUTORIAL`, `SAMP/ADCI/ACAD13`) that
+third parties uploaded to archive.org as disc images (items `auto-cad_202406`,
+`acadr13de` and `autocad.7z`, as the local hunt directories name them). Their
+licence is unclear, so Griffin decided on 2026-10-26 that they are local
+evidence only: measured here and cited, never pinned in `tools/corpus/pins.tsv`,
+never fetched by CI and never committed. `docs/data/r13-autodesk-discs.tsv`
+holds one row per distinct drawing (68, by sha256, out of 263 drawings on the
+five images) with what was read from it, so anyone with the discs can check it.
+Every one of the 68 reads through the crate's own probes with 0 container
+failures, its header variables close, and its handle map has 0 mismatches.
+
+| | the 68 distinct drawings |
+|---|---|
+| locator records | 67 with 3, one with 4 |
+| §26 tail (the four bytes after `AC1012`) | `18 30 01 03` (36), `18 78 01 03` (21), `18 08 01 03` (10), `18 78 01 04` (1) |
+| header slots | 195 in all (263 of 263 headers), none of §9's four "R14+" shorts |
+| header section size | exactly `ceil(bits / 8)`, no byte after the last slot (263 of 263) |
+| bits ending the last slot's byte | `0000` in 46 drawings (196 of 263 headers), `1111` in 2 (6 of 263), the rest mixed |
+| §14.2 preview bitmap | 1,230 to 16,024 bytes, real images (the Forest Service set: 2,276 to 16,592) |
+
+The byte after `18` takes the values `30`, `78` and `08` on three-locator
+files, so it names no writer; the last of the four is the locator count. The
+slot count, the section size, the locator count and a real preview are what
+every AutoCAD-written file shares and the Sovol files do not.
+
+### What is not measured
+
+No AutoCAD DXF of an R13 drawing exists, so no R13 value has been compared. None
+of the 22 is known to be AutoCAD's. `Cabin.dwg` is SketchUp's export. The Sovol
+drawings are not AutoCAD-written, on three grounds: a header section one byte
+longer than `ceil(bits / 8)`; a preview that is one blank 180 x 97 bitmap in
+all 21 drawings (18,524 bytes, every pixel byte `0xFF`), where AutoCAD-written
+R13 drawings carry real previews of 1.3 to 16.7 KB; and a `SUN` object, which
+§20.4 gives to R2007 and later, so something newer than AutoCAD R13 wrote them.
+The header padding is not one of the grounds. The 22 are evidence of the
+format as it is found, not of what AutoCAD R13 itself wrote; drawings AutoCAD
+R13 saved are public (#345) and are pinned by a later PR. Reference closure (#84) is also open:
+R13 and R14 records still count as `references_unchecked` (27,714 of 27,714).
+
+Reproduce:
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo build --release --features dxf-reader --example coverage_report \
+    --example probe_class_census --example probe_reference_closure \
+    --example probe_r13_container --example probe_r13_entities
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json
+target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
+python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
+```
+
+## 7av. R13 and R14 reference closure: the handle stream starts at the RL (2026-10-26, #84)
+
+`probe_reference_closure` decides whether a class the walk reaches fewer of
+than `AcDb:Classes` declares is a missing record or an over-declaring file: it
+decodes every handle reference in every record's handle stream and checks the
+target against the handle map. It was blind on R13 and R14, because nothing in
+the object prologue says where the data stream ends: all 292 records of an R14
+file, and later all 27,714 records of the 22 R13 drawings, counted as
+`references_unchecked`.
+
+§20.1 and §20.4.1 do say it, under "R13-R14 Only": an `RL` "size of object in
+bits, not including end handles", after the EED chain of a non-entity object
+and after the graphics block of an entity. `object::r13_r14_data_end` reads
+`BS` type, `H` handle, the EED chain, for an entity the graphics-present flag
+and any graphics, then the `RL`, and refuses a value that is not a bit
+position inside the record after the end of its own prefix. The handle stream
+runs from there to the end of the record, as on R2000 and R2004.
+
+Whether a record is an entity decides whether the graphics flag is there. For
+a fixed type code that is `ObjectType::is_entity`. For a record of a custom
+class (type code 500 and up) it is the class's item class id: §10.1 gives
+`0x1F2` to "classes which produce entities" and `0x1F3` to "classes which
+produce objects", and all 321 class entries of the 30 R13 and R14 drawings of
+the corpus carry one of the two (15 entity classes, 306 object classes), unlike
+R2004+, where a vendor class has neither. The walker takes the class table from
+`DwgFile::all_objects_lossy` (`ObjectWalker::with_classes`); without it a
+custom-class record stays unchecked rather than guessed.
+
+Result on the corpus (`measure.py`, the `refs`, `unanswered`, `hard` and
+`no_boundary` columns of `tools/corpus/baseline.tsv`):
+
+| release | drawings | references decoded | unanswered | hard | records with no boundary |
+|---|---|---|---|---|---|
+| R13 | 22 | 72,799 | 0 | 0 | 0 (was 27,714) |
+| R14 | 8 | 9,213 | 0 | 0 | 0 (was 3,297) |
+
+So the walk is now closed on all 74 pinned drawings. The check is not vacuous:
+a handle stream read from the wrong bit decodes handles that do not exist. The
+same walk with the boundary moved one bit later leaves 38 of 295 references
+unanswered (23 hard) on `line_R14.dwg`, 583 of 1,725 (28 hard) on
+`sample_AC1014.dwg`, 711 of 4,437 (9 hard) on `Cabin.dwg` and 140 of 874 (1
+hard) on `JXHMP4602-11083-b 铁片.dwg`, where the right boundary decodes 789,
+3,657, 7,866 and 1,304 references with none unanswered.
+
+## 7aw. R13 through the decoders main added after the branch began (2026-10-26, #119)
+
+§7au opened AC1012 and found, in a scratch tree, that the decoders main
+gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
+(#258), the R13/R14 DIMSTYLE block (#297) and LEADER (#249) each test the
+R13-R14 branch as `version == Version::R14` or
+`matches!(version, Version::R14)`, so on R13 they take the R2000+ field
+list and miss the record's boundary. Merging main into those branches
+could not have caught it: there is no textual conflict, and R13 is simply
+not covered. With all three on main, the tests read `is_r13_r14()`.
+
+| Decoder | Test before | R13 records in the 22 drawings | Errored before | Errored after |
+|---|---|---:|---:|---:|
+| ATTRIB (§20.4.4) | `== Version::R14` | 187 | 179 | 0 |
+| ATTDEF (§20.4.5) | `== Version::R14` | 57 | 57 | 0 |
+| DIMSTYLE (§20.4.68, "R13 & R14 Only" block) | `matches!(.., R14)` | 161 | 161 | 0 |
+| LEADER (§20.4.47) | `== Version::R14` | 42 | 42 | 0 |
+
+ATTRIB and ATTDEF both call `text::decode` for their TEXT part, so the
+one change in `text.rs` is what moves them; all 244 of those records are
+`Cabin.dwg`'s. `coverage_report` over the 74 pinned drawings:
+
+| Release | Decoded before | Decoded after | Skipped | Errored before | Errored after |
+|---|---:|---:|---:|---:|---:|
+| R13 | 27,254 | 27,693 | 21 | 439 | 0 |
+| R14 to R2018 | unchanged | unchanged | unchanged | 0 | 0 |
+
+`tools/corpus/baseline.tsv` changes in the `decoded` and `errored`
+columns of the 22 R13 rows and nowhere else. The 21 skipped are the
+Sovol drawings' `SUN` class records, which no decoder claims.
+
+**LEADER's end point projection is "R14+", not "R13-R14".** §20.4.47
+files `Endptproj` under "R14+" and `DIMGAP` under "R13-R14 Only", so R13
+has the `DIMGAP` and no projection; `Leader::end_point_projection` is the
+zero vector there, the field's default. This is measured, not only read:
+`probe_leader` closes all 42 Sovol LEADER records (21 drawings; `Cabin.dwg`
+has none) and exits 0 with the projection skipped. With the three `BD`s
+read on R13 as on every other release it closes none of the four LEADERs
+of `JXHMP4602-01005-b`: three stop on a reserved `11` BD tag and one runs
+out of bits (6 remain, 8 wanted).
+
+**The same swaps on AutoCAD-written R13 drawings.** The 22 drawings hold no
+TEXT, VIEWPORT or TRACE record. Two other sets do: the US Forest Service R6
+library (122 drawings, public domain, "created in AutoCad Ver 13"; pinned by a
+later PR and measured here on lower-cased copies, because `coverage_report`
+skipped `.DWG` until #353) and Autodesk's own install-disc drawings (68
+distinct, local evidence only, §7au).
+
+| | Forest Service, 122 drawings | Autodesk discs, 68 distinct drawings |
+|---|---:|---:|
+| decoded, before the swaps | 337,778 | 97,549 |
+| decoded, after | 345,132 | 110,731 |
+| skipped (no decoder, both runs) | 104 (`VP_ENT_HDR`) | 57 (`VP_ENT_HDR` 52, a custom `OBJECT_PTR` 3, MINSERT 2) |
+| errored, before | 7,354 | 13,182 |
+| errored, after | 0 | 0 |
+
+Errored before on the Forest Service set, by type: TEXT 7,016 (of 7,066 in all
+122 drawings), DIMSTYLE 126 (of 126), LEADER 116 (of 116, 21 drawings), VIEWPORT
+52 (of 52, 52 drawings), ATTDEF 41 (of 41) and TRACE 3 (of 165, 5 drawings). On
+the discs the kinds are ATTRIB, TEXT, ATTDEF, DIMSTYLE and VIEWPORT. So TEXT,
+VIEWPORT and TRACE are now measured on R13 directly, not only through ATTRIB
+and ATTDEF (the VIEWPORT swap is §20.4.38's "R2000+" on every field after the
+height).
+
+**TRACE reads BT and BE in their R13-R14 form too.** `trace::decode` never took
+the version, so TRACE kept the R2000+ flag-then-value forms of thickness and
+extrusion on R13 and R14, the bug §7au fixed for SOLID, ARC, CIRCLE, POINT and
+the polylines. TRACE shares SOLID's stream (§20.4.36), so `trace::decode_for`
+calls SOLID's. It moves the 3 TRACE records of the Forest Service set that
+errored; the other 162 closed before and still do.
+
+Five more guards main gained after the swaps above tested R14 alone where the
+comment or the section says "R13 and R14": `dxf_entities::writes`, the layer
+and VPORT guards of `dxf_tables.rs` ("R13 and R14 store no plot flag and no
+lineweight", "neither a render mode nor an associated UCS"), `entity_refs` and
+`DIMSTYLE`'s `decode_with_vars`. They read `is_r13_r14()` now. They are not
+measured: they act only when an R13 drawing is converted to DXF, no R13 drawing
+has an AutoCAD DXF twin, and no CI step converts one, so this is a sweep result,
+not a count.
+
+The remaining `Version::R14` tests in `src/` are R14-only on purpose:
+DICTIONARY's unknown byte (§20.4.44), the R14 header variable table, and
+the version identity matches in `file_writer.rs`, `classes.rs`,
+`header_vars.rs` and `dwg_write.rs`. Of the open pull requests, #319
+(ACAD_TABLE) tests `matches!(version, Version::R14)` for the three `BD`
+scales its §20.4.96.1 head gives "on R13 and R14". None of the 22 R13
+drawings declares an ACAD_TABLE class (ACadSharp's R14 sample holds two),
+so the R13 side of that branch cannot be measured here; it needs the same
+swap when it lands.
+
+Reproduce:
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo build --release --features dxf-reader --example coverage_report \
+    --example probe_leader --example probe_r13_census
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json
+for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"; done
+# the Forest Service set, once pinned, on lower-cased copies (before #353): coverage_report DIR
+target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
+```
+
+## 7ax. R13 written by AutoCAD: the US Forest Service library, and the records the map no longer names (2026-10-27, #345)
+
+None of the 22 R13 drawings of §7au is known to be AutoCAD's (§7au, "What is
+not measured"). The US Forest Service Region 6 engineering CAD library is: 122
+AC1012 drawings, public domain, which the agency's own pages say were "created
+in AutoCad Ver 13" (CLEANROOM.md, "Public corpus: the US Forest Service R13
+drawings"). They are pinned in `tools/corpus/pins.tsv` by Wayback Machine
+capture URL, size and sha256 and never committed: 69 in `roads` and 53 in
+`trails`, 19,911,158 bytes in all, 96 named `.dwg` and 26 `.DWG`. `$TDCREATE` runs
+from 1988-08-27 to 1996-04-09 and `$TDUPDATE` from 1996-06-30 to 1997-09-29, 57 of
+them on or before 1997-01-31, before Release 14 shipped.
+
+### What the container shows
+
+`probe_r13_container` passes all 122: locator CRC, sentinels, preview image
+sentinel, the §9 and §10.1 sections and every §23.1 chunk, with the object
+map ending on its locator. All 122 have four locator records and code page 30.
+Their bytes 0x06-0x0C (§3.2.1) are `00 00 00 00 00 06 01` (59 drawings),
+`... 04 01` (36) and `... 00 01` (27). The §26 second header's body follows the
+section as printed on all 122: the locator copies agree and the four bytes after
+`AC1012` are `18 78 01 04`, where §26 prints them. The preview bitmap is a real
+image of 2,276 to 16,592 bytes. The header variables close on all 122 with 195
+slots, none of §9's four "R14+" shorts, in a section of exactly `ceil(bits / 8)`
+(0 extra bytes in all 122), which is the shape every AutoCAD-written R13 header
+has (§7au). The handle map resolves every entry (0 mismatches, 0 walk skips).
+
+### What the decoders show
+
+With the decoders of §7aw, `coverage_report` reads 345,236 records of the 122:
+345,132 decode, 104 are `VP_ENT_HDR` (§20.4.70, no decoder) and none errors.
+Before the R13-R14 branches of §7aw, 7,354 errored (TEXT 7,016, DIMSTYLE 126,
+LEADER 116, VIEWPORT 52, ATTDEF 41, TRACE 3). These are the first R13 TEXT,
+VIEWPORT and TRACE records the corpus holds (§7aw).
+
+### The stream holds records the map does not name
+
+87 of the 122 have bytes in the object stream between the records the map names
+(`probe_reference_closure`: "between records"): 688,866 bytes in 1,484 runs, up
+to 30 % of a file (`HM000018.DWG`: 118,121 of 390,177 bytes; `801-1.dwg`: 8,932 of
+35,419 bytes in 32 runs). None of the 22 pinned R13 drawings, the 8 R14 drawings
+or the later releases has any.
+`examples/probe_unclaimed_runs.rs` reads each run as object records, the `MS`
+size, that many bytes, and the 2-byte CRC (seed 0xC0C1 over the `MS` and the
+data), then the `BS` type and the `H` handle that open the data:
+
+| | 87 drawings |
+|---|---:|
+| runs | 1,484 |
+| runs that tile exactly into records | 1,484 |
+| records in them | 11,677 |
+| records with a valid CRC | 11,677 |
+| records whose handle the map names at another offset | 9,764 |
+| records whose handle the map does not name | 1,913 |
+
+Every run is made of complete, CRC-valid records, so the bytes are not padding or
+damage. The 9,764 records whose handle the map names elsewhere are older copies of
+objects that were rewritten; the 1,913 the map does not name at all are objects
+that were erased. That is what an incremental save leaves behind, and it is a
+reading of this measurement, not something the specification states: §23.1 says
+how the map is read and nothing about what else the stream may hold. The walk
+that the map drives ignores these bytes, as it should, since the map names the
+live record of each handle. So "the walk tiles the stream with no byte between
+records" holds for the pinned R2004 family, the R14 drawings and the 22 §7au
+drawings, not for these 87; `tools/corpus/baseline.tsv` pins the `between` count
+of each. Autodesk's own install-disc drawings (local evidence, §7au) are mostly
+tight: of their 68 distinct drawings one has a run (172 bytes, two records, one of
+whose handles the map names).
+
+### Fetching them
+
+`tools/corpus/fetch.py` fetches a row with a `url` from that URL alone. The
+Wayback Machine refuses fast fetches, so its requests are spaced 1.1 seconds
+apart, a refusal (HTTP 429, 503, a reset connection) is retried six times with a
+doubling back-off from 5 seconds inside the overall `--deadline`, and a body that
+does not match its pin is requested again up to three times before it fails the
+job (a capture is immutable, so a mismatch is a bad transfer). An outage still ends
+in exit 69 and a NOT MEASURED Corpus job. The Corpus job restores `~/dwg-corpus`
+under the key `dwg-corpus-` plus the hash of `pins.tsv`, so the Wayback Machine
+is requested once per change to the pins, not once per run.
+
+Reproduce:
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo build --release --features dxf-reader --example coverage_report \
+    --example probe_r13_container --example probe_unclaimed_runs
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json
+target/release/examples/probe_r13_container ../dwg-corpus/usfs/*
+target/release/examples/probe_unclaimed_runs ../dwg-corpus/usfs/*
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

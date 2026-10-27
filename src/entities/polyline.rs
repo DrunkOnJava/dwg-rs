@@ -24,7 +24,7 @@
 //! ```
 
 use crate::bitcursor::BitCursor;
-use crate::entities::{Vec3D, read_be, read_bt};
+use crate::entities::{Vec3D, read_be_for, read_bt_for};
 use crate::error::Result;
 use crate::version::Version;
 
@@ -103,14 +103,21 @@ impl Polyline {
 }
 
 /// Decodes the `Polyline` payload that follows the common entity header.
+///
+/// Reads the R2000+ form; see [`decode_for`] for R13-R14, whose `BT` and `BE` are a bare `BD` and `3BD` (§2.8, §2.10).
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Polyline> {
+    decode_for(c, Version::R2000)
+}
+
+/// Decodes the `Polyline` payload for `version`: the `BT` thickness and `BE` extrusion take their R13-R14 form (§2.8, §2.10) there.
+pub fn decode_for(c: &mut BitCursor<'_>, version: Version) -> Result<Polyline> {
     let flag = c.read_bs_u()?;
     let curve_type = c.read_bs()?;
     let default_start_width = c.read_bd()?;
     let default_end_width = c.read_bd()?;
-    let thickness = read_bt(c)?;
+    let thickness = read_bt_for(c, version)?;
     let elevation = c.read_bd()?;
-    let extrusion = read_be(c)?;
+    let extrusion = read_be_for(c, version)?;
     Ok(Polyline {
         flag,
         curve_type,
