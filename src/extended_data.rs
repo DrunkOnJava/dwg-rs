@@ -17,7 +17,7 @@
 //! the code's DXF type has, and a string as "the string length (RC), the dwgcodepage
 //! (RC), and then the string".
 //!
-//! Measured on every pre-R2007 drawing of the pinned corpus (ARCHITECTURE.md §7ar):
+//! Measured on every pre-R2007 drawing of the pinned corpus (ARCHITECTURE.md §7as):
 //! both strings are the same three bytes before the characters, **an `RS` length and
 //! an `RC` code page**: the specification's "RC length, RC page" (§20.4.104) and
 //! "RC length, short page" (§28) are each a length below 256, a zero byte and the
