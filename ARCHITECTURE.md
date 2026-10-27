@@ -2953,7 +2953,7 @@ Three differences are relations the probe names, not disagreements:
 
 The probe also prints the numbers per release.
 
-## 7al. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
+## 7am. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
 
 `src/dxf_entities.rs` writes the entities of model space and of the active paper
 space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decoded
