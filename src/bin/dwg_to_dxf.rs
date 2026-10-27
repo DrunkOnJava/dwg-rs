@@ -1,6 +1,7 @@
 //! `dwg-to-dxf` — convert a DWG file to ASCII DXF (L11-08).
 //!
-//! Thin CLI wrapper around [`dwg::dxf_convert::convert_file_to_dxf`].
+//! Thin CLI wrapper around [`dwg::dxf_convert::convert_file_to_dxf_bytes`]: before
+//! R2007 the text is written in the drawing's code page.
 //!
 //! # Usage
 //!
@@ -27,7 +28,7 @@
 
 use clap::Parser;
 use dwg::dxf::DxfVersion;
-use dwg::dxf_convert::convert_file_to_dxf;
+use dwg::dxf_convert::convert_file_to_dxf_bytes;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -62,12 +63,12 @@ fn run(args: Args) -> anyhow::Result<()> {
         )
     })?;
 
-    let dxf = convert_file_to_dxf(&args.input, version)?;
+    let dxf = convert_file_to_dxf_bytes(&args.input, version)?;
 
     match args.output.as_deref() {
         Some(path) => {
             let mut f = File::create(path)?;
-            f.write_all(dxf.as_bytes())?;
+            f.write_all(&dxf)?;
             eprintln!(
                 "dwg-to-dxf: wrote {} bytes ({}) to {}",
                 dxf.len(),
@@ -76,7 +77,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             );
         }
         None => {
-            std::io::stdout().write_all(dxf.as_bytes())?;
+            std::io::stdout().write_all(&dxf)?;
         }
     }
     Ok(())
