@@ -9,8 +9,9 @@ resumable **LZ77 decoder** (§4.7), the **page map and section map walk**
 **whole-file walk** that joins them behind one checkpoint, and the **object
 records** (§20.1) framed out of that walk, all below. R2007 (AC1021) has its
 own **whole-file walk** (§5.1–§5.4, §5.10–§5.13): its own Reed-Solomon pages,
-LZ dialect, page map, section map and checksums, behind one checkpoint. An
-object's fields are not decoded, and R2007's object records are not framed.
+LZ dialect, page map, section map and checksums, behind one checkpoint, and its
+object records (§20.1) are framed out of it the same way. An object's fields are
+not decoded.
 Those remain open in [#205](https://github.com/DrunkOnJava/dwg-rs/issues/205). The spec
 compiler is an upgrade after the hand-written baseline, tracked in
 [#208](https://github.com/DrunkOnJava/dwg-rs/issues/208).
@@ -523,8 +524,9 @@ all 611, with equal cursors, and the native build resumes it to the
 uninterrupted run's output; 82 flipped bits and a wrong identity are refused by
 the kernel.
 
-Not covered: an object's fields (the records are bytes), R2007's object
-records, object pages the page map lists out of order, and throughput.
+Not covered: an object's fields (the records are bytes), object pages the page
+map lists out of order, and throughput. R2007's object records are the section
+after the R2007 walk.
 
 ## The whole R2007 file (§5.1–§5.4, §5.10–§5.13)
 
@@ -675,6 +677,78 @@ of its decompressed bytes, so the first pass must decode it before the second
 may hand any of it out), reads each codeword byte by byte through a gather and
 scans the page map once per page reference. Measured on one Apple-silicon Mac
 under other load.
+
+## The object records of an R2007 file (§20.1)
+
+`streaming::R2007ObjectWalker` is the R2007 file walker with one section singled
+out, as `R2004ObjectWalker` is the R2004-family one: the bytes of
+`AcDb:AcDbObjects` do not leave it as section data but are framed, in section
+order, into records by the same framer, and every other section's data passes
+through as the file walker reports it (`R2007ObjectStep::Walk`). An R2007 record
+is the `MS` size, `MS` bytes of payload and a CRC over the bytes from the `MS`
+through the last payload byte (seed 0xC0C1), after the four-byte `RL 0x0DCA`
+prologue, with no `MC`: the layout of R2000 (`RecordFormat::R2000`), not of
+R2010. ARCHITECTURE.md §7al measures it on all eight pinned R2007 drawings
+(2,237 records). The type, the `RL` size in bits and the handle are read from
+the payload's first bits, which on R2007 and later lie in the data stream; the
+string stream (where `TV` text lives, §7a) and the handle stream (where `H`
+references live) are at the end of the payload, are bytes to this walker and are
+not read. A record is committed only after its CRC, type and handle check, and
+its payload (the bytes the legacy `RawObject::raw` holds) is handed out as it
+arrives in `Payload` steps, provisional until the `Object` step. The
+`AcDb:Handles` map is not read and no index of handles or offsets is kept.
+
+The page order is not a risk here as it is for the R2004 family. The file walker
+hands out each section's pages in the order the section map lists them, which
+is the order of the section's bytes (the walk enforces rising offsets), so no
+page arrives out of order whatever order the file or the page map holds them in
+(a built file with the pages shuffled is checked). A gap that no page covers
+arrives as a `Hole`, which the object walker refuses with `ObjectsOrder` rather
+than frame zeros, since the records tile the section; every object section of the
+pinned corpus tiles with no hole. A page is walked twice, and the first pass
+checks every Reed-Solomon codeword, both CRC-64s and the checksum before any
+byte of it reaches the framer, so no record is committed from an unverified page.
+
+State is the R2007 file walker, a 256-byte stage for the section bytes a `Data`
+step handed over and the framer's few dozen bytes, bounded at `2 *
+R2007_WINDOW + 8192 + 1024` in the `no_std` kernel (native and wasm32).
+`R2007ObjectCheckpoint` (`DWGQ`) holds the file walker's `DWGR` checkpoint (restored
+by its own restore), the object section's index, the framer's cursors and the
+section bytes not yet framed (at most 256), at most about 140 KB. It is
+self-contained: restore needs the source identity and nothing else, and what the
+caller keeps is the digest and length of the open record's payload so far.
+Restore requires a state the walk can reach: the framer's cursors against the
+record bytes it holds (the CRC recomputed wherever they are still held), the
+section against the walker's section, the unframed bytes against the page
+walker's cursor in the section. A checkpoint taken before the object section's
+description is complete cannot be checked against it, so a forged one restores and
+ends in `ObjectsMissing` or `SectionEntry` as a forged `DWGO` does.
+
+`examples/stream_r2007_objects.rs` is the entry point (`--legacy`, `--stop-after`,
+`--resume`, `--trace`, `--report-steps` and `--would-block` as the other examples).
+`tools/streaming/verify_r2007_objects.py` runs it on the eight pinned R2007
+drawings (seven nextgis, `r2007-corpus.json`; ACadSharp's `sample_AC1021`,
+`r2007-acadsharp-corpus.json`, the only pinned one over 66 KB, 1.06 MB) and on
+8 files it builds with `r2007_ref.build` from those drawings' real records
+(the pages sized so that an `MS` or a CRC straddles a page boundary, stored and
+bare compressed pages, shuffled pages). 2,496 records in all: every printed line equals an
+independent Python framing of the independently assembled section, the (handle,
+offset) pairs equal an independent parse of `AcDb:Handles`, and the records of the
+eight drawings equal the legacy reader's on handle, offset, size, type, payload
+length and payload CRC-32. 34 of the 2,237 records straddle a page boundary
+and the framing carries across all of them. Reads of 1, 3, 64 and 256 bytes (13 and 256 for the 1.06 MB drawing), a mixed schedule with Pending polls and a source that fails every other read with `WouldBlock` print the same output, and so do 128 proptest schedules on `arc_2007` and on a built file.
+A fresh process resumes at 1,402 stops: every step of the 983-step built file of two records, 74 stops of each of `arc_2007` and `ellipse_2007`, 22 of `sample_AC1021` and 124 of each of two built files whose page size leaves a record's `MS`, or its CRC, on the last byte of a page. The source reads and output of the two processes concatenate to the uninterrupted run's; the checkpoints were taken in every framer stage and every walker stage, 131 of them holding unframed bytes, 51 inside an `MS`, 50 inside a CRC and 247 inside a payload.
+450 bit flips and 450 truncations of three checkpoints (the small built file between two records and inside one, a real drawing inside a record), a wrong identity and 284 resealed unreachable states are rejected; of 200 resealed one-byte changes inside the embedded walker checkpoint, 123 are rejected and the rest are states the walk can go on from (none panics).
+34 errors are reached: thirteen edits of each of two real object sections (a record's CRC, its last payload byte or a byte past the 32 held, the prologue, an `MS` of zero or of three words, a record past the end, a section cut inside the last record, bytes after it, an unreadable handle with a valid CRC, a record too short for its header, a section shorter than its prologue), the output before each exactly the records before the failing one; a built file whose object section has a stretch no page covers ends in `ObjectsOrder`, one whose section ends short of its size in `ObjectsIncomplete`, one without the section in `ObjectsMissing`, one with two (the first framed to its end, since the section map is the outer loop) in `SectionEntry` and one encrypted in `SectionEncrypted`; and a codeword flipped in the second, the last or a middle page of the object section of a real drawing ends in `R2007Parity` with exactly the 151, 161 and 807 records of the pages before it committed, so no record of an unverified page is handed out.
+
+`tools/streaming/verify_wasm_r2007_objects.py` is the cross-runtime run:
+native `DWGQ` checkpoints (493 stops of the small built file, 48, 48 and 47 of three real drawings, 48 of a built file with 61-byte pages and 17 of `sample_AC1021`) restored in the kernel finish with the lines the native resume prints, at kernel read sizes of 1, 7, 64 and 256 bytes; the kernel's own checkpoint at the same step is byte-identical to the native one in all 701, with equal cursors, and the native build resumes it to the uninterrupted run's output; 80 flipped bits of a checkpoint, its first and last byte and a wrong identity (83) are refused by the kernel.
+
+Not covered: an object's fields (the records are bytes); a drawing larger than the
+1.06 MB `sample_AC1021` (none is pinned or available locally); a stored file header
+(negative `ComprLen`) or a non-zero CRC seed on a drawing AutoCAD wrote; an
+encrypted section (refused by the file walk); object pages that leave a hole
+(refused); a browser runtime; and throughput.
 
 ## LZ77 decoder (R2004 family, §4.7)
 
@@ -851,6 +925,12 @@ guarantee. The caller owns atomic custody of saved state and any already
 committed output. `header()` is an inspection API, not an exactly-once event
 queue. Full object/decompression checkpoints remain open in #207.
 
+The R2007 object stream crosses both ways too: `run_r2007_objects` walks for a
+number of steps and leaves a `DWGQ` checkpoint, and `resume_r2007_objects` restores
+one, given the saved payload CRC-32 and length, and finishes the walk, printing the
+lines `stream_r2007_objects` prints. `tools/streaming/verify_wasm_r2007_objects.py`
+is its acceptance run (above, in the R2007 object records section).
+
 ## Repeatable acceptance
 
 The real executable is `examples/stream_header.rs`. The Python driver uses
@@ -869,7 +949,7 @@ rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/str
 The R13–R2000 walk and the LZ77 decoder have their own drivers:
 
 ```sh
-cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2004_objects --example stream_r2007 --example stream_r2007_timing --example streaming_schedules
+cargo build --locked --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2004_objects --example stream_r2007 --example stream_r2007_objects --example stream_r2007_timing --example streaming_schedules
 python3 tools/streaming/verify_walk.py target/debug/examples/stream_walk target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_lz77.py target/debug/examples/stream_lz77 target/debug/examples/streaming_schedules
 python3 tools/streaming/verify_source.py target/debug/examples/stream_walk
@@ -882,6 +962,8 @@ python3 tools/streaming/verify_objects.py target/debug/examples/stream_r2004_obj
 python3 tools/streaming/verify_wasm_objects.py target/debug/examples/stream_r2004_objects
 python3 tools/streaming/verify_r2007.py target/debug/examples/stream_r2007 target/debug/examples/streaming_schedules --timing target/debug/examples/stream_r2007_timing
 python3 tools/streaming/verify_wasm_r2007.py target/debug/examples/stream_r2007
+python3 tools/streaming/verify_r2007_objects.py target/debug/examples/stream_r2007_objects target/debug/examples/streaming_schedules
+python3 tools/streaming/verify_wasm_r2007_objects.py target/debug/examples/stream_r2007_objects
 python3 tools/streaming/probe_r2007_checks.py <the eight pinned R2007 drawings>
 ```
 
@@ -897,7 +979,7 @@ The real-file manifest records header fields, not object counts. No real R13
 file, multi-gigabyte model or independent object-count oracle has passed
 this reader. The kernel WASM compile does not establish browser runtime;
 cross-runtime checkpoint acceptance is established only for the R2004 walks,
-the R2004 object stream and the R2007 walk (above).
+the R2004 object stream, the R2007 walk and the R2007 object stream (above).
 
 ## Current evidence
 
