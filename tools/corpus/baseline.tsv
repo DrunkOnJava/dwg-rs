@@ -7,6 +7,28 @@
 # decodes, leaves unresolved, and of those hard; no_boundary: records with no
 # handle-stream boundary, whose references go unchecked.
 file	source	release	decoded	skipped	errored	walk_skips	handle_mismatches	census	between	refs	unanswered	hard	no_boundary
+Cabin.dwg	sketchup	AC1012	3353	0	237	0	0	-	0	0	0	0	3590
+JXHMP4602-01005-b 底部安装板.dwg	sovol	AC1012	1364	1	20	0	0	-	0	0	0	0	1385
+JXHMP4602-01007-a Z轴丝杆.dwg	sovol	AC1012	689	1	11	0	0	-	0	0	0	0	701
+JXHMP4602-01008-b 底座封板.dwg	sovol	AC1012	3893	1	8	0	0	-	0	0	0	0	3902
+JXHMP4602-01009-a 隔离柱.dwg	sovol	AC1012	553	1	6	0	0	-	0	0	0	0	560
+JXHMP4602-01010-a 惰轮轴.dwg	sovol	AC1012	493	1	5	0	0	-	0	0	0	0	499
+JXHMP4602-03027-a 毛细管1.dwg	sovol	AC1012	505	1	6	0	0	-	0	0	0	0	512
+JXHMP4602-03057-a 惰轮隔离件.dwg	sovol	AC1012	487	1	5	0	0	-	0	0	0	0	493
+JXHMP4602-03091-f 电机减震垫.dwg	sovol	AC1012	862	1	14	0	0	-	0	0	0	0	877
+JXHMP4602-08051-b 喷头滑动板.dwg	sovol	AC1012	2237	1	13	0	0	-	0	0	0	0	2251
+JXHMP4602-11058-b 外壳封板1.dwg	sovol	AC1012	2530	1	22	0	0	-	0	0	0	0	2553
+JXHMP4602-11060-b 背面机箱封板.dwg	sovol	AC1012	3848	1	21	0	0	-	0	0	0	0	3870
+JXHMP4602-11062-f 顶盖板.dwg	sovol	AC1012	604	1	8	0	0	-	0	0	0	0	613
+JXHMP4602-11083-b 铁片.dwg	sovol	AC1012	467	1	5	0	0	-	0	0	0	0	473
+JXHMP4602-13001-h 底部泡棉.dwg	sovol	AC1012	839	1	9	0	0	-	0	0	0	0	849
+JXHMP4602-13003-h 平盖棉.dwg	sovol	AC1012	543	1	6	0	0	-	0	0	0	0	550
+JXHMP4602-13009-h 填充泡棉1.dwg	sovol	AC1012	513	1	5	0	0	-	0	0	0	0	519
+JXHMP4602-13010-h 填充泡棉2.dwg	sovol	AC1012	470	1	5	0	0	-	0	0	0	0	476
+JXHMP4602-13011-h 填充泡棉3.dwg	sovol	AC1012	678	1	6	0	0	-	0	0	0	0	685
+MGN9H1R197Z0 直线滑轨.dwg	sovol	AC1012	806	1	9	0	0	-	0	0	0	0	816
+MGN9H1R211Z0 直线滑轨.dwg	sovol	AC1012	809	1	9	0	0	-	0	0	0	0	819
+MGN9H1R256Z0 直线滑轨-X.dwg	sovol	AC1012	711	1	9	0	0	-	0	0	0	0	721
 arc_2000.dwg	nextgis	AC1015	207	4	0	0	0	-	0	573	0	0	0
 arc_2004.dwg	nextgis	AC1018	195	4	0	0	0	CELLSTYLEMAP 5>1;DICTIONARYVAR 16>10	0	542	0	0	0
 arc_2007.dwg	nextgis	AC1021	182	4	0	0	0	CELLSTYLEMAP 3>1;DICTIONARYVAR 11>6	0	507	0	0	0

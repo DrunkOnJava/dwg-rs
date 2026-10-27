@@ -1,0 +1,13 @@
+{
+  "source": "https://github.com/SketchUp/sketchup-developer-tools",
+  "commit": "06e7d5f1690a85bdccebaec8e3c652b91a538ba2",
+  "note": "An Apache-2.0 R13 (AC1012) drawing in the four-locator layout (image data at the end of the file), fetched by hash at acceptance time and never committed. Object counts agree across an independent framing parse, the legacy reader and the streaming walk.",
+  "files": [
+    {
+      "name": "src/sketchup-developer-tools/testup/tests/functional_tests/TC_importers_sanity/Cabin.dwg",
+      "bytes": 222587,
+      "sha256": "ade8a9fc56ac23b0a36fb49dcc3cc98e3eb81469bbfee12c283d2027e0126443",
+      "objects": 3590
+    }
+  ]
+}

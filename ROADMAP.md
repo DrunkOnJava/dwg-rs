@@ -28,7 +28,7 @@ limitations (the maintainer's decision, 2026-10-21):
 
 | Area | State on `main` | Evidence |
 |---|---|---|
-| Containers | R14 to R2018 read, R2007 included (#110); R13 never seen | STATUS.md |
+| Containers | R13 to R2018 read, R2007 included (#110); R13 on 22 public drawings, none written by AutoCAD (#119) | STATUS.md |
 | Object walk | Every corpus file tiles its object stream with zero bytes between records; reference closure closed on all 44 R2000-to-R2018 drawings, NOT MEASURED on R14 (#84); class-census shortfalls pinned per file (#230) | the Corpus CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)), `tools/corpus/baseline.tsv` |
 | Decode | 13,781 records decoded, 1,985 skipped, 308 errored (85.7%) on 52 public drawings, R14 to R2018; every entity record boundary-checked (#63) | the Corpus CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)), README.md |
 | Values | Checked for LINE, CIRCLE and ARC on R2013 only; nothing compared with AutoCAD's DXF | `tests/r2013_entity_values.rs` |

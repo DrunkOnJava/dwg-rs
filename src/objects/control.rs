@@ -98,7 +98,7 @@ pub(crate) fn decode_object(
     // of its common object data to its `RL` boundary, which the `BL
     // num_entries` (tag `01` + `RC 3`) fills on its own. Reading the byte
     // there overshoots by 8, which is the delta those records reported.
-    let out = if kind == ObjectType::DimStyleControl && !matches!(version, Version::R14) {
+    let out = if kind == ObjectType::DimStyleControl && !version.is_r13_r14() {
         decode_dimstyle(&mut split.data)?
     } else {
         decode(&mut split.data)?

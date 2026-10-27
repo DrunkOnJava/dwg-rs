@@ -14,6 +14,8 @@ use std::fmt;
 /// DWG file format version, identified by the 6-byte magic at offset 0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Version {
+    /// AC1012 — AutoCAD R13 (1994)
+    R13,
     /// AC1014 — AutoCAD R14 (1997)
     R14,
     /// AC1015 — AutoCAD 2000 / 2000i / 2002 (1999–2002)
@@ -31,7 +33,7 @@ pub enum Version {
 }
 
 impl Version {
-    /// Parse the 6-byte magic into a version.
+    /// Parse the 6-byte magic into a version (§3.2.1).
     ///
     /// Returns `Err(NotDwg)` if the first two bytes aren't `AC` or
     /// `UnsupportedVersion` if the numeric suffix isn't one this crate
@@ -41,6 +43,7 @@ impl Version {
             return Err(Error::NotDwg { got: *magic });
         }
         Ok(match magic {
+            b"AC1012" => Self::R13,
             b"AC1014" => Self::R14,
             b"AC1015" => Self::R2000,
             b"AC1018" => Self::R2004,
@@ -55,6 +58,7 @@ impl Version {
     /// The exact 6-byte magic string as it appears on disk.
     pub fn magic(self) -> [u8; 6] {
         *match self {
+            Self::R13 => b"AC1012",
             Self::R14 => b"AC1014",
             Self::R2000 => b"AC1015",
             Self::R2004 => b"AC1018",
@@ -68,6 +72,7 @@ impl Version {
     /// Human-readable release label.
     pub fn release(self) -> &'static str {
         match self {
+            Self::R13 => "R13",
             Self::R14 => "R14",
             Self::R2000 => "2000",
             Self::R2004 => "2004",
@@ -81,6 +86,7 @@ impl Version {
     /// Approximate first-ship year of the first AutoCAD release using this format.
     pub fn year_introduced(self) -> u16 {
         match self {
+            Self::R13 => 1994,
             Self::R14 => 1997,
             Self::R2000 => 1999,
             Self::R2004 => 2003,
@@ -99,9 +105,17 @@ impl Version {
         )
     }
 
-    /// True for R13-R15 (pre-R2004) simple header format.
+    /// True for R13-R15 (pre-R2004) simple header format: the flat §3.2.6
+    /// locator list, no compression, object records loose in the file.
     pub fn is_r13_r15(self) -> bool {
-        matches!(self, Self::R14 | Self::R2000)
+        matches!(self, Self::R13 | Self::R14 | Self::R2000)
+    }
+
+    /// True for R13 and R14, the two releases the specification's "R13-R14
+    /// only" branches cover (§20.1 object prologue, §20.4.1 entity prologue
+    /// and the field lists that predate R2000).
+    pub fn is_r13_r14(self) -> bool {
+        matches!(self, Self::R13 | Self::R14)
     }
 
     /// True for versions that share the R2004 encrypted-header layout.

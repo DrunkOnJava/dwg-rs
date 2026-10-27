@@ -171,7 +171,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let has_attribs = c.read_b()?;
     let is_xref = c.read_b()?;
     let xref_overlay = c.read_b()?;
-    let is_loaded_xref = if matches!(version, Version::R14) {
+    let is_loaded_xref = if version.is_r13_r14() {
         false
     } else {
         c.read_b()?
@@ -186,7 +186,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let mut description = String::new();
     let mut insert_count = 0;
     let mut preview = Vec::new();
-    if !matches!(version, Version::R14) {
+    if !version.is_r13_r14() {
         // Insert-count run: zero or more non-zero `RC`s, then a zero.
         for _ in 0..=MAX_INSERT_COUNT {
             if c.read_rc()? == 0 {
