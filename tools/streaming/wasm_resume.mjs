@@ -5,7 +5,14 @@
 // "section-resume" take a native `checkpoint` path (and the section walk its
 // `sidecar`); kinds "maps-run" and "file-run" take `stop` and `checkpoint_out`;
 // "file-resume" takes a native `checkpoint` and the cursors `page_crc`,
-// `page_len` and `number` the native caller saved.
+// `page_len` and `number` the native caller saved; "objects-resume" takes a
+// native `checkpoint` and the cursors `digest` and `len`, and "objects-run"
+// takes `stop` and `checkpoint_out`; "r2007-run" takes `stop` and
+// `checkpoint_out` and "r2007-resume" a native `checkpoint` and the cursors
+// `page_crc`, `page_len`, `section` and `id` (a 64-bit page id, as a decimal
+// string; "r2007-run" returns it the same way); "r2007-objects-resume" takes a
+// native `checkpoint` and the cursors `digest_crc` and `len`, and
+// "r2007-objects-run" takes `stop` and `checkpoint_out`.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const [wasmPath, jobsPath] = process.argv.slice(2);
@@ -73,6 +80,33 @@ for (const job of jobs) {
     const state = readFileSync(job.checkpoint);
     mem().set(state, at(2));
     code = x.resume_file(file.length, state.length, job.chunk, job.page_crc, job.page_len, job.number);
+  } else if (job.kind === 'objects-resume') {
+    const state = readFileSync(job.checkpoint);
+    mem().set(state, at(2));
+    code = x.resume_objects(file.length, state.length, job.chunk, job.digest_crc, job.len);
+  } else if (job.kind === 'objects-run') {
+    code = x.run_objects(file.length, job.stop, job.chunk);
+    if (code >= 0) {
+      writeFileSync(job.checkpoint_out, mem().slice(at(2), at(2) + x.layout(9)));
+    }
+  } else if (job.kind === 'r2007-objects-resume') {
+    const state = readFileSync(job.checkpoint);
+    mem().set(state, at(2));
+    code = x.resume_r2007_objects(file.length, state.length, job.chunk, job.digest_crc, job.len);
+  } else if (job.kind === 'r2007-objects-run') {
+    code = x.run_r2007_objects(file.length, job.stop, job.chunk);
+    if (code >= 0) {
+      writeFileSync(job.checkpoint_out, mem().slice(at(2), at(2) + x.layout(9)));
+    }
+  } else if (job.kind === 'r2007-resume') {
+    const state = readFileSync(job.checkpoint);
+    mem().set(state, at(2));
+    code = x.resume_r2007(file.length, state.length, job.chunk, job.page_crc, job.page_len, job.section, BigInt(job.id));
+  } else if (job.kind === 'r2007-run') {
+    code = x.run_r2007(file.length, job.stop, job.chunk);
+    if (code >= 0) {
+      writeFileSync(job.checkpoint_out, mem().slice(at(2), at(2) + x.layout(9)));
+    }
   } else if (job.kind === 'file-run') {
     code = x.run_file(file.length, job.stop, job.chunk);
     if (code >= 0) {
@@ -87,7 +121,9 @@ for (const job of jobs) {
     throw new Error(`unknown job kind ${job.kind}`);
   }
   const out = code > 0 ? Buffer.from(mem().slice(at(7), at(7) + code)).toString('utf8') : '';
-  const cursors = job.kind === 'file-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0] : null;
+  const cursors = job.kind === 'file-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0]
+    : (job.kind === 'objects-run' || job.kind === 'r2007-objects-run') && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0]
+    : job.kind === 'r2007-run' && code >= 0 ? [x.layout(10) >>> 0, x.layout(11) >>> 0, x.layout(12) >>> 0, x.r2007_page_id().toString()] : null;
   results.push({ code, out, cursors });
 }
 process.stdout.write(JSON.stringify(results));

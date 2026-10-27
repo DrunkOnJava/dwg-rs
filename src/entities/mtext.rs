@@ -47,7 +47,7 @@
 //! which has exactly the line spacing and nothing after it, closed).
 //! With §20.4.46's branches read as printed every MTEXT of the public
 //! corpus closes, and the values equal AutoCAD's DXF export of the same
-//! drawing on R2000 to R2018 (ARCHITECTURE.md §7r,
+//! drawing on R2000 to R2018 (ARCHITECTURE.md §7t,
 //! `examples/probe_mtext.rs`).
 //!
 //! # Measured — `background_scale_factor` is a `BD`
@@ -380,7 +380,7 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }
 
