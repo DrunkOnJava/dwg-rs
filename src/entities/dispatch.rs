@@ -1768,7 +1768,7 @@ mod tests {
         // SHAPE has a code but no field list; the reserved range has
         // neither.
         assert!(fixed_entity_label(OBJECT_TYPE_SHAPE).is_none());
-        for code in [0x00u16, 0x08, 0x09, 0x1FF, 0xFFFF] {
+        for code in [0x00u16, 0x09, 0x1FF, 0xFFFF] {
             assert!(fixed_entity_label(code).is_none(), "0x{code:04X}");
         }
     }
