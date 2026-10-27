@@ -126,10 +126,39 @@ impl XRecord {
     /// data, or when a code has no type here, so a record that reads at all
     /// reads to its last byte.
     ///
-    /// Strings are an `RS` length, from R2000 to R2004 an `RC` code page and
-    /// that many bytes, from R2007 that many UTF-16 units; a trailing NUL is
-    /// dropped. A handle is eight bytes (an `RLL`).
+    /// Up to R2004 the data is read by [`crate::extended_data::xrecord_items`],
+    /// which decodes each string in the code page it names (§3.2.5, #375) and reads
+    /// only the group code ranges the corpus measures. From R2007 a string is an
+    /// `RS` length and that many UTF-16 units; a trailing NUL is dropped. A handle
+    /// is eight bytes (an `RLL`).
     pub fn items(&self, version: Version) -> Result<Vec<XItem>> {
+        if !version.is_r2007_plus() {
+            return crate::extended_data::xrecord_items(&self.data, version)?
+                .into_iter()
+                .map(|item| {
+                    use crate::extended_data::GroupValue;
+                    let value = match item.value {
+                        GroupValue::Text { text, .. } => XValue::Text(text),
+                        GroupValue::Handle(h) => XValue::Handle(h),
+                        GroupValue::Binary(b) => XValue::Binary(b),
+                        GroupValue::Point(p) => XValue::Point(p),
+                        GroupValue::Real(r) => XValue::Real(r),
+                        GroupValue::Short(n) => XValue::Int(i64::from(n)),
+                        GroupValue::Long(n) => XValue::Int(i64::from(n)),
+                        GroupValue::Byte(n) => XValue::Int(i64::from(n)),
+                        GroupValue::Brace { .. } => {
+                            return Err(Error::SectionMap(
+                                "XRECORD data holds an extended data brace".into(),
+                            ));
+                        }
+                    };
+                    Ok(XItem {
+                        code: item.code,
+                        value,
+                    })
+                })
+                .collect();
+        }
         let mut r = Bytes {
             b: &self.data,
             at: 0,
@@ -146,7 +175,7 @@ impl XRecord {
                 | 430..=439
                 | 470..=479
                 | 999
-                | 1000..=1003 => XValue::Text(Self::text(&mut r, version)?),
+                | 1000..=1003 => XValue::Text(Self::text(&mut r)?),
                 10..=39 | 110..=119 | 210..=239 | 1010..=1013 => {
                     XValue::Point([r.f64()?, r.f64()?, r.f64()?])
                 }
@@ -173,38 +202,21 @@ impl XRecord {
         Ok(out)
     }
 
-    fn text(r: &mut Bytes<'_>, version: Version) -> Result<String> {
+    fn text(r: &mut Bytes<'_>) -> Result<String> {
         let len = usize::from(r.u16()?);
-        if version.is_r2007_plus() {
-            let raw = r
-                .take(len.checked_mul(2).ok_or_else(|| {
-                    Error::SectionMap("XRECORD string length overflows".into())
-                })?)?;
-            let mut units: Vec<u16> = raw
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
-                .collect();
-            if units.last() == Some(&0) {
-                units.pop();
-            }
-            String::from_utf16(&units)
-                .map_err(|_| Error::SectionMap("XRECORD string is not valid UTF-16".into()))
-        } else {
-            let _code_page = r.take(1)?;
-            let mut bytes = r.take(len)?.to_vec();
-            if bytes.last() == Some(&0) {
-                bytes.pop();
-            }
-            // The bytes are in the drawing's code page, which the crate does not
-            // decode (#370); application data is not returned altered, so a string
-            // that is not ASCII is refused.
-            if !bytes.is_ascii() {
-                return Err(Error::SectionMap(
-                    "XRECORD string is not ASCII and its code page is not decoded (#370)".into(),
-                ));
-            }
-            Ok(String::from_utf8_lossy(&bytes).into_owned())
+        let raw = r.take(
+            len.checked_mul(2)
+                .ok_or_else(|| Error::SectionMap("XRECORD string length overflows".into()))?,
+        )?;
+        let mut units: Vec<u16> = raw
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        if units.last() == Some(&0) {
+            units.pop();
         }
+        String::from_utf16(&units)
+            .map_err(|_| Error::SectionMap("XRECORD string is not valid UTF-16".into()))
     }
 }
 
