@@ -6,7 +6,8 @@ not empty, a DWG's six-byte magic, a DXF's $ACADVER and $DWGCODEPAGE (both compa
 the DXF record types the item is meant to produce (a count of 0 means AutoCAD silently skipped it), and
 for the code-page drawings the number of bytes above 0x7F and of \\U+XXXX escapes in the DXF. Each file's
 byte count and sha256 are listed, so a corpus pins row is a copy of one line. Anything missing, empty or
-wrong is listed afterwards as the next step to run. DXFs are read as bytes, never decoded: a pre-R2007
+wrong is listed afterwards as the next step to run. An export older than the master or staged input it was
+saved from is STALE: the master changed after it. DXFs are read as bytes, never decoded: a pre-R2007
 DXF holds code-page bytes. A `.FAILED.dwg` left by a builder error counts only while it is newer than the
 item's valid master and still a drawing.
 
@@ -62,7 +63,7 @@ def scan_dxf(data):
             'codepage': header.get(b'$DWGCODEPAGE', '-'), 'types': types}
 
 
-def inspect(row, out):
+def _inspect(row, out):
     path = out / row['path']
     res = {'status': 'ok', 'bytes': 0, 'sha': '-', 'version': '-', 'codepage': '-', 'info': ''}
     if not path.is_file():
@@ -97,6 +98,16 @@ def inspect(row, out):
         high = len(data.translate(None, bytes(range(128))))
         info.append(f'high={high} esc={len(ESCAPE.findall(data))}')
     res['info'] = ' '.join(info)
+    return res
+
+
+def inspect(row, out):
+    res = _inspect(row, out)
+    source = row.get('source', '-')
+    if res['status'] in ('ok', 'TYPES') and source not in ('', '-'):
+        origin = out.parent / source
+        if origin.is_file() and (out / row['path']).stat().st_mtime < origin.stat().st_mtime:
+            res['status'] = 'STALE'
     return res
 
 

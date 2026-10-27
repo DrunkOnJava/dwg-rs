@@ -116,16 +116,38 @@
   (dwgrs:retire-failure item)
   (dwgrs:say (strcat "saved master " f)))
 
+(defun dwgrs:fn-p (name)
+  (if (car (atoms-family 1 (list name))) T))
+
+(defun dwgrs:cancel-all (/ n)
+  (setq n 0)
+  (while (and (> (getvar "CMDACTIVE") 0) (< n 10))
+    (command)
+    (setq n (1+ n))))
+
+(defun dwgrs:save-as-s (ver file / ex)
+  (setq ex (getvar "EXPERT"))
+  (setvar "EXPERT" 2)
+  (command-s "_.SAVEAS" ver file)
+  (setvar "EXPERT" ex))
+
+(defun dwgrs:fail (msg)
+  (princ (strcat "\n;; dwgrs: " *dwgrs-item* " failed: " (if msg msg "?")))
+  ;; VERIFY: *push-error-using-command* and *pop-error-mode* are documented AutoLISP functions that allow
+  ;; command inside *error*; without them the save falls back to command-s
+  (if (dwgrs:fn-p "*PUSH-ERROR-USING-COMMAND*")
+    (progn
+      (*push-error-using-command*)
+      (dwgrs:cancel-all)
+      (dwgrs:save-as "2018" *dwgrs-failed-file*)
+      (*pop-error-mode*))
+    (dwgrs:save-as-s "2018" *dwgrs-failed-file*))
+  (princ))
+
 (defun dwgrs:run (item builder / *error*)
-  (setq *error*
-    (lambda (m / n)
-      (princ (strcat "\n;; dwgrs: " item " failed: " (if m m "?")))
-      (setq n 0)
-      (while (and (> (getvar "CMDACTIVE") 0) (< n 10))
-        (command)
-        (setq n (1+ n)))
-      (dwgrs:save-as "2018" (dwgrs:path (strcat "masters/" item ".FAILED.dwg")))
-      (princ)))
+  (setq *dwgrs-item* item
+        *dwgrs-failed-file* (dwgrs:path (strcat "masters/" item ".FAILED.dwg"))
+        *error* (lambda (m) (dwgrs:fail m)))
   (apply builder '())
   (command "_.ZOOM" "_E")
   (dwgrs:save-master item)

@@ -311,7 +311,7 @@ class Plan:
         return self.resume and all(self.valid(p) for p in rel_paths)
 
 
-COLUMNS = ['section', 'item', 'kind', 'release', 'path', 'expect', 'types', 'flags',
+COLUMNS = ['section', 'item', 'kind', 'release', 'path', 'source', 'expect', 'types', 'flags',
            'input_sha256', 'input_name', 'licence', 'hosting', 'script', 'note']
 
 
@@ -343,7 +343,7 @@ def s1_plan(args, plan, pins):
         entries.append((stem, staged, r))
         rel = 'R2000'
         _ver, magic, _dv, acad, dxftag = RELEASES[rel]
-        common = dict(section='s1', item=stem, input_sha256=r['sha256'], input_name=Path(r['path']).name,
+        common = dict(section='s1', item=stem, source=f'in/{stem}.dwg', input_sha256=r['sha256'], input_name=Path(r['path']).name,
                       licence=r['licence'], hosting=hosting(r['licence']), script=f's1-{stem}.scr')
         plan.add(kind='dwg', release=rel, path=f's1/{stem}.{rel}.dwg', expect=magic, types='', flags='',
                  note='R13 re-save twin', **common)
@@ -390,12 +390,13 @@ def items_plan(args, plan, sections, extra_s4):
     for item in items:
         script = f'items/build-{item.name}.scr' if item.origin == 'lisp' else f'MANUAL-CHECKLIST.md#{item.name}'
         plan.add(section=item.section, item=item.name, kind='master', release='R2018',
-                 path=f'masters/{item.name}.dwg', expect='AC1032', types='', flags='', input_sha256='-',
+                 path=f'masters/{item.name}.dwg', source='-', expect='AC1032', types='', flags='', input_sha256='-',
                  input_name='-', licence='Apache-2.0 (project-authored)', hosting='pin',
                  script=script, note=item.note)
         for rel in item.releases:
             ver, magic, dxfver, acad, dxftag = RELEASES[rel]
-            common = dict(section=item.section, item=item.name, input_sha256='-', input_name='-',
+            common = dict(section=item.section, item=item.name, source=f'out/masters/{item.name}.dwg',
+                          input_sha256='-', input_name='-',
                           licence='Apache-2.0 (project-authored)', hosting='pin',
                           script=f'items/save-{item.name}.scr', note=item.note)
             flags = 'text' if item.section == 's4' else ''

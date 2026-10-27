@@ -35,7 +35,8 @@ pins it is given, so the US Forest Service drawings pinned on the R13 corpus bra
 the path must be plain ASCII). `--template` names the drawing template for `NEW` (default
 `acadiso.dwt`). Every run saves its options in `<work>/session.json`. `--resume` reads them back for
 whatever the command line does not give, and leaves out only what already has all its outputs and passes the
-checker's tests (non-empty, the right DWG magic or DXF `$ACADVER`): an empty or wrong file is built again.
+checker's tests (non-empty, the right DWG magic or DXF `$ACADVER`, and not older than the master or staged
+input it was saved from): an empty, wrong or stale file is built again.
 Always give the same `--work` when you resume; the checker's recovery commands do.
 `--keyword-prefix _` writes the DXF and Version keywords of SAVEAS with the underscore that selects the
 English keyword, for a session in another language (see the Russian and Japanese section).
@@ -186,7 +187,9 @@ python3 -I tools/autocad/check.py [--work DIR] [--tsv results.tsv] [--quiet]
 
 One row per file present: status, item, kind, release, bytes, the DWG's six-byte magic or the DXF's
 `$ACADVER`, `$DWGCODEPAGE`, sha256 prefix and the counts of the record types the item should produce. A
-count below the expectation is status `TYPES`: AutoCAD wrote the file but silently skipped the object. For the
+count below the expectation is status `TYPES`: AutoCAD wrote the file but silently skipped the object. Status
+`STALE` means the export is older than the master (or staged input) it was saved from, so the master changed
+after it and the save has to run again; it compares file times, so keep the work folder's times (`cp -p`, `rsync -t`). For the
 section 4 drawings it adds `high=` (bytes above 0x7F: real code-page bytes) and `esc=` (`\U+XXXX` escapes). DXFs
 are read as bytes, never decoded. Missing, empty or wrong files are listed as next steps. Exit status 0 only
 when everything is present and right. `--tsv` writes every file with its full sha256 and byte count, which is
@@ -238,7 +241,8 @@ command script with no DWG or DXF implementation, read as the CLEANROOM.md "Publ
 SAVEAS format keywords `2018`, `2013`, `2010`, `2007`, `2004`, `2000` and `LT98` (R14), and the DXF form
 `SAVEAS DXF V <version> 16 <file>` including `R12`. Not confirmed on the Mac 2027 trial: those same
 sequences on this build, `-SCRIPT` and `TRUSTEDPATHS` as used in `00-start.scr`, `OPEN` of a drawing from a third-party writer (a recover or proxy prompt stops the
-script), `NEW` resolving the template and a script continuing across `NEW`, `OPEN` and `CLOSE`, and every
+script), `*push-error-using-command*` and `*pop-error-mode*` in the builders' error handler (with `command-s` as
+the fallback), `NEW` resolving the template and a script continuing across `NEW`, `OPEN` and `CLOSE`, and every
 modelling and annotation sequence in the `.lsp` files.
 
 ## Clean-room

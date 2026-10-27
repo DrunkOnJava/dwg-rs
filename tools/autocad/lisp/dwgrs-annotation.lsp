@@ -4,13 +4,13 @@
 
 (defun dwgrs:anno-style (name)
   (dwgrs:appid "AcadAnnotative")
-  ;; VERIFY: the AcadAnnotative xdata block below is what AutoCAD writes for an annotative text style
+  ;; VERIFY: the AcadAnnotative payload below is what AutoCAD writes for an annotative text style
   (dwgrs:mk (strcat "annotative STYLE " name)
     (list '(0 . "STYLE") '(100 . "AcDbSymbolTableRecord") '(100 . "AcDbTextStyleTableRecord")
           (cons 2 name) '(70 . 0) '(40 . 0.0) '(41 . 1.0) '(50 . 0.0) '(71 . 0) '(42 . 2.5)
           '(3 . "txt") '(4 . "")
-          '(1001 . "AcadAnnotative") '(1000 . "AnnotativeData") '(1002 . "{")
-          '(1070 . 1) '(1070 . 1) '(1002 . "}"))))
+          (list -3 (list "AcadAnnotative" '(1000 . "AnnotativeData") '(1002 . "{")
+                         '(1070 . 1) '(1070 . 1) '(1002 . "}"))))))
 
 (defun dwgrs:atext (style just pt h rot str)
   ;; VERIFY: TEXT prompts Style, style name, Justify, option, point, height, rotation, string
