@@ -53,13 +53,14 @@ mod twin;
 use dwg::classes::ClassMap;
 use dwg::code_page::{CodePage, Observed, observe};
 use dwg::dxf::DxfVersion;
-use dwg::entities::{decode_from_raw, decode_from_raw_with_class_map};
+use dwg::entities::{DecodedEntity, decode_from_raw, decode_from_raw_with_class_map};
+use dwg::extended_data::{self, GroupItem, GroupValue};
 use dwg::object::RawObject;
 use dwg::{DwgFile, ObjectType};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use twin::{Record, Twin};
+use twin::{Group, Record, Twin};
 
 fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
     for entry in std::fs::read_dir(dir)? {
@@ -243,6 +244,349 @@ fn census(
     }
 }
 
+fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0)
+}
+
+/// Does the next group (or three) of the export's record carry `item`'s value?
+fn group_matches(
+    item: &GroupItem,
+    g: &mut std::slice::Iter<'_, Group>,
+    layers: &BTreeMap<u64, String>,
+) -> bool {
+    let mut take = |code: u16| g.next().filter(|x| x.code == code);
+    match &item.value {
+        GroupValue::Text { text, .. } => {
+            take(item.code).is_some_and(|x| norm(text) == norm(&x.value))
+        }
+        GroupValue::Point(p) => (0..3u16).all(|k| {
+            take(item.code + 10 * k)
+                .is_some_and(|x| x.real().is_some_and(|v| close(v, p[usize::from(k)])))
+        }),
+        GroupValue::Real(r) => {
+            take(item.code).is_some_and(|x| x.real().is_some_and(|v| close(v, *r)))
+        }
+        GroupValue::Short(v) => take(item.code).is_some_and(|x| x.int() == Some(i64::from(*v))),
+        GroupValue::Long(v) => take(item.code).is_some_and(|x| x.int() == Some(i64::from(*v))),
+        GroupValue::Byte(v) => take(item.code).is_some_and(|x| x.int() == Some(i64::from(*v))),
+        // The export names the layer a 1003 refers to; the DWG holds its handle.
+        GroupValue::Handle(h) if item.code == 1003 => take(item.code).is_some_and(|x| {
+            layers
+                .get(h)
+                .is_some_and(|name| norm(name) == norm(&x.value))
+        }),
+        GroupValue::Handle(h) => {
+            take(item.code).is_some_and(|x| u64::from_str_radix(x.value.trim(), 16) == Ok(*h))
+        }
+        GroupValue::Binary(b) => take(item.code).is_some_and(|x| {
+            x.value
+                .trim()
+                .eq_ignore_ascii_case(&hex(b).replace(' ', ""))
+        }),
+        GroupValue::Brace { open } => {
+            take(item.code).is_some_and(|x| x.value.trim() == if *open { "{" } else { "}" })
+        }
+    }
+}
+
+/// How an XRECORD value that the export holds otherwise differs: a handle the save
+/// gave a different value (the oracle's save-time rule), a GUID the save made anew,
+/// or anything else (a failure).
+#[derive(Clone, Copy, PartialEq)]
+enum Mismatch {
+    SaveTimeHandle,
+    SaveTimeGuid,
+    Other,
+}
+
+fn is_guid(s: &str) -> bool {
+    s.len() == 38
+        && s.starts_with('{')
+        && s.ends_with('}')
+        && s[1..37].chars().enumerate().all(|(i, c)| {
+            if [8, 13, 18, 23].contains(&i) {
+                c == '-'
+            } else {
+                c.is_ascii_hexdigit()
+            }
+        })
+}
+
+/// An XRECORD's values against the data groups of the export's record (after its
+/// `100 AcDbXrecord` marker and the cloning flag `280`), or `None` when they
+/// cannot be paired: a code 102 value, which the twin reader takes for a bracket,
+/// or a record with no marker.
+fn xrecord_agrees(
+    items: &[GroupItem],
+    rec: &Record,
+    layers: &BTreeMap<u64, String>,
+) -> Option<Result<(), (Mismatch, String)>> {
+    if items.iter().any(|i| i.code == 102) {
+        return None;
+    }
+    let at = rec
+        .groups
+        .iter()
+        .position(|g| g.code == 100 && g.value.trim() == "AcDbXrecord")?;
+    let data = &rec.groups[at + 1..];
+    let skip = usize::from(data.first().is_some_and(|g| g.code == 280));
+    let mut g = data[skip..].iter();
+    for (n, item) in items.iter().enumerate() {
+        let before = g.clone();
+        if !group_matches(item, &mut g, layers) {
+            let first = before.clone().next();
+            let kind = match (&item.value, first) {
+                (GroupValue::Handle(_), _) => Mismatch::SaveTimeHandle,
+                (GroupValue::Text { text, .. }, Some(x))
+                    if is_guid(text) && is_guid(x.value.trim()) =>
+                {
+                    Mismatch::SaveTimeGuid
+                }
+                _ => Mismatch::Other,
+            };
+            let theirs: Vec<String> = before
+                .take(3)
+                .map(|x| format!("{} {:?}", x.code, x.value))
+                .collect();
+            return Some(Err((
+                kind,
+                format!(
+                    "item {n} {item:?} against the export's {}",
+                    theirs.join(" | ")
+                ),
+            )));
+        }
+    }
+    Some(match g.next() {
+        None => Ok(()),
+        Some(x) => Err((
+            Mismatch::Other,
+            format!("the export has more: {} {:?}", x.code, x.value),
+        )),
+    })
+}
+
+#[derive(Default)]
+struct ExtTally {
+    xrecords: usize,
+    xr_strings: usize,
+    xr_page_differs: usize,
+    xr_compared: usize,
+    xr_agree: usize,
+    xr_savetime: usize,
+    xr_unpaired: usize,
+    eed_records: usize,
+    eed_strings: usize,
+    eed_page_differs: usize,
+    eed_compared: usize,
+    eed_agree: usize,
+    eed_partial: usize,
+    errors: usize,
+}
+
+/// The groups the export holds for each application of a record: those after each
+/// group 1001, up to the next.
+fn export_apps(rec: &Record) -> Vec<&[Group]> {
+    let marks: Vec<usize> = rec
+        .groups
+        .iter()
+        .enumerate()
+        .filter(|(_, g)| g.code == 1001)
+        .map(|(i, _)| i)
+        .collect();
+    marks
+        .iter()
+        .enumerate()
+        .map(|(n, &at)| &rec.groups[at + 1..marks.get(n + 1).copied().unwrap_or(rec.groups.len())])
+        .collect()
+}
+
+/// How many leading items of `items` the export's `groups` leave out: `Some(0)` when
+/// they hold the same values, `Some(k)` when they hold those after the first `k`,
+/// `None` when they hold other values.
+fn app_matches(
+    items: &[GroupItem],
+    groups: &[Group],
+    layers: &BTreeMap<u64, String>,
+) -> Option<usize> {
+    (0..=items.len()).find(|&k| {
+        let mut g = groups.iter();
+        items[k..].iter().all(|i| group_matches(i, &mut g, layers)) && g.next().is_none()
+    })
+}
+
+fn texts(items: &[GroupItem]) -> Vec<(CodePage, &str)> {
+    items
+        .iter()
+        .filter_map(|i| match &i.value {
+            GroupValue::Text { page, text } => Some((*page, text.as_str())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The XRECORD values and extended entity data of one drawing, tallied and set
+/// beside the export's records of the same handle.
+fn ext_census(
+    tally: &mut ExtTally,
+    name: &str,
+    file: &DwgFile,
+    objects: &[RawObject],
+    classes: Option<&ClassMap>,
+    twin: Option<&Twin>,
+    failed: &mut bool,
+) {
+    let version = file.version();
+    let page = file.code_page();
+    let layers: BTreeMap<u64, String> = objects
+        .iter()
+        .filter_map(|raw| match decode_record_entity(raw, version, classes) {
+            DecodedEntity::Layer(l) => Some((raw.handle.value, l.header.name)),
+            _ => None,
+        })
+        .collect();
+    for raw in objects {
+        let rec = twin.and_then(|t| t.record(raw.handle.value));
+        match extended_data::read(raw, version) {
+            Ok(apps) if apps.is_empty() => {}
+            Ok(apps) => {
+                let chain = format!("{apps:?}");
+                let items: Vec<GroupItem> = apps.iter().flat_map(|a| a.items.clone()).collect();
+                let ours = texts(&items);
+                tally.eed_records += 1;
+                tally.eed_strings += ours.len();
+                tally.eed_page_differs += ours.iter().filter(|(p, _)| *p != page).count();
+                if let Some(rec) = rec {
+                    let theirs = export_apps(rec);
+                    if !theirs.is_empty() || !apps.is_empty() {
+                        tally.eed_compared += 1;
+                        let mut ours = apps.iter();
+                        let mut partial = false;
+                        let all = theirs.iter().all(|t| {
+                            ours.any(|a| match app_matches(&a.items, t, &layers) {
+                                Some(k) => {
+                                    partial |= k > 0;
+                                    true
+                                }
+                                None => false,
+                            })
+                        });
+                        if all {
+                            tally.eed_agree += 1;
+                            tally.eed_partial += usize::from(partial);
+                        } else {
+                            *failed = true;
+                            println!(
+                                "  {name} #{:X} extended data differs from the export's: {chain}",
+                                raw.handle.value
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tally.errors += 1;
+                *failed = true;
+                println!("  {name} #{:X} extended data: {e}", raw.handle.value);
+            }
+        }
+        if let DecodedEntity::XRecord(x) = decode_record_entity(raw, version, classes) {
+            match extended_data::xrecord_values(&x, version) {
+                Ok(items) => {
+                    let ours = texts(&items);
+                    tally.xrecords += 1;
+                    tally.xr_strings += ours.len();
+                    tally.xr_page_differs += ours.iter().filter(|(p, _)| *p != page).count();
+                    if let Some(rec) = rec {
+                        match xrecord_agrees(&items, rec, &layers) {
+                            Some(Ok(())) => {
+                                tally.xr_compared += 1;
+                                tally.xr_agree += 1;
+                            }
+                            Some(Err((Mismatch::Other, why))) => {
+                                tally.xr_compared += 1;
+                                *failed = true;
+                                println!(
+                                    "  {name} #{:X} XRECORD values differ from the export's: {why}",
+                                    raw.handle.value
+                                );
+                            }
+                            Some(Err(_)) => {
+                                tally.xr_compared += 1;
+                                tally.xr_savetime += 1;
+                            }
+                            None => tally.xr_unpaired += 1,
+                        }
+                    }
+                }
+                Err(e) => {
+                    tally.errors += 1;
+                    *failed = true;
+                    println!("  {name} #{:X} XRECORD values: {e}", raw.handle.value);
+                }
+            }
+        }
+    }
+}
+
+/// The first XRECORD string and the first extended data string of the drawing that
+/// are six bytes or longer, ASCII, and sit once in the file.
+fn ext_targets(file: &DwgFile) -> Vec<Target> {
+    let version = file.version();
+    let Some(Ok(objects)) = file.all_objects() else {
+        return Vec::new();
+    };
+    let classes = file.class_map().and_then(Result::ok);
+    let tried = std::cell::RefCell::new(std::collections::HashSet::<Vec<u8>>::new());
+    let pick = |items: &[GroupItem]| -> Option<(Vec<u8>, usize)> {
+        texts(items).into_iter().find_map(|(_, t)| {
+            if t.len() < 6 || !t.is_ascii() || !tried.borrow_mut().insert(t.as_bytes().to_vec()) {
+                return None;
+            }
+            let hits = bit_find(file.raw_bytes(), t.as_bytes());
+            (hits.len() == 1).then(|| (t.as_bytes().to_vec(), hits[0]))
+        })
+    };
+    let mut out: Vec<Target> = Vec::new();
+    for raw in &objects {
+        if !out.iter().any(|t| t.via == Via::XRecord) {
+            if let DecodedEntity::XRecord(x) = decode_record_entity(raw, version, classes.as_ref())
+            {
+                if let Some((text, at)) = extended_data::xrecord_values(&x, version)
+                    .ok()
+                    .as_deref()
+                    .and_then(pick)
+                {
+                    out.push(Target {
+                        via: Via::XRecord,
+                        handle: raw.handle.value,
+                        kind: "XRECORD values".to_string(),
+                        table_entry: false,
+                        text,
+                        at,
+                    });
+                }
+            }
+        }
+        if !out.iter().any(|t| t.via == Via::Eed) {
+            if let Ok(apps) = extended_data::read(raw, version) {
+                let items: Vec<GroupItem> = apps.into_iter().flat_map(|a| a.items).collect();
+                if let Some((text, at)) = pick(&items) {
+                    out.push(Target {
+                        via: Via::Eed,
+                        handle: raw.handle.value,
+                        kind: "extended data".to_string(),
+                        table_entry: false,
+                        text,
+                        at,
+                    });
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Every bit offset at which `needle` sits in `hay`, most significant bit first.
 fn bit_find(hay: &[u8], needle: &[u8]) -> Vec<usize> {
     let mut found = Vec::new();
@@ -284,7 +628,18 @@ const PATCH: [u8; 4] = [0xE9, 0xB0, 0xC0, 0xFC];
 const AS_1252: &str = "é°Àü";
 const AS_1251: &str = "й°Аь";
 
+#[derive(Clone, Copy, PartialEq)]
+enum Via {
+    /// A string a record's decoder reads through the page in force.
+    Record,
+    /// A string of an XRECORD's values, which names its own page.
+    XRecord,
+    /// A string of a record's extended entity data, which names its own page.
+    Eed,
+}
+
 struct Target {
+    via: Via,
     handle: u64,
     /// The record's kind, by name (a class number is resolved to its DXF class).
     kind: String,
@@ -316,6 +671,19 @@ fn decode_record(
     .1
 }
 
+fn decode_record_entity(
+    raw: &RawObject,
+    version: dwg::Version,
+    classes: Option<&ClassMap>,
+) -> DecodedEntity {
+    match (classes, raw.kind) {
+        (Some(map), ObjectType::Custom(code)) => {
+            decode_from_raw_with_class_map(raw, version, map, code)
+        }
+        _ => decode_from_raw(raw, version),
+    }
+}
+
 /// For each kind of record the drawing holds, its first string that is `min`
 /// bytes or longer, ASCII, and sits once in the file.
 fn targets(file: &DwgFile, min: usize) -> Vec<Target> {
@@ -334,6 +702,7 @@ fn targets(file: &DwgFile, min: usize) -> Vec<Target> {
             if o.bytes.len() >= min && o.bytes.is_ascii() {
                 if let [at] = bit_find(file.raw_bytes(), &o.bytes)[..] {
                     out.push(Target {
+                        via: Via::Record,
                         handle: raw.handle.value,
                         kind,
                         table_entry: raw.kind.is_table_entry(),
@@ -355,7 +724,11 @@ fn patched(file: &DwgFile, target: &Target, short: u16) -> Option<DwgFile> {
     for (k, v) in PATCH.iter().enumerate() {
         put_bits(&mut bytes, target.at + 8 * k, *v);
     }
-    bytes[0x13..0x15].copy_from_slice(&short.to_le_bytes());
+    match target.via {
+        Via::Record => bytes[0x13..0x15].copy_from_slice(&short.to_le_bytes()),
+        // The string's own page byte is the eight bits before its characters.
+        Via::XRecord | Via::Eed => put_bits(&mut bytes, target.at - 8, u8::try_from(short).ok()?),
+    }
     DwgFile::from_bytes(bytes).ok()
 }
 
@@ -378,6 +751,42 @@ fn read_back(file: &DwgFile, target: &Target, short: u16) -> (bool, String) {
         return (false, "the copy has no objects".to_string());
     };
     let classes = copy.class_map().and_then(Result::ok);
+    if target.via != Via::Record {
+        let rest = String::from_utf8_lossy(&target.text[PATCH.len()..]).into_owned();
+        let version = copy.version();
+        let Some(raw) = objects.iter().find(|r| r.handle.value == target.handle) else {
+            return (false, "the record was not found".to_string());
+        };
+        let items = match target.via {
+            Via::XRecord => match decode_record_entity(raw, version, classes.as_ref()) {
+                DecodedEntity::XRecord(x) => extended_data::xrecord_values(&x, version),
+                _ => return (false, "the record is not an XRECORD".to_string()),
+            },
+            _ => extended_data::read(raw, version)
+                .map(|apps| apps.into_iter().flat_map(|a| a.items).collect::<Vec<_>>()),
+        };
+        let Ok(items) = items else {
+            return (false, "the values do not read".to_string());
+        };
+        let found = items.iter().find_map(|i| match &i.value {
+            GroupValue::Text { page, text } if text.ends_with(&rest) => Some((*page, text.clone())),
+            _ => None,
+        });
+        let Some((page, text)) = found else {
+            return (false, "the string was not read".to_string());
+        };
+        let want = expected(short, &rest);
+        let ok = page == CodePage::from_header(short)
+            && match &want {
+                Some(w) => *w == text,
+                None => text.starts_with('\u{FFFD}'),
+            };
+        let shown = match want {
+            Some(_) => format!("{text:?}"),
+            None => format!("kept as {text:?}"),
+        };
+        return (ok, shown);
+    }
     let seen = objects
         .iter()
         .find(|r| r.handle.value == target.handle)
@@ -444,6 +853,7 @@ fn main() -> ExitCode {
     let mut pairs: BTreeMap<(u16, String), usize> = BTreeMap::new();
     let mut unpaired: BTreeMap<(String, u16), usize> = BTreeMap::new();
     let mut by_release: BTreeMap<String, Tally> = BTreeMap::new();
+    let mut ext: BTreeMap<String, ExtTally> = BTreeMap::new();
     let mut utf16 = 0usize;
     let mut drawings = 0usize;
     let mut patchable: Vec<(String, DwgFile)> = Vec::new();
@@ -561,6 +971,15 @@ fn main() -> ExitCode {
             &seen,
             &mut failed,
         );
+        ext_census(
+            ext.entry(release.clone()).or_default(),
+            &name,
+            &file,
+            &objects,
+            classes.as_ref(),
+            twin.as_ref(),
+            &mut failed,
+        );
 
         if !version.is_r2004_plus() {
             patchable.push((name, file));
@@ -605,6 +1024,46 @@ fn main() -> ExitCode {
     println!(
         "  {new_equal} of {compared} compared strings equal AutoCAD's export; {non_ascii} strings in all leave ASCII"
     );
+    println!("\nXRECORD values and extended entity data (R13 to R2004), by release:");
+    println!(
+        "  {:<14} {:>9} {:>8} {:>10} {:>9} {:>8} {:>7} {:>8} {:>10} {:>9} {:>8}",
+        "release",
+        "XRECORDs",
+        "strings",
+        "page != hdr",
+        "vs export",
+        "agree+save-time",
+        "no pair",
+        "EED recs",
+        "strings",
+        "page != hdr",
+        "vs export / agree / tail only"
+    );
+    let (mut ext_compared, mut ext_agree, mut ext_strings) = (0usize, 0usize, 0usize);
+    for (release, t) in &ext {
+        println!(
+            "  {release:<14} {:>9} {:>8} {:>10} {:>9} {:>8} {:>7} {:>8} {:>10} {:>9} {:>8}",
+            t.xrecords,
+            t.xr_strings,
+            t.xr_page_differs,
+            t.xr_compared,
+            format!("{}+{}", t.xr_agree, t.xr_savetime),
+            t.xr_unpaired,
+            t.eed_records,
+            t.eed_strings,
+            t.eed_page_differs,
+            format!("{} / {} / {}", t.eed_compared, t.eed_agree, t.eed_partial),
+        );
+        ext_compared += t.xr_compared + t.eed_compared;
+        ext_agree += t.xr_agree + t.xr_savetime + t.eed_agree;
+        ext_strings += t.xr_strings + t.eed_strings;
+        if t.xr_page_differs + t.eed_page_differs > 0 || t.errors > 0 {
+            failed = true;
+        }
+    }
+    println!(
+        "  {ext_agree} of {ext_compared} records equal AutoCAD's export; {ext_strings} strings in all, each naming the header's page"
+    );
 
     println!(
         "\npatched copies (in memory, never written), the drawing's own page then 29, 30, 31:"
@@ -615,11 +1074,17 @@ fn main() -> ExitCode {
         let base =
             dwg::dxf_convert::convert_dwg_to_dxf(file, DxfVersion::R2000).unwrap_or_default();
         let own = file.code_page().header_value();
-        for t in targets(file, 6) {
+        let mut all = targets(file, 6);
+        all.extend(ext_targets(file));
+        for t in all {
             let tally = by_kind.entry(t.kind.clone()).or_default();
             tally.targets += 1;
             proved += 1;
-            let detail = name == "sample_AC1015.dwg" && (t.kind == "MText" || t.kind == "Ltype");
+            let detail = name == "sample_AC1015.dwg"
+                && (t.kind == "MText"
+                    || t.kind == "Ltype"
+                    || t.kind == "XRECORD values"
+                    || t.kind == "extended data");
             if detail {
                 println!(
                     "  {name} #{:X} {} {:?} at bit {}",
