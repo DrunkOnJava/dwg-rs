@@ -149,9 +149,12 @@ entirely and produce a draft GitHub release marked `prerelease`.
   contributors can run `git-cliff --tag vX.Y.Z --prepend CHANGELOG.md`
   as a starting point, but the final edit is hand-curated.
 - Python wheels are not shipped yet. The `publish-pypi` job in
-  `release.yml` is gated off with `if: false` until the PyO3 bindings
-  planned in [`docs/python.md`](docs/python.md) replace the
-  `src/python_stubs.rs` placeholder.
+  `release.yml` is gated off by a condition that is never true
+  (`github.event_name == 'disabled'`; no trigger of the workflow has
+  that name) until the PyO3 bindings planned in
+  [`docs/python.md`](docs/python.md) replace the `src/python_stubs.rs`
+  placeholder. The condition is not a literal `if: false` because
+  actionlint flags a constant condition (#269).
 
 ## Yanking a release
 

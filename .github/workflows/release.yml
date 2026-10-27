@@ -205,6 +205,8 @@ jobs:
   publish-pypi:
     name: Publish Python wheels to PyPI (DISABLED)
     needs: verify
+    # Never true on purpose, and not a literal `false`: actionlint rejects a
+    # constant condition (#269). Do not simplify this back to `if: false`.
     if: github.event_name == 'disabled'  # replace with a SemVer-style condition once PyO3 work ships
     runs-on: ${{ matrix.os }}
     strategy:
