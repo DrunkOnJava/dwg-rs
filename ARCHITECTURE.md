@@ -4001,6 +4001,80 @@ which is what keeps this round trip exact on the WHATWG encoders' extra mappings
 which the pinned strings use.
 
 
+## 7ay. AcDb:Classes as AutoCAD writes it, and a writer that matches it (2026-10-27, #45)
+
+`write_class_map` was "not a byte-exact AutoCAD emitter" (#45): it round-tripped through
+`ClassMap::parse` and no further. `examples/probe_class_roundtrip.rs` reads each
+drawing's `AcDb:Classes` as stored (decompressed on R2004 and later), parses it and
+writes it back for the drawing's own release, both under the code page its header names,
+and compares the bytes; where they differ it names the first differing byte and the part
+of the section it falls in. A drawing it cannot open, read or parse is counted as a
+failure, and `--strict` fails on any difference, any failure and a run with no match.
+
+The Corpus job runs it with `--strict` on every pinned drawing (step "Class table written
+back byte for byte on every pinned drawing", log `class-roundtrip-probe.log` in the
+`corpus-measurement` artifact); that run is the record. The figures below were measured
+locally with `python3 -I tools/corpus/fetch.py --dest ../dwg-corpus` and
+`cargo run --release --example probe_class_roundtrip -- ../dwg-corpus --strict`, before
+builds moved to the runners: the old writer matched none of the 52 drawings pinned then
+(the size word at byte 16 already differed on all of them), the writer in this change
+matched all 52, and 61 of 61 over the whole local corpus cache (the 52 and nine more from
+three other public sets, which `tools/corpus/pins.tsv` pins since).
+
+| Release | Drawings, then pinned | Match, old writer | Match, now |
+|---|---:|---:|---:|
+| R14 (AC1014) | 8 | 0 | 8 |
+| R2000 (AC1015) | 8 | 0 | 8 |
+| R2004 (AC1018) | 8 | 0 | 8 |
+| R2007 (AC1021) | 8 | 0 | 8 |
+| R2010 (AC1024) | 8 | 0 | 8 |
+| R2013 (AC1027) | 8 | 0 | 8 |
+| R2018 (AC1032) | 4 | 0 | 4 |
+
+The layout is §10.1 (R13 to R15) and §10.2 (R18 and later) of ODA v5.4.1, with the fields
+the spec leaves open taken from the bytes:
+
+```text
+SN 16 bytes                       start sentinel
+RL                                size of the class data area, in bytes
+(R2010+) RL                       0
+(R2007+) RL                       size of the class data in bits, plus 32
+class data, a bit stream (byte 20 on R14 to R2004, 24 on R2007, 28 on R2010+):
+  (R2004+) BL max class number, B true
+  records; before R2007 each with its three TVs inline; from R2007 the
+  non-string fields of all records, then the 3 x N strings, then (the
+  string-stream trailer) an RS with the string block's size in bits, preceded
+  by an RS of its high bits when the size is 0x8000 or more (the low word then
+  has bit 15 set), then a B true
+  padding to the byte boundary, the padding bits set
+RS CRC-8, seed 0xC0C1, over every byte from the size word to here
+SN 16 bytes                       end sentinel 72 5E 3B 47 3B 56 07 3A 3F 23 0B A0 18 30 49 75
+(R2004+) 8 bytes                  zero
+```
+
+What each departure from the old writer rests on:
+
+| Rule | Measured on |
+|---|---|
+| R13 to R15 have no `BL` maximum and no `B` before the first record, and no trailing zeros | `line_R14.dwg`: section 839 bytes, size 801, CRC at byte 821, end sentinel at 823; `line_2000.dwg`: 742 bytes, size 704, CRC at 724, end sentinel at 726. All 16 R14 and R2000 pinned drawings match |
+| Pre-R2007 `TV`s carry a terminating NUL that the `BS` length counts; R2007+ strings have none | all 24 R14, R2000 and R2004 pinned drawings match with the NUL written, all 28 R2007 to R2018 drawings without one (`read_tv` drops a trailing NUL, so the parsed table never shows it) |
+| On R2007 and later the byte size is the stream plus 4 (the bits `RL`) | `line_2010.dwg`: size 1090 = 4 + 1086, section 1140 bytes; `line_2013.dwg`: 985 = 4 + 981, 1035 bytes; `sample_AC1032.dwg`: 6246 = 4 + 6242, 6296 bytes. On R2004 it is the stream alone: `line_2004.dwg` 646, section 692 bytes |
+| The bit size is the stream's bits plus 32, the stream ending after the trailer | `line_2010.dwg`: 8714 = 8682 + 32; `line_2013.dwg`: 7875 = 7843 + 32; `sample_AC1032.dwg`: 49962 = 49930 + 32 |
+| The CRC covers every byte from the size word to the end of the data, so on R2007+ it includes the bit-size words (and on R2010+ the zero `RL`), and never the start sentinel | R14, R2000, R2004, R2010, R2013 and R2018 files, checked with an independent Python port, then all 52 pinned drawings through the Rust writer. The 2026-10-25 note on #45 had R2010 and R2013 matching none of the coverages tried |
+| The padding bits that round the class data up to a byte are ones | the writer matched only after they were set; it wrote them clear first |
+| R2004+ sections end with eight zero bytes after the end sentinel | every R2004 to R2018 drawing; §10.2 says "the ODA writes 0 bytes", AutoCAD writes eight |
+| A string block of 0x8000 bits or more takes two `RS` words, the high word first | `sample_AC1032.dwg`: 45,804 bits = high word 1, then 0xB2EC |
+
+What the section holds that a `ClassDef` does not, the two unknown `BL`s of an R2004+
+record and the `B` after the maximum class number, is written as `0` and `true`; every
+one of the 52 sections matches with those values, so no drawing carries anything else.
+Unmeasured: R13 (AC1012), for which the corpus holds no AutoCAD-written file, so its
+section is written by the R14 rule on the strength of §10.1 alone. The canonical
+fixtures on R2004 and later have no `AcDb:Classes` section, and the R2000 fixture's
+empty one is framed by `build_fixtures` itself, so none of them exercises this writer.
+
+
+
 ## 7az. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
