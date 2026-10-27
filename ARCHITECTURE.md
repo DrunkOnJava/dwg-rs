@@ -3308,7 +3308,112 @@ data reads that text area through a non-ASCII byte. The diagnostic `read_tv`
 copies in `examples/trace_*` and the field-list probes still decode as UTF-8;
 they print strings and compare none.
 
-## 7aq. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
+## 7aq. ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER, derived from AutoCAD's own output (2026-10-27, #152)
+
+ODA spec v5.4.1 prints no layout for either class, and no other lane had touched them: they
+were the last two skipped types with no decoder and no open PR. `src/objects/pers_subent.rs`
+reads them from the layout below, derived by the CLEANROOM.md method of 2026-10-26: the data
+bits of every record in the pinned corpus, read against the object of the same handle in
+AutoCAD's DXF export. The corpus holds one record of each class per release, 14 in all, and
+all 14 close on the data-stream boundary. Every record is in ACadSharp's `sample_base`
+(AutoCAD 2025, saved as R14, R2000, R2004, R2007, R2010, R2013 and R2018) at the same handles,
+0xD62 and 0xD63, on every release; no nextgis drawing holds either class, and the R2000 to R2018
+exports hold both objects (the R14 save has no twin). One drawing therefore supplies all 14.
+
+| Release | Records | Close | Data bits (ASSOC, PERS) | Values compared | Differ |
+|---|---:|---:|---|---:|---:|
+| R14 | 2 | 2 | 49, 64 (boundary from the `RL` in the common object data) | none, no DXF twin | |
+| R2000 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2004 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2007 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2010 | 2 | 2 | 49, 64 | 19 | 0 |
+| R2013 | 2 | 2 | 107, 28 | 22 | 0 |
+| R2018 | 2 | 2 | 107, 28 | 22 | 0 |
+| Total | 14 | 14 | | 120 | 0 |
+
+### The field lists
+
+```text
+ACDBPERSSUBENTMANAGER
+  BL version, array, array, array
+ACDBASSOCPERSSUBENTMANAGER
+  BL version, array ids, one array per id, one more array at version 2, B flag
+array = BL count, then count x BL
+```
+
+| Variant | Records | Groups 90 of the DXF object, in order | Group 290 |
+|---|---|---|---|
+| ASSOC, version 1 (R14 to R2010) | 5 | 1 3 0 2 4 0 0 0 | 0 |
+| ASSOC, version 2 (R2013, R2018) | 2 | 2 3 0 2 4 0 2 3 4 2 3 4 0 | 0 |
+| PERS (R14 to R2010) | 5 | 2 0 2 4 0 2 3 4 | none |
+| PERS (R2013, R2018) | 2 | 2 0 2 0 0 0 | none |
+
+How it was found, so that it can be checked. Each record's bits tile exactly as `BL`s: the
+version, the counts and the values are 10-bit forms (code `01`, then a byte) for 1, 2, 3 and 4
+and 2-bit zero codes for 0, and the ASSOC ends in one more bit. Those numbers are the groups
+90 of the DXF object in file order, count for count (8, 13, 8 and 6), and the last bit is
+group 290. `probe_field_list` reproduces it with `8*BL,B`, `13*BL,B`, `8*BL` and `6*BL` on
+handles 3426 and 3427 of every `sample_AC10xx.dwg` from R2000. The grouping into arrays
+is the reading, among those that parse the same bits, that keeps the most repeat counts in the
+stream: in the ASSOC the ids array `[0 2 4]` is followed by three arrays (all empty at version
+1; `[]`, `[3 4]`, `[3 4]` at version 2), then at version 2 one more empty one; in the PERS the
+arrays are `[]`, `[4 0]`, `[3 4]` on R14 to R2010 and `[]`, `[0 0]`, `[]` on R2013 and R2018.
+A count is followed by exactly that many values in all 14 records.
+
+### Values compared with the DXF (`probe_pers_subent`, `probe_assoc_pers_subent`)
+
+| Object | Group | Compared | Differ |
+|---|---|---:|---:|
+| ACDBASSOCPERSSUBENTMANAGER | 90 (every value, and their number) | 64 | 0 |
+| ACDBASSOCPERSSUBENTMANAGER | 290 | 6 | 0 |
+| ACDBPERSSUBENTMANAGER | 90 (every value, and their number) | 50 | 0 |
+
+The DXF value oracle scores both (`examples/dxf_oracle/scorers.rs`): 64 and 44 values equal
+the DXF on six releases, 0 different, and the 12 groups it leaves are the owner and the
+reactor (330). The corpus baseline moves by 2 decoded and 2 skipped on each of the seven
+`sample_AC10xx.dwg` drawings (14 in all) and no other drawing changes.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_assoc_pers_subent -- ../dwg-corpus
+cargo run --release --example probe_pers_subent -- ../dwg-corpus
+cargo run --release --features dxf-reader --example dxf_oracle -- ../dwg-corpus \
+    --baseline tools/oracle/baseline.tsv
+```
+
+### Unverified by value
+
+The numbers are verified; their grouping and meaning are not, and a field that one drawing
+shows stays provisional (#348).
+
+- Where each array ends. The DXF writes every number as group 90, so no group shows it.
+  Readings that parse the same bits: a fixed number of arrays after the ids (3, then 4 at
+  version 2) in place of one per id; the version-2 tail as a lone `BL` 0 instead of an empty
+  array; and the leading `BL` 3 of the ASSOC (and `BL` 0 of the PERS) as a lone scalar with
+  the arrays starting after it. All 14 records hold the ids array at three ids and the PERS at
+  an empty first array, so none separates them.
+- What any value means. The ids `0 2 4` and the array items `3 4`, `4 0`, `0 0` are small
+  integers with no role the twin names.
+- Whether the version-2 array is gated by the version word or by the release: the word is 1 on
+  R14 to R2010 and 2 on R2013 and R2018 in all seven ASSOC records, so the two coincide. The
+  PERS carries 2 everywhere, with its content differing by release all the same.
+- The `BL` width: every value is under 256 and every zero uses the 2-bit code, so `BS` is
+  bit-identical on all 14 records; group 90 is a 32-bit integer, and the 32-bit form is never
+  exercised.
+- The flag is pinned in width (a `BS` or `BL` zero would take two bits and the record has
+  one) but is 0 in every record.
+- A version word other than 2 (PERS) and 1 or 2 (ASSOC) is refused with
+  `Error::Unsupported`, never read on a guess.
+- Handles. The DXF writes no handle-valued group for either object beyond the owner and the
+  one reactor (both 0xC, `330`). Read by hand from the bits after the data on all 14 records,
+  the handle stream holds those two (on R2000 also a null extension-dictionary handle) and
+  padding; no probe reads it, and none is decoded.
+
+The controlled drawings should vary what these records hold (a solid with subentities, a
+dynamic block, a second associative object), so that the arrays carry something other than
+the three ids and the counts of two.
+
+## 7ar. XRECORD values and extended entity data, in the code page each string names (2026-10-27, #375)
 
 Two places hold pre-R2007 text that the crate never turned into a string. An XRECORD's
 body stayed opaque bytes (`XRecord::data`), and the extended entity data chain

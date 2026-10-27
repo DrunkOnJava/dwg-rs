@@ -146,6 +146,11 @@ pub enum DecodedEntity {
     ImageDef(crate::entities::imagedef::ImageDef),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
+    /// ACDBPERSSUBENTMANAGER, a custom class with no spec section: derived
+    /// from AutoCAD's own output (ARCHITECTURE.md §7aq).
+    PersSubentManager(crate::objects::pers_subent::PersSubentManager),
+    /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
+    AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -266,6 +271,8 @@ impl DecodedEntity {
             | Self::ImageDef(_)
             | Self::ImageDefReactor(_)
             | Self::RasterVariables(_)
+            | Self::PersSubentManager(_)
+            | Self::AssocPersSubentManager(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -803,6 +810,16 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::ImageDefReactor),
+        // No spec section: the two persistent-subentity managers, derived from
+        // AutoCAD's own output (ARCHITECTURE.md §7aq).
+        "ACDBPERSSUBENTMANAGER" => crate::objects::pers_subent::decode_pers_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PersSubentManager),
+        "ACDBASSOCPERSSUBENTMANAGER" => crate::objects::pers_subent::decode_assoc_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::AssocPersSubentManager),
         "RASTERVARIABLES" | "ACDBRASTERVARIABLES" => {
             crate::objects::image_raster_variables::decode_object(
                 payload, body_start, inline_end, version,
