@@ -215,7 +215,7 @@ pub fn resolve_entity(file: &DwgFile, handle: u64, version: Version) -> Result<D
         }
     };
 
-    let raw = read_one_object_at(&obj_bytes, version, handle, offset)?;
+    let raw = read_one_object_at(&obj_bytes, version, file.code_page(), handle, offset)?;
     Ok(crate::entities::decode_from_raw(&raw, version))
 }
 
@@ -226,6 +226,7 @@ pub fn resolve_entity(file: &DwgFile, handle: u64, version: Version) -> Result<D
 fn read_one_object_at(
     obj_bytes: &[u8],
     version: Version,
+    code_page: crate::code_page::CodePage,
     handle: u64,
     offset: u64,
 ) -> Result<RawObject> {
@@ -236,7 +237,8 @@ fn read_one_object_at(
     let single = crate::handle_map::HandleMap {
         entries: vec![crate::handle_map::HandleEntry { handle, offset }],
     };
-    let walker = ObjectWalker::with_handle_map(obj_bytes, version, &single);
+    let walker =
+        ObjectWalker::with_handle_map(obj_bytes, version, &single).with_code_page(code_page);
     let mut all = walker.collect_all()?;
     all.pop().ok_or_else(|| {
         Error::SectionMap(format!(

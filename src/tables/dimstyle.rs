@@ -584,9 +584,10 @@ fn read_modern_split_stream(
 /// variable it stores, in the order the record stores them (§20.4.68).
 ///
 /// The entry is the same [`DimStyleEntry`] the dispatcher returns. The strings
-/// of R2007 and later come from the string stream. R13 and R14 records are not
-/// read here: their list is a different one and has no DXF twin of its own in
-/// the corpus.
+/// of R2007 and later come from the string stream, and those before it are read
+/// in [`RawObject::code_page`](crate::object::RawObject::code_page) (§3.2.5).
+/// R13 and R14 records are not read here: their list is a different one and has
+/// no DXF twin of its own in the corpus.
 pub fn decode_with_vars(
     raw: &crate::object::RawObject,
     version: Version,
@@ -596,12 +597,14 @@ pub fn decode_with_vars(
             "R13/R14 DIMSTYLE variables are not surfaced".into(),
         ));
     }
-    let mut c = crate::object::body_cursor(raw, version)?;
-    if version.is_r2007_plus() {
-        return read_modern_split_stream(&raw.raw, c.position_bits(), version);
-    }
-    crate::common_entity::read_common_object_data_full(&mut c, version)?;
-    read_r2000_inline(&mut c, version)
+    crate::code_page::with_code_page(raw.code_page, || {
+        let mut c = crate::object::body_cursor(raw, version)?;
+        if version.is_r2007_plus() {
+            return read_modern_split_stream(&raw.raw, c.position_bits(), version);
+        }
+        crate::common_entity::read_common_object_data_full(&mut c, version)?;
+        read_r2000_inline(&mut c, version)
+    })
 }
 
 // Legacy alias — the historical public API called this `decode_partial`.

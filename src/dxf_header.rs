@@ -325,14 +325,10 @@ pub static VARS: &[(&str, &[u16], Rel)] = &[
 
 /// The `$DWGCODEPAGE` name for the code page in the file header (§3.2.5,
 /// §4.1: the short at 0x13). Only the two values the corpus measures against
-/// AutoCAD's export are named; any other code page omits the variable.
+/// AutoCAD's export are named ([`crate::code_page::CodePage`]); any other code
+/// page omits the variable.
 fn code_page_name(file: &DwgFile) -> Option<&'static str> {
-    let bytes = file.raw_bytes();
-    match u16::from_le_bytes([*bytes.get(0x13)?, *bytes.get(0x14)?]) {
-        29 => Some("ANSI_1251"),
-        30 => Some("ANSI_1252"),
-        _ => None,
-    }
+    file.code_page().dxf_name()
 }
 
 /// `$MEASUREMENT`, the one variable of `AcDb:Template` (§22): an `Int16`
