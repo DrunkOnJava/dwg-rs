@@ -3572,8 +3572,10 @@ drops several render applications' data).
 extended data string of the first record that holds one of six bytes or more sitting once in
 the file, their first four characters overwritten with `E9 B0 C0 FC` and their page byte (the
 eight bits before the characters) set to 29, 30 and 31, and read back through the new
-readers: XRECORD values 16 strings, 64 of 64 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
-before); extended data 2 strings, 8 of 8.
+readers: XRECORD values 24 strings, 96 of 96 reads (`é°Àü`, `й°Аь`, and under 31 the bytes as
+before); extended data 3 strings, 12 of 12 (R14, R2000 and, since the DWG writer assembles
+the patched R2004 drawings, R2004; the string's own page byte is patched there and the
+header keeps the drawing's page).
 
 **R14, and the assumption that the shorts mean there what they mean later.** Nothing in
 the corpus names an R14 page: AutoCAD's exports of the AC1014 drawings are R12 DXF, which
@@ -3590,7 +3592,84 @@ XRECORD ranges above; the length field's width for a string of 256 bytes or more
 extended data application the export omits; and the entities' own strings that sit in a
 record's extended data on an R13 drawing (the corpus holds none).
 
-## 7ar. Code page rows 28 to 41, from drawings that name them (2026-10-27, #375)
+## 7at. The writers write the drawing's code page (2026-10-27, #375)
+
+#374 reads pre-R2007 text in the page the header names; the writers still did the
+opposite of what they read. `dwg-to-dxf` wrote every character above ASCII of a
+pre-R2007 DXF as a `\U+XXXX` escape, whatever the drawing's page (a `String` could
+hold nothing else), the class table of the DWG writer wrote its strings as UTF-8
+(`classes::write_tv`), and `DwgFile::to_bytes` assembled the R2004-family header with a
+code page of 0, so a rewritten file read its own text as an unnamed page. Now:
+
+- `CodePage::encode_char` and `CodePage::encode` are the inverse of `decode`: a character
+  the page holds is its byte (two on a double-byte page), any other is the escape
+  `\U+XXXX`, four uppercase hexadecimal digits of each UTF-16 unit, and text that is
+  already an escape (MTEXT's `\U+00B0`) passes as it is. Under an unnamed page no
+  character is known to be in the page, so the result is ASCII with escapes.
+- `dxf_convert::convert_dwg_to_dxf_bytes` (and `convert_file_to_dxf_bytes`, and the
+  `dwg-to-dxf` binary) write R12 to R2004 in the drawing's page: each character the page
+  holds as its byte, every other as an escape. The writer's text is still a `String`, so
+  the page bytes travel through it as the chars of the same code points and the function
+  turns them back into bytes; `convert_dwg_to_dxf` keeps returning escapes only. From
+  R2007 the output is UTF-8 as before.
+- `classes::write_tv` encodes through the page in force, and
+  `file_writer::assemble_dwg_bytes_with_page` writes the page into the header (the short at
+  0x13); `DwgFile::to_bytes` passes the drawing's own, so the string bytes it copies read
+  as the text they were.
+
+**What AutoCAD does.** Two things are measured; the rest is owed.
+
+- *An in-page character is its byte in a pre-R2007 DXF.* The corpus's one raw high byte
+  in a pre-R2007 export is `0xD8` in a TEXT of `sample_AC1009_ascii.dxf` (R12): AutoCAD
+  wrote the character the page holds as that byte. None of the R2000 and R2004 exports
+  holds one (their only non-ASCII is escape text copied from the DWG), so for those
+  targets the choice rests on the DXF Reference's statement that DXF before R2007 is in
+  `$DWGCODEPAGE` (public documentation, recalled; `dxf_reader` reads on the same
+  statement), not on an export.
+- *A character the page lacks is `\U+XXXX`.* The corpus holds one: the diameter sign
+  U+2205, which the R2007 and later saves of `sample_AC10xx.dwg` hold as the character and
+  the R2000 and R2004 saves hold as the ASCII escape `\U+2205`, in an MTEXT and in an
+  XRECORD string. `CodePage::encode` of each R2007 and later text, under the R2000 file's
+  page, gives the bytes of the R2000 text of the same handle: 59 of 59 texts in each of
+  `sample_AC1021`, `sample_AC1024`, `sample_AC1027` and `sample_AC1032` (one holding the
+  diameter sign, written `\U+220545,6` as AutoCAD wrote it; five more are MTEXT that AutoCAD
+  formatted differently in the two releases, a line break or a stacked fraction, and are
+  not compared). That is MTEXT and one XRECORD. No TEXT, ATTRIB, ATTDEF or table name of
+  the corpus holds a character outside its page, so the escape for those strings is the
+  same one by extension, as it was before this change, and stays unmeasured.
+
+**Evidence.** `examples/probe_code_page.rs`, on the 24 pre-R2007 drawings of the pinned
+corpus, with the strings rewritten in memory as in §7ap:
+
+| What | Result |
+|---|---|
+| `encode` is `decode`'s inverse on every byte above 0x7F of each named page | 128 of 128 for `ANSI_1251` and for `ANSI_1252` |
+| The escapes: U+2205 and U+0439 under 1252, U+00E9 under 1251 and under an unnamed page, MTEXT's own `94\U+00B0` | each as above |
+| 266 strings in 27 kinds of record (R14, R2000 and R2004, XRECORD values and extended data included), read under the drawing's own page, 29, 30 and 31; the R2004 drawings re-assembled by the DWG writer with that short as the header's page | 1,064 of 1,064 reads as the code page charts say |
+| The 87 table-entry names of those drawings written by `dwg-to-dxf` (R2000 target, bytes) | 348 of 348 checks: under 29 and 30 the patched bytes `E9 B0 C0 FC` and the rest of the name verbatim, under 31 the `\U+FFFD` escapes of what was read |
+| `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
+| R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
+
+No text of the corpus leaves ASCII in a pre-R2007 DXF, so `convert_dwg_to_dxf_bytes` writes
+exactly the bytes `convert_dwg_to_dxf` writes: 104 of 104 conversions of the corpus's 52
+drawings (R2000 and R2004 targets), identical. The first run of that check read 0 of 104 and
+named a real defect: four comments the writer itself emits (`999` groups in
+`dxf_sections.rs`: the ACI colour note, the opaque proxy note and the custom-class
+pass-through note) held an em dash or a `≈`, which a pre-R2007 DXF reads as bytes of the
+code page, not UTF-8 (and which the bytes conversion cannot map to one byte). They are ASCII
+now, and a character above U+00FF that still reaches the bytes conversion is written as a
+`\U+XXXX` escape, not as `?`. `probe_dxf_header`, `probe_dxf_tables`,
+`probe_dxf_entities` and `probe_dxf_classes`, which call `convert_dwg_to_dxf`, read 0
+differences.
+
+**Owed.** A TEXT, ATTRIB or name outside its page (above); an in-page character in an
+R2000 or R2004 export (above); MTEXT in an R2000 or R2004 DXF target, which the ENTITIES
+writer does not write yet, so no AutoCAD export pairs with the writer's own escape end to
+end; characters above the BMP, two escapes each as before and never measured; and a
+strings encoder for the entities, which the DWG writer does not write at all (its only
+authored strings are the class table's).
+
+## 7au. Code page rows 28 to 41, from drawings that name them (2026-10-27, #375)
 
 #374 named two header shorts (29, 30) because the pinned corpus held no others. The
 number at 0x13 of the header (§3.2.5) is AutoCAD's own enumeration of code pages, not a
