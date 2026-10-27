@@ -2871,7 +2871,9 @@ corpus does not tell the offset from 0 and DXF's 75 settles it), style
 handle (340), scale, rotation, offsets and text (44 to 46, 50, 9). The style is the
 handle after the xref block's, one per dash; the text is the NUL-terminated string at
 the dash's `shape_number` bytes into the linetype's text area (256 bytes to R2004,
-512 of UTF-16 from R2007), measured at offset 0 only. The DWG sets bit 8 of a text
+512 of UTF-16 from R2007), decoded as the crate decodes every pre-R2007 string (lossy
+UTF-8, not the drawing's code page: #370; the six corpus text dashes read `GAS`, all
+ASCII), measured at offset 0 only. The DWG sets bit 8 of a text
 dash's flags on every release; AutoCAD's export writes it from R2013 and clears it
 before, so it is cleared for targets before R2013. All 156 LTYPE records pair, the
 four complex ones of each release included.

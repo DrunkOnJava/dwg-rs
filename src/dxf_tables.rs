@@ -323,6 +323,10 @@ fn style_groups(s: &crate::tables::style::StyleEntry) -> Option<Vec<HeaderGroup>
 
 /// The text of a text dash: the NUL-terminated string at byte `offset` of the
 /// linetype's text area (one byte a character up to R2004, UTF-16LE from R2007).
+/// The NUL-terminated text at `offset` of a linetype's text area. Before R2007 the
+/// bytes are in the drawing's code page; every legacy `TV` reader of the crate
+/// decodes them as lossy UTF-8 (#370), and so does this, so a linetype's text and
+/// every other legacy string agree.
 fn dash_text(area: &[u8], offset: usize, wide: bool) -> Option<String> {
     let tail = area.get(offset..)?;
     if wide {
