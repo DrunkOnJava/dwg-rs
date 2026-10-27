@@ -3063,7 +3063,7 @@ space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decode
 records: 17 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
 3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface
 forms, VERTEX, SEQEND). An INSERT, with the ATTRIBs and SEQEND under it, is written
-only when BLOCKS (§7ap) writes the block it names (the blocks written are decided
+only when BLOCKS (§7aq) writes the block it names (the blocks written are decided
 first; an INSERT of any other is counted as `INSERT (its block is not written)`), so
 no output holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
 decode, is counted in a `999 skipped` comment. `examples/probe_dxf_entities.rs`
@@ -3196,7 +3196,7 @@ differ from the table's), and no corpus pair shows AutoCAD's own count for an R2
 drawing saved as a newer DXF, so that case is owed against an export. Not measured: an
 R14 target.
 
-## 7ap. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
+## 7aq. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
 
 `src/dxf_blocks.rs` writes one block per `BLOCK_RECORD` of the table, in its order: the
 `BLOCK` (its handle from the block record's handle stream, its layer, name, flags, base
