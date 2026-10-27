@@ -42,17 +42,23 @@ pub struct AttDef {
 }
 
 /// Decodes the `AttDef` payload that follows the common entity header.
+///
+/// §20.4.5 is "Common ATTRIB Entity Data" — the TEXT fields, then the
+/// tag, field length and flags — followed by the prompt, so the prompt
+/// is the record's last `TV`, not its first. This inline path serves R13
+/// to R2004, which carry neither the R2007+ lock flag nor the R2010+
+/// version byte.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<AttDef> {
     let text = text::decode(c, version)?;
-    let prompt = read_tv(c, version)?;
     let tag = read_tv(c, version)?;
     let field_length = c.read_bs()?;
     let flags = c.read_rc()?;
-    let lock_position = if matches!(version, Version::R2018) {
+    let lock_position = if version.is_r2007_plus() {
         c.read_b()?
     } else {
         false
     };
+    let prompt = read_tv(c, version)?;
     Ok(AttDef {
         text,
         prompt,
@@ -152,7 +158,7 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }
 
@@ -193,25 +199,26 @@ mod tests {
     fn roundtrip_attdef_r2000() {
         let mut w = BitWriter::new();
         // TEXT preamble — minimal
-        w.write_rc(0x00);
+        w.write_rc(0xFF);
         w.write_rd(0.0);
         w.write_rd(0.0);
         w.write_b(true);
         w.write_b(true);
-        w.write_bd(2.5);
+        w.write_rd(2.5);
         w.write_bs_u(0); // empty default text
-        // ATTDEF extras
-        w.write_bs_u(14); // prompt
-        for b in b"Enter price: " {
-            w.write_rc(*b);
-        }
-        w.write_rc(0); // trailing NUL (stripped)
+        // ATTRIB fields
         w.write_bs_u(5); // tag
         for b in b"PRICE" {
             w.write_rc(*b);
         }
         w.write_bs(0); // field length
         w.write_rc(0x00); // flags
+        // ATTDEF's own prompt, last
+        w.write_bs_u(14); // prompt
+        for b in b"Enter price: " {
+            w.write_rc(*b);
+        }
+        w.write_rc(0); // trailing NUL (stripped)
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
         let a = decode(&mut c, Version::R2000).unwrap();

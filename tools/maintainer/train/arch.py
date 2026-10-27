@@ -1,12 +1,14 @@
 """ARCHITECTURE.md section numbering for the merge train.
 
-renumber MB MAIN   at the PR head: every `## 7X.` section the PR adds (relative to merge-base MB)
-                   whose letter is already taken on MAIN moves to the next free letter, and every
+renumber MB MAIN   at the PR head: the `## 7X.` sections the PR adds (relative to merge-base MB,
+                   compared by heading text) take the suffixes right after MAIN's last one, and every
                    `§7X` in lines the PR added (any file) follows it. Edits files in place; prints
                    the mapping, or nothing when no section moves.
 resolve PATH       during a merge: each conflict hunk whose base side is empty (both sides appended
                    at the same place) becomes theirs, a blank line, then ours. Any other conflict
                    hunk exits 1 without writing.
+check [PATH]       the `## 7X.` sections of PATH (default ARCHITECTURE.md) run 7a, 7b, ... with no
+                   suffix repeated or skipped; exits 1 naming the first one that does not (CI).
 """
 import re
 import subprocess
@@ -17,30 +19,68 @@ def git(*args):
     return subprocess.run(['git', *args], capture_output=True, text=True, check=True).stdout
 
 
+def ordinal(suffix):
+    """Section suffixes run a..z, then aa, ab, ...: bijective base 26."""
+    n = 0
+    for ch in suffix:
+        n = n * 26 + ord(ch) - 96
+    return n
+
+
+def suffix(n):
+    s = ''
+    while n:
+        n, r = divmod(n - 1, 26)
+        s = chr(97 + r) + s
+    return s
+
+
 def renumber(mb, main):
-    taken = set(re.findall(r'^## 7([a-z])\.', git('show', f'{main}:ARCHITECTURE.md'), re.M))
-    base = set(re.findall(r'^## 7([a-z])\.', git('show', f'{mb}:ARCHITECTURE.md'), re.M))
-    added = {}
+    heading = re.compile(r'^## 7([a-z]+)\..*$', re.M)
+    on_main = {m.group(0): m.group(1) for m in heading.finditer(git('show', f'{main}:ARCHITECTURE.md'))}
+    added, removed = {}, {}
     current = None
     for line in git('diff', '-U0', mb, 'HEAD').splitlines():
-        if line.startswith('+++ '):
-            current = line[6:] if line.startswith('+++ b/') else None
+        if line.startswith('+++ ') or line.startswith('--- '):
+            if line.startswith('+++ '):
+                current = line[6:] if line.startswith('+++ b/') else None
         elif line.startswith('+') and current:
             added.setdefault(current, set()).add(line[1:])
-    mine = re.findall(r'^## 7([a-z])\.', '\n'.join(added.get('ARCHITECTURE.md', ())), re.M)
-    mine = sorted(set(mine) - base)
+        elif line.startswith('-') and current:
+            removed.setdefault(current, set()).add(line[1:])
+    # The PR's own sections are the headings it adds that main does not already have, compared by
+    # their whole text: a suffix alone cannot tell the PR's 7n from another section's 7n on main.
+    # A heading the PR rewrites (it removes one with the same suffix or the same title) is an edit
+    # of an existing section, not a new one, and keeps its place.
+    def title(h):
+        return h.split('. ', 1)[1] if '. ' in h else h
+    gone = [(m.group(1), title(m.group(0))) for m in heading.finditer('\n'.join(removed.get('ARCHITECTURE.md', ())))]
+    new_heads = [(m.group(1), m.group(0)) for m in heading.finditer(open('ARCHITECTURE.md', encoding='utf-8').read())
+                 if m.group(0) in added.get('ARCHITECTURE.md', ()) and m.group(0) not in on_main]
+    # Each removed heading accounts for at most one added one: a moved section (same title) first,
+    # then a retitled one (same suffix), in document order; what is left over is new.
+    for match in (lambda h, g, t: title(h) == t, lambda h, g, t: h.split('. ', 1)[0][4:] == g):
+        kept = []
+        for suffix_, h in new_heads:
+            hit = next((i for i, (g, t) in enumerate(gone) if match(h, g, t)), None)
+            if hit is None:
+                kept.append((suffix_, h))
+            else:
+                gone.pop(hit)
+        new_heads = kept
+    mine = sorted({suffix_ for suffix_, _ in new_heads}, key=ordinal)
+    new_lines = {h for _, h in new_heads}
     if not mine:
         return
-    last = max(taken | base)
-    free = [c for c in 'abcdefghijklmnopqrstuvwxyz' if c > last]
-    if len(free) < len(mine):
-        raise SystemExit('no section letters left after 7' + last)
-    mapping = {k: v for k, v in zip(mine, free) if k != v}
+    last = max((ordinal(v) for v in on_main.values()), default=0)
+    mapping = {k: suffix(last + i + 1) for i, k in enumerate(mine) if k != suffix(last + i + 1)}
     if not mapping:
         return
-    pattern = re.compile(r'(§7|^## 7)(' + '|'.join(mapping) + r')(?![a-z])')
+    pattern = re.compile(r'(§7|^## 7)(' + '|'.join(sorted(mapping, key=len, reverse=True)) + r')(?![a-z])')
     for path, lines in added.items():
-        hits = {l for l in lines if pattern.search(l)}
+        # A heading line moves only if it is one of the PR's new sections; an edited heading keeps
+        # its suffix even when it shares it with a new one.
+        hits = {l for l in lines if pattern.search(l) and (not heading.match(l) or l in new_lines)}
         if not hits:
             continue
         with open(path, encoding='utf-8') as fh:
@@ -90,8 +130,22 @@ def resolve(path):
         fh.write('\n'.join(out))
 
 
+def check(path):
+    with open(path, encoding='utf-8') as f:
+        suffixes = re.findall(r'^## 7([a-z]+)\.', f.read(), re.M)
+    for n, s in enumerate(suffixes, 1):
+        if ordinal(s) != n:
+            raise SystemExit(f'{path}: section 7{s} where 7{suffix(n)} belongs '
+                             f'(sections: {", ".join("7" + x for x in suffixes)})')
+
+
 if __name__ == '__main__':
-    if sys.argv[1] == 'renumber':
-        renumber(sys.argv[2], sys.argv[3])
+    args = sys.argv[1:]
+    if args[:1] == ['renumber'] and len(args) == 3:
+        renumber(args[1], args[2])
+    elif args[:1] == ['resolve'] and len(args) == 2:
+        resolve(args[1])
+    elif args[:1] == ['check'] and len(args) <= 2:
+        check(args[1] if len(args) == 2 else 'ARCHITECTURE.md')
     else:
-        resolve(sys.argv[2])
+        raise SystemExit(__doc__)
