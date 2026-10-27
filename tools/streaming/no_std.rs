@@ -26,3 +26,5 @@ const _: () = assert!(core::mem::size_of::<streaming::R2004ObjectWalker>() <= 2 
 const _: () = assert!(core::mem::size_of::<streaming::R2004ObjectCheckpoint>() <= 2 * streaming::WINDOW + 8192 + 1024);
 const _: () = assert!(core::mem::size_of::<streaming::R2007Walker>() <= 2 * streaming::R2007_WINDOW + 8192);
 const _: () = assert!(core::mem::size_of::<streaming::R2007Checkpoint>() <= 2 * streaming::R2007_WINDOW + 8192 + 16);
+const _: () = assert!(core::mem::size_of::<streaming::R2007ObjectWalker>() <= 2 * streaming::R2007_WINDOW + 8192 + 1024);
+const _: () = assert!(core::mem::size_of::<streaming::R2007ObjectCheckpoint>() <= 2 * streaming::R2007_WINDOW + 8192 + 1024);

@@ -71,6 +71,18 @@ pub enum HeaderGroup {
     Handle(i32, u64),
 }
 
+/// Write each group of `groups` as its code and value lines.
+pub fn write_groups(w: &mut DxfWriter, groups: &[HeaderGroup]) {
+    for g in groups {
+        match g {
+            HeaderGroup::Text(code, t) => w.write_string(*code, t),
+            HeaderGroup::Int(code, n) => w.write_int(*code, *n),
+            HeaderGroup::Real(code, v) => w.write_string(*code, &real_text(*v)),
+            HeaderGroup::Handle(code, h) => w.write_string(*code, &format!("{h:X}")),
+        }
+    }
+}
+
 /// The shortest decimal text of `v` that reads back as `v`, with an
 /// exponent in the form DXF writes (`1.0E+20`).
 fn real_text(v: f64) -> String {
@@ -162,16 +174,7 @@ pub fn write_header_section(w: &mut DxfWriter, vars: &[HeaderEntry]) {
             HeaderValue::Int(n) => w.write_int(70, *n),
             HeaderValue::Double(f) => w.write_double(40, *f),
             HeaderValue::Point(p) => w.write_point(10, *p),
-            HeaderValue::Groups(groups) => {
-                for g in groups {
-                    match g {
-                        HeaderGroup::Text(code, t) => w.write_string(*code, t),
-                        HeaderGroup::Int(code, n) => w.write_int(*code, *n),
-                        HeaderGroup::Real(code, v) => w.write_string(*code, &real_text(*v)),
-                        HeaderGroup::Handle(code, h) => w.write_string(*code, &format!("{h:X}")),
-                    }
-                }
-            }
+            HeaderValue::Groups(groups) => write_groups(w, groups),
         }
     }
     w.end_section();
