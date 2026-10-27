@@ -109,7 +109,6 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<StyleEntry> {
 /// ```text
 /// B   64-flag
 /// B   xref dependent
-/// BS  xref index + 1
 /// B   shape file
 /// B   vertical
 /// BD  fixed height
@@ -133,8 +132,7 @@ pub(crate) fn decode_modern_split_stream(
     version: Version,
 ) -> Result<StyleEntry> {
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let is_shape_file = split.data.read_b()?;
     let is_vertical = split.data.read_b()?;
     let fixed_height = split.data.read_bd()?;
@@ -226,11 +224,11 @@ mod tests {
         // Data stream: common object prefix, then the STYLE field body.
         let mut body = BitWriter::new();
         body.write_bs_u(0); // no EED
+        body.write_bl(0); // no reactors
         body.write_b(true); // no xdictionary
         body.write_b(false); // no binary data (R2013+)
         body.write_b(true); // 64-flag
         body.write_b(false); // xref dependent
-        body.write_bs(0); // xref index + 1
         body.write_b(true); // shape file
         body.write_b(true); // vertical
         body.write_bd(0.2); // fixed height

@@ -451,7 +451,7 @@ impl<'a> ByteCursor<'a> {
         } else {
             end
         };
-        let s = String::from_utf8_lossy(&self.bytes[self.pos..text_end]).into_owned();
+        let s = crate::code_page::decode_active(&self.bytes[self.pos..text_end]);
         self.pos = end;
         Ok(s)
     }
@@ -510,7 +510,7 @@ impl<'a> ByteCursor<'a> {
             return Ok(String::new());
         }
         self.need(len)?;
-        let s = String::from_utf8_lossy(&self.bytes[self.pos..self.pos + len]).into_owned();
+        let s = crate::code_page::decode_active(&self.bytes[self.pos..self.pos + len]);
         self.pos += len;
         Ok(s)
     }

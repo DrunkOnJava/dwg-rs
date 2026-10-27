@@ -17,6 +17,7 @@
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
 //! | LAYOUT                   | [`acad_layout`]           | §20.4.84         |
 //! | ACAD_MATERIAL            | [`acad_material`]         | none — measured  |
+//! | ACDB(ASSOC)PERSSUBENTMANAGER | [`pers_subent`]       | none — measured  |
 //! | MLEADERSTYLE             | [`acad_mleader_style`]    | none — measured  |
 //! | MLINESTYLE               | [`acad_mlinestyle`]       | §20.4.73         |
 //! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
@@ -31,12 +32,16 @@
 //! | *_CONTROL                | [`control`]               | §19.5.1..§19.5.10|
 //! | custom-dict entries      | [`custom_dict_entry`]     | §19.5.19 (L7-06) |
 //! | ACDB_PLACEHOLDER         | [`placeholder`]           | §19.5.x          |
+//! | RASTERVARIABLES          | [`image_raster_variables`]      | §20.4.91         |
 //! | DICTIONARY               | [`dictionary`]            | §19.5.19         |
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
+//! | IMAGEDEF_REACTOR         | [`image_def_reactor`]     | §20.4.82         |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
+//! | SPATIAL_FILTER           | [`clip_spatial_filter`]        | §20.4.94         |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
+//! | SORTENTSTABLE            | [`block_sortents_table`]        | §20.4.93         |
 //!
 //! # Reachability and the R2007+ split stream
 //!
@@ -88,13 +93,18 @@ pub mod acad_scale;
 pub mod acad_section_view_style;
 pub mod acad_table_style;
 pub mod acad_visual_style;
+pub mod block_sortents_table;
 pub mod class_map_extension;
+pub mod clip_spatial_filter;
 pub mod color;
 pub mod control;
 pub mod custom_dict_entry;
 pub mod dictionary;
 pub mod dictionary_var;
+pub mod image_def_reactor;
+pub mod image_raster_variables;
 pub(crate) mod modern;
+pub mod pers_subent;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;

@@ -162,6 +162,7 @@ fn every_fixed_entity_code_is_routed_not_unhandled() {
             },
             raw: vec![0u8; 256],
             obj_size_bits: None,
+            code_page: Default::default(),
         };
         let decoded = decode_from_raw(&raw, Version::R2018);
         match decoded {
@@ -190,6 +191,7 @@ fn zeroed_raw(code: u16) -> dwg::object::RawObject {
         },
         raw: vec![0u8; 256],
         obj_size_bits: None,
+        code_page: Default::default(),
     }
 }
 

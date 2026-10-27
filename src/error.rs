@@ -109,6 +109,14 @@ pub enum Error {
     #[error("unsupported feature: {feature}")]
     Unsupported { feature: String },
 
+    /// A section whose encryption flag is set (§4.5 flag 1 for the R2004
+    /// family, a non-zero data encryption other than 2 for R2007) holds
+    /// ciphertext, so its stored bytes are not its content: the same refusal
+    /// as `streaming::StreamError::SectionEncrypted`. A flag of 2 marks only
+    /// the properties as encrypted, and the payload is read.
+    #[error("section {name:?} is encrypted (password-protected files are not supported)")]
+    SectionEncrypted { name: String },
+
     /// A single object in the handle-driven object walk could not be
     /// parsed. Surfaced only by [`crate::object::ObjectWalker::collect_all_strict`];
     /// the lossy variant records these in a summary instead.
