@@ -16,8 +16,9 @@ pub mod streaming;
 
 use streaming::{
     MapDemand, MapStep, ObjectDemand, ObjectStep, PageEntry, R2004MapWalker, R2004ObjectWalker,
-    R2004SectionWalker, R2004Walker, R2007Demand, R2007Step, R2007Walker, SectionDemand, SectionPage,
-    SectionStep, SourceIdentity, StreamError, SystemKind, WalkDemand, WalkStep,
+    R2004SectionWalker, R2004Walker, R2007Demand, R2007ObjectDemand, R2007ObjectStep,
+    R2007ObjectWalker, R2007Step, R2007Walker, SectionDemand, SectionPage, SectionStep,
+    SourceIdentity, StreamError, SystemKind, WalkDemand, WalkStep,
 };
 
 const FILE_CAP: usize = 0x30_0000;
@@ -898,6 +899,135 @@ pub extern "C" fn run_objects(file_len: u32, stop: u32, chunk: u32) -> i32 {
     let mut out = Lines { buf: mem.out, at: 0 };
     let mut cursors = (0u32, 0u64);
     match walk_objects(&mut walker, mem.file, file_len, chunk as usize, Some(stop), &mut out, &mut cursors) {
+        0 => (),
+        code => return code,
+    }
+    let Ok(checkpoint) = walker.checkpoint() else {
+        return -2;
+    };
+    let bytes = checkpoint.as_bytes();
+    if bytes.len() > mem.ckpt.len() {
+        return -3;
+    }
+    mem.ckpt[..bytes.len()].copy_from_slice(bytes);
+    unsafe {
+        CKPT_LEN = bytes.len();
+        CURSORS = [u64::from(cursors.0), cursors.1, 0, 0, 0];
+    }
+    out.at as i32
+}
+
+/// Walk the whole R2007 file with its object section framed, printing what the
+/// native `stream_r2007_objects` prints for the same steps, until the walk ends
+/// or `stop` steps have run. The cursors are the CRC-32 and length of the open
+/// record's payload so far.
+fn walk_r2007_objects(
+    walker: &mut R2007ObjectWalker,
+    file: &[u8],
+    file_len: usize,
+    chunk: usize,
+    stop: Option<u32>,
+    out: &mut Lines<'_>,
+    cursors: &mut (u32, u64),
+) -> i32 {
+    let mut steps = 0u32;
+    let mut buf = [0u8; 256];
+    loop {
+        if stop == Some(steps) {
+            break;
+        }
+        let step = match walker.demand() {
+            Ok(R2007ObjectDemand::Done) => break,
+            Ok(R2007ObjectDemand::Pump) => walker.pump(),
+            Ok(R2007ObjectDemand::Read(r)) => {
+                match r2007_bytes(file, file_len, r.offset, 1, r.len, chunk, &mut buf) {
+                    Ok(bytes) => walker.feed(r.offset, bytes),
+                    Err(e) => Err(e),
+                }
+            }
+            Ok(R2007ObjectDemand::Gather(g)) => {
+                match r2007_bytes(file, file_len, g.offset, g.stride, g.len, chunk, &mut buf) {
+                    Ok(bytes) => walker.feed(g.offset, bytes),
+                    Err(e) => Err(e),
+                }
+            }
+            Err(e) => Err(e),
+        };
+        let Ok(step) = step else { return -2 };
+        steps += 1;
+        let wrote = match step {
+            R2007ObjectStep::Walk(R2007Step::Finished { sections, pages }) => {
+                writeln!(out, "{{\"finished\":{{\"sections\":{sections},\"pages\":{pages}}}}}")
+            }
+            R2007ObjectStep::Walk(_) => Ok(()),
+            R2007ObjectStep::Payload { len } => {
+                let bytes = walker.data();
+                if bytes.len() != len {
+                    return -2;
+                }
+                cursors.0 = crc::crc32(cursors.0, bytes);
+                cursors.1 += len as u64;
+                Ok(())
+            }
+            R2007ObjectStep::Object(r) => {
+                let wrote = writeln!(
+                    out,
+                    "{{\"object\":{},\"offset\":{},\"size\":{},\"type\":{},\"len\":{},\"crc32\":{}}}",
+                    r.handle, r.offset, r.size, r.type_code, cursors.1, cursors.0
+                );
+                *cursors = (0, 0);
+                wrote
+            }
+            R2007ObjectStep::Objects { records, bytes } => {
+                writeln!(out, "{{\"objects\":{{\"records\":{records},\"bytes\":{bytes}}}}}")
+            }
+        };
+        if wrote.is_err() {
+            return -3;
+        }
+    }
+    0
+}
+
+/// Restore a `DWGQ` checkpoint, with the payload CRC-32 and length the native
+/// caller saved, and finish the walk. The checkpoint alone carries the header,
+/// the readers, the object section and the open record. Same codes as
+/// `resume_maps`.
+#[unsafe(no_mangle)]
+pub extern "C" fn resume_r2007_objects(
+    file_len: u32,
+    ckpt_len: u32,
+    chunk: u32,
+    digest: u32,
+    len: u32,
+) -> i32 {
+    let file_len = file_len as usize;
+    let mem = scratch();
+    let Ok(mut walker) =
+        R2007ObjectWalker::restore(&mem.ckpt[..ckpt_len as usize], identity(file_len, mem.digest))
+    else {
+        return -1;
+    };
+    let mut out = Lines { buf: mem.out, at: 0 };
+    let mut cursors = (digest, u64::from(len));
+    match walk_r2007_objects(&mut walker, mem.file, file_len, chunk as usize, None, &mut out, &mut cursors) {
+        0 => out.at as i32,
+        code => code,
+    }
+}
+
+/// Walk from the start for `stop` steps, print what it committed and leave the
+/// walker's checkpoint at the checkpoint offset (its length is `layout(9)`, the
+/// payload CRC-32 and length `layout(10)` and `layout(11)`). Same codes as
+/// `resume_maps`.
+#[unsafe(no_mangle)]
+pub extern "C" fn run_r2007_objects(file_len: u32, stop: u32, chunk: u32) -> i32 {
+    let file_len = file_len as usize;
+    let mem = scratch();
+    let mut walker = R2007ObjectWalker::new(identity(file_len, mem.digest));
+    let mut out = Lines { buf: mem.out, at: 0 };
+    let mut cursors = (0u32, 0u64);
+    match walk_r2007_objects(&mut walker, mem.file, file_len, chunk as usize, Some(stop), &mut out, &mut cursors) {
         0 => (),
         code => return code,
     }

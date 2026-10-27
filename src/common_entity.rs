@@ -153,6 +153,9 @@ pub struct CommonEntityData {
     pub shadow_flags: u8,
     /// 16-bit "invisibility" mask (spec §19.4.1 bit 0 = invisible).
     pub invisibility: i16,
+    /// `Nolinks`: when clear (R13 to R2000), the handle stream holds the
+    /// previous and next entity handles before the layer.
+    pub nolinks: bool,
     /// The entity colour's `BS` as stored: the index in the low byte; from
     /// R2004 the high byte flags a true colour (0x80), a colour book handle
     /// (0x40) and a transparency (0x20).
@@ -163,6 +166,13 @@ pub struct CommonEntityData {
     /// R2004+: the transparency `BL` that follows when the colour flags
     /// announce one (`0x02AA....`, `0x01000000` by block).
     pub color_alpha: Option<u32>,
+    /// The linetype scale (`BD`, DXF 48).
+    pub ltype_scale: f64,
+    /// R2000+: the linetype flags: 0 by layer, 1 by block, 2 continuous,
+    /// 3 a linetype handle follows in the handle stream.
+    pub ltype_flags: u8,
+    /// R2010+: the full, face and edge visual style flags.
+    pub visual_style_flags: [bool; 3],
     /// R2000+ lineweight byte (encoded — not millimeters, see
     /// `DxfLineweight` in §19.4.82). For pre-R2000, 0.
     pub lineweight: u8,
@@ -440,9 +450,11 @@ pub(crate) fn read_entity_mode_onwards(
     // R13-R2000 carry a "nolinks" bit before color. The current public struct
     // has no stable place for it, but it must still be consumed on legacy
     // streams so color starts at the right bit.
-    if matches!(version, Version::R14 | Version::R2000) {
-        let _nolinks = c.read_b()?;
-    }
+    let nolinks = if matches!(version, Version::R14 | Version::R2000) {
+        c.read_b()?
+    } else {
+        true
+    };
 
     // -- CMC entity color (§2.11) -------------------------------------------
     // R2004+ stores a raw BS whose high bits flag optional alpha/RGB/name
@@ -472,19 +484,19 @@ pub(crate) fn read_entity_mode_onwards(
     }
 
     // -- BD linetype_scale (default 1.0 → BB tag 01, 2 bits) ----------------
-    let _linetype_scale = c.read_bd()?;
+    let ltype_scale = c.read_bd()?;
 
     // -- BB ltype_flags + BB plotstyle_flags (R2000+) -----------------------
     // §20.4.1 lists both under "R2000+"; R13/R14 encode the same
     // information in the `Isbylayerlt` bit read above and have no
     // plot-style concept at all. Reading them there put every R14 entity
     // four bits past its invisibility field.
-    let plotstyle_flag = if version.is_r2004_plus() || matches!(version, Version::R2000) {
-        let _ltype_flags = c.read_bb()?;
-        c.read_bb()?
-    } else {
-        0
-    };
+    let (ltype_flags, plotstyle_flag) =
+        if version.is_r2004_plus() || matches!(version, Version::R2000) {
+            (c.read_bb()?, c.read_bb()?)
+        } else {
+            (0, 0)
+        };
 
     // -- Material + shadow (R2007+) -----------------------------------------
     // shadow_flags is an RC in modern DWG streams. Earlier local experiments
@@ -497,10 +509,9 @@ pub(crate) fn read_entity_mode_onwards(
     };
 
     // -- Visual-style flags (R2010+) ----------------------------------------
+    let mut visual_style_flags = [false; 3];
     if version.is_r2010_plus() {
-        let _has_full = c.read_b()?;
-        let _has_face = c.read_b()?;
-        let _has_edge = c.read_b()?;
+        visual_style_flags = [c.read_b()?, c.read_b()?, c.read_b()?];
     }
 
     // -- Invisibility + lineweight ------------------------------------------
@@ -531,9 +542,13 @@ pub(crate) fn read_entity_mode_onwards(
         material_flag,
         shadow_flags,
         invisibility,
+        nolinks,
         color_raw,
         color_rgb,
         color_alpha,
+        ltype_scale,
+        ltype_flags,
+        visual_style_flags,
         lineweight,
         had_graphics,
         had_extended_data: had_extended,
