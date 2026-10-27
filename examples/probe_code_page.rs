@@ -200,6 +200,10 @@ struct Tally {
     /// How many of the drawing's strings hold a `\U+` and a `\M+` escape, and the first of each.
     escapes: [usize; 2],
     examples: [Option<String>; 2],
+    /// By header short: strings decoded, those `CodePage::encode` returns the bytes read
+    /// for, those that hold U+FFFD (an invalid sequence, never encoded back), and those
+    /// whose bytes differ.
+    round: BTreeMap<u16, [usize; 4]>,
 }
 
 const ESCAPES: [&str; 2] = ["\\U+", "\\M+"];
@@ -265,6 +269,21 @@ fn census(
         };
         tally.changed += usize::from(new != old);
         tally.texts.insert(new.to_string());
+        let slot = tally.round.entry(o.page.header_value()).or_default();
+        slot[0] += 1;
+        if new.contains('\u{FFFD}') {
+            slot[2] += 1;
+        } else if o.page.encode(new) == o.bytes {
+            slot[1] += 1;
+        } else {
+            slot[3] += 1;
+            *failed = true;
+            println!(
+                "  {release} {name} {what}: bytes {} decode to {new:?} and encode to {}",
+                hex(&o.bytes),
+                hex(&o.page.encode(new))
+            );
+        }
         let verdict = match rec.map(candidates) {
             Some(c) => {
                 tally.compared += 1;
@@ -1165,16 +1184,23 @@ fn paired_texts_section(paths: &[PathBuf], failed: &mut bool) {
     }
 }
 
-/// No text of the pinned corpus leaves ASCII in a pre-R2007 DXF, so the bytes the page
-/// writer returns must be exactly the text the `String` writer returns, for every
-/// drawing and every pre-R2007 target that writes one.
+/// A pre-R2007 DXF holds a character above ASCII as the `String` writer spells it,
+/// `\U+XXXX`, and as the page writer does, as the bytes of the drawing's page when the
+/// page holds it. So the bytes the page writer returns must read back under the page
+/// to the text the `String` writer returns once every character above ASCII is spelled
+/// as that escape again, for every drawing and every pre-R2007 target that writes
+/// one; a page the crate does not name holds no character, so there the two are the
+/// same bytes. The pinned drawings that write such a character (the layout name in the
+/// `ACAD_LAYOUT` dictionary of the GBK drawings) must exist, or the check measures only
+/// ASCII.
 fn bytes_api_section(paths: &[PathBuf], failed: &mut bool) {
     println!("\nconvert_dwg_to_dxf_bytes against convert_dwg_to_dxf:");
-    let (mut total, mut same) = (0, 0);
+    let (mut total, mut same, mut paged, mut chars) = (0, 0, 0, 0);
     for path in paths {
         let Ok(file) = DwgFile::open(path) else {
             continue;
         };
+        let page = file.code_page();
         for target in [DxfVersion::R2000, DxfVersion::R2004] {
             let text = dwg::dxf_convert::convert_dwg_to_dxf(&file, target);
             let bytes = dwg::dxf_convert::convert_dwg_to_dxf_bytes(&file, target);
@@ -1182,31 +1208,44 @@ fn bytes_api_section(paths: &[PathBuf], failed: &mut bool) {
                 continue;
             };
             total += 1;
-            if text.as_bytes() == bytes.as_slice() {
+            let decoded = page.try_decode(&bytes);
+            let spelled = decoded.as_ref().map(|d| CodePage::default().encode(d));
+            if spelled.as_deref() == Some(text.as_bytes()) {
                 same += 1;
+                if text.as_bytes() != bytes.as_slice() {
+                    paged += 1;
+                    chars += decoded
+                        .iter()
+                        .flat_map(|d| d.chars())
+                        .filter(|c| !c.is_ascii())
+                        .count();
+                }
             } else if total - same <= 3 {
+                let other = spelled.unwrap_or_else(|| bytes.clone());
                 let at = text
                     .bytes()
-                    .zip(bytes.iter().copied())
+                    .zip(other.iter().copied())
                     .position(|(a, b)| a != b)
-                    .unwrap_or(text.len().min(bytes.len()));
+                    .unwrap_or(text.len().min(other.len()));
                 println!(
-                    "  {} {target:?}: {} against {} bytes, first difference at {at}: {:?} against {:?}",
+                    "  {} {target:?}: {} bytes against {} read back under {page:?}, first difference at {at}: {:?} against {:?}",
                     path.display(),
                     text.len(),
-                    bytes.len(),
+                    other.len(),
                     String::from_utf8_lossy(
                         &text.as_bytes()[at.saturating_sub(30)..(at + 30).min(text.len())]
                     ),
                     String::from_utf8_lossy(
-                        &bytes[at.saturating_sub(30)..(at + 30).min(bytes.len())]
+                        &other[at.saturating_sub(30)..(at + 30).min(other.len())]
                     ),
                 );
             }
         }
     }
-    println!("  {same} of {total} conversions (R2000 and R2004 targets) write the same bytes");
-    *failed |= same != total || total == 0;
+    println!(
+        "  {same} of {total} conversions (R2000 and R2004 targets) read back as the String writer's text; {paged} write {chars} characters above ASCII as the bytes of their page"
+    );
+    *failed |= same != total || total == 0 || paged == 0;
 }
 
 fn main() -> ExitCode {
@@ -1450,6 +1489,24 @@ fn main() -> ExitCode {
         println!(
             "  short {short:>3} {}: {strings} strings in {drawings} drawings",
             ESCAPES[*i]
+        );
+    }
+    let mut round: BTreeMap<u16, [usize; 4]> = BTreeMap::new();
+    for t in by_release.values() {
+        for (short, r) in &t.round {
+            let total = round.entry(*short).or_default();
+            for (a, b) in total.iter_mut().zip(r) {
+                *a += b;
+            }
+        }
+    }
+    println!(
+        "\nthe round trip, decode then encode (by header short): strings, back to their bytes, invalid sequences, differing"
+    );
+    for (short, [strings, same, invalid, differ]) in &round {
+        println!(
+            "  short {short:>3} ({}): {strings} strings, {same}, {invalid}, {differ}",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row")
         );
     }
     println!("\nstrings decoded, by release:");

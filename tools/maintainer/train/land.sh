@@ -72,6 +72,10 @@ unresolved() {
 u=$(unresolved)
 [ "$u" != 0 ] && { echo "#$P Corpus green but $u unresolved review thread(s)"; exit 2; }
 if moved; then echo "#$P main moved under it since the refresh"; exit 8; fi
+# main's ruleset requires signed commits, so one unverified commit leaves the PR BLOCKED with every
+# check green and auto-merge never fires.
+unsigned=$(gh api --paginate "repos/$R/pulls/$P/commits?per_page=100" --jq '.[]|select(.commit.verification.verified|not)|.sha[0:9]' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+[ -n "$unsigned" ] && { echo "#$P has unsigned commit(s) $unsigned; main requires signatures"; exit 5; }
 gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not enable auto-merge"; exit 5; }
 echo "#$P Corpus green, 0 threads, auto-merge on"
 while :; do
