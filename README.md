@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40485054993](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40485054993) on 2026-10-27<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40503137263](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40503137263) on 2026-10-27<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on 52 public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -25,17 +25,17 @@ drawings fetched by pinned sha256
 <!-- corpus-table:begin -->
 | Version | Files tested | Decoded | Skipped | Errored | Success rate |
 |---------|--------------|---------|---------|---------|--------------|
-| R14 (AC1014) | 8 | 3214 | 83 | 0 | **97.5 %** |
-| R2000 (AC1015) | 8 | 2450 | 83 | 0 | **96.7 %** |
-| R2004 (AC1018) | 8 | 2337 | 80 | 0 | **96.7 %** |
-| R2007 (AC1021) | 8 | 2159 | 78 | 0 | **96.5 %** |
-| R2010 (AC1024) | 8 | 2109 | 79 | 0 | **96.4 %** |
-| R2013 (AC1027) | 8 | 1708 | 79 | 0 | **95.6 %** |
-| R2018 (AC1032) | 4 | 1550 | 65 | 0 | **96.0 %** |
-| **Aggregate** | **52** | **15527** | **547** | **0** | **96.6 %** |
+| R14 (AC1014) | 8 | 3216 | 81 | 0 | **97.5 %** |
+| R2000 (AC1015) | 8 | 2452 | 81 | 0 | **96.8 %** |
+| R2004 (AC1018) | 8 | 2339 | 78 | 0 | **96.8 %** |
+| R2007 (AC1021) | 8 | 2161 | 76 | 0 | **96.6 %** |
+| R2010 (AC1024) | 8 | 2111 | 77 | 0 | **96.5 %** |
+| R2013 (AC1027) | 8 | 1710 | 77 | 0 | **95.7 %** |
+| R2018 (AC1032) | 4 | 1552 | 63 | 0 | **96.1 %** |
+| **Aggregate** | **52** | **15541** | **533** | **0** | **96.7 %** |
 <!-- corpus-table:end -->
 
-Totals: <!-- corpus-summary:begin -->15,527 decoded / 547 skipped / **0 errored** / 96.6 % on 52 drawings. Per version: R14 97.5 %, R2000 96.7 %, R2004 96.7 %, R2007 96.5 %, R2010 96.4 %, R2013 95.6 %, R2018 96.0 %.<!-- corpus-summary:end -->
+Totals: <!-- corpus-summary:begin -->15,541 decoded / 533 skipped / **0 errored** / 96.7 % on 52 drawings. Per version: R14 97.5 %, R2000 96.8 %, R2004 96.8 %, R2007 96.6 %, R2010 96.5 %, R2013 95.7 %, R2018 96.1 %.<!-- corpus-summary:end -->
 
 [`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
 drawing's decoded, skipped and errored counts, its class-census shortfalls
@@ -60,8 +60,8 @@ data-stream boundary (the string-stream trailer on R2010+, the `RL`
 object-data size on R2000 to R2007, the size inside the common entity data
 on R13/R14), or it returns an error instead of plausible-looking geometry.
 An *errored* record is a field list that does not add up; there are none left
-on the pinned corpus. A *skipped* record is a type with no decoder yet. The
-547 skipped records are 30 types:
+on the pinned corpus. A *skipped* record is a type with no decoder on `main`
+yet. Every skipped type has a decoder in review:
 
 - MATERIAL, 212 records (decoder in review: #325);
 - the TABLE family: TABLESTYLE on R2010+ and CELLSTYLEMAP (#313), ACAD_TABLE
@@ -70,9 +70,7 @@ on the pinned corpus. A *skipped* record is a type with no decoder yet. The
 - DIMASSOC (#329), the ACSH solid-history classes (#330), SHAPE (#310), the
   viewport entity header (#311), PDFUNDERLAY (#331), SUN (#332), DATATABLE
   (#335), ACDB_TEXTOBJECTCONTEXTDATA_CLASS (#337), WIPEOUTVARIABLES, DBCOLOR
-  and PDFDEFINITION (#326);
-- ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER, 14 records, the only
-  types with no decoder in progress.
+  and PDFDEFINITION (#326).
 
 Most of the classes in that list are not printed in the spec at all; their
 field lists are learned from AutoCAD's own DWG and DXF output under the
@@ -83,7 +81,7 @@ provisional until a controlled AutoCAD drawing confirms it (#348).
 add up, not that the values are right. The DXF value oracle
 ([`examples/dxf_oracle/`](./examples/dxf_oracle/main.rs)) pairs every decoded
 record with the same handle in AutoCAD's DXF export and scores each field. On
-`main` it scores <!-- oracle-summary:begin -->123,903 field comparisons on 53 types: 105,756 equal, 11,142 equal to the DXF default, 283 different and 6,722 present only in the DWG<!-- oracle-summary:end -->
+`main` it scores <!-- oracle-summary:begin -->124,011 field comparisons on 55 types: 105,864 equal, 11,142 equal to the DXF default, 283 different and 6,722 present only in the DWG<!-- oracle-summary:end -->
 ([`tools/oracle/baseline.tsv`](./tools/oracle/baseline.tsv) pins the result,
 and CI fails when it moves). Decoded types with no scorer yet are listed as
 unscored in the oracle summary the Corpus job uploads.
@@ -118,7 +116,7 @@ passed.
 | Handle map and class map | Shipped | |
 | Header variables | Shipped | Table-driven by release range (#126) |
 | Object-stream walker | Shipped | Every release from R14 to R2018; every handle-map entry resolves to a record |
-| Entity and object decoders | Alpha | 0 errored records on the pinned corpus; 547 skipped in 30 types (above) |
+| Entity and object decoders | Alpha | 0 errored records on the pinned corpus; every skipped type has a decoder in review (above) |
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
@@ -394,12 +392,10 @@ The project needs help, in rough order of impact:
    other than 1251 and 1252 (#375), an AutoCAD-written R13 drawing (#345), and
    controlled AutoCAD drawings for the classes the spec never prints (#348),
    each with AutoCAD's own DXF export.
-2. **The two types nobody is decoding yet:** ACDBASSOCPERSSUBENTMANAGER and
-   ACDBPERSSUBENTMANAGER.
-3. **Values the oracle cannot score yet.** Types listed as unscored in the
+2. **Values the oracle cannot score yet.** Types listed as unscored in the
    oracle summary need a scorer before their values count as proven.
-4. **Python bindings**, planned in [`docs/python.md`](./docs/python.md).
-5. **Fuzzing.** cargo-fuzz harnesses live in `fuzz/`; more targets and longer
+3. **Python bindings**, planned in [`docs/python.md`](./docs/python.md).
+4. **Fuzzing.** cargo-fuzz harnesses live in `fuzz/`; more targets and longer
    runs are welcome.
 
 Before submitting a PR:
