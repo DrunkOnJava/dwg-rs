@@ -164,10 +164,12 @@ fn without_blocks(out: &str) -> String {
     let mut skipping = false;
     while i + 1 < lines.len() {
         let (code, value) = (lines[i].trim(), lines[i + 1].trim());
-        if !skipping && code == "0" && value == "SECTION" {
-            if lines.get(i + 3).map(|l| l.trim()) == Some("BLOCKS") {
-                skipping = true;
-            }
+        if !skipping
+            && code == "0"
+            && value == "SECTION"
+            && lines.get(i + 3).map(|l| l.trim()) == Some("BLOCKS")
+        {
+            skipping = true;
         }
         if !skipping {
             kept.push(lines[i]);

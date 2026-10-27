@@ -1,7 +1,7 @@
 //! The DXF `ENTITIES` section from the decoded drawing entities.
 //!
 //! [`build`] turns each decoded entity of model space and of the active paper
-//! space into the record AutoCAD's own DXF export writes for it, and [`write`]
+//! space into the record AutoCAD's own DXF export writes for it, and [`write()`]
 //! emits them. A record is the handle, the reactors and extension dictionary
 //! the handle stream names, the owner (the block record), the `AcDbEntity`
 //! subclass (layer, linetype, colour, lineweight, linetype scale, visibility,
