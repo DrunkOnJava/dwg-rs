@@ -2945,7 +2945,7 @@ Three differences are relations the probe names, not disagreements:
   writes.
 
 The probe also prints the numbers per release.
-||||||| a315f04
+
 ## 7al. R2007's object records are R2000's (2026-10-26, #205)
 
 The streaming object walker for R2007 (`src/streaming/r2007_objects.rs`) frames
