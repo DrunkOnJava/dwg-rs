@@ -82,7 +82,10 @@ fn main() -> ExitCode {
 
 fn gather(path: &PathBuf, out: &mut Vec<PathBuf>) {
     if path.is_file() {
-        if path.extension().and_then(|s| s.to_str()) == Some("dwg") {
+        if path
+            .extension()
+            .is_some_and(|s| s.eq_ignore_ascii_case("dwg"))
+        {
             out.push(path.clone());
         }
         return;

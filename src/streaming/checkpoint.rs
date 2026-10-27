@@ -6,8 +6,13 @@ use super::flat::{FlatWalker, MapCursor, Stage};
 use super::lz77::{Ext, Lz77Decoder, Mode, WINDOW};
 use super::r2004::{R2004_HEADER_BYTES, R2004HeaderParser};
 use super::r2004_maps::{CARRY, PageEntry, R2004MapWalker, RECORD, Stage as MapStage, SystemKind};
-use super::r2004_sections::{R2004SectionWalker, Stage as SectionStage};
+use super::r2004_objects::R2004ObjectWalker;
+use super::r2004_sections::{R2004SectionWalker, STAGE, Stage as SectionStage};
 use super::r2004_walk::{MAX_SECTIONS, R2004Walker, Slot, Stage as WalkStage};
+use super::r2007::R2007Walker;
+use super::r2007_checkpoint::MAX as R2007_MAX;
+use super::r2007_objects::R2007ObjectWalker;
+use super::records::{Frame, HEAD, ObjectFramer, RecordFormat};
 use super::{CHUNK_BYTES, FlatHeaderParser, SourceIdentity, StreamError};
 
 const PREFIX: usize = 56;
@@ -1035,6 +1040,273 @@ impl R2004Walker {
         }
         if !walker.consistent() {
             return Err(StreamError::InvalidCheckpoint);
+        }
+        Ok(walker)
+    }
+}
+
+const FRAMER_BYTES: usize =
+    1 + 8 + 8 + 1 + 8 + 4 + 1 + 4 + 1 + 8 + 1 + 1 + 4 + 2 + 2 + 1 + HEAD + 8;
+const OBJ_FIXED: usize = 4 + 1 + 1 + 4 + FRAMER_BYTES + 2 + STAGE + 4;
+const OBJ_MAX: usize = OBJ_FIXED + FILE_MAX + TRAILER;
+const OBJ7_MAX: usize = OBJ_FIXED + R2007_MAX + TRAILER;
+
+/// The framer's cursors, from its record format to its record count.
+fn put_framer(w: &mut Writer<'_>, f: &ObjectFramer) {
+    w.put(&[f.format as u8]);
+    w.put(&f.total.to_le_bytes());
+    w.put(&f.at.to_le_bytes());
+    w.put(&[f.stage as u8]);
+    w.put(&f.start.to_le_bytes());
+    w.put(&f.size.to_le_bytes());
+    w.put(&[f.words]);
+    w.put(&f.ms);
+    w.put(&[f.ms_len]);
+    w.put(&f.mc.to_le_bytes());
+    w.put(&[f.mc_len, u8::from(f.mc_done)]);
+    w.put(&f.done.to_le_bytes());
+    w.put(&f.crc.to_le_bytes());
+    w.put(&f.field);
+    w.put(&[f.field_len]);
+    w.put(&f.head);
+    w.put(&f.records.to_le_bytes());
+}
+
+fn get_framer(r: &mut Reader<'_>) -> Result<ObjectFramer, StreamError> {
+    let bad = StreamError::InvalidCheckpoint;
+    let mut f = ObjectFramer::idle();
+    f.format = RecordFormat::from_u8(r.u8()?).ok_or(bad)?;
+    f.total = r.u64()?;
+    f.at = r.u64()?;
+    f.stage = match r.u8()? {
+        0 => Frame::Prologue,
+        1 => Frame::Ms,
+        2 => Frame::Body,
+        3 => Frame::Crc,
+        4 => Frame::Done,
+        5 => Frame::Ended,
+        _ => return Err(bad),
+    };
+    f.start = r.u64()?;
+    f.size = r.u32()?;
+    f.words = r.u8()?;
+    f.ms.copy_from_slice(r.get(4)?);
+    f.ms_len = r.u8()?;
+    f.mc = r.u64()?;
+    f.mc_len = r.u8()?;
+    f.mc_done = match r.u8()? {
+        0 => false,
+        1 => true,
+        _ => return Err(bad),
+    };
+    f.done = r.u32()?;
+    let crc = r.get(2)?;
+    f.crc = u16::from_le_bytes([crc[0], crc[1]]);
+    f.field.copy_from_slice(r.get(2)?);
+    f.field_len = r.u8()?;
+    f.head.copy_from_slice(r.get(HEAD)?);
+    f.records = r.u64()?;
+    Ok(f)
+}
+
+/// Serialized state of the whole walk and the open record: the file walker's
+/// checkpoint (validated by its own restore), the object section's id, the
+/// framer's cursors and the section bytes handed to the framer but not yet
+/// consumed (at most one step's, 256). At most about 100 KB. Self-contained:
+/// restore needs the source identity and nothing else. Payload already
+/// handed out, and anything derived from it, is the caller's.
+#[derive(Debug, Clone)]
+pub struct R2004ObjectCheckpoint {
+    bytes: [u8; OBJ_MAX],
+    len: usize,
+}
+
+impl R2004ObjectCheckpoint {
+    /// The canonical wire bytes, ready for storage or cross-runtime transfer.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl R2004ObjectWalker {
+    /// Serialize the walk between steps. A failed walk is terminal and has
+    /// no checkpoint; its error is returned instead.
+    pub fn checkpoint(&self) -> Result<R2004ObjectCheckpoint, StreamError> {
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        let inner = self.inner.checkpoint()?;
+        let mut result = R2004ObjectCheckpoint {
+            bytes: [0; OBJ_MAX],
+            len: 0,
+        };
+        let mut w = Writer {
+            bytes: &mut result.bytes,
+            at: 0,
+        };
+        w.put(b"DWGO");
+        w.put(&[1, u8::from(self.found)]);
+        w.put(&self.section_id.to_le_bytes());
+        put_framer(&mut w, &self.framer);
+        let remaining = &self.pending[self.pending_pos..self.pending_len];
+        w.put(&(remaining.len() as u16).to_le_bytes());
+        w.put(remaining);
+        w.put(&(inner.as_bytes().len() as u32).to_le_bytes());
+        w.put(inner.as_bytes());
+        let end = w.at;
+        let checksum = crate::crc::crc32(0, &result.bytes[..end]);
+        result.bytes[end..end + TRAILER].copy_from_slice(&checksum.to_le_bytes());
+        result.len = end + TRAILER;
+        Ok(result)
+    }
+
+    /// Restore against an independently supplied source identity. The
+    /// embedded file walker is validated by its own restore, and the framer
+    /// must form a state the stream can reach over it. No source bytes are
+    /// read or requested.
+    pub fn restore(input: &[u8], expected_source: SourceIdentity) -> Result<Self, StreamError> {
+        if input.len() < OBJ_FIXED - STAGE + TRAILER || input.len() > OBJ_MAX {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let end = input.len() - TRAILER;
+        if &input[..4] != b"DWGO"
+            || input[4] != 1
+            || input[end..] != crate::crc::crc32(0, &input[..end]).to_le_bytes()
+        {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let mut r = Reader {
+            bytes: &input[..end],
+            at: 5,
+        };
+        let found = match r.u8()? {
+            0 => false,
+            1 => true,
+            _ => return Err(StreamError::InvalidCheckpoint),
+        };
+        let section_id = r.u32()?;
+        let f = get_framer(&mut r)?;
+        let pending = r.get(2)?;
+        let pending_len = usize::from(u16::from_le_bytes([pending[0], pending[1]]));
+        if pending_len > STAGE {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let held = r.get(pending_len)?;
+        let inner_len = r.u32()? as usize;
+        let inner = r.get(inner_len)?;
+        if r.at != end || inner_len == 0 {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        let mut walker = Self::from_walker(R2004Walker::restore(inner, expected_source)?);
+        walker.found = found;
+        walker.section_id = section_id;
+        walker.framer = f;
+        walker.pending[..pending_len].copy_from_slice(held);
+        walker.pending_len = pending_len;
+        if !walker.consistent() {
+            return Err(StreamError::InvalidCheckpoint);
+        }
+        Ok(walker)
+    }
+}
+
+/// Serialized state of the whole R2007 walk and the open record: the file
+/// walker's checkpoint (validated by its own restore), the object section's
+/// index, the framer's cursors and the section bytes handed to the framer but
+/// not yet consumed (at most one step's, 256). At most about 140 KB.
+/// Self-contained: restore needs the source identity and nothing else. Payload
+/// already handed out, and anything derived from it, is the caller's.
+#[derive(Debug, Clone)]
+pub struct R2007ObjectCheckpoint {
+    bytes: [u8; OBJ7_MAX],
+    len: usize,
+}
+
+impl R2007ObjectCheckpoint {
+    /// The canonical wire bytes, ready for storage or cross-runtime transfer.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes[..self.len]
+    }
+}
+
+impl R2007ObjectWalker {
+    /// Serialize the walk between steps. A failed walk is terminal and has
+    /// no checkpoint; its error is returned instead.
+    pub fn checkpoint(&self) -> Result<R2007ObjectCheckpoint, StreamError> {
+        if let Some(error) = self.failure {
+            return Err(error);
+        }
+        let inner = self.inner.checkpoint()?;
+        let mut result = R2007ObjectCheckpoint {
+            bytes: [0; OBJ7_MAX],
+            len: 0,
+        };
+        let mut w = Writer {
+            bytes: &mut result.bytes,
+            at: 0,
+        };
+        w.put(b"DWGQ");
+        w.put(&[1, u8::from(self.found)]);
+        w.put(&self.section.to_le_bytes());
+        put_framer(&mut w, &self.framer);
+        let remaining = &self.pending[self.pending_pos..self.pending_len];
+        w.put(&(remaining.len() as u16).to_le_bytes());
+        w.put(remaining);
+        w.put(&(inner.as_bytes().len() as u32).to_le_bytes());
+        w.put(inner.as_bytes());
+        let end = w.at;
+        let checksum = crate::crc::crc32(0, &result.bytes[..end]);
+        result.bytes[end..end + TRAILER].copy_from_slice(&checksum.to_le_bytes());
+        result.len = end + TRAILER;
+        Ok(result)
+    }
+
+    /// Restore against an independently supplied source identity. The
+    /// embedded file walker is validated by its own restore, and the framer
+    /// must form a state the stream can reach over it. No source bytes are
+    /// read or requested.
+    pub fn restore(input: &[u8], expected_source: SourceIdentity) -> Result<Self, StreamError> {
+        let bad = StreamError::InvalidCheckpoint;
+        if input.len() < OBJ_FIXED - STAGE + TRAILER || input.len() > OBJ7_MAX {
+            return Err(bad);
+        }
+        let end = input.len() - TRAILER;
+        if &input[..4] != b"DWGQ"
+            || input[4] != 1
+            || input[end..] != crate::crc::crc32(0, &input[..end]).to_le_bytes()
+        {
+            return Err(bad);
+        }
+        let mut r = Reader {
+            bytes: &input[..end],
+            at: 5,
+        };
+        let found = match r.u8()? {
+            0 => false,
+            1 => true,
+            _ => return Err(bad),
+        };
+        let section = r.u32()?;
+        let f = get_framer(&mut r)?;
+        let pending = r.get(2)?;
+        let pending_len = usize::from(u16::from_le_bytes([pending[0], pending[1]]));
+        if pending_len > STAGE {
+            return Err(bad);
+        }
+        let held = r.get(pending_len)?;
+        let inner_len = r.u32()? as usize;
+        let inner = r.get(inner_len)?;
+        if r.at != end || inner_len == 0 {
+            return Err(bad);
+        }
+        let mut walker = Self::from_walker(R2007Walker::restore(inner, expected_source)?);
+        walker.found = found;
+        walker.section = section;
+        walker.framer = f;
+        walker.pending[..pending_len].copy_from_slice(held);
+        walker.pending_len = pending_len;
+        if !walker.consistent() {
+            return Err(bad);
         }
         Ok(walker)
     }
