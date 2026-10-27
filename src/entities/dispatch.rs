@@ -158,7 +158,7 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7v).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
-    /// DATATABLE (§7z).
+    /// DATATABLE (§7bb).
     DataTable(Box<crate::objects::data_table::DataTable>),
     /// ACSH_HISTORY_CLASS (§7w).
     ShHistory(crate::objects::sh_history::ShHistory),

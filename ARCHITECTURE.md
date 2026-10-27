@@ -2463,7 +2463,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sun -- ../dwg-corpus
 ```
 
-## 7z. DATATABLE, derived from AutoCAD's own output (2026-10-26, #152)
+## 7bb. DATATABLE, derived from AutoCAD's own output (2026-10-26, #152)
 
 ODA spec v5.4.1 prints no layout for the table of typed columns AutoCAD writes for the
 data a drawing's fields and links draw on. `src/objects/data_table.rs` reads it from

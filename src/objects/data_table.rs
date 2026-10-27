@@ -4,7 +4,7 @@
 //! ODA spec v5.4.1 prints no layout for it. The field list is derived from
 //! AutoCAD's own output under the method in `CLEANROOM.md` (2026-10-26): the data
 //! bits of the six corpus records (R14, R2000 and R2004; two per release) against
-//! the DXF object of the R2004 pair. ARCHITECTURE.md §7z holds the evidence.
+//! the DXF object of the R2004 pair. ARCHITECTURE.md §7bb holds the evidence.
 //!
 //! ```text
 //! BS  version                   (group 70: 2)
@@ -77,7 +77,7 @@ fn capped(count: u32, what: &str, bits_each: usize, c: &BitCursor<'_>) -> Result
 }
 
 /// Decode a DATATABLE record straight from its raw object payload, from the
-/// layout of the module docs (derived from AutoCAD's output, ARCHITECTURE.md §7z),
+/// layout of the module docs (derived from AutoCAD's output, ARCHITECTURE.md §7bb),
 /// ending exactly on the data-stream boundary and, from R2007, with the string
 /// stream consumed.
 pub(crate) fn decode_object(
