@@ -3475,7 +3475,8 @@ name, and then item by item, so a wrong application handle fails. The 2 "tail on
 records are the two MTEXT (`#9DA` and `#CDC` of `sample_AC1015`) whose `ACAD` application
 data begins with an `RTTcAl` block (a string `RTTcAl`, a short, a long and
 `$$NoName$$`) that the R2000 export leaves out; its other items equal ours, and that
-exact block is the only prefix the probe lets the export lack. A decoded application the
+exact block, on an `ACAD` application of an MTEXT record, is the only prefix the probe lets
+the export lack. A decoded application the
 export omits altogether is counted and not compared (45 on the pinned corpus: the export
 drops several render applications' data).
 

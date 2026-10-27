@@ -451,9 +451,10 @@ fn app_matches(
     items: &[GroupItem],
     groups: &[Group],
     layers: &BTreeMap<u64, String>,
+    may_lack_rttcal: bool,
 ) -> Option<usize> {
     [0, 4].into_iter().find(|&k| {
-        if k > items.len() || (k > 0 && !is_rttcal_block(&items[..k])) {
+        if k > items.len() || (k > 0 && !(may_lack_rttcal && is_rttcal_block(&items[..k]))) {
             return false;
         }
         let mut g = groups.iter();
@@ -537,7 +538,10 @@ fn ext_census(
                                 if used[i] || !ours.eq_ignore_ascii_case(app) {
                                     return None;
                                 }
-                                app_matches(&a.items, groups, &layers).map(|k| (i, k))
+                                let may_lack_rttcal = app.eq_ignore_ascii_case("ACAD")
+                                    && raw.kind == ObjectType::MText;
+                                app_matches(&a.items, groups, &layers, may_lack_rttcal)
+                                    .map(|k| (i, k))
                             });
                             match found {
                                 Some((i, k)) => {
