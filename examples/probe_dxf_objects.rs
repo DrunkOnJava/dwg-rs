@@ -19,8 +19,15 @@
 //!   omitted only when a handle in them is defined nowhere in the output;
 //! - the order of the paired records, which must be the export's.
 //!
+//! Every handle a record of the output names, as its owner, a reactor, its extension
+//! dictionary, a dictionary entry or default or a GROUP member, must resolve to a
+//! record of the same output (the handles inside an XRECORD's data are an
+//! application's and are only counted); the table of those references is printed.
+//! A synthetic check writes an XRECORD whose group 102 strings hold a newline and a
+//! character outside ASCII and reads them back.
+//!
 //! A record of the export of a kind the converter writes with no record written
-//! is a failure; one of a kind it does not write yet is counted by kind; one the
+//! is a failure, unless its owner is a record the output does not write; one of a kind it does not write yet is counted by kind; one the
 //! export creates itself (a handle at or above the DWG's `$HANDSEED`) is not in
 //! the DWG. Any disagreement, extra, unexplained omission, wrong order, missing
 //! record or unreadable output exits 1. AC1014 drawings are skipped.
@@ -174,6 +181,106 @@ fn brackets(r: &DxfRecord) -> BTreeMap<String, Vec<(u16, DxfValue)>> {
     out
 }
 
+/// Every handle an OBJECTS record names, by what names it: the references written
+/// and those that resolve to no record of the output. An owner, a reactor, an
+/// extension dictionary, a dictionary entry or default and a GROUP member are
+/// structural and must all resolve; the handles inside an XRECORD's data are an
+/// application's, counted and not held to it.
+fn dangling(doc: &DxfDocument) -> BTreeMap<&'static str, (usize, usize)> {
+    let known: BTreeSet<u64> = doc.handles().collect();
+    let mut out: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
+    let mut note = |what: &'static str, v: &DxfValue| {
+        if let Some(h) = v.as_handle() {
+            let e = out.entry(what).or_default();
+            e.0 += 1;
+            if h != 0 && !known.contains(&h) {
+                e.1 += 1;
+            }
+        }
+    };
+    for r in objects(doc) {
+        let mut owner_seen = false;
+        for g in r.top_level() {
+            let what = match (r.kind.as_str(), g.code) {
+                (_, 330) if !owner_seen => {
+                    owner_seen = true;
+                    "owner (330)"
+                }
+                ("DICTIONARY" | "ACDBDICTIONARYWDFLT", 350 | 360) => "dictionary entry (350, 360)",
+                ("ACDBDICTIONARYWDFLT", 340) => "dictionary default (340)",
+                ("GROUP", 340) => "GROUP member (340)",
+                ("XRECORD", 320..=369 | 390..=399) => "XRECORD data handle (informational)",
+                (_, 320..=369 | 390..=399) => "other reference",
+                _ => continue,
+            };
+            note(what, &g.value);
+        }
+        let b = brackets(r);
+        for (name, what) in [
+            ("ACAD_REACTORS", "reactor (330)"),
+            ("ACAD_XDICTIONARY", "extension dictionary (360)"),
+        ] {
+            for (_, v) in b.get(name).into_iter().flatten() {
+                note(what, v);
+            }
+        }
+    }
+    out
+}
+
+/// An XRECORD's application data written through the record writer: a group 102
+/// string with a newline must stay one group, and one outside ASCII must be
+/// escaped for the release like every other string. Synthetic (no corpus drawing
+/// has either), so it measures the writer and not a drawing.
+fn escape_check() -> Result<String, String> {
+    use dwg::dxf::DxfWriter;
+    use dwg::dxf_entities::{Entities, EntityRecord};
+    use dwg::dxf_sections::HeaderGroup;
+    let record = EntityRecord {
+        kind: "XRECORD",
+        handle: 0x10,
+        owner: 0x1,
+        block: 0x7,
+        reactors: Vec::new(),
+        xdictionary: None,
+        groups: vec![
+            HeaderGroup::Text(100, "AcDbXrecord".into()),
+            HeaderGroup::Text(102, "line one\nline two".into()),
+            HeaderGroup::Text(102, "caf\u{e9}".into()),
+        ],
+    };
+    let entities = Entities {
+        records: vec![record],
+        model_space: 0x7,
+        ..Default::default()
+    };
+    let mut w = DxfWriter::with_version(DxfVersion::R2004);
+    dwg::dxf_entities::write(&mut w, &entities);
+    w.finish();
+    let doc =
+        DxfDocument::parse(w.take_output().as_bytes()).map_err(|e| format!("read back: {e}"))?;
+    let rec = doc
+        .records
+        .iter()
+        .find(|r| r.kind == "XRECORD")
+        .ok_or("the XRECORD was not written")?;
+    let strings: Vec<String> = rec
+        .groups
+        .iter()
+        .filter(|g| g.code == 102)
+        .filter_map(|g| g.value.as_str().map(str::to_string))
+        .collect();
+    let ok = strings.len() == 2
+        && strings.iter().all(|t| !t.contains('\n'))
+        && strings[1] != "caf\u{e9}";
+    let shown = format!("{strings:?}");
+    if ok {
+        Ok(shown)
+    } else {
+        Err(format!("group 102 strings read back as {shown}"))
+    }
+}
+
 fn objects(doc: &DxfDocument) -> Vec<&DxfRecord> {
     doc.records
         .iter()
@@ -187,6 +294,7 @@ struct Outcome {
     failures: Vec<String>,
     entries_written: usize,
     entries_omitted: usize,
+    dangling: BTreeMap<&'static str, (usize, usize)>,
 }
 
 fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<Outcome>, String> {
@@ -216,7 +324,15 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         failures: Vec::new(),
         entries_written: 0,
         entries_omitted: 0,
+        dangling: dangling(&ours),
     };
+    for (what, (refs, bad)) in &o.dangling {
+        if *bad > 0 && !what.contains("informational") {
+            o.failures.push(format!(
+                "{name}: {bad} of {refs} {what} references resolve to no record"
+            ));
+        }
+    }
     let our_recs = objects(&ours);
     let their_recs = objects(&theirs);
     let by_handle: BTreeMap<u64, &DxfRecord> = their_recs
@@ -643,7 +759,15 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         }
         let t = o.tallies.entry(r.kind.clone()).or_default();
         t.unwritten += 1;
-        if supported.contains(&r.kind.as_str()) {
+        let owner_missing = r.owner.is_some_and(|ow| ow != 0 && !defined(ow));
+        if owner_missing {
+            *o.reasons
+                .entry(format!(
+                    "{} left out because its owner is not written (the output keeps no record whose owner it lacks)",
+                    r.kind
+                ))
+                .or_default() += 1;
+        } else if supported.contains(&r.kind.as_str()) {
             o.failures.push(format!(
                 "{name} {} {h:X}: in the export, not written, though the converter writes {}",
                 r.kind, r.kind
@@ -685,10 +809,16 @@ fn main() -> ExitCode {
     let mut measured = 0usize;
     let mut skipped = 0usize;
     let mut errors = 0usize;
+    let mut refs: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
     for path in &dwgs {
         match probe_file(path, &twins) {
             Ok(Some(o)) => {
                 measured += 1;
+                for (k, (n, bad)) in &o.dangling {
+                    let a = refs.entry(k).or_default();
+                    a.0 += n;
+                    a.1 += bad;
+                }
                 for (k, t) in o.tallies {
                     let a = all.entry(k).or_default();
                     a.written += t.written;
@@ -748,6 +878,19 @@ fn main() -> ExitCode {
     );
     for (r, n) in &reasons {
         println!("omitted: {r} x{n}");
+    }
+    println!(
+        "{:38} {:>10} {:>14}",
+        "handle references written", "written", "to no record"
+    );
+    for (what, (n, bad)) in &refs {
+        println!("{what:38} {n:>10} {bad:>14}");
+    }
+    match escape_check() {
+        Ok(shown) => println!("XRECORD group 102 escaping (synthetic): ok, read back {shown}"),
+        Err(e) => {
+            failures.push(format!("XRECORD group 102 escaping (synthetic): {e}"));
+        }
     }
     if measured == 0 && errors == 0 {
         println!(
