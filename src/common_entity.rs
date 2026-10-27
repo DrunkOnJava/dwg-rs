@@ -284,6 +284,10 @@ pub fn read_common_object_data(c: &mut BitCursor<'_>, version: Version) -> Resul
 pub struct CommonObjectData {
     /// `BL num_reactors`.
     pub num_reactors: u32,
+    /// R2004+: `B` XDic Missing Flag, set when no extension dictionary handle
+    /// is stored. Always `false` before R2004, which store the handle (it may
+    /// be NULL).
+    pub no_xdictionary: bool,
     /// R13/R14 only: the `RL` object-data-size-in-bits §20.1 places
     /// between the EED chain and the reactor count. It is the bit at
     /// which the record's data fields end, the same quantity
@@ -313,14 +317,17 @@ pub fn read_common_object_data_full(
         None
     };
     let num_reactors = c.read_bl()? as u32;
-    if version.is_r2004_plus() {
-        let _no_xdictionary = c.read_b()?;
-    }
+    let no_xdictionary = if version.is_r2004_plus() {
+        c.read_b()?
+    } else {
+        false
+    };
     if matches!(version, Version::R2013 | Version::R2018) {
         let _has_ds_binary_data = c.read_b()?;
     }
     Ok(CommonObjectData {
         num_reactors,
+        no_xdictionary,
         data_end_bits,
     })
 }

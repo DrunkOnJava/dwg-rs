@@ -35,6 +35,7 @@
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
+//! | SPATIAL_FILTER           | [`clip_spatial_filter`]        | §20.4.94         |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
 //! | SORTENTSTABLE            | [`block_sortents_table`]        | §20.4.93         |
 //!
@@ -89,6 +90,7 @@ pub mod acad_table_style;
 pub mod acad_visual_style;
 pub mod block_sortents_table;
 pub mod class_map_extension;
+pub mod clip_spatial_filter;
 pub mod color;
 pub mod control;
 pub mod custom_dict_entry;
