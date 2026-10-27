@@ -2821,6 +2821,170 @@ Not measured: a header whose `ComprLen` is negative (stored), a non-zero
 against files `r2007_ref.build` writes from the spec's text), and any file
 with an encrypted section.
 
+## 7ak. dwg-to-dxf: the TABLES section (2026-10-26, #126)
+
+`src/dxf_tables.rs` writes the VPORT, LTYPE, LAYER, STYLE, VIEW, UCS, APPID,
+DIMSTYLE and BLOCK_RECORD tables from the decoded symbol-table records, each `TABLE` block
+under its control object's handle with its records under their own and owned by
+the table, in the group order of AutoCAD's exports (VPORT, LTYPE, LAYER, STYLE,
+VIEW, UCS, APPID, DIMSTYLE, BLOCK_RECORD). The header then names a layer, text
+style, linetype or block only if a written table defines it
+(§7s, "dwg-to-dxf writes it back"). `examples/probe_dxf_tables.rs`
+converts each drawing that has an AutoCAD export, reads the output back and pairs
+every record written with the export's record of the same handle; the Corpus job
+runs it.
+
+| Table | Written | Paired | Groups written | Agree | Relation | Disagree | Extra | Groups omitted | Records omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| VPORT | 42 | 42 | 2199 | 2197 | 2 | 0 | 0 | 137 | 0 |
+| LTYPE | 132 | 132 | 804 | 804 | 0 | 0 | 0 | 0 | 24 |
+| LAYER | 156 | 156 | 964 | 964 | 0 | 0 | 0 | 496 | 0 |
+| STYLE | 108 | 108 | 972 | 972 | 0 | 0 | 0 | 232 | 0 |
+| VIEW | 6 | 6 | 190 | 190 | 0 | 0 | 0 | 4 | 0 |
+| UCS | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| APPID | 393 | 393 | 786 | 786 | 0 | 0 | 0 | 0 | 0 |
+| DIMSTYLE | 108 | 108 | 1431 | 1427 | 4 | 0 | 0 | 338 | 0 |
+| BLOCK_RECORD | 270 | 270 | 1092 | 1089 | 3 | 0 | 0 | 179 | 0 |
+| All | 1215 | 1215 | 8438 | 8429 | 9 | 0 | 0 | 1386 | 24 |
+
+Every group written has the export's code and value, over the 42 drawings of the
+public corpus that have an AutoCAD export of the same release (R2000 to R2018).
+What is omitted has a reason the probe checks, and an unexplained omission fails
+it: the extended data (1000 to 1071) of a record, which the decoder does not read;
+a true-colour layer's 420 and the 62 beside it, a viewport's 63 beside its 421
+and a dimension colour (176 to 178), because the DWG stores no index for a true
+colour; a layer's colour name
+(430); a record the export registers again under another handle (an APPID, a
+layer, a block), which pairs by name; a LTYPE with a shape or text dash (four in
+the corpus, written by none), and the 6 of a layer, the 345 to 347 of a
+dimension style that use one; and the
+`{BLKREFS` bracket of a block, because ENTITIES does not carry the INSERT handles
+it lists. `ACAD_SPLINE_DATA` is not written: AutoCAD's export omits that
+application on all four drawings that hold it. UCS is written
+as AutoCAD's empty table when the drawing has no UCS record, which is every
+drawing of the corpus; a drawing with UCS records gets no UCS table, because the
+decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
+that `tables::ucs` does not read).
+
+### The handle stream of a table entry
+
+`tables::handles::refs` reads what the other decoders leave: the handle stream.
+Every entry starts with the table's control object (soft pointer, the owner), one
+soft pointer per reactor (the `BL` of the common object data), and the extension
+dictionary (always on R2000, unless the `XDic Missing Flag` is set from R2004).
+The entry's own handles follow, as §20.4.x lists them, and this is what was
+measured against the exports' handle groups:
+
+- **LAYER**: the xref block (NULL), the plot style (390), from R2007 the material
+  (347), the linetype (6, written by name) and, from R2013, a visual style (348,
+  written as `348 0` when NULL). That is 3, 4 and 5 handles on R2000 and R2004,
+  R2007 and R2010, R2013 and R2018.
+- **VPORT**: the xref block, then from R2007 the background (332), visual style
+  (348) and sun (361), then the named UCS (345) and base UCS (346): 3 handles on
+  R2000, 6 from R2007. Only 348 is ever set in the corpus.
+- **DIMSTYLE**: the xref block, the text style (340), the leader block (341), the
+  two arrowhead blocks (342 to 344) and, from R2007, the dimension linetype and
+  the two extension line linetypes (345 to 347): 6 handles to R2004, 9 from
+  R2007, a NULL one left out.
+
+- **VIEW**: as VPORT's, the xref block, then from R2007 the background, visual
+  style (348) and sun, then the named and base UCS. A view is the one record written
+  with the view's associated UCS (72, 110 to 112, 79, 146) and, from R2007, the
+  camera-plottable flag (73); a record from R13 or R14, which store neither a render
+  mode nor a UCS, gets no 281 or 72.
+- **BLOCK_RECORD**: a NULL, the `BLOCK` entity, on R2000 the first and last entity
+  (unless an xref), on R2004 and later the owned entities (their count is in the
+  data stream), the `ENDBLK` entity, one handle per non-zero `RC` of the insert
+  count, and last the layout (340, `0` for a block that is not a layout). A list
+  whose length is not what that order gives is not read. The layout handle equals
+  the export's 340 on all 270 records.
+
+### DIMSTYLE: what AutoCAD leaves out
+
+`tables::dimstyle::decode_with_vars` returns every variable of the record in
+stored order by AutoCAD's name (the 15 fields of `DimStyleEntry` are unchanged).
+AutoCAD writes a DIMSTYLE group only when its value differs from the imperial
+default, and the defaults are the ones in `DIM_GROUPS`: measured by pairing the
+decoded value of each variable with the export's record of the same handle over
+the 108 records, a variable the export omits has the same value on every record
+that omits it, and a record whose value differs carries the group (`DIMSCALE`
+1.0, `DIMASZ` 0.18, `DIMEXO` 0.0625, `DIMDLI` 0.38, `DIMDEC` 4, `DIMTAD` 0,
+`DIMTIH` and `DIMTOH` 1, `DIMJOGANG` 45 degrees, and so on). A colour is written
+as its index (176 to 178; the fill colour as a second `70`) unless it is ByBlock.
+The `DIMFIT` slot of §20.4.68 is the group `DIMATFIT` (289) on every release.
+The table header carries `100 AcDbDimStyleTable`, a `71` and a `340` per handle
+the control object lists after its `numentries` dimstyles (non-NULL ones), and
+the probe checks that header against the export's on every drawing.
+
+A handle group is written only when the output defines the object it names, under
+its own type: the OBJECTS section writes dictionaries and plot style placeholders,
+so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It writes a
+layout, a material or a visual style as an untyped record (they are class-numbered
+objects), so a block's 340 (when it names a layout), a layer's 347 and 348 and a
+viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
+and visual style names. An arrowhead block is left out
+the same way until BLOCKS writes block contents, which is only `*Model_Space` and
+`*Paper_Space` empty today (`dxf_tables::BLOCKS_EXPORTED`): `$DIMBLK` and its family
+are omitted, and so are a DIMSTYLE's 341 to 344. The entities that react to a record
+or insert a block are not written with their handles yet, so a record whose reactors
+or inserts name one has no such bracket. The probe lists each of these as an
+omission with its reason.
+
+### What the exports do that is not the DWG's doing
+
+Three differences are relations the probe names, not disagreements:
+
+- The export of `geoloc.dwg` is a later save (its `$TDUUPDATE` is 1.94 days later,
+  `$HANDSEED` 0x249 against 0x243), and the `*Active` viewport of the later save has a
+  different view height (40) and centre (22).
+- AutoCAD loads the dynamic block `my-dynamic-block` of the R2000, R2004 and R2007
+  saves as the anonymous block `*U17`; the R2010 to R2018 saves keep the name.
+- The R2000 save holds an extension dictionary on three true or book colour
+  layers (`Layer_true_color`, `Layer_color_book`, `color_125_33_79`) that
+  AutoCAD's export drops. They are written, with the dictionary, which OBJECTS
+  writes.
+
+The probe also prints the numbers per release.
+
+## 7al. The entity colour's true colour and transparency words (2026-10-26, #126)
+
+§2.11 stores an R2004+ entity colour as a `BS` whose high byte flags what
+follows it: bit 0x80 a `BL` with the true colour (`0xC2RRGGBB`), bit 0x40 a colour
+book handle (the RGB and name are then in the AcDbColor object), bit 0x20 a `BL`
+with the transparency. `read_common_entity_data` read both `BL`s and dropped
+them, taking the transparency first. Two `BL`s are the same 32 bits either way,
+so the order moved no cursor and no decoded count, and nothing showed it until
+the words were kept: `CommonEntityData` now carries `color_raw`, `color_rgb` and
+`color_alpha`, with the RGB word first, as §2.11 lists them.
+
+`examples/probe_entity_colour.rs` pairs every entity of a drawing with the
+record of the same handle in AutoCAD's own export of it and compares the colour
+index (62, absent for BYLAYER, left out where the export has a true colour:
+AutoCAD derives a nearest index the DWG does not store), the true colour (420),
+and the transparency (440). The Corpus job runs it. An entity whose common data
+does not read is a failure, named by drawing and handle, not a skipped record, and a
+run that reads and pairs no entity prints `NOT MEASURED`; `PROBE_ENTITY_COLOUR_TRUNCATE`
+cuts every record short to show it (2,609 entities named, exit 1).
+
+| Release | Entities paired | Index | Agree | True colour | Agree | Colour book | Transparency | Agree | Both words | Agree, RGB first | Agree, exchanged |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 437 | 437 | 437 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| AC1018 (2004) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1021 (2007) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1024 (2010) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1027 (2013) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1032 (2018) | 394 | 360 | 360 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+
+The order matters only for an entity that carries both words, and the corpus
+has 14 of them in each R2004+ release: read RGB first, all 14 match the export;
+with the two words exchanged (the transparency first), none does. One of them is
+the LINE `9D4` of `sample_AC1032.dwg`, whose export reads `62 183`,
+`420 8404418` and `440 16777216` where the stream holds `0xC2802142` and then
+`0x01000000`: read the other way round it would be a colour `0x01000000` with
+the transparency `0xC2802142`. The colour book colour (one entity, flag 0x40) is
+counted and not compared, since its RGB is not in the entity. R13 and R14 colours
+are the bare index, and the probe skips AC1014 drawings.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
