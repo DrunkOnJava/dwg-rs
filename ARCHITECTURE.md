@@ -2953,6 +2953,45 @@ Three differences are relations the probe names, not disagreements:
 
 The probe also prints the numbers per release.
 
+## 7al. The entity colour's true colour and transparency words (2026-10-26, #126)
+
+§2.11 stores an R2004+ entity colour as a `BS` whose high byte flags what
+follows it: bit 0x80 a `BL` with the true colour (`0xC2RRGGBB`), bit 0x40 a colour
+book handle (the RGB and name are then in the AcDbColor object), bit 0x20 a `BL`
+with the transparency. `read_common_entity_data` read both `BL`s and dropped
+them, taking the transparency first. Two `BL`s are the same 32 bits either way,
+so the order moved no cursor and no decoded count, and nothing showed it until
+the words were kept: `CommonEntityData` now carries `color_raw`, `color_rgb` and
+`color_alpha`, with the RGB word first, as §2.11 lists them.
+
+`examples/probe_entity_colour.rs` pairs every entity of a drawing with the
+record of the same handle in AutoCAD's own export of it and compares the colour
+index (62, absent for BYLAYER, left out where the export has a true colour:
+AutoCAD derives a nearest index the DWG does not store), the true colour (420),
+and the transparency (440). The Corpus job runs it. An entity whose common data
+does not read is a failure, named by drawing and handle, not a skipped record, and a
+run that reads and pairs no entity prints `NOT MEASURED`; `PROBE_ENTITY_COLOUR_TRUNCATE`
+cuts every record short to show it (2,609 entities named, exit 1).
+
+| Release | Entities paired | Index | Agree | True colour | Agree | Colour book | Transparency | Agree | Both words | Agree, RGB first | Agree, exchanged |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| AC1015 (2000) | 437 | 437 | 437 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| AC1018 (2004) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1021 (2007) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1024 (2010) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1027 (2013) | 437 | 403 | 403 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+| AC1032 (2018) | 394 | 360 | 360 | 33 | 33 | 1 | 148 | 148 | 14 | 14 | 0 |
+
+The order matters only for an entity that carries both words, and the corpus
+has 14 of them in each R2004+ release: read RGB first, all 14 match the export;
+with the two words exchanged (the transparency first), none does. One of them is
+the LINE `9D4` of `sample_AC1032.dwg`, whose export reads `62 183`,
+`420 8404418` and `440 16777216` where the stream holds `0xC2802142` and then
+`0x01000000`: read the other way round it would be a colour `0x01000000` with
+the transparency `0xC2802142`. The colour book colour (one entity, flag 0x40) is
+counted and not compared, since its RGB is not in the entity. R13 and R14 colours
+are the bare index, and the probe skips AC1014 drawings.
+
 ## 7am. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
 
 `src/dxf_entities.rs` writes the entities of model space and of the active paper

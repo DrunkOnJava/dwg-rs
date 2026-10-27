@@ -465,10 +465,10 @@ pub(crate) fn read_entity_mode_onwards(
     let mut color_alpha = None;
     if version.is_r2004_plus() {
         let color_flags = color_raw >> 8;
-        // §2.11's order: the RGB word, then the transparency. The twin's
-        // `420 8404418` and `440 16777216` for a LINE whose stream reads
-        // 0xC2802142 and 0x01000000 in this order are the measurement; the other
-        // order assigns them to each other.
+        // §2.11's order: the RGB word, then the transparency. The twin of a LINE
+        // writes `420 8404418` and `440 16777216` where the stream reads
+        // 0xC2802142 and 0x01000000 in this order; the other order assigns the
+        // two to each other.
         if color_flags & 0x40 == 0 && color_flags & 0x80 != 0 {
             color_rgb = Some(c.read_bl()? as u32);
         }
