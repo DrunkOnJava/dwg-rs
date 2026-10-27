@@ -450,6 +450,25 @@ jobs:
             echo "::error::no pinned drawing reached the entity colour probe"
             exit 1
           fi
+      # Pre-R2007 text in the code page the file header names (#370,
+      # ARCHITECTURE.md 7ao): the header short against each export's
+      # $DWGCODEPAGE, every string the corpus decodes, and an in-memory copy of
+      # each uncompressed drawing with non-ASCII bytes written over a string.
+      - name: Code page of pre-R2007 text against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --example probe_code_page -- "$HOME/dwg-corpus" > code-page-probe.log 2>&1
+          status=$?
+          set -e
+          cat code-page-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' code-page-probe.log; then
+            echo "::error::no pinned drawing reached the code page probe"
+            exit 1
+          fi
       # dwg-to-dxf's ENTITIES against AutoCAD's own export of the same drawing:
       # every entity written pairs with the export's, group for group.
       - name: DXF ENTITIES written by dwg-to-dxf against the DXF exports
