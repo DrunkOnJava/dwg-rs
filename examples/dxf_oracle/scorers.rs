@@ -725,6 +725,13 @@ pub fn section_of(label: &str) -> &'static str {
         "ATTDEF" => "§20.4.5",
         "SEQEND" => "§20.4.8",
         "INSERT" => "§20.4.9",
+        "DIMENSION_ORDINATE" => "§20.4.23",
+        "DIMENSION_LINEAR" => "§20.4.24",
+        "DIMENSION_ALIGNED" => "§20.4.25",
+        "DIMENSION_ANG_3PT" => "§20.4.26",
+        "DIMENSION_ANG_2LN" => "§20.4.27",
+        "DIMENSION_RADIUS" => "§20.4.28",
+        "DIMENSION_DIAMETER" => "§20.4.29",
         "VERTEX_2D" => "§20.4.11",
         "VERTEX_3D" => "§20.4.12",
         "VERTEX_MESH" => "§20.4.13",
@@ -999,6 +1006,7 @@ pub fn score(
             }
         }
         D::MText(m) => score_mtext(&mut c, m),
+        D::Dimension(d) => score_dimension(&mut c, d),
         D::Layer(l) => score_layer(&mut c, l),
         D::Ltype(l) => score_ltype(&mut c, l),
         D::Style(s) => score_style(&mut c, s),
@@ -1252,6 +1260,132 @@ fn score_mtext(c: &mut Ctx<'_>, m: &dwg::entities::mtext::MText) {
     }
     c.int("linespace_style", 73, i64::from(m.linespace_style), None);
     c.real("linespace_factor", 44, m.linespace_factor, None);
+}
+
+// §20.4.22 with §20.4.23 to §20.4.29, against the DXF Reference's
+// AcDbDimension groups and each subtype's own subclass. The record is
+// scored as a whole: every code is written once, except 10, whose
+// subtype-specific point lives in AcDbDimension and whose z the DWG stores
+// in full. Angles are degrees in the DXF (53, 51, 54, 52, 50) and radians
+// in the DWG. The text midpoint, the clone insertion point and the angular
+// 16-point are 2D points whose z is the common elevation (§20.4.22). The
+// DWG's `flags` byte is not group 70: the type the subtype implies, 32 for
+// its bit 1 and 128 for the absence of its bit 0, and 64 for an ordinate
+// dimension's second flag byte make the group (§20.4.22, §20.4.23); that
+// derived value is the one compared. Omitted groups stand for the DXF
+// Reference's defaults (line spacing style 1 and factor 1, rotations 0,
+// empty text). The handles (the dimension style in 3, the anonymous block
+// in 2) are not decoded; 73 is the spec's "unknown" and not surfaced.
+fn score_dimension(c: &mut Ctx<'_>, d: &dwg::entities::dimension::Dimension) {
+    use dwg::entities::dimension::Dimension as Dm;
+    let (common, kind, flag2) = match d {
+        Dm::Linear(x) => (&x.common, 0, 0),
+        Dm::Aligned(x) => (&x.common, 1, 0),
+        Dm::Angular2Line(x) => (&x.common, 2, 0),
+        Dm::Diameter(x) => (&x.common, 3, 0),
+        Dm::Radius(x) => (&x.common, 4, 0),
+        Dm::Angular3Pt(x) => (&x.common, 5, 0),
+        Dm::Ordinate(x) => (&x.common, 6, i64::from(x.flag_2 & 1) * 64),
+    };
+    c.whole();
+    if c.peek(280).is_some() {
+        c.int("version_flag", 280, i64::from(common.version_flag), None);
+    }
+    c.point3("extrusion", 210, common.extrusion, Some(Z));
+    c.point2("text_midpoint", 11, common.text_midpoint);
+    c.real("elevation (z of 11)", 31, common.elevation, None);
+    let flags = i64::from(common.flags);
+    let type70 =
+        kind | if flags & 2 != 0 { 32 } else { 0 } | if flags & 1 == 0 { 128 } else { 0 } | flag2;
+    c.int(
+        "flags (the subtype and flag bits, as group 70)",
+        70,
+        type70,
+        None,
+    );
+    c.text("user_text", 1, &common.user_text, Some(""));
+    c.angle("text_rotation", 53, common.text_rotation, Some(0.0));
+    c.angle("horiz_dir", 51, common.horiz_dir, Some(0.0));
+    c.dwg_only(
+        "ins_scale.x (41 is the line spacing factor)",
+        common.ins_scale.x,
+    );
+    c.dwg_only("ins_scale.y (42 is the measurement)", common.ins_scale.y);
+    c.real("ins_scale.z", 43, common.ins_scale.z, Some(1.0));
+    c.angle("ins_rotation", 54, common.ins_rotation, Some(0.0));
+    c.int("attachment", 71, i64::from(common.attachment), None);
+    c.int(
+        "line_spacing_style",
+        72,
+        i64::from(common.line_spacing_style),
+        Some(1),
+    );
+    c.real(
+        "line_spacing_factor",
+        41,
+        common.line_spacing_factor,
+        Some(1.0),
+    );
+    c.real("actual_measurement", 42, common.actual_measurement, None);
+    if c.peek(74).is_some() {
+        c.int("flip_arrow_1", 74, i64::from(common.flip_arrow_1), None);
+        c.int("flip_arrow_2", 75, i64::from(common.flip_arrow_2), None);
+    }
+    c.point2("def_point_12", 12, common.def_point_12);
+    match d {
+        Dm::Linear(x) => {
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.angle(
+                "extension_line_rotation",
+                52,
+                x.extension_line_rotation,
+                Some(0.0),
+            );
+            c.angle("dim_rotation", 50, x.dim_rotation, Some(0.0));
+        }
+        Dm::Aligned(x) => {
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.angle(
+                "extension_line_rotation",
+                52,
+                x.extension_line_rotation,
+                Some(0.0),
+            );
+        }
+        Dm::Ordinate(x) => {
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.point3("feature_location_13", 13, x.feature_location_13, None);
+            c.point3("leader_endpoint_14", 14, x.leader_endpoint_14, None);
+        }
+        Dm::Angular3Pt(x) => {
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_15", 15, x.def_point_15, None);
+        }
+        Dm::Angular2Line(x) => {
+            c.point2("def_point_16", 16, x.def_point_16);
+            c.real("elevation (z of 16)", 36, common.elevation, None);
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_15", 15, x.def_point_15, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+        }
+        Dm::Radius(x) => {
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.point3("def_point_15", 15, x.def_point_15, None);
+            c.real("leader_length", 40, x.leader_length, None);
+        }
+        Dm::Diameter(x) => {
+            c.point3("def_point_15", 15, x.def_point_15, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.real("leader_length", 40, x.leader_length, None);
+        }
+    }
 }
 
 fn reactor_count(dxf: &DxfRecord) -> usize {
