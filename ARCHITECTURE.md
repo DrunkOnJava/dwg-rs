@@ -3762,11 +3762,11 @@ resolve to a record of the same output:
 The records left out are counted in the probe by kind with the reason "its owner is not
 written" (1,111 XRECORDs and 260 DICTIONARYs among them); an export record of a supported
 kind that is missing without that reason, or whose owner the output does hold, is still a
-failure. A synthetic check writes an XRECORD whose group 102 strings hold a newline and a
-character outside ASCII: group 102 after `AcDbXrecord` is application data, now escaped
-for the release like every other string (`^J` for the newline, `\U+00E9` for the accented
-letter on R2004), where before the newline split the record and the DXF no longer read
-(`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
+failure. A synthetic check writes an XRECORD whose group 102 strings and application
+group 100 hold a newline and a character outside ASCII: after `AcDbXrecord` a group 100 or
+102 is application data, now escaped for the release like every other string (`^J` for the
+newline, `\U+00E9` for the accented letter on R2004), where before the newline split the
+record and the DXF no longer read (`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
 the writer and not a drawing.
 
 ## 7av. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
