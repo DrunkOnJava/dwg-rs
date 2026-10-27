@@ -3969,14 +3969,19 @@ drawing's `AcDb:Classes` as stored (decompressed on R2004 and later), parses it 
 writes it back for the drawing's own release, both under the code page its header names,
 and compares the bytes; where they differ it names the first differing byte and the part
 of the section it falls in. A drawing it cannot open, read or parse is counted as a
-failure, and `--strict` fails on any difference, any failure and a run with no match. Run on the pinned
-corpus (`python3 -I tools/corpus/fetch.py --dest ../dwg-corpus`, then
-`cargo run --release --example probe_class_roundtrip -- ../dwg-corpus --strict`), the old
-writer matched none of the 52 drawings (the size word at byte 16 already differed on all
-of them) and the writer in this change matches all 52. Over the whole local corpus cache
-it matches 61 of 61: the 52 pinned drawings and nine more from three other public sets.
+failure, and `--strict` fails on any difference, any failure and a run with no match.
 
-| Release | Pinned drawings | Match, old writer | Match, now |
+The Corpus job runs it with `--strict` on every pinned drawing (step "Class table written
+back byte for byte on every pinned drawing", log `class-roundtrip-probe.log` in the
+`corpus-measurement` artifact); that run is the record. The figures below were measured
+locally with `python3 -I tools/corpus/fetch.py --dest ../dwg-corpus` and
+`cargo run --release --example probe_class_roundtrip -- ../dwg-corpus --strict`, before
+builds moved to the runners: the old writer matched none of the 52 drawings pinned then
+(the size word at byte 16 already differed on all of them), the writer in this change
+matched all 52, and 61 of 61 over the whole local corpus cache (the 52 and nine more from
+three other public sets, which `tools/corpus/pins.tsv` pins since).
+
+| Release | Drawings, then pinned | Match, old writer | Match, now |
 |---|---:|---:|---:|
 | R14 (AC1014) | 8 | 0 | 8 |
 | R2000 (AC1015) | 8 | 0 | 8 |
