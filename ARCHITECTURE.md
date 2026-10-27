@@ -4121,6 +4121,59 @@ infinity, which `read_bd` returns as read, is not written: the DXF reader reject
 No pinned layout holds one (all 132 are written), so a synthetic check of the predicate
 (`layout_is_finite`, the one the planner uses) refuses all 63 cases, a NaN, an infinity and a
 negative infinity in each of the 18 coordinates of the six points and in one real of each other kind.
+
+## 7ba. dwg-to-dxf: the VISUALSTYLE objects (2026-10-27, #66)
+
+`dxf_objects` writes the 24 built-in VISUALSTYLEs of every drawing from the fields
+`acad_visual_style` decodes (the layout the module derives from bytes, since §20.4 has no
+prescription for the object), under the groups AutoCAD's own DXF export gives them, which are the
+mapping the value oracle (#279) already scores. The export has three layouts, by the release the
+drawing was saved by, and the writer follows the DWG's own:
+
+- **R2000 to R2007.** `100 AcDbVisualStyle`, `2` the name, `70` the style, then one group per
+  property in the order 71, 72, 73, 90, 40, 41, 63, 74, 91, 64, 65, 75, 175, 42, 92, 66, 43, 76, 77,
+  78, 67, 79, 170, 171, 290, 93, 44, 173, and the internal-use flag `291` last. A true colour is its
+  RGB under 421 to 425 (63 plus 358: 63 to 421, 66 to 424, 67 to 425) and, before R2004, a colour is
+  the bare index.
+- **R2010.** The head `70`, `177` (format version), `291`, then the same properties in the same
+  order, each followed by its `176` flag.
+- **R2013 and R2018.** The head, then `70` as the count of the property list (58), then every
+  property as a typed group with its `176` flag: `90` an integer, `40` a real, `290` a boolean, `62`
+  and `420` a colour, `1` a text. The first 28 are the named ones, the other 30 the decoder's
+  `extended` list, whose names are not determined and which are written positionally.
+
+`examples/probe_dxf_objects.rs` pairs every record with the export's of the same handle, group for
+group and in the export's order. Over the 42 drawings of the corpus that have an export of their
+release (R2000 to R2018):
+
+| Kind | Written | Paired | Groups | Agree | Relation | Disagree | Extra | Groups omitted |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| VISUALSTYLE | 1008 | 1008 | 62208 | 61944 | 264 | 0 | 0 | 5468 |
+
+1,008 is 24 styles in each of 42 drawings, all paired. The styles are named in the
+`ACAD_VISUALSTYLE` dictionaries too (their entries were left out while the object was not
+written). These counts were measured before the ownership closure of §7au joined the stack;
+the Corpus job's probe log is the measurement of record for the head.
+
+What is not written, each counted by the probe with its reason:
+
+- **A true colour's nearest index** (62 to 67, 1,364 groups, each with the colour's RGB beside
+  it). The export derives it from the RGB; the DWG stores 0 in the colour's index word, and the
+  derivation is not known from the corpus (the export gives 7 for white, 8 for both `0x808080`
+  and `0x787878`, 18 for black and 5 for blue), so it is left out rather than guessed.
+- **Three constants of the R2000 to R2007 export**: `62` (5), `174` (0) and `45` (0.0), the same in
+  every style of those releases (576 each). The DWG has no field that varies with them (the
+  decoder holds the unnamed `edge_unknown_byte` and, on R2007, `display_unknown_short`, both 0), so
+  they are not written.
+- **Extended data** (1000, 1001, 1070) on 792 records, not decoded for objects.
+
+Two values differ from the export and are named relations, not agreement: the format version
+`177` is 3 in the export of an R2013 or R2018 drawing where the DWG stores 2 (240 records), and
+`Realistic`'s lighting quality (`72`) is 3 in the export where an R2000 to R2007 DWG stores 2 (24
+records, the same style `acad_visual_style` documents as clamped when saved down). A VISUALSTYLE
+is written in the layout of the DWG's release whatever release the output targets, as the
+LAYOUT is; the probe measures each drawing against the export of its own release only.
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
