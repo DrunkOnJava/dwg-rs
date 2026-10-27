@@ -45,6 +45,10 @@ pub struct EntityRefs {
     pub plotstyle: Option<u64>,
     /// The full, face and edge visual styles (R2010+), when announced.
     pub visual_styles: [Option<u64>; 3],
+    /// The previous and next entity handles of an R13 to R2000 entity whose
+    /// `Nolinks` bit is clear; `None` when they are implicit (the handles before
+    /// and after its own).
+    pub links: Option<(u64, u64)>,
     /// The handles of the entity's own fields, in file order.
     pub rest: Vec<u64>,
 }
@@ -94,10 +98,11 @@ pub fn entity_refs(raw: &RawObject, version: Version) -> Result<(CommonEntityDat
     } else {
         Some(next(&mut c)?).filter(|h| *h != 0)
     };
-    if !common.nolinks {
-        next(&mut c)?;
-        next(&mut c)?;
-    }
+    let links = if common.nolinks {
+        None
+    } else {
+        Some((next(&mut c)?, next(&mut c)?))
+    };
     let color_book = if version.is_r2004_plus() && (common.color_raw >> 8) & 0x40 != 0 {
         Some(next(&mut c)?)
     } else {
@@ -157,6 +162,7 @@ pub fn entity_refs(raw: &RawObject, version: Version) -> Result<(CommonEntityDat
             material,
             plotstyle,
             visual_styles,
+            links,
             rest,
         },
     ))

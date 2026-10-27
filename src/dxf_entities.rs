@@ -11,7 +11,7 @@
 //! An entity whose decoder surfaces no DXF mapping yet is not written, and
 //! [`Entities::skipped`] counts it by kind.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::dxf::DxfVersion;
 use crate::dxf_sections::{HeaderGroup, write_groups};
@@ -22,6 +22,32 @@ use crate::header_vars::{HeaderVars, lineweight_hundredths};
 use crate::object::RawObject;
 use crate::reader::DwgFile;
 use crate::version::Version;
+
+/// The DXF kinds the writer writes of a drawing when the output targets
+/// `version`, whatever the drawing holds. A child (`VERTEX`, `SEQEND`) is
+/// written only with its parent. `MTEXT` waits for R2018's own form of it.
+pub fn kinds(version: DxfVersion) -> Vec<&'static str> {
+    let mut out = vec![
+        "LINE",
+        "POINT",
+        "CIRCLE",
+        "ARC",
+        "ELLIPSE",
+        "SOLID",
+        "RAY",
+        "XLINE",
+        "3DFACE",
+        "TEXT",
+        "LWPOLYLINE",
+        "POLYLINE",
+        "VERTEX",
+        "SEQEND",
+    ];
+    if version != DxfVersion::R2018 {
+        out.push("MTEXT");
+    }
+    out
+}
 
 /// One entity record.
 #[derive(Debug, Clone, PartialEq)]
@@ -241,7 +267,12 @@ fn text_groups(
     if t.h_align != 0 {
         g.push(HeaderGroup::Int(72, i64::from(t.h_align)));
     }
-    if let Some(a) = t.alignment_point {
+    // A justified text is placed by its alignment point, which the DWG leaves out
+    // when it is the insertion point (§20.4.3: its default).
+    let anchor = t
+        .alignment_point
+        .or((t.h_align != 0 || t.v_align != 0).then_some(t.insertion_point));
+    if let Some(a) = anchor {
         if !real_ok(&[a.x, a.y]) {
             return None;
         }
@@ -479,8 +510,26 @@ fn own_groups(
             }
             g.push(HeaderGroup::Int(71, i64::from(m.attachment_point)));
             g.push(HeaderGroup::Int(72, i64::from(m.drawing_direction)));
-            let chars: Vec<char> = m.text.chars().collect();
-            let mut chunks: Vec<String> = chars.chunks(250).map(|c| c.iter().collect()).collect();
+            // AutoCAD's chunks hold 250 characters of the text (a line feed, which
+            // is written `^J`, counts one: sample_AC1018 to AC1027's MTEXT 779).
+            // The release's escapes (`\U+XXXX` before R2007) are applied to each
+            // chunk once when it is written, so none is split; a chunk is also
+            // closed before its written form would pass a DXF line's 2000
+            // characters.
+            let mut chunks: Vec<String> = vec![String::new()];
+            let (mut length, mut written) = (0, 0);
+            for c in m.text.chars() {
+                let width = crate::dxf_header::escape_text(ctx.version, &c.to_string())
+                    .chars()
+                    .count();
+                if length == 250 || written + width > 2000 {
+                    chunks.push(String::new());
+                    (length, written) = (0, 0);
+                }
+                chunks.last_mut().into_iter().for_each(|s| s.push(c));
+                length += 1;
+                written += width;
+            }
             let last = chunks.pop().unwrap_or_default();
             for c in chunks {
                 g.push(HeaderGroup::Text(3, c));
@@ -746,6 +795,10 @@ pub fn build(
     }
     // Entities written so far: handle -> (kind for a child's subclass, paper space).
     let mut written: BTreeMap<u64, (&'static str, bool)> = BTreeMap::new();
+    // The entity each entity's `next` link names, and the parents with the handles
+    // that list their children.
+    let mut next_of: HashMap<u64, u64> = HashMap::new();
+    let mut parents: Vec<(u64, usize, Vec<u64>)> = Vec::new();
     for raw in raws
         .iter()
         .filter(|r| r.is_entity() && r.handle.value < seed)
@@ -755,6 +808,10 @@ pub fn build(
             *out.skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
             continue;
         };
+        next_of.insert(
+            raw.handle.value,
+            refs.links.map_or(raw.handle.value.wrapping_add(1), |l| l.1),
+        );
         let owner = match (refs.owner, common.raw_mode) {
             (Some(o), _) => o,
             (None, 1) => ctx.paper_space,
@@ -771,7 +828,15 @@ pub fn build(
         let (parent, paper_space) = if child {
             match written.get(&owner) {
                 Some((kind, paper)) => (Some(*kind), *paper),
-                None => continue,
+                None => {
+                    *out.skipped
+                        .entry(format!(
+                            "{} (its parent is not written)",
+                            kind_label(&decoded, raw)
+                        ))
+                        .or_default() += 1;
+                    continue;
+                }
             }
         } else if owner == ctx.model_space {
             (None, false)
@@ -780,6 +845,21 @@ pub fn build(
         } else {
             continue;
         };
+        // An INSERT is written only with the definition of its block, which
+        // BLOCKS does not write for a user block yet.
+        if let DecodedEntity::Insert(_) = &decoded {
+            let written_block = refs
+                .rest
+                .first()
+                .and_then(|h| ctx.blocks.get(h))
+                .is_some_and(|n| crate::dxf_tables::BLOCKS_EXPORTED.contains(n));
+            if !written_block {
+                *out.skipped
+                    .entry("INSERT (its block is not written yet)".to_string())
+                    .or_default() += 1;
+                continue;
+            }
+        }
         let Some((kind, own)) = own_groups(&decoded, &refs, &ctx, parent) else {
             *out.skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
             continue;
@@ -795,6 +875,11 @@ pub fn build(
             kind
         };
         written.insert(raw.handle.value, (label, paper_space));
+        match kind {
+            "POLYLINE" => parents.push((raw.handle.value, 0, refs.rest.clone())),
+            "INSERT" => parents.push((raw.handle.value, 1, refs.rest.clone())),
+            _ => {}
+        }
         out.records.push(EntityRecord {
             kind,
             handle: raw.handle.value,
@@ -808,8 +893,91 @@ pub fn build(
             groups,
         });
     }
-    let _ = ctx.version;
+    order_children(
+        &mut out.records,
+        &parents,
+        &next_of,
+        file_version.is_r2004_plus(),
+    );
     out
+}
+
+/// The handles of the children a parent names, in order. From R2004 the handle
+/// stream lists them and then the `SEQEND`; before, it names the first and the
+/// last child and each child names the next. `offset` skips the handles ahead of
+/// them (an INSERT's block record).
+fn child_sequence(
+    rest: &[u64],
+    offset: usize,
+    list: bool,
+    next_of: &HashMap<u64, u64>,
+) -> Vec<u64> {
+    let body = rest.get(offset..).unwrap_or_default();
+    if list {
+        return body
+            .split_last()
+            .map_or(Vec::new(), |(_, kids)| kids.to_vec());
+    }
+    let (Some(&first), Some(&last)) = (body.first(), body.get(1)) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut at = first;
+    while at != 0 && out.len() < next_of.len() {
+        out.push(at);
+        if at == last {
+            break;
+        }
+        match next_of.get(&at) {
+            Some(n) => at = *n,
+            None => break,
+        }
+    }
+    out
+}
+
+/// Put each parent's children, as it names them, right after it and its `SEQEND`
+/// last, whatever order the object stream holds them in (a vertex added to an
+/// existing polyline has a newer handle than its `SEQEND`).
+fn order_children(
+    records: &mut Vec<EntityRecord>,
+    parents: &[(u64, usize, Vec<u64>)],
+    next_of: &HashMap<u64, u64>,
+    list: bool,
+) {
+    let sequences: HashMap<u64, Vec<u64>> = parents
+        .iter()
+        .map(|(h, offset, rest)| (*h, child_sequence(rest, *offset, list, next_of)))
+        .collect();
+    let is_child = |r: &EntityRecord| {
+        matches!(r.kind, "ATTRIB" | "VERTEX" | "SEQEND") && sequences.contains_key(&r.owner)
+    };
+    let mut kids: HashMap<u64, Vec<EntityRecord>> = HashMap::new();
+    let mut rest = Vec::with_capacity(records.len());
+    for r in std::mem::take(records) {
+        if is_child(&r) {
+            kids.entry(r.owner).or_default().push(r);
+        } else {
+            rest.push(r);
+        }
+    }
+    for r in rest {
+        let handle = r.handle;
+        records.push(r);
+        if let Some(mut ks) = kids.remove(&handle) {
+            let sequence = &sequences[&handle];
+            ks.sort_by_key(|k| {
+                (
+                    k.kind == "SEQEND",
+                    sequence
+                        .iter()
+                        .position(|h| *h == k.handle)
+                        .unwrap_or(usize::MAX),
+                )
+            });
+            records.extend(ks);
+        }
+    }
 }
 
 /// `groups` with their text escaped for the release `version` (see

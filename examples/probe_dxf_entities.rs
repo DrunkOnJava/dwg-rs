@@ -40,6 +40,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use dwg::dxf::DxfVersion;
+use dwg::dxf_entities::kinds;
 use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
 use dwg::{DwgFile, Version};
 
@@ -223,7 +224,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         .iter()
         .filter_map(|r| r.handle.map(|h| (h, *r)))
         .collect();
-    let written_kinds: BTreeSet<&str> = our_recs.iter().map(|r| r.kind.as_str()).collect();
+    let supported = kinds(target);
     let mut paired: BTreeSet<u64> = BTreeSet::new();
     for r in &our_recs {
         let kind = r.kind.clone();
@@ -382,10 +383,12 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         let t = o.tallies.entry(r.kind.clone()).or_default();
         t.unwritten += 1;
         let embedded = r.groups.iter().any(|g| g.code == 101);
-        if written_kinds.contains(r.kind.as_str())
-            && SUPPORTED.contains(&r.kind.as_str())
-            && !embedded
-        {
+        // A child is written with its parent only.
+        let parent_written = !matches!(r.kind.as_str(), "ATTRIB" | "VERTEX" | "SEQEND")
+            || r.owner
+                .and_then(|o| by_handle.get(&o))
+                .is_none_or(|p| supported.contains(&p.kind.as_str()));
+        if supported.contains(&r.kind.as_str()) && !embedded && parent_written {
             o.failures.push(format!(
                 "{name} {} {h:X}: in the export, not written, though the converter writes {}",
                 r.kind, r.kind
@@ -400,27 +403,6 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
     );
     Ok(Some(o))
 }
-
-/// The kinds `dxf_entities` writes.
-const SUPPORTED: &[&str] = &[
-    "LINE",
-    "POINT",
-    "CIRCLE",
-    "ARC",
-    "ELLIPSE",
-    "SOLID",
-    "RAY",
-    "XLINE",
-    "3DFACE",
-    "TEXT",
-    "ATTRIB",
-    "INSERT",
-    "LWPOLYLINE",
-    "MTEXT",
-    "POLYLINE",
-    "VERTEX",
-    "SEQEND",
-];
 
 fn main() -> ExitCode {
     let mut paths: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
