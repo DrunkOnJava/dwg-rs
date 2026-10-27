@@ -59,6 +59,7 @@
 //! in [`ObjectWalkSummary::unknown_types`] and keeps going.
 
 use crate::bitcursor::{BitCursor, Handle};
+use crate::code_page::CodePage;
 use crate::error::{Error, Result};
 use crate::limits::WalkerLimits;
 use crate::object_type::ObjectType;
@@ -115,6 +116,11 @@ pub struct RawObject {
     /// can check itself against. `None` on R13/R14 (no such field) and
     /// on R2010+ (replaced by the leading `MC` handle-stream size).
     pub obj_size_bits: Option<u32>,
+    /// The drawing's text code page (§3.2.5), the one every pre-R2007 `TV` of
+    /// this record is in. The walker stamps it from the file header through
+    /// [`ObjectWalker::with_code_page`]; the default, for a walker not told,
+    /// is [`CodePage::default`], which reads that text as UTF-8 as before.
+    pub code_page: CodePage,
 }
 
 impl RawObject {
@@ -161,6 +167,8 @@ pub struct ObjectWalker<'a> {
     records_visited: usize,
     /// Accumulator behind [`ObjectWalkSummary::handle_mismatches`].
     handle_mismatches: Vec<(u64, u64, u64)>,
+    /// Stamped on every [`RawObject`] the walker yields.
+    code_page: CodePage,
 }
 
 /// A single handle-driven walk step. In handle-driven mode the
@@ -323,6 +331,7 @@ impl<'a> ObjectWalker<'a> {
             limits: WalkerLimits::default(),
             records_visited: 0,
             handle_mismatches: Vec::new(),
+            code_page: CodePage::default(),
         }
     }
 
@@ -344,6 +353,7 @@ impl<'a> ObjectWalker<'a> {
             limits: WalkerLimits::default(),
             records_visited: 0,
             handle_mismatches: Vec::new(),
+            code_page: CodePage::default(),
         }
     }
 
@@ -358,6 +368,14 @@ impl<'a> ObjectWalker<'a> {
     /// [`collect_all_lossy`]: Self::collect_all_lossy
     pub fn with_limits(mut self, limits: WalkerLimits) -> Self {
         self.limits = limits;
+        self
+    }
+
+    /// Stamp every record this walker yields with the drawing's text code
+    /// page (§3.2.5), as [`crate::reader::DwgFile::code_page`] reads it from the
+    /// file header, so the decoders read its pre-R2007 text in that page.
+    pub fn with_code_page(mut self, code_page: CodePage) -> Self {
+        self.code_page = code_page;
         self
     }
 
@@ -647,6 +665,7 @@ impl<'a> ObjectWalker<'a> {
             handle,
             raw,
             obj_size_bits,
+            code_page: self.code_page,
         }))
     }
 }

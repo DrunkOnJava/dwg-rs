@@ -357,12 +357,12 @@ fn spline_decodes_with_version_gated_preamble() {
 /// gated part — R2000 uses 8-bit, R2007+ uses UTF-16LE.
 fn build_text_payload(version: Version) -> Vec<u8> {
     let mut w = BitWriter::new();
-    w.write_rc(0x00); // no optional fields
+    w.write_rc(0xFF); // no optional fields
     w.write_rd(10.0);
     w.write_rd(20.0);
     w.write_b(true); // ext default
     w.write_b(true); // thickness default
-    w.write_bd(2.5); // height
+    w.write_rd(2.5); // height
     let s = "HELLO";
     if version.is_r2007_plus() {
         w.write_bs_u(s.len() as u16);

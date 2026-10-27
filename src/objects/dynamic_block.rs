@@ -6,7 +6,7 @@
 //! derived from AutoCAD's own output under the method in `CLEANROOM.md`
 //! (2026-10-26): the data bits of the 84 corpus records (`sample_base` saved as
 //! R14 to R2018) against the `AcDbEvalExpr` family AutoCAD exported to DXF for
-//! the same handles. ARCHITECTURE.md §7u holds the evidence.
+//! the same handles. ARCHITECTURE.md §7aw holds the evidence.
 //!
 //! The classes share a chain of base classes, written base first:
 //!
@@ -483,7 +483,7 @@ fn read_body(
 
 /// Decode one dynamic-block evaluation object named by its DXF class `class`,
 /// from the layout of the module docs (derived from AutoCAD's output,
-/// ARCHITECTURE.md §7u), ending exactly on the data-stream boundary and, from
+/// ARCHITECTURE.md §7aw), ending exactly on the data-stream boundary and, from
 /// R2007, with every string-stream entry consumed.
 pub(crate) fn decode_object(
     class: &str,

@@ -2,8 +2,8 @@
 //! (ODA Open Design Specification v5.4.1 §19.1 + §20.4.x).
 //!
 //! Every table entry in an R2007+ file is laid out the same way: the
-//! object header, then the object's common prefix (EED, xdictionary
-//! flag, binary-data flag), then the entry's non-string fields, and
+//! object header, then the object's common prefix (EED, reactor count,
+//! xdictionary flag, binary-data flag), then the entry's non-string fields, and
 //! finally — in the separate string stream located by
 //! [`crate::string_stream`] — the entry's `TV` fields in field-table
 //! order.
@@ -73,19 +73,29 @@ fn locate_stream(payload: &[u8], version: Version) -> Result<StringStream> {
         .ok_or_else(|| Error::SectionMap("object has no R2007+ string stream".into()))
 }
 
-/// Skip the common object prefix: EED chain, xdictionary flag (R2004+),
-/// binary-data flag (R2013+). Per §19.4.2 non-entity objects carry no
-/// graphics block and no reactor count at this point.
+/// Skip the common object prefix every §20.4.x table section prints:
+/// the EED chain, `BL num_reactors`, `B` xdictionary-missing (R2004+)
+/// and `B` has-AcDs-binary-data (R2013+). It is the prefix
+/// [`crate::objects::modern`] reads for every other non-entity object.
 ///
-/// # Measured: the R2013+ binary-data flag is followed by an `RC`
+/// # Measured (#40, ARCHITECTURE §7x)
 ///
-/// When the `has AcDs binary data` bit is set, one `RC` follows before
-/// the record's own fields. Evidence: of the six DIMSTYLE records in
-/// `sample_AC1032.dwg`, the four with the bit clear decode with the
-/// prefix ending 4 bits in, while `ISO-25` and `custom_dim_style` —
-/// the two with it set — need exactly 8 more bits (reading `8` and
-/// `2`) before their `64-flag` lands and the body reaches the string
-/// stream.
+/// This function used to skip the `BL`, so the reads after it started
+/// two bits early. With no reactors the `BL` is the code `10`, and
+/// the shifted reads consumed the same number of bits, so the record
+/// still closed: the old 64-flag was the xdictionary-missing bit, and on
+/// R2013 and R2018 the old Xdep was the binary-data bit. With reactors
+/// it broke. On R2013 and R2018 the `BL`'s `01` code and its byte were
+/// taken for the two flags and an `RC` said to follow them, and on
+/// R2007 and R2010 the three DIMSTYLE records with reactors (`0x39A`,
+/// `0x994`, `0xC88`: 8, 2 and 1) failed.
+///
+/// `examples/probe_table_prefix.rs` checks the prefix read here against
+/// AutoCAD's DXF export of the same drawings. On every table entry of
+/// the 32 R2000-R2018 files with a twin, the `BL` equals the number of
+/// `330` groups in the entry's `{ACAD_REACTORS` bracket, and the R2004+
+/// xdictionary bit equals the absence of a `{ACAD_XDICTIONARY` bracket
+/// (apart from three round-trip dictionaries only the export holds).
 pub(crate) fn skip_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Result<()> {
     const MAX_XDATA_ITERATIONS: usize = 256;
     for _ in 0..MAX_XDATA_ITERATIONS {
@@ -98,58 +108,40 @@ pub(crate) fn skip_object_prefix(c: &mut BitCursor<'_>, version: Version) -> Res
             let _ = c.read_rc()?;
         }
     }
+    let _num_reactors = c.read_bl()?;
     if version.is_r2004_plus() {
         let _no_xdictionary = c.read_b()?;
     }
     if matches!(version, Version::R2013 | Version::R2018) {
-        let has_binary_data = c.read_b()?;
-        if has_binary_data {
-            let _ds_binary_marker = c.read_rc()?;
-        }
+        let _has_binary_data = c.read_b()?;
     }
     Ok(())
 }
 
-/// Read the three non-string fields every table entry shares once its
-/// name has moved to the string stream: the 64-flag, the
-/// xref-dependent flag, and the xref index (§20.4.x "common table
-/// entry fields").
+/// Read the non-string fields every table entry shares once its name
+/// has moved to the string stream, returned as `(64-flag, xrefindex+1,
+/// Xdep)`.
 ///
-/// # Measured field order
+/// # Measured (#40, ARCHITECTURE §7x)
 ///
-/// The entry header's data-stream bits on R2007 and later, returned as
-/// `(64-flag, xrefindex+1, Xdep)`.
+/// §20.4.x prints `TV name, B 64-flag, BS xrefindex+1, B Xdep` for every
+/// release, and R2000 and R2004 records hold exactly that. From R2007,
+/// once [`skip_object_prefix`] reads the `BL` reactor count, two bits
+/// remain before the record's own fields on every table entry of the
+/// corpus, so no `BS` is read here and `xrefindex+1` is returned as 0.
 ///
-/// The pre-R2007 inline layout is `TV name, B 64-flag, BS xrefindex+1,
-/// B Xdep` (§20.4.54). With the name gone the remaining three are observed
-/// in the order `B, B, BS` — not `B, BS, B`. Evidence: in every STYLE record
-/// of `sample_AC1032.dwg` only this order leaves the two-bit `BS` on a
-/// `10` (value 0) code and lands the field body exactly on the string
-/// stream; the alternative puts the `BS` on an `01` code and yields an
-/// xref index of 83 for `Standard`.
-///
-/// Which of the two bits is which differs by release, measured by the DXF
-/// value oracle (#99) against AutoCAD's exports of the same drawings. On
-/// every table entry of the corpus the 64-flag is set (as it is in the
-/// R2000 and R2004 records, whose order is the spec's) and Xdep is clear
-/// (bit 16 of the exported group 70 is clear on every entry). The set bit
-/// is the second on R2007 and R2010 and the first on R2013 and R2018, so
-/// the order is `B Xdep, B 64-flag` up to R2010 and `B 64-flag, B Xdep`
-/// from R2013. The corpus holds no xref-dependent entry, so what it pins is
-/// which position carries the always-clear bit, not a set Xdep.
-pub(crate) fn read_entry_flags(
-    c: &mut BitCursor<'_>,
-    version: Version,
-) -> Result<(bool, i16, bool)> {
-    let first = c.read_b()?;
-    let second = c.read_b()?;
-    let xref_index_plus_1 = c.read_bs()?;
-    let (flag64, is_xref_dependent) = if matches!(version, Version::R2013 | Version::R2018) {
-        (first, second)
-    } else {
-        (second, first)
-    };
-    Ok((flag64, xref_index_plus_1, is_xref_dependent))
+/// The two bits are `1, 0` on all 676 R2007-R2018 table entries of the
+/// 32 files with a DXF twin, which is what the same entries hold in
+/// their R2000 and R2004 saves (64-flag set, `xrefindex+1` 0, Xdep
+/// clear on all 402), and Xdep equals bit 16 of the exported group 70
+/// wherever it is compared. So they are read as `B 64-flag, B Xdep`;
+/// the swapped order would set Xdep on every entry, which the export
+/// rules out. A lone `BS xrefindex+1` of 0 is the same two bits, and the
+/// corpus holds no xref-dependent entry to tell them apart (#290).
+pub(crate) fn read_entry_flags(c: &mut BitCursor<'_>) -> Result<(bool, i16, bool)> {
+    let flag64 = c.read_b()?;
+    let is_xref_dependent = c.read_b()?;
+    Ok((flag64, 0, is_xref_dependent))
 }
 
 /// Read the full `CMC` colour form used by the R2007+ VIEW / VPORT

@@ -123,3 +123,9 @@ At every release, and at least monthly:
 7. Dependabot pull requests and security alerts are triaged.
 8. Discussions and outside pull requests have an answer.
 9. The rulesets match their files in `.github/rulesets/`.
+10. README.md and STATUS.md show `main`. The measured table agrees with
+    `tools/corpus/baseline.tsv` (`python3 tools/maintainer/readme_status.py
+    --check`; `--write` re-renders it and names the newest green run on
+    `main`), and README's capability matrix and "does not do" list name what
+    has landed. This one is not monthly: refresh the README after any landing
+    that moves the baseline or ships a capability.

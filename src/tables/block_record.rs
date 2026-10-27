@@ -113,6 +113,17 @@ pub struct BlockRecord {
     /// holding the walked record should use
     /// [`block_sentinel_handle_of`], which resolves R2000-R2018.
     pub block_sentinel_handle: Option<u64>,
+    /// How many insert handles the handle stream holds (§20.4.52: the
+    /// number of non-zero `RC`s before the terminating zero; R2000+, else 0).
+    pub insert_count: usize,
+    /// The binary preview data (DXF group 310; R2000+, empty when none).
+    pub preview: Vec<u8>,
+    /// Insert units (DXF group 70; R2007+).
+    pub insert_units: Option<i16>,
+    /// Explodable (DXF group 280; R2007+).
+    pub explodable: Option<bool>,
+    /// Block scaling (DXF group 281; R2007+).
+    pub block_scaling: Option<u8>,
 }
 
 /// Cap on the insert-count run of §20.4.52: a non-zero `RC` per insert
@@ -173,12 +184,15 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
     let base_point = read_bd3(c)?;
     let xref_path = read_tv(c, version)?;
     let mut description = String::new();
+    let mut insert_count = 0;
+    let mut preview = Vec::new();
     if !matches!(version, Version::R14) {
         // Insert-count run: zero or more non-zero `RC`s, then a zero.
         for _ in 0..=MAX_INSERT_COUNT {
             if c.read_rc()? == 0 {
                 break;
             }
+            insert_count += 1;
         }
         description = read_tv(c, version)?;
         let preview_bytes = c.read_bl_u()? as usize;
@@ -189,14 +203,14 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
             )));
         }
         for _ in 0..preview_bytes {
-            let _ = c.read_rc()?;
+            preview.push(c.read_rc()?);
         }
     }
-    if version.is_r2007_plus() {
-        let _insert_units = c.read_bs()?;
-        let _explodable = c.read_b()?;
-        let _block_scaling = c.read_rc()?;
-    }
+    let (insert_units, explodable, block_scaling) = if version.is_r2007_plus() {
+        (Some(c.read_bs()?), Some(c.read_b()?), Some(c.read_rc()?))
+    } else {
+        (None, None, None)
+    };
     Ok(BlockRecord {
         header,
         is_anonymous,
@@ -209,6 +223,11 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<BlockRecord> {
         xref_path,
         description,
         block_sentinel_handle: None,
+        insert_count,
+        preview,
+        insert_units,
+        explodable,
+        block_scaling,
     })
 }
 
@@ -233,8 +252,7 @@ pub(crate) fn decode_modern_split_stream(
     }
 
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
-    let (flag64, xref_index_plus_1, is_xref_dependent) =
-        modern::read_entry_flags(&mut split.data, version)?;
+    let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let is_anonymous = split.data.read_b()?;
     let has_attribs = split.data.read_b()?;
     let is_xref = split.data.read_b()?;
@@ -246,11 +264,11 @@ pub(crate) fn decode_modern_split_stream(
         None
     };
     let base_point = read_bd3(&mut split.data)?;
-    read_insert_count(&mut split.data)?;
-    read_preview(&mut split.data)?;
-    let _insert_units = split.data.read_bs()?;
-    let _explodable = split.data.read_b()?;
-    let _block_scaling = split.data.read_rc()?;
+    let insert_count = read_insert_count(&mut split.data)?;
+    let preview = read_preview(&mut split.data)?;
+    let insert_units = split.data.read_bs()?;
+    let explodable = split.data.read_b()?;
+    let block_scaling = split.data.read_rc()?;
     split.finish("BLOCK_HEADER")?;
 
     let name = split.strings.read_tv()?;
@@ -274,27 +292,41 @@ pub(crate) fn decode_modern_split_stream(
         xref_path,
         description,
         block_sentinel_handle: block_sentinel_handle(payload, version),
+        insert_count,
+        preview,
+        insert_units: Some(insert_units),
+        explodable: Some(explodable),
+        block_scaling: Some(block_scaling),
     })
 }
 
-/// Skip the insert-count run: zero or more non-zero `RC` values
-/// terminated by `0x00` (§20.4.52).
-fn read_insert_count(c: &mut BitCursor<'_>) -> Result<()> {
+/// Read the insert-count run: zero or more non-zero `RC` values
+/// terminated by `0x00` (§20.4.52), and how many there were.
+fn read_insert_count(c: &mut BitCursor<'_>) -> Result<usize> {
+    let mut n = 0;
     for _ in 0..=256 {
         if c.read_rc()? == 0 {
-            return Ok(());
+            return Ok(n);
         }
+        n += 1;
     }
-    Ok(())
+    Ok(n)
 }
 
-/// Skip the binary preview block: a `BL` byte count and that many `RC`.
-fn read_preview(c: &mut BitCursor<'_>) -> Result<()> {
+/// Read the binary preview block: a `BL` byte count and that many `RC`.
+fn read_preview(c: &mut BitCursor<'_>) -> Result<Vec<u8>> {
     let preview_bytes = c.read_bl_u()? as usize;
-    for _ in 0..preview_bytes {
-        let _ = c.read_rc()?;
+    if preview_bytes > MAX_PREVIEW_BYTES {
+        return Err(Error::SectionMap(format!(
+            "BLOCK_HEADER preview data claims {preview_bytes} bytes \
+             (>{MAX_PREVIEW_BYTES} sanity cap)"
+        )));
     }
-    Ok(())
+    let mut v = Vec::with_capacity(preview_bytes.min(4096));
+    for _ in 0..preview_bytes {
+        v.push(c.read_rc()?);
+    }
+    Ok(v)
 }
 
 /// Handle of the `BLOCK` sentinel entity a BLOCK_HEADER's handle
@@ -455,11 +487,11 @@ mod tests {
     fn block_header_body(name_is_anonymous: bool) -> Vec<bool> {
         let mut w = BitWriter::new();
         w.write_bs_u(0); // no EED
+        w.write_bl(0); // no reactors
         w.write_b(true); // no xdictionary
         w.write_b(false); // no AcDs binary data
         w.write_b(true); // 64-flag
         w.write_b(false); // xref dependent
-        w.write_bs(1); // xref index + 1
         w.write_b(name_is_anonymous); // anonymous
         w.write_b(false); // has attribs
         w.write_b(false); // is xref
@@ -490,7 +522,7 @@ mod tests {
         assert_eq!(block.num_owned_objects, Some(0));
         assert!(block.header.flag_64);
         assert!(!block.header.is_xref_dependent);
-        assert_eq!(block.header.xref_index_plus_1, 1);
+        assert_eq!(block.header.xref_index_plus_1, 0);
         assert!(
             block.base_point.x == 0.0 && block.base_point.y == 0.0 && block.base_point.z == 0.0
         );

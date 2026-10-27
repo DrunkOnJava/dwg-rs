@@ -10,7 +10,7 @@
 use super::lz77::Lz77Decoder;
 use super::r2004::{R2004Header, R2004HeaderParser};
 use super::{Request, SourceIdentity, StreamError};
-use crate::crc::section_page_checksum;
+use crate::crc::{fold_section_checksum, section_page_checksum};
 
 const SYS_HEADER: usize = 0x14;
 const PAGE_MAP_TYPE: u32 = 0x4163_0e3b;
@@ -330,16 +330,8 @@ impl R2004MapWalker {
                 Ok(MapStep::Framing)
             }
             Stage::Check => {
-                for &byte in input {
-                    self.sum1 = self.sum1.wrapping_add(u32::from(byte));
-                    self.sum2 = self.sum2.wrapping_add(self.sum1);
-                    self.in_chunk += 1;
-                    if self.in_chunk == CHUNK {
-                        self.sum1 %= 0xfff1;
-                        self.sum2 %= 0xfff1;
-                        self.in_chunk = 0;
-                    }
-                }
+                (self.sum1, self.sum2, self.in_chunk) =
+                    fold_section_checksum(self.sum1, self.sum2, self.in_chunk, input);
                 self.done += input.len() as u32;
                 Ok(MapStep::Framing)
             }
