@@ -191,5 +191,5 @@ Classes the corpus holds that v5.4.1 has no prescription for. Their field lists 
 | WIPEOUT / WIPEOUTVARIABLES | `decoder` | src/entities/wipeout.rs | WIPEOUTVARIABLES decodes in src/objects/small_classes.rs. |
 | PDFUNDERLAY / DWFUNDERLAY / DGNUNDERLAY | `closes` | src/entities/underlay.rs | PDFUNDERLAY: 7 of 7 corpus records on every release R14 to R2018; 36 values equal the DXF twin by handle; the scale, rotation, normal and clip-vertex encoding are unverified by value; DWF and DGN share the decoder and have no corpus record (ARCHITECTURE §7x, #152). The definitions: PDFDEFINITION in src/objects/small_classes.rs. |
 | DBCOLOR | `missing` |  | Referenced by ENC colours (§2.11). |
-| ACAD_EVALUATION_GRAPH | `closes` | src/objects/eval_graph.rs | 21 of 21 corpus records on every release R14 to R2018; 1,342 values equal the DXF twin; the link values' meaning and the node handles are not decoded (ARCHITECTURE §7ab, #152). |
+| ACAD_EVALUATION_GRAPH | `closes` | src/objects/eval_graph.rs | 21 of 21 corpus records on every release R14 to R2018; 1,342 values equal the DXF twin; the link values' meaning and the node handles are not decoded (ARCHITECTURE §7bd, #152). |
 | ACDBASSOC* (constraints and associativity) | `missing` |  |  |

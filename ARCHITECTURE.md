@@ -2553,7 +2553,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_text_context_data -- ../dwg-corpus
 ```
 
-## 7ab. ACAD_EVALUATION_GRAPH, derived from AutoCAD's own output (2026-10-26, #152)
+## 7bd. ACAD_EVALUATION_GRAPH, derived from AutoCAD's own output (2026-10-26, #152)
 
 ODA spec v5.4.1 prints no layout for the dependency graph AutoCAD keeps for the
 evaluation of a dynamic block. `src/objects/eval_graph.rs` reads it from the layout

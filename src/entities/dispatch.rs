@@ -158,7 +158,7 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7v).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
-    /// ACAD_EVALUATION_GRAPH (§7ab).
+    /// ACAD_EVALUATION_GRAPH (§7bd).
     EvalGraph(Box<crate::objects::eval_graph::EvalGraph>),
     /// DATATABLE (§7z).
     DataTable(Box<crate::objects::data_table::DataTable>),
