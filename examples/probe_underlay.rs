@@ -3,7 +3,7 @@
 //!
 //! `src/entities/underlay.rs` reads the underlay reference; before this probe the
 //! dispatcher routed it on R2010 and later only, so the R14, R2000, R2004 and R2007
-//! records of the corpus were skipped (ARCHITECTURE.md §7x). For every PDFUNDERLAY
+//! records of the corpus were skipped (ARCHITECTURE.md §7az). For every PDFUNDERLAY
 //! of every drawing under the corpus directory this reports whether the decoder
 //! closed exactly on the record's data-stream boundary and compares each decoded
 //! value with the `PDFUNDERLAY` of the same handle (group 5) in the DXF twin: the
