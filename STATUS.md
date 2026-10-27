@@ -45,7 +45,12 @@ scrolling the changelog.
   does not count (841 of 841 inter-record runs agreed; 772 one-byte +
   70 two-byte fields + the 4-byte prologue = 916). #77 sized the
   walker's slice accordingly, and **every R2004+ corpus file now tiles
-  its object stream with zero bytes between records.**
+  its object stream with zero bytes between records.** The R13 drawings of
+  the US Forest Service library do not: 87 of its 122 hold 688,866 bytes in
+  1,484 runs between the records the map names, every run made of whole
+  records with a valid CRC, 9,764 of them with a handle the map names at
+  another offset and 1,913 with none (`examples/probe_unclaimed_runs`,
+  ARCHITECTURE.md §7av).
 - **Walker-completeness gate:** `examples/probe_class_census` runs in
   CI over every canonical fixture with `--strict`;
   `tests/canonical_corpus.rs` asserts the class census exactly and

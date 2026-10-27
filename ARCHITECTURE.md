@@ -3845,6 +3845,98 @@ for f in ../dwg-corpus/sovol/*.dwg; do target/release/examples/probe_leader "$f"
 target/release/examples/probe_r13_census ../dwg-corpus/sketchup/Cabin.dwg ../dwg-corpus/sovol/*.dwg
 ```
 
+## 7av. R13 written by AutoCAD: the US Forest Service library, and the records the map no longer names (2026-10-27, #345)
+
+None of the 22 R13 drawings of §7as is known to be AutoCAD's (§7as, "What is
+not measured"). The US Forest Service Region 6 engineering CAD library is: 122
+AC1012 drawings, public domain, which the agency's own pages say were "created
+in AutoCad Ver 13" (CLEANROOM.md, "Public corpus: the US Forest Service R13
+drawings"). They are pinned in `tools/corpus/pins.tsv` by Wayback Machine
+capture URL, size and sha256 and never committed: 69 in `roads` and 53 in
+`trails`, 19,911,158 bytes in all, 96 named `.dwg` and 26 `.DWG`. `$TDCREATE` runs
+from 1988-08-27 to 1996-04-09 and `$TDUPDATE` from 1996-06-30 to 1997-09-29, 57 of
+them on or before 1997-01-31, before Release 14 shipped.
+
+### What the container shows
+
+`probe_r13_container` passes all 122: locator CRC, sentinels, preview image
+sentinel, the §9 and §10.1 sections and every §23.1 chunk, with the object
+map ending on its locator. All 122 have four locator records and code page 30.
+Their bytes 0x06-0x0C (§3.2.1) are `00 00 00 00 00 06 01` (59 drawings),
+`... 04 01` (36) and `... 00 01` (27). The §26 second header's body follows the
+section as printed on all 122: the locator copies agree and the four bytes after
+`AC1012` are `18 78 01 04`, where §26 prints them. The preview bitmap is a real
+image of 2,276 to 16,592 bytes. The header variables close on all 122 with 195
+slots, none of §9's four "R14+" shorts, in a section of exactly `ceil(bits / 8)`
+(0 extra bytes in all 122), which is the shape every AutoCAD-written R13 header
+has (§7as). The handle map resolves every entry (0 mismatches, 0 walk skips).
+
+### What the decoders show
+
+With the decoders of §7au, `coverage_report` reads 345,236 records of the 122:
+345,132 decode, 104 are `VP_ENT_HDR` (§20.4.70, no decoder) and none errors.
+Before the R13-R14 branches of §7au, 7,354 errored (TEXT 7,016, DIMSTYLE 126,
+LEADER 116, VIEWPORT 52, ATTDEF 41, TRACE 3). These are the first R13 TEXT,
+VIEWPORT and TRACE records the corpus holds (§7au).
+
+### The stream holds records the map does not name
+
+87 of the 122 have bytes in the object stream between the records the map names
+(`probe_reference_closure`: "between records"): 688,866 bytes in 1,484 runs, up
+to 30 % of a file (`HM000018.DWG`: 118,121 of 390,177 bytes; `801-1.dwg`: 8,932 of
+35,419 bytes in 32 runs). None of the 22 pinned R13 drawings, the 8 R14 drawings
+or the later releases has any.
+`examples/probe_unclaimed_runs.rs` reads each run as object records, the `MS`
+size, that many bytes, and the 2-byte CRC (seed 0xC0C1 over the `MS` and the
+data), then the `BS` type and the `H` handle that open the data:
+
+| | 87 drawings |
+|---|---:|
+| runs | 1,484 |
+| runs that tile exactly into records | 1,484 |
+| records in them | 11,677 |
+| records with a valid CRC | 11,677 |
+| records whose handle the map names at another offset | 9,764 |
+| records whose handle the map does not name | 1,913 |
+
+Every run is made of complete, CRC-valid records, so the bytes are not padding or
+damage. The 9,764 records whose handle the map names elsewhere are older copies of
+objects that were rewritten; the 1,913 the map does not name at all are objects
+that were erased. That is what an incremental save leaves behind, and it is a
+reading of this measurement, not something the specification states: §23.1 says
+how the map is read and nothing about what else the stream may hold. The walk
+that the map drives ignores these bytes, as it should, since the map names the
+live record of each handle. So "the walk tiles the stream with no byte between
+records" holds for the pinned R2004 family, the R14 drawings and the 22 §7as
+drawings, not for these 87; `tools/corpus/baseline.tsv` pins the `between` count
+of each. Autodesk's own install-disc drawings (local evidence, §7as) are mostly
+tight: of their 68 distinct drawings one has a run (172 bytes, two records, one of
+whose handles the map names).
+
+### Fetching them
+
+`tools/corpus/fetch.py` fetches a row with a `url` from that URL alone. The
+Wayback Machine refuses fast fetches, so its requests are spaced 1.1 seconds
+apart, a refusal (HTTP 429, 503, a reset connection) is retried six times with a
+doubling back-off from 5 seconds inside the overall `--deadline`, and a body that
+does not match its pin is requested again up to three times before it fails the
+job (a capture is immutable, so a mismatch is a bad transfer). An outage still ends
+in exit 69 and a NOT MEASURED Corpus job. The Corpus job restores `~/dwg-corpus`
+under the key `dwg-corpus-` plus the hash of `pins.tsv`, so the Wayback Machine
+is requested once per change to the pins, not once per run.
+
+Reproduce:
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo build --release --features dxf-reader --example coverage_report \
+    --example probe_r13_container --example probe_unclaimed_runs
+python3 -I tools/corpus/measure.py run --corpus ../dwg-corpus --bin target/release/examples --out r.json
+python3 -I tools/corpus/measure.py check --results r.json
+target/release/examples/probe_r13_container ../dwg-corpus/usfs/*
+target/release/examples/probe_unclaimed_runs ../dwg-corpus/usfs/*
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

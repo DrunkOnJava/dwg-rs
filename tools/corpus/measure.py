@@ -270,7 +270,7 @@ def report(results):
     out += [''] + table(['File', 'Shortfall'], short)
     vacuous = sorted(n for n, e in files.items() if e.get('refs') == 0 and e.get('no_boundary'))
     open_walk = sorted(n for n, e in files.items() if e.get('between') or e.get('hard'))
-    out += ['', f'Reference closure: {len(files) - len(vacuous) - len(open_walk)} drawings closed '
+    out += ['', f'Reference closure: {len(files) - len(set(vacuous) | set(open_walk))} drawings closed '
             '(no bytes between records, no unanswered hard reference); '
             f'{len(open_walk)} open{": " + ", ".join(open_walk) if open_walk else ""}; '
             f'NOT MEASURED on {len(vacuous)} whose records expose no handle-stream boundary '
