@@ -3407,9 +3407,13 @@ reactors, extension dictionary, then the object's own handles (a dictionary's it
 handles in key order). Records of a class named only in `AcDb:Classes`
 (DICTIONARYVAR, SCALE, ACDBDICTIONARYWDFLT) decode through the class map. An
 XRECORD's data is typed by the group code's range, as in DXF (`XRecord::items`): `RS`
-code, then a string (`RS` length; from R2000 to R2004 an `RC` code page and bytes,
-from R2007 UTF-16), a real, three reals, a short or long integer, a byte, a handle of
-eight bytes or a chunk of binary data. A dictionary entry whose object is not written
+code, then a string, a real, three reals, a short or long integer, a byte, a handle of
+eight bytes or a chunk of binary data. Up to R2004 the data is read by
+`extended_data::xrecord_items` (§7aq), which decodes each string in the code page it
+names and reads only the ranges the corpus measures, so an XRECORD with another code is
+counted `(not written)`; from R2007 a string is an `RS` length and UTF-16 units and
+`items` reads it here. An object is planned only when its record can be written, so a
+handle given to the tables, the entities or the dictionaries is always emitted. A dictionary entry whose object is not written
 (a MATERIAL, a VISUALSTYLE, a LAYOUT: typed writers come after this one) is left out,
 and the probe states why.
 
@@ -3445,7 +3449,7 @@ The Corpus job runs it.
 | DICTIONARY | 2147 | 2113 | 14529 | 12778 | 0 | 0 | 0 | 1779 |
 | DICTIONARYVAR | 365 | 365 | 1825 | 1825 | 0 | 0 | 0 | 0 |
 | SCALE | 826 | 826 | 6608 | 6608 | 0 | 0 | 0 | 0 |
-| XRECORD | 2522 | 2348 | 232852 | 232802 | 134 | 0 | 0 | 0 |
+| XRECORD | 2522 | 2348 | 233042 | 232952 | 184 | 0 | 0 | 0 |
 
 The export registers again objects it creates on load under handles of its own (at or
 above the DWG's `$HANDSEED`): 1,020 DICTIONARYs, 107 DICTIONARYVARs and 1,111
@@ -3454,10 +3458,12 @@ under which a paired dictionary holds them. 208 records the export does not have
 all are written from the DWG and left unpaired with a stated reason: 34 dictionaries
 (28 extension dictionaries of owners the export writes without one, 6 whose owner it
 does not write) and 174 XRECORDs (58 held by entries its dictionaries lack, 34 inside
-the dictionaries it leaves out, 82 whose owner it does not write). 134 group values are relations the probe names: the editing time
+the dictionaries it leaves out, 82 whose owner it does not write). 184 group values are relations the probe names: the editing time
 and save date of `DWGPROPS` (40, 42), the saved file's identity of
 `ACAD_LAST_SAVED_VERSION_INFO` (300, 302, 303), a handle of an object the export
-registers again, and the tail of a round-trip XRECORD that AutoCAD consumes when it
+registers again, the styles AutoCAD lists again in an `ACDB_RECOMPOSE_DATA` XRECORD (330; the
+probe compares every 330 after the record's owner, so an XRECORD's handles and a LAYOUT's
+block record are checked), and the tail of a round-trip XRECORD that AutoCAD consumes when it
 loads the file. Extended data on a dictionary (1000 to 1071) is not decoded (28
 groups); 1,670 entries name objects not written yet, 81 name objects the export made
 itself, and 58 name objects it leaves out. 10 of the 42 drawings have no export of
