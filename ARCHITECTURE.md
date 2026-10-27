@@ -3799,7 +3799,7 @@ string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. 
 "description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
 after the insert-count run is wrong for these blocks. No layer of this change touches it.
 
-## 7as. BLOCK_HEADER: the insert-count run has no length cap (2026-10-27, #386)
+## 7av. BLOCK_HEADER: the insert-count run has no length cap (2026-10-27, #386)
 
 §20.4.52 puts, after the base point and the xref path, "Insert Count: a sequence of zero
 or more non-zero RC's, followed by a terminating 0 RC. The total number of these indicates
