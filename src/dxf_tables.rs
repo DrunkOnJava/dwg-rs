@@ -1034,31 +1034,6 @@ fn escaped(groups: &[HeaderGroup], version: DxfVersion) -> Vec<HeaderGroup> {
         .collect()
 }
 
-/// The layer the converter's entities go on while they carry no layer of their
-/// own: `0` when it is visible and plottable (not frozen, not off, and no group
-/// 290 of 0), else the first layer that is, so that geometry is not hidden or
-/// kept out of a plot by a layer 0 the drawing froze, switched off or made
-/// non-plotting. `None` when no layer qualifies (or there is no LAYER table).
-pub fn visible_layer(tables: &[Table]) -> Option<String> {
-    let layers = tables.iter().find(|t| t.name == "LAYER")?;
-    let visible = |r: &&Record| {
-        let int = |code: i32| {
-            r.groups.iter().find_map(|g| match g {
-                HeaderGroup::Int(c, v) if *c == code => Some(*v),
-                _ => None,
-            })
-        };
-        int(70).unwrap_or(0) & 1 == 0 && int(62).unwrap_or(0) >= 0 && int(290) != Some(0)
-    };
-    layers
-        .records
-        .iter()
-        .filter(visible)
-        .find(|r| r.name == "0")
-        .or_else(|| layers.records.iter().find(visible))
-        .map(|r| r.name.clone())
-}
-
 fn bracket(w: &mut crate::dxf::DxfWriter, name: &str, groups: &[HeaderGroup]) {
     w.write_string(102, &format!("{{{name}"));
     write_groups(w, groups);
