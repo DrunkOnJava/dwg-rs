@@ -24,7 +24,7 @@
 use super::lz77::Lz77Decoder;
 use super::r2004_maps::{CARRY, PageEntry, SectionEntry, SectionPage};
 use super::{Request, SourceIdentity, StreamError};
-use crate::crc::section_page_checksum;
+use crate::crc::{fold_section_checksum, section_page_checksum};
 
 const HEAD: usize = 0x20;
 const PAGE_TYPE: u32 = 0x4163_043b;
@@ -200,6 +200,11 @@ impl R2004SectionWalker {
     /// Index of the section being walked, as the section map numbered it.
     pub fn section_index(&self) -> u32 {
         self.index
+    }
+
+    /// The section's id, as its map entry and every page header carry it.
+    pub fn section_id(&self) -> u32 {
+        self.section_id
     }
 
     /// Section bytes the last `Data` step produced; empty after any other
@@ -413,16 +418,8 @@ impl R2004SectionWalker {
                 Ok(SectionStep::Framing)
             }
             Stage::Check => {
-                for &byte in input {
-                    self.sum1 = self.sum1.wrapping_add(u32::from(byte));
-                    self.sum2 = self.sum2.wrapping_add(self.sum1);
-                    self.in_chunk += 1;
-                    if self.in_chunk == CHUNK {
-                        self.sum1 %= 0xfff1;
-                        self.sum2 %= 0xfff1;
-                        self.in_chunk = 0;
-                    }
-                }
+                (self.sum1, self.sum2, self.in_chunk) =
+                    fold_section_checksum(self.sum1, self.sum2, self.in_chunk, input);
                 self.done += input.len() as u32;
                 Ok(SectionStep::Framing)
             }

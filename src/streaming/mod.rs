@@ -4,8 +4,10 @@
 //! type and handle. For the R2004 family it verifies the §4.1 file header
 //! and has a bounded, resumable decoder for the
 //! R2004-family LZ77 dialect (§4.7); it walks the R2004 page map and
-//! section map and assembles sections from their data pages (§4.6). Object
-//! bodies and R2007 remain open; see issue #205.
+//! section map, assembles sections from their data pages (§4.6) and frames
+//! the object section into records (§20.1). R2007 has its own whole-file walk
+//! and frames its object section into records the same way. The decoding of an
+//! object's fields remains open; see issue #205.
 
 use core::fmt;
 
@@ -14,10 +16,18 @@ mod flat;
 mod lz77;
 mod r2004;
 mod r2004_maps;
+mod r2004_objects;
 mod r2004_sections;
+mod r2004_walk;
+mod r2007;
+mod r2007_checkpoint;
+mod r2007_codes;
+mod r2007_lz;
+mod r2007_objects;
+mod records;
 pub use checkpoint::{
-    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004SectionCheckpoint,
-    WalkCheckpoint,
+    Checkpoint, Lz77Checkpoint, R2004Checkpoint, R2004MapCheckpoint, R2004ObjectCheckpoint,
+    R2004SectionCheckpoint, R2004WalkCheckpoint, R2007ObjectCheckpoint, WalkCheckpoint,
 };
 pub use flat::{
     CLASS_SENTINELS, FlatWalker, HEADER_VARS_SENTINELS, ObjectRecord, Part, SectionRecord, Step,
@@ -27,7 +37,16 @@ pub use r2004::{R2004_HEADER_BYTES, R2004Header, R2004HeaderParser};
 pub use r2004_maps::{
     MapDemand, MapStep, PageEntry, R2004MapWalker, SectionEntry, SectionPage, SystemKind,
 };
+pub use r2004_objects::{OBJECTS_SECTION, ObjectDemand, ObjectStep, R2004ObjectWalker};
 pub use r2004_sections::{DataPage, R2004SectionWalker, STAGE, SectionDemand, SectionStep};
+pub use r2004_walk::{MAX_SECTIONS, R2004Walker, WalkDemand, WalkStep};
+pub use r2007::{
+    Gather, MAX_NAME, R2007_WINDOW, R2007Demand, R2007Entry, R2007Header, R2007Page, R2007Section,
+    R2007Step, R2007Walker,
+};
+pub use r2007_checkpoint::R2007Checkpoint;
+pub use r2007_objects::{R2007ObjectDemand, R2007ObjectStep, R2007ObjectWalker};
+pub use records::RecordFormat;
 
 /// One declared chunk; grammar has no heap allocations or I/O dependencies.
 pub const CHUNK_BYTES: usize = 256;
@@ -195,6 +214,80 @@ pub enum StreamError {
     /// §4.5: the section with this id is encrypted, so its stored bytes
     /// are not its content.
     SectionEncrypted(u32),
+    /// The section map lists more sections than the whole-file walker's
+    /// table holds.
+    SectionTableFull,
+    /// A data page in the page map names a section the section map does
+    /// not describe; the number is the page's.
+    SectionPageUnknown(u32),
+    /// §20.1: the object section does not open with the four-byte prologue
+    /// (an `RL` of 0x0DCA), or is too short to hold it.
+    ObjectPrologue,
+    /// §20.1: the record at this section offset has an `MS` size of zero or
+    /// one that does not fit two words.
+    RecordSize(u64),
+    /// §20.1: the record at this section offset would run past the end of
+    /// the section.
+    RecordRange(u64),
+    /// §20.1: the CRC of the record at this section offset.
+    RecordCrc {
+        offset: u64,
+        expected: u16,
+        actual: u16,
+    },
+    /// §20.1: the `MC` handle-stream size, the type or the handle of the
+    /// record at this section offset cannot be read from its first bytes, or
+    /// the `MC` claims more bits than the record holds.
+    RecordHeader(u64),
+    /// The object section's bytes did not arrive in section order and
+    /// without a gap: the next byte due is at `expected`.
+    ObjectsOrder {
+        expected: u64,
+        actual: u64,
+    },
+    /// The walk ended before the object stream was consumed; this is the
+    /// section offset it reached.
+    ObjectsIncomplete(u64),
+    /// The section map does not describe `AcDb:AcDbObjects`.
+    ObjectsMissing,
+    /// The data pages the page map holds for section `n` are not the pages
+    /// the section map lists for it: a listed page is missing from the page
+    /// map, or a page is walked that is not listed.
+    SectionDigest(u32),
+    /// §5.2: the R2007 header field at this place is not what the spec
+    /// fixes or points outside the source. Below `0x1000` it is a file
+    /// offset in the meta data, `0x1000 + n` is byte `n` of the decoded file
+    /// header block and `0x2000 + n` byte `n` of the 0x110-byte header.
+    R2007Header(u16),
+    /// §5.13: a Reed-Solomon codeword of the page at this address has a
+    /// non-zero syndrome; `codeword` counts from the page's first.
+    R2007Parity {
+        at: u64,
+        codeword: u64,
+    },
+    /// §5.12: a 64-bit CRC of the page or header block at this address.
+    /// `check` is 0 the file header's checking sequence, 1 its compressed
+    /// data, 2 the header, 3 and 4 the check data at 0x3D8 (normal and
+    /// mirrored), 5 and 6 a system page's stored and decompressed bytes, 7 a
+    /// data page's stored bytes.
+    R2007Crc64 {
+        at: u64,
+        check: u8,
+        expected: u64,
+        actual: u64,
+    },
+    /// §5.4.1: the 32-bit checksum of a data page's decompressed bytes.
+    R2007Checksum {
+        at: u64,
+        expected: u32,
+        actual: u32,
+    },
+    /// A page at this address has sizes that cannot be walked: a zero or
+    /// oversized stored size, a zero repeat factor, an entry too small for
+    /// its codewords.
+    R2007Page(u64),
+    /// A section reference names a page id the page map does not list.
+    R2007PageMissing(i64),
 }
 
 impl fmt::Display for StreamError {

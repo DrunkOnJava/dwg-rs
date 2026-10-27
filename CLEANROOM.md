@@ -477,3 +477,134 @@ The exports read are `nextgis/dwg_samples` (no licence stated) and the
 `samples/` directory of `DomCR/ACadSharp` (MIT), fetched by pinned commit
 and sha256 into a cache outside the repository; only those data files
 were read, not ACadSharp's code or comments.
+
+## 2026-10-26 — Class layouts the specification never prints: derived from AutoCAD's own output (maintainer's decision)
+
+ODA spec v5.4.1 gives a field list for the fixed object types and for some
+custom classes (§20.4), and none for the rest (MATERIAL, the dynamic-block
+`BLOCK*` classes, `ACSH_*`, `DBCOLOR`, `SUN`, `DATATABLE`, `PDFDEFINITION` and
+others). By the maintainer's decision of 2026-10-26, a layout the spec does not
+print is learned from AutoCAD's own output, by this method and no other:
+
+- **What is observed.** An AutoCAD-written DWG and AutoCAD's own DXF export of
+  the same drawing: the pinned `nextgis/dwg_samples` and ACadSharp `samples/`
+  twins listed under "Public corpus" (data files, fetched by pinned hash), and,
+  once the project's agents have made them, controlled drawings made in
+  AutoCAD that vary one property at a time, with their exports. A record's DWG bits are
+  read against the DXF record of the same handle, paired by
+  `src/dxf_reader.rs` and `examples/dxf_oracle`.
+- **How a field is accepted.** A field list is kept only if both hold. It
+  closes every record of the class exactly on the record's data-stream
+  boundary on every release band in which the class occurs (the same
+  self-validation as every other decoder: a list that lands anywhere else is
+  wrong, never trimmed to fit). And each decoded value equals the DXF group that
+  carries it in the twin, compared by handle, by a probe under `examples/` that
+  exits non-zero on any disagreement or boundary miss. A field the DXF does not
+  show has only its width claimed, is named `unknown_*` or positionally, and is
+  recorded as unverified by value. A class whose layout cannot be closed on
+  every record stays undecoded; no partial decoder is shipped.
+- **What is never used.** Any third-party implementation of DWG or DXF: not
+  LibreDWG, the ODA or Teigha SDK, or any Autodesk SDK (all banned above), and
+  also not ACadSharp's or ezdxf's reading code, their comments, their tests or
+  their derived data, which the permissive-licence allowance above would
+  otherwise cover. The names of the DXF groups in the twin are observed data;
+  any further vocabulary taken from Autodesk's public *DXF Reference* is
+  disclosed on the class's own line and contributes names only.
+- **Record of derivation.** Each class gets its own dated entry below this one,
+  naming the drawings and the record counts per release it was derived from,
+  and the fields left unverified by value.
+
+## 2026-10-26 — DXF value oracle: VISUALSTYLE, MLEADERSTYLE and VIEW scorers
+
+The follow-up to #248 scores three more types the same way. MLEADERSTYLE
+and VIEW take each field's group from the DXF column of §20.4.87 and
+§20.4.60. VISUALSTYLE, which v5.4.1 does not prescribe, takes the group of
+each named property from Autodesk's public *DXF Reference* (VISUALSTYLE),
+recalled, and every one of them is measured on the exports and documented
+in `scorers.rs`. Only the same two corpora were read, as data.
+
+## 2026-10-27 — Code page numbers: learned from AutoCAD's own output, with the WHATWG tables for the bytes (#370)
+
+ODA spec v5.4.1 §3.2.5 gives the short at 0x13 of the file header ("a raw
+short indicating the value of the code page") and prints no table of its
+values; no other allowed source lists them. `src/code_page.rs` therefore
+names a number only when AutoCAD's own output does, by the method of the entry
+above: the header short of a pinned `nextgis/dwg_samples` or ACadSharp drawing
+against the `$DWGCODEPAGE` of AutoCAD's DXF export of the same drawing
+(`examples/probe_code_page.rs`). That gives two rows, 29 for `ANSI_1251` and 30
+for `ANSI_1252`; every other number is read as before and counted.
+
+- **What is read.** Header shorts and `$DWGCODEPAGE` names in the corpus data
+  files only. The names `ANSI_1251` and `ANSI_1252` mean Windows code pages
+  1251 and 1252 by their own spelling.
+- **What decodes the bytes.** The `encoding_rs` crate (MIT or Apache-2.0, its
+  index data BSD-3-Clause, all on `deny.toml`'s list) as a dependency, through
+  the WHATWG `windows-1251` and `windows-1252` tables. No code of it is copied.
+- **What is never used.** The numbering of any third-party DWG implementation
+  (LibreDWG, the ODA or Autodesk SDKs, ACadSharp, ezdxf), recalled or read, for
+  a number the corpus does not name. A page is added by a drawing and its export
+  naming it, in the same pull request that adds the row.
+
+## 2026-10-27 — The writers' code page: AutoCAD's own R12, R2000, R2004 and R2007 output (#375)
+
+`CodePage::encode`, `dxf_convert::convert_dwg_to_dxf_bytes` and the DWG writer's header
+page write text in the drawing's code page. What decides how:
+
+- **Observed.** The one raw high byte of a pre-R2007 DXF export in the pinned corpus
+  (`sample_AC1009_ascii.dxf`, R12), and the ASCII escape `\U+2205` that AutoCAD's R2000
+  and R2004 saves and exports of the ACadSharp samples hold where the R2007 and later
+  saves of the same drawing hold the character U+2205 (data files, read as data).
+- **Autodesk's public DXF Reference, recalled.** That DXF before R2007 is text in the
+  `$DWGCODEPAGE` code page. `src/dxf_reader.rs` already reads on the same statement; no
+  vocabulary beyond it is taken.
+- **Never used.** Any third-party implementation of DWG or DXF, for the escape or for
+  anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
+  ezdxf's code, comments or data.
+
+
+## 2026-10-27 — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never
+prints. The field lists in `src/objects/pers_subent.rs` were derived from the
+data bits of the 14 records of ACadSharp's `sample_base` saves (AutoCAD 2025:
+R14, R2000, R2004, R2007, R2010, R2013, R2018; one record of each class per
+release, handles 0xD62 and 0xD63 on every release) and AutoCAD's DXF export of
+the same handles (R2000 to R2018; the R14 save has no twin). Accepted: all 14
+close on the data-stream boundary, from R2007 on a string stream the field
+list leaves empty, and 120 values (every group 90 of both objects, in file
+order, and group 290 of the first) equal the decoded fields with 0 differences
+(`examples/probe_pers_subent.rs`, `probe_assoc_pers_subent.rs`), the number of
+groups 90 included. Unverified by value: where each array ends, since the DXF
+writes every number as group 90 (the reading of an ids array followed by one
+array per id, and of three arrays after the version, is the one that keeps
+every repeat count in the stream and closes all 14 records; two other readings
+parse the same bits), what any value means, whether the array at version 2 is
+gated by the version word or by the release, the width of every integer beyond
+the values the corpus holds (the `BL` form is claimed, `BS` is bit-identical on
+every record), and any value but those in the corpus; one drawing supplies all
+14 records. A version word other than 2 (the first class) or 1 and 2 (the
+second) is refused as unsupported. No vocabulary beyond the DXF group codes and
+subclass markers in the twins and the class names in `AcDb:Classes` was used
+(`version`, `ids` and `arrays` are positional names of this crate's, the role of `version` inferred from the 1 to 2 change across releases), and no third-party
+DWG or DXF implementation was consulted: only the data files of the corpus were
+read, never ACadSharp's code.
+
+
+## 2026-10-27 — XRECORD values and extended entity data: layouts measured, value widths from the DXF Reference (#375)
+
+`src/extended_data.rs` reads an XRECORD's data and the extended entity data chain as
+values. How each part was settled:
+
+- **Measured on AutoCAD's own output.** The string layout (an `RS` length, an `RC` code
+  page byte, the bytes), the byte order of an extended data handle (most significant first)
+  and of an XRECORD handle (least significant first), and every width of §28: read against
+  the DXF groups of AutoCAD's export of the same drawing, record by record
+  (`examples/probe_code_page.rs`), on the pinned `nextgis/dwg_samples` and ACadSharp
+  `samples/` drawings (data files).
+- **Autodesk's public DXF Reference, recalled.** The ranges of DXF group codes that give an
+  XRECORD value its type (16-bit, 32-bit, double, point, handle, binary chunk), taken only
+  for a range where a code of it occurs in those drawings. No other vocabulary.
+- **Never used.** Any third-party implementation of DWG or DXF, for a width, a byte order or
+  anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
+  ezdxf's code, comments or data.
+
