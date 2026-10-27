@@ -32,9 +32,9 @@ use crate::tables::handles::{EntryRefs, refs};
 use crate::version::Version;
 
 /// The DXF kinds the writer writes of a drawing when the output targets `version`,
-/// whatever the drawing holds. An MLINESTYLE of R2018 names its linetypes by
-/// handle, which is not resolved yet.
-pub fn kinds(version: DxfVersion) -> Vec<&'static str> {
+/// whatever the drawing holds, for a drawing of release `version`. An MLINESTYLE of
+/// R2018 names its linetypes by handle, which is not resolved yet.
+pub fn kinds(version: Version) -> Vec<&'static str> {
     let mut out = vec![
         "DICTIONARY",
         "ACDBDICTIONARYWDFLT",
@@ -45,7 +45,7 @@ pub fn kinds(version: DxfVersion) -> Vec<&'static str> {
         "GROUP",
         "ACDBPLACEHOLDER",
     ];
-    if version != DxfVersion::R2018 {
+    if !matches!(version, Version::R2018) {
         out.push("MLINESTYLE");
     }
     out
@@ -298,6 +298,7 @@ fn layout_groups(
     g: &mut Vec<HeaderGroup>,
     l: &crate::objects::acad_layout::AcadLayout,
     item: &Item,
+    defined: &HashSet<u64>,
 ) -> Option<()> {
     let p = &l.plot_settings;
     let skip = match item.version {
@@ -392,14 +393,13 @@ fn layout_groups(
     }
     g.push(HeaderGroup::Int(76, i64::from(l.ucs_ortho_view_type)));
     g.push(HeaderGroup::Handle(330, *block));
-    if *last_viewport != 0 {
-        g.push(HeaderGroup::Handle(331, *last_viewport));
-    }
-    if *named_ucs != 0 {
-        g.push(HeaderGroup::Handle(345, *named_ucs));
-    }
-    if *base_ucs != 0 {
-        g.push(HeaderGroup::Handle(346, *base_ucs));
+    // The optional references name an entity or a UCS record, written only when the
+    // output defines it (VIEWPORT entities and populated UCS records are not
+    // written yet).
+    for (code, handle) in [(331, last_viewport), (345, named_ucs), (346, base_ucs)] {
+        if *handle != 0 && defined.contains(handle) {
+            g.push(HeaderGroup::Handle(code, *handle));
+        }
     }
     Some(())
 }
@@ -471,7 +471,7 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             "XRECORD"
         }
         DecodedEntity::Layout(l) => {
-            layout_groups(&mut g, l, item)?;
+            layout_groups(&mut g, l, item, defined)?;
             "LAYOUT"
         }
         DecodedEntity::Group(grp) => {

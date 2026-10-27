@@ -321,7 +321,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             dropped.insert(h, why);
         }
     }
-    let supported = kinds(target);
+    let supported = kinds(file.version());
     let mut last_index = 0usize;
     for r in &our_recs {
         let kind = r.kind.clone();
@@ -519,6 +519,17 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                     o.failures.push(format!(
                         "{name} {kind} {h:X}: group {ca} (position {i}) written but absent from the export"
                     ));
+                }
+                (None, Some((cb, vb)))
+                    if matches!(cb, 331 | 345 | 346)
+                        && vb.as_handle().is_some_and(|x| !defined(x)) =>
+                {
+                    t.omitted_groups += 1;
+                    *o.reasons
+                        .entry(format!(
+                            "{kind} group {cb} (it names an entity or UCS record the output does not define)"
+                        ))
+                        .or_default() += 1;
                 }
                 (None, Some((cb, _))) => {
                     t.omitted_groups += 1;
