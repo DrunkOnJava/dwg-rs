@@ -3063,7 +3063,7 @@ space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decode
 records: 17 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
 3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface
 forms, VERTEX, SEQEND). An INSERT, with the ATTRIBs and SEQEND under it, is written
-only when BLOCKS (§7aq) writes the block it names (the blocks written are decided
+only when BLOCKS (§7ar) writes the block it names (the blocks written are decided
 first; an INSERT of any other is counted as `INSERT (its block is not written)`), so
 no output holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
 decode, is counted in a `999 skipped` comment. `examples/probe_dxf_entities.rs`
@@ -3330,7 +3330,7 @@ data reads that text area through a non-ASCII byte. The diagnostic `read_tv`
 copies in `examples/trace_*` and the field-list probes still decode as UTF-8;
 they print strings and compare none.
 
-## 7aq. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
+## 7ar. dwg-to-dxf: the BLOCKS section (2026-10-26, #126)
 
 `src/dxf_blocks.rs` writes one block per `BLOCK_RECORD` of the table, in its order: the
 `BLOCK` (its handle from the block record's handle stream, its layer, name, flags, base
