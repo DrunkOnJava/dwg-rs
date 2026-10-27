@@ -1,10 +1,11 @@
 #!/bin/bash
 # Land one PR the merge train has refreshed: tools/maintainer/train/land.sh <pr>
 #
-# Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head. When
-# that job fails because the merge decodes different counts from the committed baseline,
-# ci_baseline.sh commits the counts the job measured (refusing any worse than main's) and the wait
-# starts again on the new head, at most three times. Then it requires zero unresolved review threads
+# Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head. Whether
+# that job passed or failed, ci_baseline.sh checks its measurement against main (corpus counts and
+# DXF oracle agreement), refuses anything worse, and commits the corpus and oracle baselines the job
+# measured when they differ from the committed ones; the wait then starts again on the new head, at
+# most four times. A failed job whose measurement needs no change failed in another step. Then it requires zero unresolved review threads
 # and turns squash auto-merge on. If main moves in a path that can change the measured counts or the
 # PR's ARCHITECTURE.md section suffix (src/ outside src/streaming/, tools/corpus/, docs/data/, the
 # spec example fixtures, ARCHITECTURE.md) before the merge, auto-merge goes off and it exits 8 for
@@ -35,6 +36,13 @@ moved() {
     | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/|ARCHITECTURE\.md$)'
 }
 note() { echo "$(date +%H:%M) TRAIN #$P $*" >> "$TRAIN_STATE/train.log"; }
+# Runs cancelled to free the runners for PRs ahead in the queue are re-run once the train reaches this PR.
+revive() {
+  for run in $(gh run list -R "$R" -c "$1" --json databaseId,conclusion --jq '.[]|select(.conclusion=="cancelled")|.databaseId' 2>/dev/null); do
+    gh run rerun "$run" -R "$R" --failed > /dev/null 2>&1 && note "re-ran cancelled run $run on ${1:0:9}"
+  done
+}
+revive "$head"
 deadline=$(( $(date +%s) + 5400 ))
 regen=0
 while :; do
@@ -43,13 +51,13 @@ while :; do
   [ -n "$cur" ] && [ "$cur" != "$head" ] && { echo "#$P head moved to ${cur:0:9} (someone pushed); not landing"; exit 4; }
   c=$(gh pr checks "$P" -R "$R" --json name,state --jq '.[]|select(.name=="Corpus (public DWG)")|.state' 2>/dev/null | head -1)
   case $c in
-    SUCCESS) break ;;
-    CANCELLED) echo "#$P Corpus=$c on ${head:0:9}"; exit 1 ;;
-    FAILURE|ERROR)
-      [ "$regen" -ge 3 ] && { echo "#$P Corpus=$c on ${head:0:9} after $regen regenerated baselines"; exit 1; }
+    CANCELLED) revive "$head" ;;
+    SUCCESS|FAILURE|ERROR)
+      [ "$regen" -ge 4 ] && { echo "#$P Corpus=$c on ${head:0:9} after $regen regenerated baselines"; exit 1; }
       msg=$(bash "$TRAIN_HERE/ci_baseline.sh" "$P" "$head" 2>&1); rc=$?
       case $rc in
         0) head=$(cat "$OUT/pushed.sha"); regen=$((regen + 1)); note "$msg"; deadline=$(( $(date +%s) + 5400 )) ;;
+        3) [ "$c" = SUCCESS ] && break; echo "#$P Corpus=$c on ${head:0:9}: $msg, so it failed in another step"; exit 1 ;;
         6) echo "#$P $msg"; exit 6 ;;
         *) echo "#$P Corpus=$c on ${head:0:9}: $msg"; exit 1 ;;
       esac ;;

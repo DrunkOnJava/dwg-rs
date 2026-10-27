@@ -35,6 +35,7 @@ git merge --abort > /dev/null 2>&1
 git reset -q --hard
 git checkout -q --detach "origin/$B" || exit 2
 base=$(git rev-parse HEAD)
+echo "$base" > "$OUT/pr-head.sha"; git merge-base origin/main HEAD > "$OUT/merge-base.sha"
 map=$(python3 -I "$TRAIN_HERE/arch.py" renumber "$(git merge-base origin/main HEAD)" origin/main 2> "$OUT/renumber.log") || { say "REFUSED: section renumber failed: $(cat "$OUT/renumber.log")"; exit 4; }
 if [ -n "$map" ]; then
   git commit -qam "docs(architecture): renumber the new section ($map) after the sections main added" || exit 1
