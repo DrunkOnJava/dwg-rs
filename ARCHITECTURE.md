@@ -3946,6 +3946,15 @@ the polylines. TRACE shares SOLID's stream (§20.4.36), so `trace::decode_for`
 calls SOLID's. It moves the 3 TRACE records of the Forest Service set that
 errored; the other 162 closed before and still do.
 
+Five more guards main gained after the swaps above tested R14 alone where the
+comment or the section says "R13 and R14": `dxf_entities::writes`, the layer
+and VPORT guards of `dxf_tables.rs` ("R13 and R14 store no plot flag and no
+lineweight", "neither a render mode nor an associated UCS"), `entity_refs` and
+`DIMSTYLE`'s `decode_with_vars`. They read `is_r13_r14()` now. They are not
+measured: they act only when an R13 drawing is converted to DXF, no R13 drawing
+has an AutoCAD DXF twin, and no CI step converts one, so this is a sweep result,
+not a count.
+
 The remaining `Version::R14` tests in `src/` are R14-only on purpose:
 DICTIONARY's unknown byte (§20.4.44), the R14 header variable table, and
 the version identity matches in `file_writer.rs`, `classes.rs`,

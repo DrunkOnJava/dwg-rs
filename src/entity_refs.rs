@@ -68,7 +68,7 @@ fn resolve(h: Handle, own: u64) -> u64 {
 /// Fails before R2000 (no anchor for the handle stream), on an entity whose
 /// common data does not parse, and when a handle does not.
 pub fn entity_refs(raw: &RawObject, version: Version) -> Result<(CommonEntityData, EntityRefs)> {
-    if matches!(version, Version::R14) {
+    if version.is_r13_r14() {
         return Err(Error::SectionMap(
             "entity has no handle stream anchor before R2000".into(),
         ));
