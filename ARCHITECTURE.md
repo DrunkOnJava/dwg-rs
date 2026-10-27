@@ -4041,7 +4041,12 @@ agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a layo
 plots a named view (none of the 132 has plot type 3 or a non-empty group `6` in the
 export, so the plot view handle's resolution to the VIEW record's name is by the rule
 and not by a drawing), a visual style handle (`333`), an MLINESTYLE whose linetype is
-neither sentinel, and R2018 MLINESTYLE.
+neither sentinel, and R2018 MLINESTYLE. A LAYOUT whose plot settings, limits, elevation or
+any of its six 3D points (insertion point, extents, UCS origin and axes) holds a NaN or an
+infinity, which `read_bd` returns as read, is not written: the DXF reader rejects either.
+No pinned layout holds one (all 132 are written), so a synthetic check of the predicate
+(`layout_is_finite`, the one the planner uses) refuses all 63 cases, a NaN, an infinity and a
+negative infinity in each of the 18 coordinates of the six points and in one real of each other kind.
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
