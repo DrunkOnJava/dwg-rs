@@ -2931,7 +2931,7 @@ the probe checks that header against the export's on every drawing.
 A handle group is written only when the output defines the object it names, under
 its own type: the OBJECTS section writes dictionaries and plot style placeholders,
 so 390, 360 and the xdictionary bracket are written (a NULL as `0`). It does not write
-a layout, a material or a visual style yet (§7as lists the kinds it does),
+a layout, a material or a visual style yet (§7at lists the kinds it does),
 so a block's 340 (when it names a layout), a layer's 347 and 348 and a
 viewport's 348 are left out, as the header leaves out the equivalent `$CMATERIAL`
 and visual style names. An arrowhead block is named once BLOCKS writes it, which it
@@ -3501,7 +3501,7 @@ of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic bloc
   441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
   which is not decoded) or an embedded object (R2018); the probe counts them by kind.
 
-## 7as. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
+## 7at. dwg-to-dxf: the OBJECTS section (2026-10-26, #126)
 
 `src/dxf_objects.rs` writes the objects of the drawing that are neither entities nor
 table records: DICTIONARY and ACDBDICTIONARYWDFLT (each entry as its key and handle,
