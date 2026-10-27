@@ -3501,7 +3501,7 @@ of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic bloc
   441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
   which is not decoded) or an embedded object (R2018); the probe counts them by kind.
 
-## 7aj. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
+## 7as. R13 (AC1012): the container, the walk, and where the bytes depart from the text (2026-10-26, #119)
 
 Until this section the crate refused every AC1012 file at the version gate,
 and the corpus held none. Twenty-two real R13 drawings are now pinned
@@ -3707,9 +3707,9 @@ target/release/examples/probe_r13_container ../dwg-corpus/sketchup/Cabin.dwg ../
 python3 tools/streaming/verify_walk.py target/release/examples/stream_walk
 ```
 
-## 7ak. R13 through the decoders main added after the branch began (2026-10-26, #119)
+## 7at. R13 through the decoders main added after the branch began (2026-10-26, #119)
 
-§7aj opened AC1012 and found, in a scratch tree, that the decoders main
+§7as opened AC1012 and found, in a scratch tree, that the decoders main
 gained while that branch was open stop at R14: TEXT, ATTRIB and ATTDEF
 (#258), the R13/R14 DIMSTYLE block (#297) and LEADER (#249) each test the
 R13-R14 branch as `version == Version::R14` or
@@ -3753,7 +3753,7 @@ TEXT, VIEWPORT or TRACE record. Two other sets do: the US Forest Service R6
 library (122 drawings, public domain, "created in AutoCad Ver 13"; pinned by a
 later PR and measured here on lower-cased copies, because `coverage_report`
 skipped `.DWG` until #353) and Autodesk's own install-disc drawings (68
-distinct, local evidence only, §7aj).
+distinct, local evidence only, §7as).
 
 | | Forest Service, 122 drawings | Autodesk discs, 68 distinct drawings |
 |---|---:|---:|
@@ -3773,7 +3773,7 @@ height).
 
 **TRACE reads BT and BE in their R13-R14 form too.** `trace::decode` never took
 the version, so TRACE kept the R2000+ flag-then-value forms of thickness and
-extrusion on R13 and R14, the bug §7aj fixed for SOLID, ARC, CIRCLE, POINT and
+extrusion on R13 and R14, the bug §7as fixed for SOLID, ARC, CIRCLE, POINT and
 the polylines. TRACE shares SOLID's stream (§20.4.36), so `trace::decode_for`
 calls SOLID's. It moves the 3 TRACE records of the Forest Service set that
 errored; the other 162 closed before and still do.
