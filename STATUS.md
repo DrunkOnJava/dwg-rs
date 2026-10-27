@@ -1,13 +1,17 @@
-# Status — 2026-08-30, real-file coverage 2026-10-26
+# Status — 2026-08-30 snapshot, real-file coverage current
 
 A plain-text snapshot of what has shipped in this crate, organized
 by the task-tracker labels, so contributors can orient without
-scrolling the changelog.
+scrolling the changelog. The coverage line below is rendered from
+`tools/corpus/baseline.tsv` by `tools/maintainer/readme_status.py`;
+the rest of this page is the 2026-08-30 snapshot. README.md carries
+the current capability matrix.
 
 ## Summary
 
-- **Lib tests:** 774 passing in default/debug and release-all-features
-  profiles, clippy + fmt clean.
+- **Tests:** `cargo test --release --all-features` ran 921 tests, all
+  passing, on 2026-10-27; clippy and fmt clean. (The 2026-08-30
+  snapshot had 774 lib tests.)
 - **WASM tests:** 40 passing in `wasm/` sub-crate.
 - **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
   goldens (3), fuzz-corpus regression (6), write-path (5),
@@ -15,14 +19,10 @@ scrolling the changelog.
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
 - **Current real-file decode coverage, measured in CI** (the
-  `Corpus (public DWG)` job, [run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288), on 52 public drawings
-  pinned in `tools/corpus/pins.tsv`): 13,781 decoded / 1,985 skipped /
-  **308 errored** / 85.7%. Per version: R14 55.8%, R2000 92.3%,
-  R2004 91.8%, R2007 93.4%, R2010 95.4%, R2013 94.7%, R2018 93.7%
-  (4 drawings). The 19 files every earlier number came from still
-  measure 3,911 / 525 / 9 / 88.0%; the 299 new errors are records only
-  the added drawings hold (#226, #227, #228, #71), and
-  `sample_AC1032.dwg`'s origin is now known: ACadSharp's MIT
+  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40503137263](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40503137263) on 2026-10-27<!-- corpus-run:end -->, on the public drawings
+  pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->15,541 decoded / 533 skipped / **0 errored** / 96.7 % of all records on 52 drawings; the median drawing decodes 97.8 %. Per source (drawings): nextgis 98.0 % (42), acadsharp 95.2 % (10). Per version: R14 97.5 %, R2000 96.8 %, R2004 96.8 %, R2007 96.6 %, R2010 96.5 %, R2013 95.7 %, R2018 96.1 %.<!-- corpus-summary:end -->
+  The 308 errors of the 2026-10-26 measurement were closed by #226,
+  #227, #228 and #71; `sample_AC1032.dwg` comes from ACadSharp's MIT
   `samples/`, saved by AutoCAD 2025 (#96, CLEANROOM.md).
 - **All nineteen corpus files now decode.** Until #104/#110 the nine
   R14 / R2000 / R2007 files reported `n/a (no-handle-map)` — no record
@@ -166,9 +166,8 @@ scrolling the changelog.
   ACDBDETAILVIEWSTYLE and ACDBSECTIONVIEWSTYLE from the joint-boundary
   search — 33 further records, all four release bands, delta 0 on every
   one (ARCHITECTURE.md §7d.3, §7d.4).
-  ACAD_MATERIAL closes on all 212 corpus records of R14 to R2018, its
-  layout derived from AutoCAD's own DWG and DXF output (ARCHITECTURE.md
-  §7s).
+  ACAD_MATERIAL reads only its strings and its measured bit budget —
+  its data-field layout is not determined.
 
 ### Graph + geometry (Phase 5 + 8)
 - `resolve_entity` / `owner_chain` / `reactor_chain`.
@@ -332,8 +331,8 @@ These have genuine open scope requiring focused work, not stubs.
   MLEADERSTYLE (11), ACDBDETAILVIEWSTYLE (11) and
   ACDBSECTIONVIEWSTYLE (11) dispatch on all of theirs. Still
   unreached, in descending record count on the corpus (counts as of
-  the 2026-08-30 run): TABLESTYLE (10). PROPERTYSET_DATA decodes
-  only a documented prefix of its fields, so it cannot satisfy the
+  the 2026-08-30 run): MATERIAL (38), TABLESTYLE (10). MATERIAL and PROPERTYSET_DATA decode
+  only a documented prefix of their fields, so they cannot satisfy the
   boundary check; TABLESTYLE's block structure is measured
   (ARCHITECTURE.md §7d.4) but a single record per corpus file cannot
   pin the token sequence inside its cell-style blocks.
@@ -347,18 +346,19 @@ These have genuine open scope requiring focused work, not stubs.
   moved into `objects/acad_layout.rs` as a data-store block, and the DXF
   value oracle later showed them to be `plot_layout_flags` in its full
   `BS` form (ARCHITECTURE.md, 2026-10-26): no bits follow the flag.
-  `tables/modern.rs` keeps its `RC` — that path also omits the
-  `BL num_reactors` the object path reads, so its bit accounting has a
-  second unresolved variable (see the next item) and was left alone.
+  `tables/modern.rs`'s `RC` turned out to be its missing
+  `BL num_reactors` (next item), so no bits follow the flag anywhere.
   Evidence: ARCHITECTURE.md §7h, `examples/probe_acis_records.rs`.
 
-- **R2007+ symbol-table common object prefix.** `tables/modern.rs`
-  omits the `BL num_reactors` that `objects/modern.rs` measured as
-  present on every non-entity object, and compensates with a different
-  flag order, so both readings land on the string stream. Which one
-  assigns the right values to the right fields is not determinable
-  from the 16 bits an APPID record spends there; the names are
-  unaffected because they come from the string stream either way.
+- **R2007+ symbol-table common object prefix — settled (#40).**
+  `tables/modern.rs` now reads the `BL num_reactors` that
+  `objects/modern.rs` reads, and it equals the reactor count of
+  AutoCAD's DXF export on all 1,020 table entries with a twin. The six
+  R2007/R2010 DIMSTYLE records with reactors now close. Open: whether
+  the two bits after the prefix are `B 64-flag, B Xdep` or a lone
+  `BS xrefindex+1`, which needs a drawing with an xref-dependent entry
+  (#290). Evidence: ARCHITECTURE.md §7x,
+  `examples/probe_table_prefix.rs`.
 
 - **#103 remaining real-file decoder alignment** (P0, unchanged scope,
   larger corpus). The R2007+

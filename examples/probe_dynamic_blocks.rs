@@ -5,7 +5,7 @@
 //! BLOCKLINEARGRIP, BLOCKVISIBILITYGRIP, BLOCKLINEARPARAMETER,
 //! BLOCKVISIBILITYPARAMETER or BLOCKSCALEACTION; `src/objects/dynamic_block.rs`
 //! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7u). For every record of the six classes under the corpus directory this
+//! §7aw). For every record of the six classes under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary (from R2007 with the string stream consumed) and compares every
 //! value the DXF writes with the object of the same handle: groups 90, 98, 99,
