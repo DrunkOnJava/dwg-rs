@@ -3,7 +3,7 @@
 //! ODA spec v5.4.1 prints no layout for it. The field list is derived from
 //! AutoCAD's own output under the method in `CLEANROOM.md` (2026-10-26): the data
 //! bits of the one SUN record of the corpus (`geoloc.dwg`, R2018) against the
-//! `AcDbSun` object of the same handle in its DXF export. ARCHITECTURE.md §7y holds
+//! `AcDbSun` object of the same handle in its DXF export. ARCHITECTURE.md §7ba holds
 //! the evidence. SUN is a non-entity object that AutoCAD hangs on a dictionary, so
 //! it carries the common object data and reaches the dispatcher as a custom class.
 //!
@@ -61,7 +61,7 @@ pub struct Sun {
 }
 
 /// Decode a SUN record straight from its raw object payload, from the layout of
-/// the module docs (derived from AutoCAD's output, ARCHITECTURE.md §7y), ending
+/// the module docs (derived from AutoCAD's output, ARCHITECTURE.md §7ba), ending
 /// exactly on the data-stream boundary with the string stream consumed.
 pub(crate) fn decode_object(
     payload: &[u8],

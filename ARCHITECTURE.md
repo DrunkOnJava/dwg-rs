@@ -2425,7 +2425,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_underlay -- ../dwg-corpus
 ```
 
-## 7y. SUN, derived from AutoCAD's own output (2026-10-26, #152)
+## 7ba. SUN, derived from AutoCAD's own output (2026-10-26, #152)
 
 ODA spec v5.4.1 prints no layout for the sun of a drawing's lighting settings.
 `src/entities/sun.rs` reads it from the layout below, derived by the CLEANROOM.md
@@ -2449,7 +2449,7 @@ BD 40, B 291, BL 91, BL 92, B 292, BS 70, BS 71, RC 280
 - **Colour.** The DXF writes the colour as group 63 (7) and group 421 (16777215). The
   data bits hold a `BS` 0 and a `BL` word 0xC2FFFFFF, whose low 24 bits are group 421;
   group 63 is not a field of the data bits and is unverified. The colour is the form the
-  ACSH records use (ARCHITECTURE.md §7w).
+  ACSH records use (ARCHITECTURE.md §7ay).
 - **Integer widths.** Group 280 is a single byte (`RC`, one more bit-short would run
   two bits past the boundary), where groups 70 and 71 are bit-shorts (0 and 256 are
   the two-bit forms `10` and `11`). Group 92 (54000000) and group 91 (2460940) are
