@@ -2961,7 +2961,10 @@ the words were kept: `CommonEntityData` now carries `color_raw`, `color_rgb` and
 record of the same handle in AutoCAD's own export of it and compares the colour
 index (62, absent for BYLAYER, left out where the export has a true colour:
 AutoCAD derives a nearest index the DWG does not store), the true colour (420),
-and the transparency (440). The Corpus job runs it.
+and the transparency (440). The Corpus job runs it. An entity whose common data
+does not read is a failure, named by drawing and handle, not a skipped record, and a
+run that reads and pairs no entity prints `NOT MEASURED`; `PROBE_ENTITY_COLOUR_TRUNCATE`
+cuts every record short to show it (2,609 entities named, exit 1).
 
 | Release | Entities paired | Index | Agree | True colour | Agree | Colour book | Transparency | Agree | Both words | Agree, RGB first | Agree, exchanged |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|

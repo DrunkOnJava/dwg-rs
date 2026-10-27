@@ -25,8 +25,11 @@
 //! with the two words exchanged, which is what a reader that takes the
 //! transparency first would have produced.
 //!
-//! Any disagreement exits 1. R13 and R14 drawings are skipped (no true colour or
-//! transparency exists before R2004; their index is not measured here).
+//! Any disagreement exits 1, and so does an entity whose common data does not
+//! read: it is counted, named by drawing and handle, and never dropped. A run in
+//! which no entity read and paired prints `NOT MEASURED` after those failures. R13
+//! and R14 drawings are skipped (no true colour or transparency exists before
+//! R2004; their index is not measured here).
 //!
 //! # How to verify
 //!
@@ -37,6 +40,16 @@
 //! Directories are searched recursively for `.dwg` and `.dxf` files; a DWG's twin
 //! is the DXF with the same stem, or the stem plus `_ascii`. With no DWG that has
 //! a twin it prints `NOT MEASURED` and exits 0.
+//!
+//! # Negative run
+//!
+//! `PROBE_ENTITY_COLOUR_TRUNCATE=<bytes>` cuts every entity's record to that many
+//! bytes before it is read, which no real drawing does. The probe must then name
+//! every entity as unreadable, print `NOT MEASURED` and exit 1:
+//!
+//! ```text
+//! PROBE_ENTITY_COLOUR_TRUNCATE=4 cargo run --release --features dxf-reader --example probe_entity_colour -- <file-or-dir> ...
+//! ```
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -49,6 +62,7 @@ use dwg::{DwgFile, Version};
 struct Tally {
     entities: usize,
     unpaired: usize,
+    unread: usize,
     index: usize,
     index_agree: usize,
     true_colour: usize,
@@ -114,14 +128,34 @@ fn probe_file(
         Some(Err(e)) => return Err(format!("object walk: {e}")),
         None => return Ok(None),
     };
+    let truncate = std::env::var("PROBE_ENTITY_COLOUR_TRUNCATE")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok());
     let mut t = Tally::default();
     for raw in raws.iter().filter(|r| r.is_entity()) {
         let h = raw.handle.value;
-        let Ok(mut cursor) = dwg::object::body_cursor(raw, version) else {
-            continue;
+        let mut cut;
+        let raw = match truncate {
+            Some(n) => {
+                cut = raw.clone();
+                cut.raw.truncate(n);
+                &cut
+            }
+            None => raw,
         };
-        let Ok(common) = dwg::common_entity::read_common_entity_data(&mut cursor, version) else {
-            continue;
+        let read = dwg::object::body_cursor(raw, version).and_then(|mut cursor| {
+            dwg::common_entity::read_common_entity_data(&mut cursor, version)
+        });
+        let common = match read {
+            Ok(common) => common,
+            Err(e) => {
+                t.unread += 1;
+                t.failures.push(format!(
+                    "{name} {} {h:X}: the common entity data does not read: {e}",
+                    raw.kind.short_label()
+                ));
+                continue;
+            }
         };
         let Some(want) = theirs.record_by_handle(h) else {
             t.unpaired += 1;
@@ -192,8 +226,8 @@ fn probe_file(
         }
     }
     println!(
-        "{name:28} {version}  {} entities paired, {} unpaired",
-        t.entities, t.unpaired
+        "{name:28} {version}  {} entities paired, {} unpaired, {} unread",
+        t.entities, t.unpaired, t.unread
     );
     Ok(Some((version, t)))
 }
@@ -226,6 +260,7 @@ fn main() -> ExitCode {
                 let a = by_release.entry(version.to_string()).or_default();
                 a.entities += t.entities;
                 a.unpaired += t.unpaired;
+                a.unread += t.unread;
                 a.index += t.index;
                 a.index_agree += t.index_agree;
                 a.true_colour += t.true_colour;
@@ -290,12 +325,11 @@ fn main() -> ExitCode {
         "{skipped} drawings skipped (no twin, or R14), {} entities with a twin",
         total.entities
     );
-    if by_release.is_empty() {
-        println!("NOT MEASURED: no drawing had an AutoCAD export to compare");
-        return ExitCode::SUCCESS;
-    }
     for f in &total.failures {
         println!("FAILED {f}");
+    }
+    if total.entities == 0 {
+        println!("NOT MEASURED: no entity was read and paired with an AutoCAD export");
     }
     if errors > 0 || !total.failures.is_empty() {
         return ExitCode::FAILURE;
