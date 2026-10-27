@@ -571,3 +571,21 @@ subclass markers in the twins and the class names in `AcDb:Classes` was used
 (`version`, `ids` and `arrays` are positional names of this crate's, the role of `version` inferred from the 1 to 2 change across releases), and no third-party
 DWG or DXF implementation was consulted: only the data files of the corpus were
 read, never ACadSharp's code.
+
+## 2026-10-27 — AutoCAD trial scripts: AutoCAD's command prompts (ACadSharp's save script, MIT, and Autodesk's public documentation)
+
+`tools/autocad/` drives AutoCAD itself to produce evidence drawings: SAVEAS and
+DXFOUT of the pinned R13 drawings, and controlled drawings built with core
+AutoLISP. It holds no DWG or DXF implementation knowledge. To confirm the
+command-line prompt sequences of SAVEAS (the release keywords `2018` to `2000`
+and `LT98`) and of `SAVEAS DXF V <version> 16 <file>`, the
+`samples/sample_base/save_samples.lsp` AutoCAD script of `DomCR/ACadSharp` at
+the pinned commit `c30a97ce` (MIT) was read. It is the script that saved the
+pinned `sample_base` twins, already named in the 2026-10-26 "Public corpus"
+entry, and it contains no DWG or DXF implementation. Nothing was copied from
+it; the scripts and builders are written independently. Nothing under
+ACadSharp's `src/` or its test data was opened. All other AutoLISP functions
+and command names come from Autodesk's public AutoCAD product documentation,
+recalled; no ObjectARX, RealDWG or ODA SDK material was used. Every prompt
+sequence that could not be confirmed without AutoCAD running carries a
+`;; VERIFY:` comment.
