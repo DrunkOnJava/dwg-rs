@@ -465,11 +465,15 @@ pub(crate) fn read_entity_mode_onwards(
     let mut color_alpha = None;
     if version.is_r2004_plus() {
         let color_flags = color_raw >> 8;
-        if color_flags & 0x20 != 0 {
-            color_alpha = Some(c.read_bl()? as u32);
-        }
+        // §2.11's order: the RGB word, then the transparency. The twin's
+        // `420 8404418` and `440 16777216` for a LINE whose stream reads
+        // 0xC2802142 and 0x01000000 in this order are the measurement; the other
+        // order assigns them to each other.
         if color_flags & 0x40 == 0 && color_flags & 0x80 != 0 {
             color_rgb = Some(c.read_bl()? as u32);
+        }
+        if color_flags & 0x20 != 0 {
+            color_alpha = Some(c.read_bl()? as u32);
         }
         if color_flags & 0x41 == 0x41 {
             let _name = crate::tables::read_tv(c, version)?;
