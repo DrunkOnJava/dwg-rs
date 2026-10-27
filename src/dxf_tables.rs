@@ -65,7 +65,7 @@
 //! Targets before R2000 have no subclass markers and are not written: the
 //! converter keeps its default layer for them.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::dxf::DxfVersion;
 use crate::dxf_sections::{HeaderGroup, write_groups};
@@ -1256,8 +1256,12 @@ pub fn build(
             continue;
         };
         if let Some(t) = tables.iter_mut().find(|t| t.name == table) {
-            let at = |h: u64| order.iter().position(|x| *x == h).unwrap_or(usize::MAX);
-            t.records.sort_by_key(|r| at(r.handle));
+            let mut at: HashMap<u64, usize> = HashMap::with_capacity(order.len());
+            for (i, h) in order.iter().enumerate() {
+                at.entry(*h).or_insert(i);
+            }
+            t.records
+                .sort_by_key(|r| at.get(&r.handle).copied().unwrap_or(usize::MAX));
         }
     }
     // An empty UCS table is the drawing's own: none of its UCS records exists.
