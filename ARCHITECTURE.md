@@ -3604,8 +3604,8 @@ XRECORD's data is typed by the group code's range, as in DXF (`XRecord::items`):
 code, then a string, a real, three reals, a short or long integer, a byte, a handle of
 eight bytes or a chunk of binary data. Up to R2004 the data is read by
 `extended_data::xrecord_items` (§7as), which decodes each string in the code page it
-names and reads only the ranges the corpus measures, so an XRECORD with another code is
-counted `(not written)`; from R2007 a string is an `RS` length and UTF-16 units and
+names and reads only the ranges the corpus measures, so an XRECORD with another code, or
+a string outside ASCII in a page the crate does not name, is counted `(not written)`; from R2007 a string is an `RS` length and UTF-16 units and
 `items` reads it here. An object is planned only when its record can be written, so a
 handle given to the tables, the entities or the dictionaries is always emitted. A dictionary entry whose object is not written
 (a MATERIAL, a VISUALSTYLE, a LAYOUT: typed writers come after this one) is left out,
