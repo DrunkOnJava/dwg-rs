@@ -52,6 +52,7 @@
 //! ```
 
 use crate::cipher;
+use crate::code_page::CodePage;
 use crate::crc;
 use crate::error::{Error, Result};
 use crate::lz77_encode;
@@ -688,6 +689,18 @@ fn build_decrypted_file_open_header(
 /// locator) are not yet implemented either. Callers hitting those
 /// paths get [`Error::Unsupported`].
 pub fn assemble_dwg_bytes(built: &[NamedBuiltSection], version: Version) -> Result<Vec<u8>> {
+    assemble_dwg_bytes_with_page(built, version, CodePage::default())
+}
+
+/// [`assemble_dwg_bytes`] with the drawing's code page written into the file
+/// header (§3.2.5, the short at 0x13), which is what makes the pre-R2007 string
+/// bytes of the sections readable as text again. [`CodePage::default`] writes 0, as
+/// [`assemble_dwg_bytes`] does.
+pub fn assemble_dwg_bytes_with_page(
+    built: &[NamedBuiltSection],
+    version: Version,
+    page: CodePage,
+) -> Result<Vec<u8>> {
     if !version.is_r2004_family() {
         return Err(Error::Unsupported {
             feature: format!(
@@ -721,10 +734,12 @@ pub fn assemble_dwg_bytes(built: &[NamedBuiltSection], version: Version) -> Resu
     out.extend_from_slice(&v_header);
     // [0x10..0x80] plaintext header — zeros (reader reads selected
     // fields: image_seeker at 0x0D-0x10, codepage at 0x13-0x14,
-    // security_flags at 0x18-0x1C, etc.). All optional; we leave at 0.
+    // security_flags at 0x18-0x1C, etc.). All optional; we leave them at 0
+    // except the code page (§3.2.5).
     while out.len() < 0x80 {
         out.push(0);
     }
+    out[0x13..0x15].copy_from_slice(&page.header_value().to_le_bytes());
     // §4.1: 0x28 is the long 0x80.
     LittleEndian::write_u32(&mut out[0x28..0x2C], 0x80);
 

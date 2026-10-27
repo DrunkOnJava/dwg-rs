@@ -125,6 +125,7 @@ pub mod entities;
 pub mod entity_geometry;
 pub mod entity_refs;
 pub mod error;
+pub mod extended_data;
 pub mod file_writer;
 pub mod geometry;
 pub mod gltf;
