@@ -36,7 +36,7 @@ jobs:
           rustc --edition=2024 --crate-type rlib tools/streaming/no_std.rs --out-dir streaming-build
           rustc --edition=2024 --crate-type rlib --target wasm32-unknown-unknown tools/streaming/no_std.rs --out-dir streaming-build
       - name: Build actual streaming entry point
-        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2004_objects --example streaming_schedules
+        run: cargo build --locked --example stream_header --example stream_walk --example stream_lz77 --example stream_r2004 --example stream_r2004_maps --example stream_r2004_sections --example stream_r2004_file --example stream_r2004_objects --example stream_r2007 --example stream_r2007_objects --example stream_r2007_timing --example streaming_schedules
       - name: End-to-end header boundary acceptance
         run: python3 tools/streaming/verify.py target/debug/examples/stream_header target/debug/examples/streaming_schedules
       - name: End-to-end R13-R2000 container walk acceptance
@@ -59,6 +59,14 @@ jobs:
         run: python3 tools/streaming/verify_objects.py target/debug/examples/stream_r2004_objects target/debug/examples/streaming_schedules
       - name: End-to-end object stream checkpoint restore (native to wasm32 and back)
         run: python3 tools/streaming/verify_wasm_objects.py target/debug/examples/stream_r2004_objects
+      - name: End-to-end whole R2007 file walk acceptance
+        run: python3 tools/streaming/verify_r2007.py target/debug/examples/stream_r2007 target/debug/examples/streaming_schedules --timing target/debug/examples/stream_r2007_timing
+      - name: End-to-end R2007 checkpoint restore (native to wasm32 and back)
+        run: python3 tools/streaming/verify_wasm_r2007.py target/debug/examples/stream_r2007
+      - name: End-to-end R2007 object record stream acceptance
+        run: python3 tools/streaming/verify_r2007_objects.py target/debug/examples/stream_r2007_objects target/debug/examples/streaming_schedules
+      - name: End-to-end R2007 object stream checkpoint restore (native to wasm32 and back)
+        run: python3 tools/streaming/verify_wasm_r2007_objects.py target/debug/examples/stream_r2007_objects
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -83,4 +91,10 @@ jobs:
             objects-evidence.json
             objects-schedules-*.jsonl
             wasm-objects-evidence.json
+            r2007-evidence.json
+            r2007-schedules-*.jsonl
+            wasm-r2007-evidence.json
+            r2007-objects-evidence.json
+            r2007-objects-schedules-*.jsonl
+            wasm-r2007-objects-evidence.json
           if-no-files-found: error

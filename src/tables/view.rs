@@ -56,6 +56,11 @@ pub struct ViewEntry {
     pub render_mode: u8,
     pub is_paperspace: bool,
     pub is_associated_ucs: bool,
+    /// The associated UCS, DXF groups 110 to 112, 79 and 146, present when
+    /// [`is_associated_ucs`](Self::is_associated_ucs) is set.
+    pub ucs: Option<crate::tables::vport::VportUcs>,
+    /// R2007+: whether the camera plots, DXF group 73.
+    pub camera_plottable: Option<bool>,
 }
 
 // Legacy alias retained so callers keep compiling while they migrate to
@@ -89,13 +94,17 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
     let render_mode = if r2000_plus { c.read_rc()? } else { 0 };
     let is_paperspace = c.read_b()?;
     let is_associated_ucs = if r2000_plus { c.read_b()? } else { false };
-    if is_associated_ucs {
-        let _origin = read_bd3(c)?;
-        let _x_direction = read_bd3(c)?;
-        let _y_direction = read_bd3(c)?;
-        let _elevation = c.read_bd()?;
-        let _ortho_view_type = c.read_bs()?;
-    }
+    let ucs = if is_associated_ucs {
+        Some(crate::tables::vport::VportUcs {
+            origin: read_bd3(c)?,
+            x_direction: read_bd3(c)?,
+            y_direction: read_bd3(c)?,
+            elevation: c.read_bd()?,
+            ortho_view_type: c.read_bs()?,
+        })
+    } else {
+        None
+    };
     Ok(ViewEntry {
         header,
         view_height,
@@ -111,6 +120,8 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
         render_mode,
         is_paperspace,
         is_associated_ucs,
+        ucs,
+        camera_plottable: None,
     })
 }
 
@@ -184,14 +195,18 @@ pub(crate) fn decode_modern_split_stream(
     let _ambient_color = modern::read_cmc_full(c)?;
     let is_paperspace = c.read_b()?;
     let is_associated_ucs = c.read_b()?;
-    if is_associated_ucs {
-        let _origin = read_bd3(c)?;
-        let _x_direction = read_bd3(c)?;
-        let _y_direction = read_bd3(c)?;
-        let _elevation = c.read_bd()?;
-        let _ortho_view_type = c.read_bs()?;
-    }
-    let _camera_plottable = c.read_b()?;
+    let ucs = if is_associated_ucs {
+        Some(crate::tables::vport::VportUcs {
+            origin: read_bd3(c)?,
+            x_direction: read_bd3(c)?,
+            y_direction: read_bd3(c)?,
+            elevation: c.read_bd()?,
+            ortho_view_type: c.read_bs()?,
+        })
+    } else {
+        None
+    };
+    let camera_plottable = c.read_b()?;
     split.finish("VIEW")?;
     let name = split.strings.read_tv()?;
     Ok(ViewEntry {
@@ -214,6 +229,8 @@ pub(crate) fn decode_modern_split_stream(
         render_mode,
         is_paperspace,
         is_associated_ucs,
+        ucs,
+        camera_plottable: Some(camera_plottable),
     })
 }
 
