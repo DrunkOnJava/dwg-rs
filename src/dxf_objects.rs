@@ -257,7 +257,9 @@ pub fn plan(file: &DwgFile, header: &HeaderVars) -> Plan {
             refs: r,
         });
         match item {
-            Some(item) if record(&item, &HashSet::new()).is_some() => out.items.push(item),
+            Some(item) if record(&item, &HashSet::new(), &HashMap::new()).is_some() => {
+                out.items.push(item)
+            }
             Some(_) => {
                 *out.skipped
                     .entry(format!("{} (not written)", class_label(raw, &class)))
@@ -360,6 +362,7 @@ fn layout_groups(
     l: &crate::objects::acad_layout::AcadLayout,
     item: &Item,
     defined: &HashSet<u64>,
+    views: &HashMap<u64, String>,
 ) -> Option<()> {
     let p = &l.plot_settings;
     let skip = match item.version {
@@ -402,7 +405,16 @@ fn layout_groups(
     g.push(HeaderGroup::Text(1, p.page_setup_name.clone()));
     g.push(HeaderGroup::Text(2, p.printer_config_name.clone()));
     g.push(HeaderGroup::Text(4, p.paper_size.clone()));
-    g.push(HeaderGroup::Text(6, p.plot_view_name.clone()));
+    // From R2004 the plot view is a handle, the first of the layout's own; its name
+    // is the VIEW record's.
+    let view_name = match item.version.is_r2004_plus() {
+        true => item.refs.rest.first().and_then(|h| views.get(h)).cloned(),
+        false => None,
+    };
+    g.push(HeaderGroup::Text(
+        6,
+        view_name.unwrap_or_else(|| p.plot_view_name.clone()),
+    ));
     for (code, v) in [
         (40, p.margin_left),
         (41, p.margin_bottom),
@@ -466,7 +478,11 @@ fn layout_groups(
 }
 
 /// The record of `item`, or `None` when a group does not write.
-fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
+fn record(
+    item: &Item,
+    defined: &HashSet<u64>,
+    views: &HashMap<u64, String>,
+) -> Option<EntityRecord> {
     let mut g: Vec<HeaderGroup> = Vec::new();
     let kind: &'static str = match &item.decoded {
         DecodedEntity::Dictionary(d) => {
@@ -532,7 +548,7 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             "XRECORD"
         }
         DecodedEntity::Layout(l) => {
-            layout_groups(&mut g, l, item, defined)?;
+            layout_groups(&mut g, l, item, defined, views)?;
             "LAYOUT"
         }
         DecodedEntity::Group(grp) => {
@@ -592,9 +608,14 @@ pub fn build(
     let root = header
         .get_handle("DICTIONARY_NAMED_OBJECTS")
         .map_or(0, |h| h.value);
+    let views: HashMap<u64, String> = tables
+        .iter()
+        .filter(|t| t.name == "VIEW")
+        .flat_map(|t| t.records.iter().map(|r| (r.handle, r.name.clone())))
+        .collect();
     let mut by_handle: HashMap<u64, EntityRecord> = HashMap::new();
     for item in &plan.items {
-        match record(item, defined) {
+        match record(item, defined, &views) {
             Some(r) => {
                 by_handle.insert(item.handle, r);
             }
