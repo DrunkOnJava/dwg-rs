@@ -7,7 +7,7 @@
 //! of those values, and they are not Windows code page numbers (29 and 30 are
 //! 1251 and 1252, 38 is 932, 39 is 936): they are AutoCAD's own enumeration. The
 //! table here holds the numbers real drawings have named, each by the evidence
-//! ARCHITECTURE.md §7aq records: the `$DWGCODEPAGE` of AutoCAD's DXF export of the
+//! ARCHITECTURE.md §7ar records: the `$DWGCODEPAGE` of AutoCAD's DXF export of the
 //! same drawing, or a known text (a localized layout name, a Greek word) found in
 //! the drawing's bytes in the page. A number outside the table is
 //! [`CodePage::Unknown`] and its text is read as it was before the table existed,
@@ -36,7 +36,7 @@ use std::cell::{Cell, RefCell};
 ///
 /// The shorts are AutoCAD's own enumeration of code pages, not Windows code page
 /// numbers (29 and 30 are 1251 and 1252, but 38 is 932 and 39 is 936). Only the
-/// values measured on real drawings are named (ARCHITECTURE.md §7aq).
+/// values measured on real drawings are named (ARCHITECTURE.md §7ar).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CodePage {
     /// Header short 28, `$DWGCODEPAGE` `ANSI_1250`: Windows-1250 (Central European).
