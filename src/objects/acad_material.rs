@@ -1,66 +1,293 @@
-//! ACAD_MATERIAL object — rendering material definition.
+//! MATERIAL object (`AcDbMaterial`) — a rendering material.
 //!
-//! # What this module does and does not claim
+//! ODA spec v5.4.1 lists `MATERIAL` in §20.3's table of non-fixed object
+//! types and prescribes no field list for it: §20.4 runs from 20.4.1 to
+//! 20.4.104 and has no entry. The layout here is derived from AutoCAD's
+//! own output under the method recorded in `CLEANROOM.md` (2026-10-26):
+//! the data bits of every MATERIAL record in the pinned public corpus,
+//! compared with the `AcDbMaterial` object AutoCAD exported to DXF for the
+//! same handle. ARCHITECTURE.md §7bb holds the table of what each field was
+//! checked against.
 //!
-//! It reads a MATERIAL record's **strings** — the material name, its
-//! description, and the further string-stream entries R2018 records
-//! carry — and reports the **measured bit budget** of the record's data
-//! fields. It does not decode those data fields, because their layout
-//! is not determined, and it is therefore deliberately **not wired into
-//! the object dispatcher**: a MATERIAL record still counts as
-//! `Unhandled`, never as decoded.
+//! # Field list — derived, 212 records on seven releases
 //!
-//! # There is no spec prescription for this object
+//! ```text
+//! TV    name                                  -- group 1
+//! TV    description                           -- group 2
+//! colour group x3 (ambient, diffuse, specular):
+//!   RC  method (0 or 1)                       -- groups 70, 71, 76
+//!   BD  factor                                -- always 1.0, never in the DXF
+//!   BL  colour, only when method is 1         -- groups 90, 91, 92
+//! map block x6 (diffuse, specular, reflection, opacity, bump, refraction):
+//!   BD  blend
+//!   RC  x3  unknown (2, 1, 1 in every record)
+//!   BD  x16 transform matrix
+//!   RC  source (0 none, 1 file)               -- groups 72, 77, 171, 175, 179
+//!   TV  file name, only when source is 1      -- groups 3 and 8 seen
+//! ```
 //!
-//! The ODA *Open Design Specification for .dwg files* v5.4.1 lists
-//! `MATERIAL` in §20.3's table of non-fixed object types, but §20.4 —
-//! the object-prescription chapter — has no entry for it; it runs from
-//! `20.4.1 Common Entity Data` to `20.4.104 XRECORD` and stops. (An
-//! earlier revision of this module cited "§19.6.9 (L6-16)"; no such
-//! section exists.)
+//! The colour groups and map blocks interleave as: ambient, diffuse,
+//! diffuse map, specular, specular map, `BD` gloss (group 44), reflection
+//! map, `BD` opacity (group 140), opacity map, bump map, `BD` refraction
+//! index (group 145), refraction map. From R2007 the list ends with `BD`
+//! (group 148), one `BD` that is always zero, `BD` (group 468), `BS` (group
+//! 93), `BS` (group 94, the channel flags) and one more zero `BD`.
+//! R14, R2000 and R2004 have no tail. Every release has the same list up to
+//! it; before R2007 the `TV`s sit inline in the data stream, from R2007 in
+//! the string stream.
 //!
-//! # Why the previous field list was withdrawn
+//! # What is and is not claimed
 //!
-//! That revision read `BL ambient_color_method, BS ambient_color,
-//! BD ambient_color_factor, …` off the front of the record. Measured
-//! against `arc_2004.dwg` handle 17 — the `ByLayer` material, whose two
-//! `TV`s occupy bits 0..76 of the body — that list decodes
-//! `ambient_color_method = 542113793` and `ambient_color = 17728`,
-//! followed by eight consecutive `BD = 1.0`. Those are not colour
-//! methods and colour indices; the list was wrong from its first field.
+//! A field is checked by value when the DXF writes its group in some
+//! record; the field names say which. Fields the DXF never shows in this
+//! corpus (the three colour factors, five of the six map blends, the three
+//! `RC` after each blend, the matrix and file of the maps no record
+//! gives a non-default value, the two always-zero tail `BD`) have their
+//! width claimed and nothing else, and are named `unknown_*` or documented
+//! as such. Their layout was observed for the values 0 and 1 only: a colour
+//! method or a map source other than 0 or 1, and a tail slot that is not
+//! the 2-bit zero code, are refused with [`Error::Unsupported`] rather than
+//! read on a guess.
 //!
-//! # What the bytes do say — measured
-//!
-//! | File | Records | Data-field budget | Strings |
-//! |---|---|---|---|
-//! | `arc_2004.dwg` | 3 (`ByLayer`, `ByBlock`, `Global`) | 1340 / 1340 / 1332 bits, inclusive of the two inline `TV`s (1264 bits after them, identical in all three) | 2, inline |
-//! | `arc_2010.dwg` | 3 | 1284 bits, bit-identical in all three | 2 |
-//! | `arc_2013.dwg` | 3 | 1284 bits, bit-identical in all three and to R2010 | 2 |
-//! | `sample_AC1032.dwg` | 3 | 516 / 516 / 1028 bits | 7 |
-//!
-//! Inside the R2010/R2013 body, twelve `BD` slots decode to exactly
-//! `1/48` (`0.0208333…`, the imperial default map scale) at data-stream
-//! bits 46, 120, 250, 324, 510, 584, 706, 780, 900, 974, 1096 and 1170
-//! — six pairs, one per texture map, each pair 74 bits apart. The
-//! `sample_AC1032.dwg` `Global` record shows the same shape with four
-//! pairs, and each of its pairs is bracketed by `CMC` words
-//! `0xC1000000` and `0xC2040300`. Its seven string-stream entries — the
-//! name plus six empties — corroborate six map slots.
-//!
-//! That is enough to say where the per-map blocks are and not enough to
-//! say what is inside them, and the gap between the last `1/48` pair and
-//! the record's boundary differs from block to block (64, 120, 56, 54,
-//! 56 and 48 bits on R2010), so no single repeating block layout has
-//! been pinned. Per this crate's honesty rule a record counts as decoded
-//! only when its fields end exactly on the string-stream start bit, so
-//! MATERIAL stays undecoded until that layout is measured rather than
-//! guessed.
+//! The three colour groups (90, 91, 92) and the three method groups (70,
+//! 71, 76) carry the same value in every record, so which of ambient,
+//! diffuse and specular owns which group is positional, not corroborated
+//! by value. The same holds for the six map blocks' matrices where the
+//! DXF writes the same matrix for several maps.
 
-use crate::error::Result;
+use crate::bitcursor::BitCursor;
+use crate::error::{Error, Result};
 use crate::objects::modern;
+use crate::string_stream::StringReader;
 use crate::version::Version;
 
-/// The parts of an ACAD_MATERIAL record this crate can prove.
+/// One of the three colour groups of a MATERIAL (ambient, diffuse,
+/// specular).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialColor {
+    /// `RC` colour method: 0 leaves the colour unset, 1 overrides it.
+    /// DXF groups 70 / 71 / 76.
+    pub method: u8,
+    /// `BD` at the position of the colour factor. 1.0 in every corpus
+    /// record and written by no DXF group there: unverified by value.
+    pub unknown_factor: f64,
+    /// `BL` colour word, present only when `method` is 1. DXF groups
+    /// 90 / 91 / 92, compared as a signed 32-bit integer.
+    pub color: Option<u32>,
+}
+
+/// One of the six map blocks of a MATERIAL.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialMap {
+    /// `BD` at the head of the block. Verified against DXF group 143 on
+    /// the bump map; 1.0 and unverified on the other five.
+    pub blend: f64,
+    /// Three `RC` after the blend, 2, 1 and 1 in every corpus record. No
+    /// DXF group shows them: unverified by value, and the split of the 24
+    /// bits into three bytes is itself unverified.
+    pub unknown_a: u8,
+    pub unknown_b: u8,
+    pub unknown_c: u8,
+    /// The 4x4 transform matrix as 16 `BD`, DXF groups 43, 47, 49, 142,
+    /// 144 and 147 for the six maps in block order.
+    pub matrix: [f64; 16],
+    /// `RC` map source: 0 none, 1 file. DXF groups 72, 77, 171, 175 and
+    /// 179; the DXF omits the group when the source is 1.
+    pub source: u8,
+    /// `TV` file name, read only when `source` is 1. DXF group 3 for the
+    /// diffuse map and 8 for the bump map.
+    pub file: Option<String>,
+}
+
+/// The fields from R2007 on that follow the last map block.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaterialTail {
+    /// `BD`, DXF group 148.
+    pub dxf_148: f64,
+    /// `BD`, DXF group 468.
+    pub dxf_468: f64,
+    /// `BS`, DXF group 93.
+    pub dxf_93: u8,
+    /// `BS`, DXF group 94 (a bit per map with a file).
+    pub dxf_94: u8,
+}
+
+/// A decoded MATERIAL record.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Material {
+    pub name: String,
+    pub description: String,
+    pub ambient: MaterialColor,
+    pub diffuse: MaterialColor,
+    pub diffuse_map: MaterialMap,
+    pub specular: MaterialColor,
+    pub specular_map: MaterialMap,
+    /// `BD` between the specular map and the reflection map, DXF group 44.
+    pub gloss: f64,
+    pub reflection_map: MaterialMap,
+    /// `BD` before the opacity map, DXF group 140.
+    pub opacity: f64,
+    pub opacity_map: MaterialMap,
+    pub bump_map: MaterialMap,
+    /// `BD` before the refraction map, DXF group 145.
+    pub refraction_index: f64,
+    pub refraction_map: MaterialMap,
+    /// `None` before R2007.
+    pub tail: Option<MaterialTail>,
+}
+
+fn unsupported(what: &str) -> Error {
+    Error::Unsupported {
+        feature: format!("MATERIAL {what}"),
+    }
+}
+
+/// One `BL`/`BS`-coded small integer: the zero code or the `RC` form, the
+/// only two the corpus holds. Anything wider is refused, not read on a
+/// guess (CLEANROOM.md, 2026-10-26).
+fn read_small(c: &mut BitCursor<'_>, what: &str) -> Result<u8> {
+    match c.read_bb()? {
+        0b10 => Ok(0),
+        0b01 => c.read_rc(),
+        _ => Err(unsupported(what)),
+    }
+}
+
+/// A 2-bit field that is the zero code of a `BD` in every record.
+fn read_zero(c: &mut BitCursor<'_>, what: &str) -> Result<()> {
+    if c.read_bb()? == 0b10 {
+        Ok(())
+    } else {
+        Err(unsupported(what))
+    }
+}
+
+fn read_color(c: &mut BitCursor<'_>, what: &str) -> Result<MaterialColor> {
+    let method = c.read_rc()?;
+    let unknown_factor = c.read_bd()?;
+    let color = match method {
+        0 => None,
+        1 => Some(c.read_bl_u()?),
+        _ => return Err(unsupported(&format!("{what} colour method {method}"))),
+    };
+    Ok(MaterialColor {
+        method,
+        unknown_factor,
+        color,
+    })
+}
+
+fn read_map(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+    what: &str,
+) -> Result<MaterialMap> {
+    let blend = c.read_bd()?;
+    let unknown_a = c.read_rc()?;
+    let unknown_b = c.read_rc()?;
+    let unknown_c = c.read_rc()?;
+    let mut matrix = [0.0; 16];
+    for m in &mut matrix {
+        *m = c.read_bd()?;
+    }
+    let source = c.read_rc()?;
+    let file = match source {
+        0 => None,
+        1 => Some(modern::read_tv(c, strings, version)?),
+        _ => return Err(unsupported(&format!("{what} map source {source}"))),
+    };
+    Ok(MaterialMap {
+        blend,
+        unknown_a,
+        unknown_b,
+        unknown_c,
+        matrix,
+        source,
+        file,
+    })
+}
+
+fn read_body(
+    c: &mut BitCursor<'_>,
+    strings: &mut Option<StringReader<'_>>,
+    version: Version,
+) -> Result<Material> {
+    let name = modern::read_tv(c, strings, version)?;
+    let description = modern::read_tv(c, strings, version)?;
+    let ambient = read_color(c, "ambient")?;
+    let diffuse = read_color(c, "diffuse")?;
+    let diffuse_map = read_map(c, strings, version, "diffuse")?;
+    let specular = read_color(c, "specular")?;
+    let specular_map = read_map(c, strings, version, "specular")?;
+    let gloss = c.read_bd()?;
+    let reflection_map = read_map(c, strings, version, "reflection")?;
+    let opacity = c.read_bd()?;
+    let opacity_map = read_map(c, strings, version, "opacity")?;
+    let bump_map = read_map(c, strings, version, "bump")?;
+    let refraction_index = c.read_bd()?;
+    let refraction_map = read_map(c, strings, version, "refraction")?;
+    let tail = if version.is_r2007_plus() {
+        let dxf_148 = c.read_bd()?;
+        read_zero(c, "tail slot after group 148")?;
+        let dxf_468 = c.read_bd()?;
+        let dxf_93 = read_small(c, "group 93")?;
+        let dxf_94 = read_small(c, "group 94")?;
+        read_zero(c, "last tail slot")?;
+        Some(MaterialTail {
+            dxf_148,
+            dxf_468,
+            dxf_93,
+            dxf_94,
+        })
+    } else {
+        None
+    };
+    Ok(Material {
+        name,
+        description,
+        ambient,
+        diffuse,
+        diffuse_map,
+        specular,
+        specular_map,
+        gloss,
+        reflection_map,
+        opacity,
+        opacity_map,
+        bump_map,
+        refraction_index,
+        refraction_map,
+        tail,
+    })
+}
+
+/// Decode a MATERIAL straight from its raw object payload: the field list
+/// of the module docs, derived from AutoCAD's own output (CLEANROOM.md,
+/// 2026-10-26; ARCHITECTURE.md §7bb), ending exactly on the data-stream
+/// boundary and, from R2007, with every string-stream entry consumed.
+pub(crate) fn decode_object(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<Material> {
+    let mut split = modern::open(payload, body_start, inline_data_end, version)?;
+    let out = read_body(&mut split.data, &mut split.strings, version)?;
+    split.finish("MATERIAL")?;
+    if let Some(strings) = split.strings.as_ref() {
+        if !strings.is_exhausted() {
+            return Err(Error::SectionMap(
+                "MATERIAL string stream holds entries its field list never read".into(),
+            ));
+        }
+    }
+    Ok(out)
+}
+
+/// The strings and data-field budget of an ACAD_MATERIAL record, as
+/// [`read_strings`] measured them before the field list was derived.
+/// [`Material`] supersedes it; it is kept with its tests.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcadMaterial {
     /// Material name — `ByLayer`, `ByBlock` and `Global` in every
@@ -78,11 +305,9 @@ pub struct AcadMaterial {
 }
 
 /// Read the strings and the measured data-field budget of one
-/// ACAD_MATERIAL record.
-///
-/// This does **not** decode the record's data fields and does not
-/// satisfy the crate-internal `ObjectStream::finish` boundary check, so
-/// it is not dispatched; see the module docs for what is and is not known.
+/// ACAD_MATERIAL record, without its data fields: the measurement entry
+/// point of the module before `decode_object` closed the field list
+/// (ARCHITECTURE.md §7bb). It does not run the boundary check.
 pub fn read_strings(
     payload: &[u8],
     body_start: usize,
