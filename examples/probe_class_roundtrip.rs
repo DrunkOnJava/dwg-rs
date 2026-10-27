@@ -26,13 +26,24 @@
 //! ```
 //!
 //! Arguments are files or directories (searched recursively for `.dwg`, in
-//! any case). Each drawing gets one line; a summary by release follows. With
-//! `--strict` the exit code is 1 when any drawing that has classes differs.
-//! A drawing with no `AcDb:Classes` section (the canonical fixtures of
+//! any case). Each drawing gets one line; a summary by release follows. The
+//! pre-R2007 class names are read and written under the code page the
+//! drawing's own header names ([`DwgFile::code_page`]), so a non-ASCII name
+//! tests the writer and not a mismatch between two encodings.
+//!
+//! A drawing with no `AcDb:Classes` section at all (the canonical fixtures of
 //! `tests/fixtures/canonical` on R2004 and later) is counted as having none.
+//! Every other way a drawing can fail to be compared is a **failure**, counted
+//! on its own: the file cannot be opened, the section is listed but cannot be
+//! read, [`ClassMap::parse`] errors, or it finds no class in a section that
+//! holds bytes. With `--strict` the exit code is 1 on any difference, any
+//! failure, and when no drawing matched (a run that proves nothing is not a
+//! pass), so a parser regression that empties every class map turns a strict
+//! run red instead of leaving it green.
 
 use dwg::bitwriter::BitWriter;
 use dwg::classes::{ClassMap, write_class_map};
+use dwg::code_page::with_code_page;
 use dwg::{DwgFile, Version};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -47,8 +58,9 @@ const END_SENTINEL: [u8; 16] = [
 enum Outcome {
     /// No `AcDb:Classes` section in the drawing.
     NoSection,
-    /// The section is there but [`ClassMap::parse`] found no classes in it.
-    Unparsed,
+    /// The section is listed but could not be compared: it cannot be read,
+    /// [`ClassMap::parse`] errors, or it finds no class in it. The text says which.
+    Failed(String),
     /// The rewritten bytes equal the stored ones.
     Match,
     /// They differ; the description says where and how.
@@ -108,17 +120,26 @@ fn compare(file: &DwgFile) -> Outcome {
     if file.section_by_name("AcDb:Classes").is_none() {
         return Outcome::NoSection;
     }
-    let Some(Ok(stored)) = file.read_section("AcDb:Classes") else {
-        return Outcome::NoSection;
+    let stored = match file.read_section("AcDb:Classes") {
+        Some(Ok(bytes)) => bytes,
+        Some(Err(e)) => return Outcome::Failed(format!("section cannot be read: {e}")),
+        None => return Outcome::Failed("section is listed but the reader returns none".into()),
     };
     let version = file.version();
-    let Ok(map) = ClassMap::parse(&stored, version) else {
-        return Outcome::Unparsed;
+    let page = file.code_page();
+    let map = match with_code_page(page, || ClassMap::parse(&stored, version)) {
+        Ok(map) => map,
+        Err(e) => return Outcome::Failed(format!("classes do not parse: {e}")),
     };
     if map.classes.is_empty() {
-        return Outcome::Unparsed;
+        return Outcome::Failed(format!(
+            "no class parsed from a section of {} bytes",
+            stored.len()
+        ));
     }
-    let Ok(written) = write_class_map(&map, &mut BitWriter::new(), version) else {
+    let Ok(written) = with_code_page(page, || {
+        write_class_map(&map, &mut BitWriter::new(), version)
+    }) else {
         return Outcome::Differ("write_class_map failed".into());
     };
     if written == stored {
@@ -159,15 +180,16 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    // release -> (match, differ, unparsed, no section)
+    // release -> (match, differ, failed, no section)
     let mut by_release: BTreeMap<String, [usize; 4]> = BTreeMap::new();
-    let mut any_differ = false;
+    let mut cannot_open = 0usize;
     for path in &paths {
         let name = path.display().to_string();
         let file = match DwgFile::open(path) {
             Ok(f) => f,
             Err(e) => {
                 println!("{name:<60} cannot open: {e}");
+                cannot_open += 1;
                 continue;
             }
         };
@@ -180,12 +202,11 @@ fn main() -> ExitCode {
             }
             Outcome::Differ(why) => {
                 counts[1] += 1;
-                any_differ = true;
                 println!("{name:<60} {release:<6} DIFFER {why}");
             }
-            Outcome::Unparsed => {
+            Outcome::Failed(why) => {
                 counts[2] += 1;
-                println!("{name:<60} {release:<6} no classes parsed");
+                println!("{name:<60} {release:<6} FAILED {why}");
             }
             Outcome::NoSection => {
                 counts[3] += 1;
@@ -195,7 +216,7 @@ fn main() -> ExitCode {
     }
 
     println!();
-    println!("release  match  differ  unparsed  no section");
+    println!("release  match  differ    failed  no section");
     let mut total = [0usize; 4];
     for (release, c) in &by_release {
         println!(
@@ -207,14 +228,15 @@ fn main() -> ExitCode {
         }
     }
     println!(
-        "TOTAL    {:>5}  {:>6}  {:>8}  {:>10}   of {} drawings",
+        "TOTAL    {:>5}  {:>6}  {:>8}  {:>10}   of {} drawings, {} could not be opened",
         total[0],
         total[1],
         total[2],
         total[3],
-        paths.len()
+        paths.len(),
+        cannot_open
     );
-    if strict && any_differ {
+    if strict && (total[1] + total[2] + cannot_open > 0 || total[0] == 0) {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS

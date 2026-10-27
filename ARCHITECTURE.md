@@ -3965,9 +3965,11 @@ real reactor to an absent handle still counts as dangling.
 
 `write_class_map` was "not a byte-exact AutoCAD emitter" (#45): it round-tripped through
 `ClassMap::parse` and no further. `examples/probe_class_roundtrip.rs` reads each
-drawing's `AcDb:Classes` as stored (decompressed on R2004 and later), parses it, writes
-it back for the drawing's own release and compares the bytes; where they differ it names
-the first differing byte and the part of the section it falls in. Run on the pinned
+drawing's `AcDb:Classes` as stored (decompressed on R2004 and later), parses it and
+writes it back for the drawing's own release, both under the code page its header names,
+and compares the bytes; where they differ it names the first differing byte and the part
+of the section it falls in. A drawing it cannot open, read or parse is counted as a
+failure, and `--strict` fails on any difference, any failure and a run with no match. Run on the pinned
 corpus (`python3 -I tools/corpus/fetch.py --dest ../dwg-corpus`, then
 `cargo run --release --example probe_class_roundtrip -- ../dwg-corpus --strict`), the old
 writer matched none of the 52 drawings (the size word at byte 16 already differed on all
