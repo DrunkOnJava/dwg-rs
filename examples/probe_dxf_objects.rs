@@ -24,7 +24,10 @@
 //! record of the same output (the handles inside an XRECORD's data are an
 //! application's and are only counted); the table of those references is printed.
 //! A synthetic check writes an XRECORD whose group 102 strings hold a newline and a
-//! character outside ASCII and reads them back.
+//! character outside ASCII and reads them back, and another writes an XRECORD whose
+//! application data holds a `102 {ACAD_REACTORS` bracket and a 330 to an absent handle,
+//! which must read as data and not as a dangling reactor, beside a control record whose
+//! real reactor to an absent handle must still count as dangling.
 //!
 //! A record of the export of a kind the converter writes with no record written
 //! is a failure, unless its owner is a record the output does not write; one of a kind it does not write yet is counted by kind; one the
@@ -160,11 +163,13 @@ fn entries(r: &DxfRecord) -> Vec<(String, u16, u64)> {
     out
 }
 
-/// The groups inside each `102 {NAME` bracket of `r`, by bracket name.
+/// The groups inside each `102 {NAME` bracket of `r`, by bracket name. Like
+/// `DxfRecord::top_level`, it stops reading brackets at an XRECORD's application
+/// data, where a 102 is the application's own string and not a structure.
 fn brackets(r: &DxfRecord) -> BTreeMap<String, Vec<(u16, DxfValue)>> {
     let mut out: BTreeMap<String, Vec<(u16, DxfValue)>> = BTreeMap::new();
     let mut open: Option<String> = None;
-    for g in &r.groups {
+    for g in r.groups.iter().take(r.data_start()) {
         match (&open, g.code, g.value.as_str()) {
             (None, 102, Some(t)) if t.starts_with('{') => {
                 open = Some(t[1..].to_string());
@@ -188,6 +193,13 @@ fn brackets(r: &DxfRecord) -> BTreeMap<String, Vec<(u16, DxfValue)>> {
 /// application's, counted and not held to it.
 fn dangling(doc: &DxfDocument) -> BTreeMap<&'static str, (usize, usize)> {
     let known: BTreeSet<u64> = doc.handles().collect();
+    dangling_of(&known, objects(doc))
+}
+
+fn dangling_of<'a>(
+    known: &BTreeSet<u64>,
+    records: impl IntoIterator<Item = &'a DxfRecord>,
+) -> BTreeMap<&'static str, (usize, usize)> {
     let mut out: BTreeMap<&'static str, (usize, usize)> = BTreeMap::new();
     let mut note = |what: &'static str, v: &DxfValue| {
         if let Some(h) = v.as_handle() {
@@ -198,7 +210,7 @@ fn dangling(doc: &DxfDocument) -> BTreeMap<&'static str, (usize, usize)> {
             }
         }
     };
-    for r in objects(doc) {
+    for r in records {
         let mut owner_seen = false;
         for g in r.top_level() {
             let what = match (r.kind.as_str(), g.code) {
@@ -289,6 +301,78 @@ fn escape_check() -> Result<String, String> {
         Ok(shown)
     } else {
         Err(format!("group 102 strings read back as {shown}"))
+    }
+}
+
+/// An XRECORD whose application data holds a `102 {ACAD_REACTORS` bracket and a 330
+/// to a handle no record has is data, not structure: it reads as no reactor bracket
+/// and counts as an application's handle, which `dangling` does not hold to resolve.
+/// A control XRECORD with a real reactor to a handle no record has must still count
+/// as a dangling reactor, so the check cannot pass by reading no reactors at all.
+/// Synthetic (no corpus drawing has either), so it measures the probe and not a
+/// drawing.
+fn boundary_check() -> Result<String, String> {
+    use dwg::dxf::DxfWriter;
+    use dwg::dxf_entities::{Entities, EntityRecord};
+    use dwg::dxf_sections::HeaderGroup;
+    let record = |handle: u64, reactors: Vec<u64>, groups: Vec<HeaderGroup>| EntityRecord {
+        kind: "XRECORD",
+        handle,
+        owner: 0x1,
+        block: 0x7,
+        reactors,
+        xdictionary: None,
+        groups,
+    };
+    let entities = Entities {
+        records: vec![
+            record(
+                0x10,
+                Vec::new(),
+                vec![
+                    HeaderGroup::Text(100, "AcDbXrecord".into()),
+                    HeaderGroup::Text(102, "{ACAD_REACTORS".into()),
+                    HeaderGroup::Handle(330, 0xDEAD),
+                    HeaderGroup::Text(102, "}".into()),
+                ],
+            ),
+            record(
+                0x11,
+                vec![0xBEEF],
+                vec![HeaderGroup::Text(100, "AcDbXrecord".into())],
+            ),
+        ],
+        model_space: 0x7,
+        ..Default::default()
+    };
+    let mut w = DxfWriter::with_version(DxfVersion::R2004);
+    dwg::dxf_entities::write(&mut w, &entities);
+    w.finish();
+    let doc =
+        DxfDocument::parse(w.take_output().as_bytes()).map_err(|e| format!("read back: {e}"))?;
+    let known: BTreeSet<u64> = doc.handles().collect();
+    let written: Vec<&DxfRecord> = doc.records.iter().filter(|r| r.kind == "XRECORD").collect();
+    let (payload, control) = match written.as_slice() {
+        [p, c] => (*p, *c),
+        other => return Err(format!("{} XRECORDs written, not 2", other.len())),
+    };
+    let found = dangling_of(&known, [payload, control]);
+    let reactors = found.get("reactor (330)").copied();
+    let data = found.get("XRECORD data handle (informational)").copied();
+    let payload_brackets: Vec<String> = brackets(payload).into_keys().collect();
+    let ok = payload_brackets.is_empty()
+        && brackets(control)
+            .get("ACAD_REACTORS")
+            .is_some_and(|b| b.len() == 1)
+        && reactors == Some((1, 1))
+        && data == Some((1, 1));
+    let shown = format!(
+        "brackets read in the payload {payload_brackets:?}, reactors (count, dangling) {reactors:?}, XRECORD data handles {data:?}"
+    );
+    if ok {
+        Ok(shown)
+    } else {
+        Err(format!("application data read as structure: {shown}"))
     }
 }
 
@@ -672,6 +756,9 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                         )
                     } else {
                         match (kind.as_str(), key, *ca) {
+                            ("ACDBDICTIONARYWDFLT", _, 340) if va.as_handle() == Some(0) => {
+                                Some("the default object is not written, so the handle is null")
+                            }
                             ("XRECORD", "DWGPROPS", 40 | 42) => Some(
                                 "the editing time and the save date, which AutoCAD updates when it exports",
                             ),
@@ -964,6 +1051,14 @@ fn main() -> ExitCode {
         Ok(shown) => println!("XRECORD group 102 escaping (synthetic): ok, read back {shown}"),
         Err(e) => {
             failures.push(format!("XRECORD group 102 escaping (synthetic): {e}"));
+        }
+    }
+    match boundary_check() {
+        Ok(shown) => println!("XRECORD application data boundary (synthetic): ok, {shown}"),
+        Err(e) => {
+            failures.push(format!(
+                "XRECORD application data boundary (synthetic): {e}"
+            ));
         }
     }
     if measured == 0 && errors == 0 {
