@@ -138,7 +138,20 @@ impl XRecord {
                 .map(|item| {
                     use crate::extended_data::GroupValue;
                     let value = match item.value {
-                        GroupValue::Text { text, .. } => XValue::Text(text),
+                        GroupValue::Text { page, text } => {
+                            // A page the crate does not name is decoded as UTF-8 with
+                            // U+FFFD, which alters application data: refuse a string
+                            // that is not ASCII there.
+                            if matches!(page, crate::code_page::CodePage::Unknown(_))
+                                && !text.is_ascii()
+                            {
+                                return Err(Error::SectionMap(
+                                    "XRECORD string is in a code page the crate does not name"
+                                        .into(),
+                                ));
+                            }
+                            XValue::Text(text)
+                        }
                         GroupValue::Handle(h) => XValue::Handle(h),
                         GroupValue::Binary(b) => XValue::Binary(b),
                         GroupValue::Point(p) => XValue::Point(p),
