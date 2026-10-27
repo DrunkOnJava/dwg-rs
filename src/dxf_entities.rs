@@ -894,6 +894,18 @@ pub fn build(
     // that list their children.
     let mut next_of: HashMap<u64, u64> = HashMap::new();
     let mut parents: Vec<(u64, usize, Vec<u64>)> = Vec::new();
+    // The blocks written are decided first: an INSERT of any other is left out
+    // with its attributes, since the output would name a block it does not define.
+    let markers = block_markers(
+        &raws,
+        file_version,
+        &ctx,
+        tables,
+        &block_names,
+        seed,
+        &defined,
+    );
+    let exported: HashSet<u64> = markers.iter().map(|b| b.block).collect();
     for raw in raws.iter().filter(|r| {
         r.is_entity()
             && r.handle.value < seed
@@ -946,6 +958,14 @@ pub fn build(
         } else {
             &mut out.block_skipped
         };
+        if matches!(decoded, DecodedEntity::Insert(_))
+            && !refs.rest.first().is_some_and(|h| exported.contains(h))
+        {
+            *skipped
+                .entry("INSERT (its block is not written)".to_string())
+                .or_default() += 1;
+            continue;
+        }
         let Some((kind, own)) = own_groups(&decoded, &refs, &ctx, parent) else {
             *skipped.entry(kind_label(&decoded, raw)).or_default() += 1;
             continue;
@@ -986,15 +1006,7 @@ pub fn build(
         &next_of,
         file_version.is_r2004_plus(),
     );
-    out.blocks = block_markers(
-        &raws,
-        file_version,
-        &ctx,
-        tables,
-        &block_names,
-        seed,
-        &defined,
-    );
+    out.blocks = markers;
     out
 }
 

@@ -3063,8 +3063,9 @@ space, and the children of a POLYLINE (its VERTEXes and SEQEND), from the decode
 records: 17 kinds so far (LINE, POINT, CIRCLE, ARC, ELLIPSE, SOLID, RAY, XLINE,
 3DFACE, TEXT, ATTRIB, INSERT, LWPOLYLINE, MTEXT, POLYLINE in its 2D, 3D and polyface
 forms, VERTEX, SEQEND). An INSERT, with the ATTRIBs and SEQEND under it, is written
-because BLOCKS (§7ao) writes the definition of every block it names, so no output
-holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
+only when BLOCKS (§7ao) writes the block it names (the blocks written are decided
+first; an INSERT of any other is counted as `INSERT (its block is not written)`), so
+no output holds a reference to a block it lacks. Any other kind, and an entity whose fields do not all
 decode, is counted in a `999 skipped` comment. `examples/probe_dxf_entities.rs`
 converts each drawing that has an AutoCAD export, reads the output back and pairs
 every entity written with the export's record of the same handle; the Corpus job runs
@@ -3197,6 +3198,18 @@ of 12,583 groups agree. The six that do not are the BLOCK name of a dynamic bloc
   and in the export as `*U17`: AutoCAD loads a dynamic block of those releases as an anonymous
   block. The probe names it a relation (six BLOCK records, name and description groups).
 - **Group 4.** A `BLOCK` carries its block record's description as group 4 when it has one.
+- **An INSERT of a block left out.** A block whose `BLOCK` or `ENDBLK` cannot be written (its
+  layer or linetype is not in the tables, its base point is not finite) is not in BLOCKS, and
+  an INSERT of it, with its ATTRIBs, is left out with it. The probe converts every drawing to
+  every release the writer writes it to and checks that each INSERT's block (group 2) is a
+  written `BLOCK`: 510 INSERTs in 264 conversions, 0 unresolved. No corpus drawing has such a
+  block, so the probe also builds the entities of each drawing once per layer with that layer
+  out of the tables, which takes the blocks on it out (160 builds, 283 blocks left out) and
+  checks every INSERT built the same way. Before the gate 18 of the 1,598 INSERTs built named
+  a block that was not written; with it, 85 INSERTs are counted `INSERT (its block is not
+  written)` and none of the 1,580 written is unresolved. A negative run
+  (`PROBE_DXF_ENTITIES_DROP_BLOCK=1`) takes one written block out of the output the first
+  check reads: 72 unresolved, exit 1.
 - **Not written yet.** 24 VIEWPORTs, one multi-line ATTDEF (R2018), and 38 MTEXTs that carry a background fill (90, 63, 45,
   441: the DWG stores the colour as an RGB word and AutoCAD derives its nearest index, 63,
   which is not decoded) or an embedded object (R2018); the probe counts them by kind.
