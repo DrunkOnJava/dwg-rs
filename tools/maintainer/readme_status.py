@@ -35,7 +35,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "tools" / "corpus" / "baseline.tsv"
 ORACLE = ROOT / "tools" / "oracle" / "baseline.tsv"
-DOCS = (ROOT / "README.md", ROOT / "STATUS.md")
+DOCS = {
+    ROOT / "README.md": ("corpus-run", "corpus-table", "corpus-summary", "oracle-summary"),
+    ROOT / "STATUS.md": ("corpus-run", "corpus-summary"),
+}
 REPO = "DrunkOnJava/dwg-rs"
 RELEASES = [
     ("AC1012", "R13"),
@@ -128,29 +131,40 @@ def latest_run():
     return str(run["databaseId"]), run["createdAt"][:10]
 
 
+def missing():
+    """Each block a document must carry but does not, as a problem string."""
+    return [
+        f"{doc.name} has no {name} block"
+        for doc, names in DOCS.items()
+        for name in names
+        if len(pattern(name).findall(doc.read_text())) != 1
+    ]
+
+
 def stale():
-    """Each marker block whose text disagrees with the baseline, as a problem string."""
+    """Each marker block that is missing, doubled, or disagrees with its baseline, as a problem string."""
     want = blocks(rows())
-    problems = []
-    for doc in DOCS:
+    problems = missing()
+    for doc, names in DOCS.items():
         text = doc.read_text()
-        for name, body in want.items():
-            found = pattern(name).findall(text)
-            for _, have, _ in found:
-                if have.strip() != body.strip():
-                    problems.append(f"{doc.name} {name} disagrees with its baseline")
-        if doc.name == "README.md":
-            problems += [f"README.md has no {n} block" for n in want if not pattern(n).search(text)]
+        for name in names:
+            if name in want:
+                for _, have, _ in pattern(name).findall(text):
+                    if have.strip() != want[name].strip():
+                        problems.append(f"{doc.name} {name} disagrees with its baseline")
     return problems
 
 
 def write(run, date):
+    problems = missing()
+    if problems:
+        sys.exit("readme_status: " + "; ".join(problems))
     want = blocks(rows())
     want["corpus-run"] = f"[run {run}](https://github.com/{REPO}/actions/runs/{run}) on {date}"
-    for doc in DOCS:
+    for doc, names in DOCS.items():
         text = doc.read_text()
-        for name, body in want.items():
-            text = pattern(name).sub(lambda m, n=name, b=body: m.group(1) + render(n, b) + m.group(3), text)
+        for name in names:
+            text = pattern(name).sub(lambda m, n=name, b=want[name]: m.group(1) + render(n, b) + m.group(3), text)
         doc.write_text(text)
 
 
