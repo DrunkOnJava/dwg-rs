@@ -100,7 +100,7 @@ fn stem_key(path: &Path) -> String {
 
 fn dxf_version(v: Version) -> Option<DxfVersion> {
     Some(match v {
-        Version::R14 => return None,
+        Version::R13 | Version::R14 => return None,
         Version::R2000 => DxfVersion::R2000,
         Version::R2004 => DxfVersion::R2004,
         Version::R2007 => DxfVersion::R2007,
