@@ -928,40 +928,102 @@ against `DwgFile::from_bytes` followed by `all_objects` (every record's bytes
 copied out), and for the R2004 family against `from_bytes` followed by a read of
 every section (the decoding the walk does, without the framing or any check). It
 fails if the walk and the legacy reader disagree on the number of records.
+`--streaming-only` skips the legacy reader, so a sampling profiler sees only the
+walk. `examples/stream_r2007_timing.rs` does the same for the R2007 walk against
+`r2007::Container::parse` and `read_section` of every section.
 
 ```sh
-cargo build --release --example stream_throughput
+cargo build --release --example stream_throughput --example stream_r2007_timing
 target/release/examples/stream_throughput <corpus>/acadsharp/sample_AC1014.dwg \
   <corpus>/acadsharp/sample_AC1015.dwg <corpus>/acadsharp/sample_AC1018.dwg \
   <corpus>/acadsharp/sample_AC1024.dwg <corpus>/acadsharp/sample_AC1027.dwg \
   <corpus>/acadsharp/sample_AC1032.dwg --runs 40
+target/release/examples/stream_r2007_timing <corpus>/acadsharp/sample_AC1021.dwg 15
 ```
 
 where `<corpus>` is the directory `tools/corpus/fetch.py --dest` filled. Best of
-40 runs after a warm-up, on an Apple M2 Max (12 cores) on 2026-10-26 with other
-jobs running (load average 11 to 100 during the runs); a second run of 25 gave
-the same best times within 3% for the streaming walks and within 7% for the
-legacy reader. MB/s is of the file's bytes.
+40 runs (15 for R2007) after a warm-up, on an Apple M2 Max (12 cores) on
+2026-10-26 with other jobs running (load average 11 to 52 during the runs), best
+across four alternating runs of each build. MB/s is of the file's bytes. "Before"
+is `origin/main` at `a315f04` (#340); "now" is that tree with the five changes of
+the next subsection.
 
-| Release | Drawing | MB | Records | Streaming walk | Legacy `all_objects` | Legacy read of every section |
-| --- | --- | --- | --- | --- | --- | --- |
-| R14 | `sample_AC1014` | 1.31 | 1,242 | 3.39 ms, 387 MB/s | 0.19 ms, 7,025 MB/s | n/a |
-| R2000 | `sample_AC1015` | 1.30 | 1,047 | 3.34 ms, 388 MB/s | 0.21 ms, 6,266 MB/s | n/a |
-| R2004 | `sample_AC1018` | 1.10 | 1,014 | 5.78 ms, 190 MB/s | 1.14 ms, 963 MB/s | 1.13 ms, 974 MB/s (1.32 MB of sections) |
-| R2010 | `sample_AC1024` | 1.12 | 923 | 7.20 ms, 156 MB/s | 1.36 ms, 824 MB/s | 1.39 ms, 805 MB/s (1.63 MB of sections) |
-| R2013 | `sample_AC1027` | 1.09 | 865 | 5.50 ms, 199 MB/s | 1.00 ms, 1,095 MB/s | 1.11 ms, 980 MB/s (1.25 MB of sections) |
-| R2018 | `sample_AC1032` | 1.08 | 842 | 5.34 ms, 203 MB/s | 0.94 ms, 1,153 MB/s | 1.07 ms, 1,012 MB/s (1.25 MB of sections) |
+| Release | Drawing | MB | Records | Streaming walk before | Streaming walk now | Legacy `all_objects` | Legacy read of every section |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| R14 | `sample_AC1014` | 1.31 | 1,242 | 3.27 ms, 401 MB/s | 0.79 ms, 1,661 MB/s | 0.18 ms, 7,290 MB/s | n/a |
+| R2000 | `sample_AC1015` | 1.30 | 1,047 | 3.27 ms, 397 MB/s | 0.77 ms, 1,685 MB/s | 0.19 ms, 6,829 MB/s | n/a |
+| R2004 | `sample_AC1018` | 1.10 | 1,014 | 5.72 ms, 192 MB/s | 2.41 ms, 455 MB/s | 1.11 ms, 988 MB/s | 1.12 ms, 980 MB/s (1.32 MB of sections) |
+| R2010 | `sample_AC1024` | 1.12 | 923 | 7.01 ms, 160 MB/s | 2.99 ms, 375 MB/s | 1.35 ms, 831 MB/s | 1.40 ms, 802 MB/s (1.63 MB of sections) |
+| R2013 | `sample_AC1027` | 1.09 | 865 | 5.45 ms, 200 MB/s | 2.34 ms, 467 MB/s | 0.99 ms, 1,103 MB/s | 1.08 ms, 1,011 MB/s (1.25 MB of sections) |
+| R2018 | `sample_AC1032` | 1.08 | 842 | 5.44 ms, 199 MB/s | 2.34 ms, 462 MB/s | 0.99 ms, 1,093 MB/s | 1.10 ms, 984 MB/s (1.25 MB of sections) |
+| R2007 | `sample_AC1021` | 1.06 | n/a | 20.24 ms, 53 MB/s | 7.95 ms, 134 MB/s | n/a | 4.31 ms, 247 MB/s (1.40 MB of sections) |
 
-The streaming walk is 5 to 6 times slower than the legacy decode on the R2004
-family and 16 to 18 times slower than the legacy bulk copy on R14 and R2000.
-What it buys is not speed: it holds a fixed state (under 512 bytes for the flat
-walk, about 100 KB for the R2004 walk), can stop and resume at every step, and
-verifies what the legacy reader does not: every record's CRC, every page's two
-checksums (each page is read three times: its header, its checksum and its
-decoding) and the page map twice. On R14 and R2000 the legacy path is a slice
-copy per record at the offset the handle map gives. Where the walk's time goes
-(the CRC, the 256-byte reads, the copy into the scratch, the second map read) has
-not been profiled. R2007 is not covered by this tool; `stream_r2007_timing` times
-its walk (in the R2007 section). Not measured: a file
-larger than 1.6 MB, a transport other than a slice (an `AsyncSource` or a file adds
-the transport's own cost), a browser, and any number from CI's runners.
+The walk was 5 to 18 times slower than the legacy reader before and is now 2.2 to
+2.4 times slower on the R2004 family, 4.1 to 4.4 times on R14 and R2000 (against
+the legacy bulk copy, which verifies nothing) and 1.8 times on R2007. What it buys is not speed: it holds a
+fixed state (under 512 bytes for the flat walk, about 100 KB for the R2004 walk,
+under 140 KB for R2007), can stop and resume at every step, and verifies what
+the legacy reader does not: every record's CRC, every page's two checksums on
+the R2004 family (each page is read three times: its header, its checksum and
+its decoding), every Reed-Solomon syndrome, both CRC-64s and the checksum on
+R2007 (each page twice), and the page map twice.
+
+### Where the time went
+
+Profiled with Instruments' Time Profiler (`xctrace record --template 'Time
+Profiler' --launch -- <binary> <file> --runs N --streaming-only`, then `xctrace
+export --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]'`),
+on release builds with line tables kept and symbols unstripped
+(`CARGO_PROFILE_RELEASE_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_STRIP=false`),
+with the samples aggregated by leaf function and, through `atos -i`, by source
+line; the percentages are shares of all samples, 1 ms apart. The system sampler
+(`sample`) cannot see inside the walk, which the optimizer inlines into one
+closure; the Time Profiler resolves the inlined frames.
+
+| Profile of | Finding | Change |
+| --- | --- | --- |
+| R2000 (`sample_AC1015`) | `crc8`, the record and map CRC (§2.14.1) one byte per step through a table, each step waiting on the load before it: 81.7% of samples, 88.7% with the iterator feeding it | [#360](https://github.com/DrunkOnJava/dwg-rs/pull/360): eight bytes per step with slicing tables: R14 and R2000 x4.1, R2004 to R2018 x1.6 |
+| R2010 (`sample_AC1024`), after #1 | the §4.2 page checksum loop and its iterator 12%; the framer's per-byte copy of a record's first 32 bytes 13% | [#362](https://github.com/DrunkOnJava/dwg-rs/pull/362): the checksum in eight lanes (x1.06 to x1.09 on the R2004 family); [#364](https://github.com/DrunkOnJava/dwg-rs/pull/364): one slice copy for the head (x1.06 to x1.07) |
+| R2007 (`sample_AC1021`), streaming walk only | the recursive walk of §5.10.1's copy table for every 32-byte literal block 25.8%; the §5.4.1 checksum 14.6%; the CRC-64s 12.3%; the syndromes 10.3% and 6.2% for their iterator | [#365](https://github.com/DrunkOnJava/dwg-rs/pull/365): the table flattened at compile time (x1.30); [#366](https://github.com/DrunkOnJava/dwg-rs/pull/366): sliced CRC-64s, the checksum in lanes in block order, one lookup per syndrome per byte (x1.61); both together x2.55 |
+
+Each change is its own pull request with its own before and after, against the
+same baseline. Two attempts were measured and dropped. Replacing the LZ77
+decoder's per-byte copy and literal loops with slice copies through the window
+(a ring read and written in at most two segments) gained 1 to 2%, within the
+noise: the profile had put the byte loops at about 25% of the R2010 walk, but a
+copy is three to fourteen bytes, so a call to `memmove` costs about what the loop
+did. The first form of the checksum (eight bytes weighted and summed) was 0.63
+times as fast as the loop it replaced in isolation, because the compiler did not
+vectorize it.
+
+What is left, from the profile of the five changes together (R2010, 5,591
+samples):
+
+- The LZ77 decoder, 45% of samples (the opcode and literal state machine 24%, the
+  literal and copy byte loops about 14%, the rest `step`, `opcode` and the window
+  stores), about 1.3 ms for 1.63 MB of decompressed bytes, 0.8 ns a byte. The
+  legacy reader's whole read of every section (decode, `Sec_Mask`, copies) takes
+  1.40 ms, so the decoder's cost is of the order of the legacy path, not the
+  gap. A decoder that can stop between any two input bytes dispatches per opcode
+  byte; a fast path for a whole opcode in view would trade code for the part of
+  the gap that is not verification.
+- The checks the legacy reader does not make: the record CRC, 17% of samples
+  (0.5 ms, about a cycle for each byte of every record) and the page checksum,
+  about 0.3 ms (9%) by a microbenchmark of its loop over the same bytes. This is
+  what the walk is for.
+- The walkers' plumbing, about 13%: `demand`, `feed`, `pump` and the object
+  walker's hand-over, once per step of at most 64 compressed bytes or 256
+  output bytes. This is the cost of a state that is the same after every step,
+  and of a request recomputed for each feed so that a short or repeated delivery
+  changes nothing.
+- On R2007 (streaming walk only, 1,453 samples): the syndromes 17.8%, the LZ
+  decoder 16.9%, `SliceSource::poll_gather` and its per-byte checked index 13%
+  (a transport cost, not the grammar's: a codeword's 255 bytes are 255 bytes
+  apart), `memmove` 8.3%, the CRC-64 blocks 7.6%, the block permutation 6.6%.
+- On R14 and R2000 the walk is 0.77 ms against the legacy copy's 0.19 ms; the
+  walk verifies every record byte, the copy at the offset the handle map gives
+  verifies none.
+
+Not measured: a file larger than 1.6 MB, a transport other than a slice (an
+`AsyncSource` or a file adds the transport's own cost), a browser, and any number
+from CI's runners.

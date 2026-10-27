@@ -18,7 +18,10 @@
 //! It prints one JSON line per file with the times and MB/s of the file's bytes,
 //! and fails if the streaming walk and the legacy reader disagree on the number
 //! of records. Build with `--release`; the numbers are the machine's and the
-//! day's. `stream_throughput file.dwg... [--runs N]`.
+//! day's. `stream_throughput file.dwg... [--runs N] [--streaming-only]`.
+//! `--streaming-only` runs only the streaming walk, `--runs` times with no
+//! warm-up bookkeeping from the legacy reader, so a sampling profiler sees
+//! nothing else.
 
 use dwg::byte_source::{ObjectPoll, SliceSource, WalkPoll, poll_r2004_objects, poll_walk};
 use dwg::reader::DwgFile;
@@ -116,15 +119,16 @@ fn time<T>(runs: usize, mut work: impl FnMut() -> Result<T>) -> Result<(Timing, 
 
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
-    let (mut files, mut runs) = (Vec::new(), 5usize);
+    let (mut files, mut runs, mut only) = (Vec::new(), 5usize, false);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--runs" => runs = args.next().ok_or("missing run count")?.parse()?,
+            "--streaming-only" => only = true,
             _ => files.push(arg),
         }
     }
     if files.is_empty() || runs == 0 {
-        return Err("usage: stream_throughput file.dwg... [--runs N]".into());
+        return Err("usage: stream_throughput file.dwg... [--runs N] [--streaming-only]".into());
     }
     for path in files {
         let bytes = fs::read(&path)?;
@@ -135,6 +139,16 @@ fn main() -> Result<()> {
         } else {
             time(runs, || stream_flat(&bytes))?
         };
+        if only {
+            let mb = bytes.len() as f64 / 1e6;
+            println!(
+                "{{\"file\":\"{}\",\"records\":{streamed},\"runs\":{runs},\"streaming\":{{\"best_ms\":{:.2},\"mb_s\":{:.1}}}}}",
+                path.rsplit('/').next().unwrap_or(&path),
+                streaming.best.as_secs_f64() * 1e3,
+                mb / streaming.best.as_secs_f64()
+            );
+            continue;
+        }
         let (objects, listed) = time(runs, || legacy_objects(&bytes))?;
         if listed != streamed {
             return Err(
