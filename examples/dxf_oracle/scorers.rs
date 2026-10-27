@@ -47,6 +47,16 @@
 //! - A `101` group starts an embedded object (R2018 MTEXT and multi-line
 //!   attributes) whose codes repeat the record's; lookups stop there.
 //! - R12 DXF has no subclass markers: the whole record is the scope.
+//! - MULTILEADER nests its parts in marker groups (`300 CONTEXT_DATA{`,
+//!   `302 LEADER{`, `304 LEADER_LINE{`, closed by `301`, `303`, `305`) whose
+//!   fields reuse each other's codes (90, 91, 92, 290, 291, 40, 10, 11,
+//!   170, 171, 271 to 273); each part is scored within its own groups, in
+//!   the context before and after its leader roots, in each root before and
+//!   after its lines, and in the entity's tail after `301`.
+//! - A colour before R2004 is a bare index in the DWG, which the export
+//!   writes as the matching 32-bit word; a true colour the older file
+//!   cannot hold stays `different` (MULTILEADER's text background on R2000,
+//!   #381).
 //!
 //! # Tolerance for reals
 //!
@@ -75,7 +85,7 @@
 //! exactly.
 
 use crate::corpus::DwgRecord;
-use dwg::dxf_reader::{DxfDocument, DxfRecord, DxfValue};
+use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
 use dwg::entities::{DecodedEntity, Point2D, Point3D};
 use dwg::objects::color::ObjectColor;
 use std::collections::BTreeMap;
@@ -715,6 +725,7 @@ const Z: Point3D = Point3D {
 /// spec does not prescribe.
 pub fn section_of(label: &str) -> &'static str {
     match label {
+        "SORTENTSTABLE" => "§20.4.93",
         "BLOCK" => "§20.4.6",
         "ENDBLK" => "§20.4.7",
         "ARC" => "§20.4.18",
@@ -737,6 +748,7 @@ pub fn section_of(label: &str) -> &'static str {
         "RAY" => "§20.4.42",
         "XLINE" => "§20.4.43",
         "MTEXT" => "§20.4.46",
+        "MULTILEADER" => "§20.4.48",
         "LINE" => "§20.4.21",
         "POINT" => "§20.4.31",
         "ELLIPSE" => "§20.4.39",
@@ -751,6 +763,7 @@ pub fn section_of(label: &str) -> &'static str {
         "LTYPE_CONTROL" => "§20.4.57",
         "LTYPE" => "§20.4.58",
         "VIEW_CONTROL" => "§20.4.59",
+        "VIEW" => "§20.4.60",
         "UCS_CONTROL" => "§20.4.61",
         "VPORT_CONTROL" => "§20.4.63",
         "VPORT" => "§20.4.64",
@@ -759,11 +772,14 @@ pub fn section_of(label: &str) -> &'static str {
         "DIMSTYLE_CONTROL" => "§20.4.67",
         "DIMSTYLE" => "§20.4.68",
         "MLINESTYLE" => "§20.4.73",
+        "MLEADERSTYLE" => "§20.4.87",
         "DICTIONARYVAR" => "§20.4.74",
         "LAYOUT" => "§20.4.84",
         "LWPOLYLINE" => "§20.4.85",
         "SCALE" => "§20.4.92",
         "TABLESTYLE" => "§20.4.101",
+        "IMAGEDEF_REACTOR" => "§20.4.82",
+        "RASTERVARIABLES" => "§20.4.91",
         "XRECORD" => "§20.4.104",
         _ => "-",
     }
@@ -1005,6 +1021,7 @@ pub fn score(
         }
         D::DimStyle(d) => score_dimstyle(&mut c, d),
         D::VPort(v) => score_vport(&mut c, v),
+        D::View(v) => score_view(&mut c, v),
         D::BlockRecord(b) => score_block_record(&mut c, b, rec.handle, dwg),
         // §20.4.51 and the other controls: BL num_entries; the TABLE's 70 is
         // the DXF Reference's "maximum number of entries".
@@ -1035,6 +1052,7 @@ pub fn score(
             c.int("is_unit_scale", 290, i64::from(s.is_unit_scale), None);
         }
         // §20.4.104: the cloning flag in 280; the data stream stays raw.
+        D::SortEntsTable(t) => score_sortents(&mut c, t),
         D::XRecord(x) => {
             c.subclass("AcDbXrecord");
             c.int("cloning_flags", 280, i64::from(x.cloning_flags), None);
@@ -1052,12 +1070,58 @@ pub fn score(
             );
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
+        // §20.4.82: the class version in 90; the IMAGE it serves is a handle.
+        D::ImageDefReactor(r) => {
+            c.subclass("AcDbRasterImageDefReactor");
+            c.int("class_version", 90, i64::from(r.class_version), None);
+        }
+        // §20.4.91: 90, 70 display frame, 71 display quality, 72 units.
+        D::RasterVariables(r) => {
+            c.subclass("AcDbRasterVariables");
+            c.int("class_version", 90, i64::from(r.class_version), None);
+            c.int("display_frame", 70, i64::from(r.display_frame), None);
+            c.int("display_quality", 71, i64::from(r.display_quality), None);
+            c.int("units", 72, i64::from(r.units), None);
+        }
+        // No spec section: every number is a group 90, taken in the order
+        // the DWG holds them (ARCHITECTURE.md §7aq).
+        D::PersSubentManager(m) => {
+            c.subclass("AcDbPersSubentManager");
+            c.int("version", 90, i64::from(m.version), None);
+            score_pers_arrays(&mut c, "arrays", &m.arrays);
+        }
+        // The same, then the final `B` as group 290.
+        D::AssocPersSubentManager(m) => {
+            c.subclass("AcDbAssocPersSubentManager");
+            c.int("version", 90, i64::from(m.version), None);
+            c.int("ids.count", 90, m.ids.len() as i64, None);
+            for (i, id) in m.ids.iter().enumerate() {
+                c.int(&format!("ids[{i}]"), 90, i64::from(*id), None);
+            }
+            score_pers_arrays(&mut c, "arrays", &m.arrays);
+            c.int("flag", 290, i64::from(m.flag), None);
+        }
+        D::VisualStyle(v) => score_visualstyle(&mut c, v),
+        D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
+        D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
+        D::MLeader(m) => score_mleader(&mut c, m),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
         _ => return Err("no scorer yet".into()),
     }
     Ok(c.finish())
+}
+
+/// The arrays of a persistent-subentity manager: each one's count, then its
+/// values, every one a group 90.
+fn score_pers_arrays(c: &mut Ctx<'_>, name: &str, arrays: &[Vec<u32>]) {
+    for (k, array) in arrays.iter().enumerate() {
+        c.int(&format!("{name}[{k}].count"), 90, array.len() as i64, None);
+        for (i, v) in array.iter().enumerate() {
+            c.int(&format!("{name}[{k}][{i}]"), 90, i64::from(*v), None);
+        }
+    }
 }
 
 // §20.4.3: 10/20 with the elevation as 30, 11/21/31 when stored, 210, 39,
@@ -1586,6 +1650,102 @@ fn score_dictionary(c: &mut Ctx<'_>, d: &dwg::objects::dictionary::Dictionary, d
     );
 }
 
+// §20.4.101.1 (the layout "until R21", R2000 to R2007): 3, 70, 71, 40, 41,
+// 280, 281, then each row style in the order data, title, header: 7 (the
+// text style, a handle the decoder does not read), 140, 170, 62, 63, 283,
+// R2007+ 90, 91 and 1, and per border 274-279, 284-289 and 64-69. The
+// export writes the borders grouped by code (all six 27x, then 28x, then
+// 6x), so each is taken by its own code. Colours are TC; their DXF number
+// is the index (0 ByBlock, 256 ByLayer).
+fn score_tablestyle(c: &mut Ctx<'_>, t: &dwg::objects::acad_table_style::AcadTableStyle) {
+    c.subclass("AcDbTableStyle");
+    c.text("description", 3, &t.description, None);
+    c.int("flow_direction", 70, i64::from(t.flow_direction), None);
+    c.int("bit_flags", 71, i64::from(t.bit_flags), None);
+    c.real("horizontal_margin", 40, t.horizontal_margin, None);
+    c.real("vertical_margin", 41, t.vertical_margin, None);
+    // R2010+ exports write two 280s before the first row style; the
+    // suppress-title flag is the second (examples/probe_tablestyle.rs).
+    let groups = &c.record().groups;
+    let head = groups
+        .iter()
+        .position(|g| g.code == 100 && g.value.as_str() == Some("AcDbTableStyle"))
+        .map_or(&groups[..0], |s| {
+            let rest = &groups[s + 1..];
+            &rest[..rest.iter().position(|g| g.code == 7).unwrap_or(rest.len())]
+        });
+    if head.iter().filter(|g| g.code == 280).count() > 1 {
+        if let Some(v) = c.take(280) {
+            c.not_decoded(
+                "280 (the first of two, not the suppress flag)",
+                v.to_string(),
+            );
+        }
+    }
+    c.int("suppress_title", 280, i64::from(t.suppress_title), None);
+    c.int("suppress_header", 281, i64::from(t.suppress_header), None);
+    for (name, r) in [
+        ("data", &t.data),
+        ("title", &t.title),
+        ("header", &t.header),
+    ] {
+        c.real(&format!("{name}.text_height"), 140, r.text_height, None);
+        c.int(
+            &format!("{name}.text_alignment"),
+            170,
+            i64::from(r.text_alignment),
+            None,
+        );
+        c.int(
+            &format!("{name}.text_color"),
+            62,
+            aci_of(&r.text_color),
+            None,
+        );
+        c.int(
+            &format!("{name}.fill_color"),
+            63,
+            aci_of(&r.fill_color),
+            None,
+        );
+        c.int(
+            &format!("{name}.background_enabled"),
+            283,
+            i64::from(r.background_enabled),
+            None,
+        );
+        if let Some(v) = r.data_type {
+            c.int(&format!("{name}.data_type"), 90, i64::from(v), None);
+        }
+        if let Some(v) = r.data_unit_type {
+            c.int(&format!("{name}.data_unit_type"), 91, i64::from(v), None);
+        }
+        if let Some(v) = &r.format_string {
+            c.text(&format!("{name}.format_string"), 1, v, None);
+        }
+        for (k, b) in (0u16..).zip(r.borders.iter()) {
+            c.int(
+                &format!("{name}.borders[{k}].line_weight"),
+                274 + k,
+                i64::from(b.line_weight),
+                None,
+            );
+            c.int(
+                &format!("{name}.borders[{k}].visible"),
+                284 + k,
+                i64::from(b.visible),
+                None,
+            );
+            c.int(
+                &format!("{name}.borders[{k}].color"),
+                64 + k,
+                aci_of(&b.color),
+                None,
+            );
+        }
+    }
+}
+
 // §20.4.73 with the DXF Reference's MLINESTYLE groups: 2, 70, 3, 62, 51, 52,
 // 71, then 49 / 62 / 6 per line. The flag bits are remapped per the spec's
 // table (DWG 1 -> DXF 2, 2 -> 1, 32 -> 64, 64 -> 32, 512 -> 1024, 1024 -> 512).
@@ -1759,4 +1919,924 @@ fn score_lwpolyline(c: &mut Ctx<'_>, p: &dwg::entities::lwpolyline::LwPolyline) 
         }
     }
     c.scope = (s, e);
+}
+
+/// The DXF 90-range word a MULTILEADER colour (`CMC`) exports as: the
+/// 32-bit true-colour word as a signed integer. Before R2004 the DWG holds
+/// the bare index, which the export writes as the matching word (see
+/// [`color_word`]).
+fn cmc_word(c: &dwg::entities::mleader::Cmc) -> i64 {
+    let word = if c.rgb != 0 {
+        c.rgb
+    } else {
+        match c.index {
+            0 => 0xC100_0000,
+            256 => 0xC000_0000,
+            257 => 0xC800_0000,
+            n => 0xC300_0000 | u32::from(n as u16),
+        }
+    };
+    i64::from(word as i32)
+}
+
+/// Where the parts of an `AcDbMLeader` subclass sit among its groups. The
+/// export nests the embedded context in `300 CONTEXT_DATA{` ... `301 }`,
+/// each leader root in `302 LEADER{` ... `303 }` and each leader line in
+/// `304 LEADER_LINE{` ... `305 }`; the context's own fields come before
+/// the first root and after the last, a root's before its first line and
+/// after its last.
+struct MLeaderLayout {
+    head: (usize, usize),
+    context_before: (usize, usize),
+    roots: Vec<MLeaderRootLayout>,
+    context_after: (usize, usize),
+    tail: (usize, usize),
+    markers: Vec<usize>,
+}
+
+struct MLeaderRootLayout {
+    before: (usize, usize),
+    lines: Vec<(usize, usize)>,
+    after: (usize, usize),
+}
+
+fn marker_at(g: &DxfGroup, code: u16, text: &str) -> bool {
+    g.code == code && g.value.as_str() == Some(text)
+}
+
+fn mleader_layout(groups: &[DxfGroup], (s, e): (usize, usize)) -> Option<MLeaderLayout> {
+    let open = (s..e).find(|&i| marker_at(&groups[i], 300, "CONTEXT_DATA{"))?;
+    let mut markers = vec![open];
+    let mut roots: Vec<MLeaderRootLayout> = Vec::new();
+    let mut ctx_end = None;
+    let mut i = open + 1;
+    while i < e {
+        let g = &groups[i];
+        if marker_at(g, 302, "LEADER{") {
+            markers.push(i);
+            let mut root = MLeaderRootLayout {
+                before: (i + 1, i + 1),
+                lines: Vec::new(),
+                after: (i + 1, i + 1),
+            };
+            let mut j = i + 1;
+            let mut last_end = i + 1;
+            while j < e && !marker_at(&groups[j], 303, "}") {
+                if marker_at(&groups[j], 304, "LEADER_LINE{") {
+                    markers.push(j);
+                    if root.lines.is_empty() {
+                        root.before = (i + 1, j);
+                    }
+                    let start = j + 1;
+                    while j < e && !marker_at(&groups[j], 305, "}") {
+                        j += 1;
+                    }
+                    if j >= e {
+                        return None;
+                    }
+                    markers.push(j);
+                    root.lines.push((start, j));
+                    last_end = j + 1;
+                }
+                j += 1;
+            }
+            if j >= e {
+                return None;
+            }
+            if root.lines.is_empty() {
+                root.before = (i + 1, j);
+            }
+            root.after = (last_end, j);
+            markers.push(j);
+            roots.push(root);
+            i = j;
+        } else if marker_at(g, 301, "}") {
+            markers.push(i);
+            ctx_end = Some(i);
+            break;
+        }
+        i += 1;
+    }
+    let ctx_end = ctx_end?;
+    let first_root = roots.first().map_or(ctx_end, |r| r.before.0 - 1);
+    // Without roots the context's interior is one range, for both lookups.
+    let after_roots = roots.last().map_or(open + 1, |r| r.after.1 + 1);
+    Some(MLeaderLayout {
+        head: (s, open),
+        context_before: (open + 1, first_root),
+        roots,
+        context_after: (after_roots, ctx_end),
+        tail: (ctx_end + 1, e),
+        markers,
+    })
+}
+
+// §20.4.48 with §20.4.86's embedded MLeaderAnnotContext, against the DXF
+// Reference's AcDbMLeader groups, which the export nests: the context in
+// 300 CONTEXT_DATA{ .. 301 }, each leader root in 302 LEADER{ .. 303 } and
+// each leader line in 304 LEADER_LINE{ .. 305 }. Angles are radians on both
+// sides; colours are the CMC's 32-bit word (before R2004 the DWG holds the
+// bare index and the export writes the matching word). The handles
+// (340-344) are not decoded. The break points of a leader line are read and
+// dropped by the decoder.
+fn score_mleader(c: &mut Ctx<'_>, m: &dwg::entities::mleader::MLeader) {
+    if !c.subclass("AcDbMLeader") {
+        c.dwg_only("(the export has no AcDbMLeader subclass)", ());
+        return;
+    }
+    let Some(lay) = mleader_layout(&c.record().groups, c.scope) else {
+        c.dwg_only("(the export has no complete CONTEXT_DATA block)", ());
+        return;
+    };
+    for &i in &lay.markers {
+        c.take_at(i);
+    }
+    let ctx = &m.context;
+    c.scope = lay.head;
+    if m.legacy.is_none() {
+        c.int("class_version", 270, i64::from(m.class_version), None);
+    }
+
+    c.scope = lay.context_before;
+    c.real("context.overall_scale", 40, ctx.overall_scale, None);
+    c.point3(
+        "context.content_base_point",
+        10,
+        ctx.content_base_point,
+        None,
+    );
+    c.real("context.text_height", 41, ctx.text_height, None);
+    c.real("context.arrow_head_size", 140, ctx.arrow_head_size, None);
+    c.real("context.landing_gap", 145, ctx.landing_gap, None);
+    c.int(
+        "context.left_attachment",
+        174,
+        i64::from(ctx.left_attachment),
+        None,
+    );
+    c.int(
+        "context.right_attachment",
+        175,
+        i64::from(ctx.right_attachment),
+        None,
+    );
+    c.int(
+        "context.text_align_type",
+        176,
+        i64::from(ctx.text_align_type),
+        None,
+    );
+    c.int(
+        "context.attachment_type",
+        177,
+        i64::from(ctx.attachment_type),
+        None,
+    );
+    c.int("context.has_text", 290, i64::from(ctx.text.is_some()), None);
+    if let Some(t) = &ctx.text {
+        c.text("text.label", 304, &t.label, None);
+        c.point3("text.normal", 11, t.normal, None);
+        c.point3("text.location", 12, t.location, None);
+        c.point3("text.direction", 13, t.direction, None);
+        c.real("text.rotation", 42, t.rotation, None);
+        c.real("text.boundary_width", 43, t.boundary_width, None);
+        c.real("text.boundary_height", 44, t.boundary_height, None);
+        c.real("text.line_spacing_factor", 45, t.line_spacing_factor, None);
+        c.int(
+            "text.line_spacing_style",
+            170,
+            i64::from(t.line_spacing_style),
+            None,
+        );
+        c.int("text.color", 90, cmc_word(&t.color), None);
+        c.int("text.alignment", 171, i64::from(t.alignment), None);
+        c.int(
+            "text.flow_direction",
+            172,
+            i64::from(t.flow_direction),
+            None,
+        );
+        c.int(
+            "text.background_color",
+            91,
+            cmc_word(&t.background_color),
+            None,
+        );
+        c.real("text.background_scale", 141, t.background_scale, None);
+        c.int(
+            "text.background_transparency",
+            92,
+            i64::from(t.background_transparency),
+            None,
+        );
+        c.int(
+            "text.background_fill_enabled",
+            291,
+            i64::from(t.background_fill_enabled),
+            None,
+        );
+        c.int(
+            "text.background_mask_fill_on",
+            292,
+            i64::from(t.background_mask_fill_on),
+            None,
+        );
+        c.int("text.column_type", 173, i64::from(t.column_type), None);
+        c.int(
+            "text.text_height_automatic",
+            293,
+            i64::from(t.text_height_automatic),
+            None,
+        );
+        c.real("text.column_width", 142, t.column_width, None);
+        c.real("text.column_gutter", 143, t.column_gutter, None);
+        c.int(
+            "text.column_flow_reversed",
+            294,
+            i64::from(t.column_flow_reversed),
+            None,
+        );
+        for (i, w) in t.column_sizes.iter().enumerate() {
+            c.real(&format!("text.column_sizes[{i}]"), 144, *w, None);
+        }
+        c.int("text.word_break", 295, i64::from(t.word_break), None);
+        c.dwg_only("text.unknown_flag", t.unknown_flag);
+    }
+    // §20.4.86 reads the has-block bit only when there is no text, so on a
+    // text multileader the DWG does not hold the export's 296.
+    if ctx.text.is_some() {
+        if let Some(v) = c.take(296) {
+            c.not_decoded(
+                "296 (has block; the DWG stores it only without text)",
+                v.to_string(),
+            );
+        }
+    } else {
+        c.int(
+            "context.has_block",
+            296,
+            i64::from(ctx.block.is_some()),
+            None,
+        );
+    }
+    if let Some(b) = &ctx.block {
+        c.point3("block.normal", 14, b.normal, None);
+        c.point3("block.location", 15, b.location, None);
+        c.point3("block.scale", 16, b.scale, None);
+        c.real("block.rotation", 46, b.rotation, None);
+        c.int("block.color", 93, cmc_word(&b.color), None);
+        for (i, v) in b.transform.iter().enumerate() {
+            c.real(&format!("block.transform[{i}]"), 47, *v, None);
+        }
+    }
+    c.point3("context.base_point", 110, ctx.base_point, None);
+    c.point3("context.base_direction", 111, ctx.base_direction, None);
+    c.point3("context.base_vertical", 112, ctx.base_vertical, None);
+    c.int(
+        "context.normal_reversed",
+        297,
+        i64::from(ctx.normal_reversed),
+        None,
+    );
+
+    c.derived(
+        "context.leader_root_count (302 LEADER{ blocks)",
+        "302",
+        ctx.leader_roots.len() == lay.roots.len(),
+        ctx.leader_roots.len().to_string(),
+        lay.roots.len().to_string(),
+    );
+    for (k, (root, rl)) in ctx.leader_roots.iter().zip(&lay.roots).enumerate() {
+        let n = format!("roots[{k}]");
+        c.scope = rl.before;
+        c.int(
+            &format!("{n}.content_valid"),
+            290,
+            i64::from(root.content_valid),
+            None,
+        );
+        c.int(
+            &format!("{n}.unknown_flag"),
+            291,
+            i64::from(root.unknown_flag),
+            None,
+        );
+        c.point3(
+            &format!("{n}.connection_point"),
+            10,
+            root.connection_point,
+            None,
+        );
+        c.point3(&format!("{n}.direction"), 11, root.direction, None);
+        for (j, (a, b)) in root.break_points.iter().enumerate() {
+            c.point3(&format!("{n}.break_points[{j}].start"), 12, *a, None);
+            c.point3(&format!("{n}.break_points[{j}].end"), 13, *b, None);
+        }
+        c.int(&format!("{n}.index"), 90, i64::from(root.index), None);
+        c.real(
+            &format!("{n}.landing_distance"),
+            40,
+            root.landing_distance,
+            None,
+        );
+        c.derived(
+            &format!("{n}.line_count (304 LEADER_LINE{{ blocks)"),
+            "304",
+            root.lines.len() == rl.lines.len(),
+            root.lines.len().to_string(),
+            rl.lines.len().to_string(),
+        );
+        for (l, (line, range)) in root.lines.iter().zip(&rl.lines).enumerate() {
+            let n = format!("{n}.lines[{l}]");
+            c.scope = *range;
+            for (p, pt) in line.points.iter().enumerate() {
+                c.point3(&format!("{n}.points[{p}]"), 10, *pt, None);
+            }
+            c.int(&format!("{n}.index"), 91, i64::from(line.index), None);
+            if m.legacy.is_none() {
+                c.int(
+                    &format!("{n}.leader_type"),
+                    170,
+                    i64::from(line.leader_type),
+                    None,
+                );
+                c.int(&format!("{n}.color"), 92, cmc_word(&line.color), None);
+                c.int(
+                    &format!("{n}.line_weight"),
+                    171,
+                    i64::from(line.line_weight),
+                    None,
+                );
+                c.real(&format!("{n}.arrow_size"), 40, line.arrow_size, None);
+                c.int(
+                    &format!("{n}.override_flags"),
+                    93,
+                    i64::from(line.override_flags),
+                    None,
+                );
+            }
+        }
+        if m.legacy.is_none() {
+            c.scope = rl.after;
+            c.int(
+                &format!("{n}.attachment_direction"),
+                271,
+                i64::from(root.attachment_direction),
+                None,
+            );
+        }
+    }
+
+    if m.legacy.is_none() {
+        c.scope = lay.context_after;
+        c.int(
+            "context.bottom_attachment",
+            272,
+            i64::from(ctx.bottom_attachment),
+            None,
+        );
+        c.int(
+            "context.top_attachment",
+            273,
+            i64::from(ctx.top_attachment),
+            None,
+        );
+    }
+
+    c.scope = lay.tail;
+    c.int("override_flags", 90, i64::from(m.override_flags), None);
+    c.int("leader_type", 170, i64::from(m.leader_type), None);
+    c.int("leader_color", 91, cmc_word(&m.leader_color), None);
+    c.int("line_weight", 171, i64::from(m.line_weight), None);
+    c.int("landing_enabled", 290, i64::from(m.landing_enabled), None);
+    c.int("dogleg_enabled", 291, i64::from(m.dogleg_enabled), None);
+    c.real("landing_distance", 41, m.landing_distance, None);
+    c.real("arrow_head_size", 42, m.arrow_head_size, None);
+    c.int("content_type", 172, i64::from(m.content_type), None);
+    c.int("left_attachment", 173, i64::from(m.left_attachment), None);
+    c.int("right_attachment", 95, i64::from(m.right_attachment), None);
+    c.int("text_angle_type", 174, i64::from(m.text_angle_type), None);
+    c.int("unknown_175", 175, i64::from(m.unknown_175), None);
+    c.int("text_color", 92, cmc_word(&m.text_color), None);
+    c.int(
+        "text_frame_enabled",
+        292,
+        i64::from(m.text_frame_enabled),
+        None,
+    );
+    c.int("block_color", 93, cmc_word(&m.block_color), None);
+    c.point3("block_scale", 10, m.block_scale, None);
+    c.real("block_rotation", 43, m.block_rotation, None);
+    c.int(
+        "block_attachment_type",
+        176,
+        i64::from(m.block_attachment_type),
+        None,
+    );
+    c.int("is_annotative", 293, i64::from(m.is_annotative), None);
+    if let Some(l) = &m.legacy {
+        c.int(
+            "legacy.text_direction_negative",
+            294,
+            i64::from(l.text_direction_negative),
+            None,
+        );
+        c.int("legacy.ipe_align", 178, i64::from(l.ipe_align), None);
+        c.int(
+            "legacy.justification",
+            179,
+            i64::from(l.justification),
+            None,
+        );
+        c.real("legacy.scale_factor", 45, l.scale_factor, None);
+        c.dwg_only("legacy.arrow_heads_default", &l.arrow_heads_default);
+        c.dwg_only("legacy.block_labels", &l.block_labels);
+    } else {
+        c.int(
+            "attachment_direction",
+            271,
+            i64::from(m.attachment_direction),
+            None,
+        );
+        c.int(
+            "bottom_attachment",
+            272,
+            i64::from(m.bottom_attachment),
+            None,
+        );
+        c.int("top_attachment", 273, i64::from(m.top_attachment), None);
+        c.dwg_only("undocumented_mc", m.undocumented_mc);
+        c.dwg_only("undocumented_flag", m.undocumented_flag);
+        // R2013+ only: the DWG and the export both lack it on R2010.
+        if c.peek(295).is_some() {
+            c.int(
+                "leader_extended_to_text",
+                295,
+                i64::from(m.leader_extended_to_text),
+                None,
+            );
+        }
+    }
+}
+
+use dwg::objects::acad_visual_style::{AcadVisualStyle, VisualStyleColor, VisualStyleValue};
+
+/// The DXF colour number of a VISUALSTYLE colour, `None` for an RGB one
+/// (whose 62/63-67 the export derives; the RGB goes in 420/421).
+fn vs_aci(c: &VisualStyleColor) -> Option<i64> {
+    match c.method() {
+        0xC0 => Some(256),
+        0xC1 => Some(0),
+        0xC3 => Some(i64::from(c.payload())),
+        0xC8 => Some(257),
+        0xC2 => None,
+        // R14 and R2000 write the bare index (§2.11).
+        _ => Some(i64::from(c.index)),
+    }
+}
+
+/// VISUALSTYLE, which v5.4.1 does not prescribe, against the DXF
+/// Reference's AcDbVisualStyle groups. Up to R2010 every property has its
+/// own group (71 face lighting model ... 173 shadow type), and from R2010
+/// each is followed by its 176 flag; R2013 and R2018 write the 58
+/// properties as a counted list (70 = 58) of value groups and 176 flags,
+/// compared by position. The decoder names its slots after the
+/// conventional property order and says only the face group is
+/// corroborated; the named groups test every name.
+fn score_visualstyle(c: &mut Ctx<'_>, v: &AcadVisualStyle) {
+    c.subclass("AcDbVisualStyle");
+    c.text("description", 2, &v.description, None);
+    c.int(
+        "internal_style_type",
+        70,
+        i64::from(v.internal_style_type),
+        None,
+    );
+    if v.format_version != 0 {
+        c.int("format_version", 177, i64::from(v.format_version), None);
+    }
+    c.int(
+        "is_internal_use_only",
+        291,
+        i64::from(v.is_internal_use_only),
+        Some(0),
+    );
+    use VisualStyleValue::{Bool, Color, Double, Short};
+    let named: [(&str, u16, VisualStyleValue); 28] = [
+        ("face_lighting_model", 71, Short(v.face_lighting_model)),
+        ("face_lighting_quality", 72, Short(v.face_lighting_quality)),
+        ("face_color_mode", 73, Short(v.face_color_mode)),
+        ("face_modifier", 90, Short(v.face_modifier)),
+        ("face_opacity", 40, Double(v.face_opacity)),
+        ("face_specular", 41, Double(v.face_specular)),
+        ("face_mono_color", 63, Color(v.face_mono_color)),
+        ("edge_model", 74, Short(v.edge_model)),
+        ("edge_style", 91, Short(v.edge_style)),
+        (
+            "edge_intersection_color",
+            64,
+            Color(v.edge_intersection_color),
+        ),
+        ("edge_obscured_color", 65, Color(v.edge_obscured_color)),
+        (
+            "edge_obscured_linetype",
+            75,
+            Short(v.edge_obscured_linetype),
+        ),
+        (
+            "edge_intersection_linetype",
+            175,
+            Short(v.edge_intersection_linetype),
+        ),
+        ("edge_crease_angle", 42, Double(v.edge_crease_angle)),
+        ("edge_modifier", 92, Short(v.edge_modifier)),
+        ("edge_color", 66, Color(v.edge_color)),
+        ("edge_opacity", 43, Double(v.edge_opacity)),
+        ("edge_width", 76, Short(v.edge_width)),
+        ("edge_overhang", 77, Short(v.edge_overhang)),
+        ("edge_jitter", 78, Short(v.edge_jitter)),
+        ("edge_silhouette_color", 67, Color(v.edge_silhouette_color)),
+        ("edge_silhouette_width", 79, Short(v.edge_silhouette_width)),
+        ("edge_halo_gap", 170, Short(v.edge_halo_gap)),
+        ("edge_isoline_count", 171, Short(v.edge_isoline_count)),
+        ("edge_hide_precision", 290, Bool(v.edge_hide_precision)),
+        ("edge_style_apply", 93, Short(v.edge_style_apply)),
+        ("display_brightness", 44, Double(v.display_brightness)),
+        ("display_shadow_type", 173, Short(v.display_shadow_type)),
+    ];
+    let counted = c.peek(70).and_then(DxfValue::as_i64);
+    match counted {
+        Some(n) => {
+            c.take(70);
+            let mut all: Vec<(String, VisualStyleValue, Option<i16>)> = named
+                .iter()
+                .enumerate()
+                .map(|(i, (name, _, val))| {
+                    (
+                        name.to_string(),
+                        val.clone(),
+                        v.property_flags.get(i).copied(),
+                    )
+                })
+                .collect();
+            for (i, p) in v.extended.iter().enumerate() {
+                all.push((format!("extended[{i}]"), p.value.clone(), Some(p.flag)));
+            }
+            c.derived(
+                "property count",
+                "70",
+                n == all.len() as i64,
+                all.len().to_string(),
+                n.to_string(),
+            );
+            score_property_list(c, &all);
+        }
+        None => {
+            for (i, (name, code, val)) in named.iter().enumerate() {
+                score_vs_value(c, name, *code, val);
+                if let Some(flag) = v.property_flags.get(i) {
+                    c.int(&format!("{name} flag"), 176, i64::from(*flag), None);
+                }
+            }
+            c.dwg_only("edge_unknown_byte", v.edge_unknown_byte);
+            if v.display_unknown_short != 0 {
+                c.dwg_only("display_unknown_short", v.display_unknown_short);
+            }
+        }
+    }
+}
+
+/// One named VISUALSTYLE property in its own group.
+fn score_vs_value(c: &mut Ctx<'_>, name: &str, code: u16, val: &VisualStyleValue) {
+    match val {
+        VisualStyleValue::Short(x) => c.int(name, code, i64::from(*x), None),
+        VisualStyleValue::Double(x) => c.real(name, code, *x, None),
+        VisualStyleValue::Bool(x) => c.int(name, code, i64::from(*x), None),
+        VisualStyleValue::Text(x) => c.text(name, code, x, None),
+        VisualStyleValue::Color(col) => {
+            let rgb_code = if code == 63 { 421 } else { 420 };
+            match vs_aci(col) {
+                Some(aci) => c.int(name, code, aci, None),
+                None => {
+                    c.take(code);
+                    c.int(
+                        &format!("{name} (RGB)"),
+                        rgb_code,
+                        i64::from(col.payload()),
+                        None,
+                    );
+                }
+            }
+            if vs_aci(col).is_some() && c.peek(rgb_code).is_some() {
+                c.take(rgb_code);
+            }
+        }
+    }
+}
+
+/// The R2013+ counted property list: each value group (62 and an optional
+/// 420 for a colour) followed by its 176 flag, compared by position.
+fn score_property_list(c: &mut Ctx<'_>, all: &[(String, VisualStyleValue, Option<i16>)]) {
+    let free = c.free();
+    let mut k = 0usize;
+    for (name, val, flag) in all {
+        let Some(&(i, code, x)) = free.get(k) else {
+            c.dwg_only(name, ());
+            continue;
+        };
+        k += 1;
+        c.take_at(i);
+        let p = c.precision();
+        let (agree, dwg, dxf) = match (val, code) {
+            (VisualStyleValue::Short(a), 90) => (
+                x.as_i64() == Some(i64::from(*a)),
+                a.to_string(),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Double(a), 40) => (
+                x.as_f64().is_some_and(|b| reals_agree(*a, b, p)),
+                format!("{a:?}"),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Bool(a), 290) => (
+                x.as_i64() == Some(i64::from(*a)),
+                a.to_string(),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Text(a), 1) => (
+                x.as_str().map(caret_decode).as_deref() == Some(a.as_str()),
+                format!("{a:?}"),
+                x.to_string(),
+            ),
+            (VisualStyleValue::Color(col), 62) => {
+                let rgb = match free.get(k) {
+                    Some(&(j, 420, r)) => {
+                        k += 1;
+                        c.take_at(j);
+                        r.as_i64()
+                    }
+                    _ => None,
+                };
+                match (vs_aci(col), rgb) {
+                    (Some(aci), _) => (x.as_i64() == Some(aci), aci.to_string(), x.to_string()),
+                    (None, Some(r)) => (
+                        r == i64::from(col.payload()),
+                        format!("{:#08X}", col.payload()),
+                        format!("{r:#08X}"),
+                    ),
+                    (None, None) => (false, format!("{:#08X}", col.payload()), x.to_string()),
+                }
+            }
+            _ => (false, format!("{val:?}"), format!("{code}={x}")),
+        };
+        c.derived(name, &code.to_string(), agree, dwg, dxf);
+        if let Some(f) = flag {
+            match free.get(k) {
+                Some(&(j, 176, fx)) => {
+                    k += 1;
+                    c.take_at(j);
+                    c.derived(
+                        &format!("{name} flag"),
+                        "176",
+                        fx.as_i64() == Some(i64::from(*f)),
+                        f.to_string(),
+                        fx.to_string(),
+                    );
+                }
+                _ => c.dwg_only(&format!("{name} flag"), f),
+            }
+        }
+    }
+}
+
+/// A colour as MLEADERSTYLE writes it: the CMC's 32-bit true-colour word as
+/// a signed group-90-range integer (`0xC1000000` ByBlock is -1056964608).
+/// Before R2004 the CMC is a bare index (§2.11), which the export writes
+/// as the matching word: 0 ByBlock `0xC1000000`, 256 ByLayer `0xC0000000`,
+/// 257 none `0xC8000000`, an index `0xC3000000 | n`.
+fn color_word(c: &ObjectColor) -> i64 {
+    let word = if c.rgb != 0 {
+        c.rgb
+    } else {
+        match c.index {
+            0 => 0xC100_0000,
+            256 => 0xC000_0000,
+            257 => 0xC800_0000,
+            n => 0xC300_0000 | u32::from(n),
+        }
+    };
+    i64::from(word as i32)
+}
+
+/// §20.4.87 MLEADERSTYLE: each field against the group the spec's DXF
+/// column gives it (which are also the DXF Reference's AcDbMLeaderStyle
+/// groups). Angles are radians on both sides.
+fn score_mleaderstyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mleader_style::AcadMLeaderStyle) {
+    c.subclass("AcDbMLeaderStyle");
+    c.int("version", 179, i64::from(m.version), None);
+    c.int("content_type", 170, i64::from(m.content_type), None);
+    c.int(
+        "draw_mleader_order_type",
+        171,
+        i64::from(m.draw_mleader_order_type),
+        None,
+    );
+    c.int(
+        "draw_leader_order_type",
+        172,
+        i64::from(m.draw_leader_order_type),
+        None,
+    );
+    c.int(
+        "max_leader_segment_points",
+        90,
+        i64::from(m.max_leader_segment_points),
+        None,
+    );
+    c.real("first_segment_angle", 40, m.first_segment_angle, None);
+    c.real("second_segment_angle", 41, m.second_segment_angle, None);
+    c.int("leader_line_type", 173, i64::from(m.leader_line_type), None);
+    c.int(
+        "leader_line_color",
+        91,
+        color_word(&m.leader_line_color),
+        None,
+    );
+    c.int(
+        "leader_lineweight",
+        92,
+        i64::from(m.leader_lineweight),
+        None,
+    );
+    c.int("enable_landing", 290, i64::from(m.enable_landing), None);
+    c.real("landing_gap", 42, m.landing_gap, None);
+    c.int("enable_dogleg", 291, i64::from(m.enable_dogleg), None);
+    c.real("dogleg_length", 43, m.dogleg_length, None);
+    c.text("description", 3, &m.description, None);
+    c.real("arrowhead_size", 44, m.arrowhead_size, None);
+    c.text(
+        "default_mtext_contents",
+        300,
+        &m.default_mtext_contents,
+        None,
+    );
+    c.int(
+        "text_left_attachment",
+        174,
+        i64::from(m.text_left_attachment),
+        None,
+    );
+    c.int(
+        "text_right_attachment",
+        178,
+        i64::from(m.text_right_attachment),
+        None,
+    );
+    c.int("text_angle_type", 175, i64::from(m.text_angle_type), None);
+    c.int(
+        "text_alignment_type",
+        176,
+        i64::from(m.text_alignment_type),
+        None,
+    );
+    c.int("text_color", 93, color_word(&m.text_color), None);
+    c.real("text_height", 45, m.text_height, None);
+    c.int(
+        "enable_frame_text",
+        292,
+        i64::from(m.enable_frame_text),
+        None,
+    );
+    c.int(
+        "text_align_always_left",
+        297,
+        i64::from(m.text_align_always_left),
+        None,
+    );
+    c.real("align_space", 46, m.align_space, None);
+    c.int(
+        "block_content_color",
+        94,
+        color_word(&m.block_content_color),
+        None,
+    );
+    c.real("block_content_scale_x", 47, m.block_content_scale_x, None);
+    c.real("block_content_scale_y", 49, m.block_content_scale_y, None);
+    c.real("block_content_scale_z", 140, m.block_content_scale_z, None);
+    c.int(
+        "enable_block_content_scale",
+        293,
+        i64::from(m.enable_block_content_scale),
+        None,
+    );
+    c.real(
+        "block_content_rotation",
+        141,
+        m.block_content_rotation,
+        None,
+    );
+    c.int(
+        "enable_block_content_rotation",
+        294,
+        i64::from(m.enable_block_content_rotation),
+        None,
+    );
+    c.int(
+        "block_content_connection_type",
+        177,
+        i64::from(m.block_content_connection_type),
+        None,
+    );
+    c.real("scale", 142, m.scale, None);
+    c.int(
+        "overwrite_property_value",
+        295,
+        i64::from(m.overwrite_property_value),
+        None,
+    );
+    c.int("is_annotative", 296, i64::from(m.is_annotative), None);
+    c.real("break_gap_size", 143, m.break_gap_size, None);
+    // 271 to 273 exist from R2010; the earlier exports omit them and the
+    // earlier DWGs have no such fields.
+    for (name, code, v) in [
+        (
+            "text_attachment_direction",
+            271,
+            m.text_attachment_direction,
+        ),
+        (
+            "bottom_text_attachment_direction",
+            272,
+            m.bottom_text_attachment_direction,
+        ),
+        (
+            "top_text_attachment_direction",
+            273,
+            m.top_text_attachment_direction,
+        ),
+    ] {
+        if c.peek(code).is_some() {
+            c.int(name, code, i64::from(v), None);
+        } else {
+            c.dwg_only(&format!("{name} (no such field before R2010)"), v);
+        }
+    }
+    c.int("extended_flag", 298, i64::from(m.extended_flag), Some(0));
+}
+
+// §20.4.60 VIEW: 40, 41, 10/20, 12/22/32 target, 11/21/31 direction, 50
+// twist (degrees in the DXF), 42, 43, 44, 71 view mode (four stored bits,
+// converted), 281 render mode, 70 bit 1 paper space, 72 associated UCS.
+fn score_view(c: &mut Ctx<'_>, v: &dwg::tables::view::ViewEntry) {
+    c.subclass("AcDbViewTableRecord");
+    c.text("name", 2, &v.header.name, None);
+    c.bit("is_paperspace", 70, 1, v.is_paperspace);
+    flags_64_xdep(c, &v.header);
+    c.done(70);
+    c.real("view_height", 40, v.view_height, None);
+    c.real("view_width", 41, v.view_width, None);
+    c.point2("view_center", 10, v.view_center);
+    c.point3("target", 12, v.target, None);
+    c.point3("view_direction", 11, v.view_direction, None);
+    c.angle("twist_angle", 50, v.twist_angle, None);
+    c.real("lens_length", 42, v.lens_length, None);
+    c.real("front_clip", 43, v.front_clip, None);
+    c.real("back_clip", 44, v.back_clip, None);
+    c.int("view_mode", 71, i64::from(v.view_mode), None);
+    c.int("render_mode", 281, i64::from(v.render_mode), Some(0));
+    c.int(
+        "is_associated_ucs",
+        72,
+        i64::from(v.is_associated_ucs),
+        Some(0),
+    );
+}
+
+// §20.4.93: BL numentries, then that many sort handles, handle code 0 in the
+// data stream. The DXF writes each entry as 331 (the entity, a handle of the
+// handle stream the decoder does not read) then 5 (the sort handle), after
+// the record's own 5; the entry count has no group of its own. All entries
+// count under one field.
+fn score_sortents(c: &mut Ctx<'_>, t: &dwg::objects::block_sortents_table::SortEntsTable) {
+    c.subclass("AcDbSortentsTable");
+    let exported = c.record().all(5).count().saturating_sub(1);
+    c.derived(
+        "entry count (5 groups)",
+        "5",
+        t.sort_handles.len() == exported,
+        t.sort_handles.len().to_string(),
+        exported.to_string(),
+    );
+    for h in &t.sort_handles {
+        match c.take(5).and_then(DxfValue::as_handle) {
+            Some(x) => c.derived(
+                "sort_handle",
+                "5",
+                x == *h,
+                format!("{h:X}"),
+                format!("{x:X}"),
+            ),
+            None => c.dwg_only("sort_handle", format!("{h:X}")),
+        }
+    }
 }
