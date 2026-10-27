@@ -184,7 +184,9 @@ fn group_reason(table: &str, code: u16, theirs: &DxfRecord) -> Option<&'static s
         (_, 1000..=1071) => Some("extended data is not decoded for table records"),
         ("BLOCK_RECORD", 340) => Some("the layout object is not written to OBJECTS"),
         ("DIMSTYLE", 176..=178) => Some("a true colour has no index in the DWG"),
-        ("VPORT" | "VIEW", 348) => Some("the visual style object is not written to OBJECTS yet"),
+        ("VPORT" | "VIEW", 348) => {
+            Some("the visual style it names is not an object the output defines")
+        }
         ("VPORT", 332 | 361 | 345 | 346) => Some("the object it names is not written"),
         ("VPORT", 63) if !values(theirs, 421).is_empty() => {
             Some("a true colour has no index in the DWG")
@@ -192,7 +194,7 @@ fn group_reason(table: &str, code: u16, theirs: &DxfRecord) -> Option<&'static s
         ("LAYER", 430) => Some("the layer's R2007 colour name is not decoded"),
         ("LAYER", 390) => Some("the plot-style object is not written to OBJECTS"),
         ("LAYER", 347 | 348) => {
-            Some("the material and visual style objects are not written to OBJECTS yet")
+            Some("the material or visual style it names is not an object the output defines")
         }
         ("LAYER", 420) => Some("a true colour: the decoder surfaces no RGB"),
         ("LAYER", 62) if !values(theirs, 420).is_empty() => {
