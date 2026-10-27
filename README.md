@@ -135,7 +135,7 @@ passed.
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
-| DXF writer | Alpha | HEADER, CLASSES, the symbol tables and ENTITIES (15 kinds) written from decoded records and paired with AutoCAD's exports; BLOCKS and OBJECTS in review (#371 to #373) |
+| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371) and ENTITIES (15 kinds) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382); OBJECTS in review (#372, #373) |
 | DXF reader | Alpha | ASCII DXF keyed by handle, used by the value oracle |
 | DWG writer | Alpha | Assembles an R2004-family file this crate reads back; no CAD application has been checked against it |
 | SVG and PDF export | Alpha | SVG writer and a paged-SVG PDF path; output quality follows the decoded geometry |
@@ -180,13 +180,16 @@ ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
 - Metadata parsers: `SummaryInfo`, `AppInfo` (R18 ANSI and R21+ UTF-16
   auto-detected), `Preview` (BMP, WMF, PNG), `FileDepList`
 - Handle map, class map and header variables
-- R14 to R2004 text in the code page the file header names, for pages 1251
-  and 1252, through one shared decoder (#374)
+- R14 to R2004 text in the code page the file header names, through one
+  shared decoder (#374): the ten pages real drawings prove, 1250 to 1254,
+  1257 and the double-byte 932, 936, 949 and 950 (#384), in entity and
+  object text, XRECORD values and extended data (#380); `dwg-to-dxf` and the
+  DWG writer write the same page back (#382)
 - The object walk on every release from R14 to R2018, and the class census
   CI gate that holds it to what `AcDb:Classes` declares
 - Entity and object decoding, boundary-checked on every release, with the
   values scored against AutoCAD's DXF exports
-- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables and ENTITIES from the decoded records
+- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables, BLOCKS and ENTITIES from the decoded records
 - An experimental R2004-family write path: bit writer, LZ77 encoder, section
   framer, Sec_Mask, the CRCs and checksums real files carry, and assembly via
   `DwgFile::to_bytes()`
@@ -200,10 +203,8 @@ every later disclosure.
 ### What dwg-rs does not do today
 
 - Read R13 (AC1012) files; the reader is in review (#323).
-- Read R14 to R2004 text in code pages other than 1251 (Cyrillic) and 1252
-  (Western European): text in any other page still decodes as lossy UTF-8.
-  XRECORD and XDATA strings are not decoded by page yet, and the writers
-  still emit UTF-8 (#375).
+- Read R14 to R2004 text in a code page no measured drawing names: a header
+  short outside the ten proven pages still decodes as lossy UTF-8 (#375).
 - Decode password-protected R2007 files: a section whose descriptor declares
   encryption is refused, not decoded.
 - Write R13, R14 or R2007 files; the writer covers the R2004 family only.
