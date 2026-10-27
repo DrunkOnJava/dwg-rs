@@ -2511,7 +2511,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_data_table -- ../dwg-corpus
 ```
 
-## 7aa. ACDB_TEXTOBJECTCONTEXTDATA_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
+## 7bc. ACDB_TEXTOBJECTCONTEXTDATA_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
 
 ODA spec v5.4.1 prints no layout for the annotation-scale state AutoCAD keeps for a
 text object. `src/objects/text_context_data.rs` reads it from the layout below,
@@ -2543,7 +2543,7 @@ BS 70 (4), B 290 (1), BS 70 (0), BD 50, RD 10, RD 20, RD 11, RD 21
   and 21 are 0.0 in every record, so their order is unverified.
 - **The rotation.** A `BD`. Both DXF twins show 0.0, and the one record without a twin
   stores 0.5235987755982988, which is 30 degrees as radians; the DXF writes some other
-  angles in degrees (ARCHITECTURE.md §7w), so the unit of group 50 is unverified.
+  angles in degrees (ARCHITECTURE.md §7ay), so the unit of group 50 is unverified.
 - **Release.** The layout is shown on R2010, R2013 and R2018, where the common object
   data differs by one `B` (R2013 adds it) and the field list does not. A release before
   R2010 is refused as unsupported.

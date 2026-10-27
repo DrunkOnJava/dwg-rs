@@ -160,7 +160,7 @@ pub enum DecodedEntity {
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
     /// DATATABLE (§7z).
     DataTable(Box<crate::objects::data_table::DataTable>),
-    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7aa).
+    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bc).
     TextObjectContextData(crate::objects::text_context_data::TextObjectContextData),
     /// ACSH_HISTORY_CLASS (§7w).
     ShHistory(crate::objects::sh_history::ShHistory),
