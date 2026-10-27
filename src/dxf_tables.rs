@@ -322,12 +322,16 @@ fn style_groups(s: &crate::tables::style::StyleEntry) -> Option<Vec<HeaderGroup>
 }
 
 /// The text of a text dash: the NUL-terminated string at byte `offset` of the
-/// linetype's text area (one byte a character up to R2004, UTF-16LE from R2007).
-/// The NUL-terminated text at `offset` of a linetype's text area. Before R2007 the
-/// bytes are in the drawing's code page; every legacy `TV` reader of the crate
-/// decodes them as lossy UTF-8 (#370), and so does this, so a linetype's text and
-/// every other legacy string agree.
-fn dash_text(area: &[u8], offset: usize, wide: bool) -> Option<String> {
+/// linetype's text area (one byte a character in `page` up to R2004, UTF-16LE
+/// from R2007). It reads the legacy bytes as every legacy `TV` reader of the
+/// crate does ([`crate::code_page::CodePage::decode`], #370), so a linetype's
+/// text and every other legacy string agree.
+fn dash_text(
+    area: &[u8],
+    offset: usize,
+    wide: bool,
+    page: crate::code_page::CodePage,
+) -> Option<String> {
     let tail = area.get(offset..)?;
     if wide {
         let units: Vec<u16> = tail
@@ -338,7 +342,7 @@ fn dash_text(area: &[u8], offset: usize, wide: bool) -> Option<String> {
         String::from_utf16(&units).ok()
     } else {
         let bytes: Vec<u8> = tail.iter().copied().take_while(|b| *b != 0).collect();
-        Some(String::from_utf8_lossy(&bytes).into_owned())
+        Some(page.decode(&bytes))
     }
 }
 
@@ -350,6 +354,7 @@ fn dash_text(area: &[u8], offset: usize, wide: bool) -> Option<String> {
 /// and cleared before, as AutoCAD's exports do.
 fn ltype_groups(
     l: &crate::tables::ltype::LtypeEntry,
+    page: crate::code_page::CodePage,
     refs: Option<&EntryRefs>,
     file_version: crate::version::Version,
     version: DxfVersion,
@@ -414,6 +419,7 @@ fn ltype_groups(
                 &l.text_area,
                 usize::try_from(d.shape_number).ok()?,
                 file_version.is_r2007_plus(),
+                page,
             )?;
             g.push(HeaderGroup::Text(9, text));
         }
@@ -1022,7 +1028,15 @@ pub fn build(
         if let DecodedEntity::Ltype(l) = crate::entities::decode_from_raw(raw, file_version) {
             let lt_refs = crate::tables::handles::refs(raw, file_version).ok();
             let written = raw.handle.value < seed
-                && ltype_groups(&l, lt_refs.as_ref(), file_version, version, &defined).is_some();
+                && ltype_groups(
+                    &l,
+                    raw.code_page,
+                    lt_refs.as_ref(),
+                    file_version,
+                    version,
+                    &defined,
+                )
+                .is_some();
             ltypes.insert(raw.handle.value, (l.header.name.clone(), written));
             if !written {
                 defined.remove(&raw.handle.value);
@@ -1076,7 +1090,14 @@ pub fn build(
                 DecodedEntity::Ltype(l) => (
                     "LTYPE",
                     l.header.name.clone(),
-                    ltype_groups(&l, refs.as_ref(), file_version, version, &defined),
+                    ltype_groups(
+                        &l,
+                        raw.code_page,
+                        refs.as_ref(),
+                        file_version,
+                        version,
+                        &defined,
+                    ),
                 ),
                 // AutoCAD's export leaves this internal application out of the
                 // APPID table on all four drawings of the corpus that hold it.

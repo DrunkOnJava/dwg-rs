@@ -522,3 +522,25 @@ and VIEW take each field's group from the DXF column of §20.4.87 and
 each named property from Autodesk's public *DXF Reference* (VISUALSTYLE),
 recalled, and every one of them is measured on the exports and documented
 in `scorers.rs`. Only the same two corpora were read, as data.
+
+## 2026-10-27 — Code page numbers: learned from AutoCAD's own output, with the WHATWG tables for the bytes (#370)
+
+ODA spec v5.4.1 §3.2.5 gives the short at 0x13 of the file header ("a raw
+short indicating the value of the code page") and prints no table of its
+values; no other allowed source lists them. `src/code_page.rs` therefore
+names a number only when AutoCAD's own output does, by the method of the entry
+above: the header short of a pinned `nextgis/dwg_samples` or ACadSharp drawing
+against the `$DWGCODEPAGE` of AutoCAD's DXF export of the same drawing
+(`examples/probe_code_page.rs`). That gives two rows, 29 for `ANSI_1251` and 30
+for `ANSI_1252`; every other number is read as before and counted.
+
+- **What is read.** Header shorts and `$DWGCODEPAGE` names in the corpus data
+  files only. The names `ANSI_1251` and `ANSI_1252` mean Windows code pages
+  1251 and 1252 by their own spelling.
+- **What decodes the bytes.** The `encoding_rs` crate (MIT or Apache-2.0, its
+  index data BSD-3-Clause, all on `deny.toml`'s list) as a dependency, through
+  the WHATWG `windows-1251` and `windows-1252` tables. No code of it is copied.
+- **What is never used.** The numbering of any third-party DWG implementation
+  (LibreDWG, the ODA or Autodesk SDKs, ACadSharp, ezdxf), recalled or read, for
+  a number the corpus does not name. A page is added by a drawing and its export
+  naming it, in the same pull request that adds the row.

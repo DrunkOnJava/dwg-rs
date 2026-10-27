@@ -133,10 +133,8 @@ fn close(a: f64, b: f64, digits: u8) -> bool {
 
 /// The output as far as the end of its TABLES section, closed so the reader accepts it.
 fn tables_only(out: &str) -> Option<String> {
-    let mut at = 0;
-    for _ in 0..2 {
-        at += out[at..].find("ENDSEC")? + "ENDSEC".len();
-    }
+    let start = out.find("\nTABLES\n")?;
+    let at = start + out[start..].find("ENDSEC")? + "ENDSEC".len();
     let end = out[at..].find('\n')? + at + 1;
     Some(format!("{}0\nEOF\n", &out[..end]))
 }
