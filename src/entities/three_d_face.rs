@@ -1,7 +1,10 @@
 //! 3DFACE entity (ODA Open Design Specification for .dwg files v5.4
 //! §20.4.32) — 3 or 4 point 3D face.
 //!
-//! # Stream shape (R2000+)
+//! # Stream shape
+//!
+//! R13-R14 write four `3BD` corners (10 to 13) and the invisible-edge
+//! `BS` (70) unconditionally (ARCHITECTURE.md §7o, #227). R2000+:
 //!
 //! ```text
 //! B    has_no_flag_ind         -- when set, no invisible-edge mask follows
@@ -27,8 +30,9 @@
 //! exactly on its data-stream boundary at bit 503.
 
 use crate::bitcursor::BitCursor;
-use crate::entities::Point3D;
+use crate::entities::{Point3D, read_bd3};
 use crate::error::Result;
+use crate::version::Version;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThreeDFace {
@@ -47,7 +51,19 @@ fn read_dd3(c: &mut BitCursor<'_>, d: Point3D) -> Result<Point3D> {
 }
 
 /// Decodes the `ThreeDFace` payload that follows the common entity header.
-pub fn decode(c: &mut BitCursor<'_>) -> Result<ThreeDFace> {
+pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ThreeDFace> {
+    if version == Version::R14 {
+        // §20.4.32: R13-R14 write four `3BD` corners and the invisible
+        // edge flags unconditionally.
+        let corners = [read_bd3(c)?, read_bd3(c)?, read_bd3(c)?, read_bd3(c)?];
+        let invisible_edges = c.read_bs_u()?;
+        let is_triangle = corners[3] == corners[2];
+        return Ok(ThreeDFace {
+            corners,
+            invisible_edges,
+            is_triangle,
+        });
+    }
     let has_no_flag = c.read_b()?;
     let z_is_zero = c.read_b()?;
     let c1 = Point3D {
@@ -93,7 +109,7 @@ mod tests {
         w.write_dd(0.0, 0.0);
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let f = decode(&mut c).unwrap();
+        let f = decode(&mut c, Version::R2000).unwrap();
         assert!(f.is_triangle);
         assert_eq!(
             f.corners[0],
@@ -143,7 +159,7 @@ mod tests {
         w.write_bs_u(0b0101); // edges 0 and 2 invisible
         let bytes = w.into_bytes();
         let mut c = BitCursor::new(&bytes);
-        let f = decode(&mut c).unwrap();
+        let f = decode(&mut c, Version::R2000).unwrap();
         assert!(!f.is_triangle);
         assert_eq!(f.invisible_edges, 0b0101);
         assert_eq!(

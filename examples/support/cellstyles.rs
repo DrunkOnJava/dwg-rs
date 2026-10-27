@@ -124,6 +124,26 @@ impl<'a> Seq<'a> {
         }
     }
 
+    /// A count the decoder reads, then the handle groups the DXF writes after
+    /// it, one per counted item and none the decoder reads. A handle is any
+    /// group of the DXF handle ranges; a missing one leaves the next group
+    /// expected out of place, so the walk breaks there as it does anywhere.
+    pub fn count_with_handles(&mut self, t: &mut Tally, what: &str, ours: i64, code: u16) {
+        if let Some(g) = self.take(t, what, code) {
+            let counted = g.int();
+            t.int(what, ours, counted);
+            for _ in 0..counted.unwrap_or(0) {
+                match self.groups.get(self.at) {
+                    Some(h) if matches!(h.code, 320..=369 | 390..=399 | 480 | 481) => {
+                        self.at += 1;
+                        t.omitted += 1;
+                    }
+                    _ => break,
+                }
+            }
+        }
+    }
+
     /// How many groups follow the last one compared; 0 once the walk broke.
     pub fn leftover(&self) -> usize {
         if self.broken {
@@ -426,7 +446,7 @@ pub fn compare_content(ours: &TableContent, rec: &Record, t: &mut Tally, embedde
         s.real(t, "row height", row.height, 40);
         s.marker(t, 309, "TABLEROW_END");
     }
-    s.int(
+    s.count_with_handles(
         t,
         "field references",
         i64::from(ours.field_reference_count),

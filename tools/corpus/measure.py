@@ -367,7 +367,6 @@ def diff(args):
                       for label in sorted(b.keys() | h.keys()) if b[label] != h[label]]
     lines += ['', '### Per-type changes', ''] + (table(['Kind', 'Type', 'Base', 'Head', 'Delta'], type_rows)
                                                  if type_rows else ['None.'])
-    lines += ['', 'DXF value oracle: NOT MEASURED (no scorer on main yet, #99).']
     text = '\n'.join(lines) + '\n'
     if args.summary:
         with open(args.summary, 'a', encoding='utf-8') as fh:
