@@ -114,7 +114,7 @@ fn read_common_with_strings(
     // R2000+. R13/R14 store none of them, and the four fields are left 0
     // rather than given defaults the record does not hold.
     let (attachment, line_spacing_style, line_spacing_factor, actual_measurement) =
-        if version == Version::R14 {
+        if version.is_r13_r14() {
             (0, 0, 0.0, 0.0)
         } else {
             (c.read_bs()?, c.read_bs()?, c.read_bd()?, c.read_bd()?)

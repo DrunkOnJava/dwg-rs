@@ -278,7 +278,7 @@ impl ClassMap {
     /// is the byte-alignment padding before the CRC.
     fn bit_stream_start(version: Version) -> usize {
         match version {
-            Version::R14 | Version::R2000 | Version::R2004 => 20,
+            Version::R13 | Version::R14 | Version::R2000 | Version::R2004 => 20,
             Version::R2007 => 24,
             Version::R2010 | Version::R2013 | Version::R2018 => 28,
         }

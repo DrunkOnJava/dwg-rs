@@ -7,6 +7,7 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::solid::Solid;
 use crate::error::Result;
+use crate::version::Version;
 
 pub use crate::entities::solid::decode as decode_as_solid;
 
@@ -18,6 +19,11 @@ pub struct Trace(pub Solid);
 /// Decodes the `Trace` payload that follows the common entity header.
 pub fn decode(c: &mut BitCursor<'_>) -> Result<Trace> {
     Ok(Trace(decode_as_solid(c)?))
+}
+
+/// Decodes the §20.4.36 `Trace` payload for `version`: SOLID's stream, whose `BT` thickness and `BE` extrusion take their R13-R14 form there (§2.8, §2.10).
+pub fn decode_for(c: &mut BitCursor<'_>, version: Version) -> Result<Trace> {
+    Ok(Trace(crate::entities::solid::decode_for(c, version)?))
 }
 
 #[cfg(test)]

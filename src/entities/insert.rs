@@ -82,7 +82,7 @@ pub struct Insert {
 /// data.
 pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
     let insertion_point = read_bd3(c)?;
-    let scale = if version == Version::R14 {
+    let scale = if version.is_r13_r14() {
         // §20.4.9: R13-R14 write the three scales as plain `BD`s.
         read_bd3(c)?
     } else {
@@ -109,6 +109,39 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Insert> {
         extrusion,
         has_attribs,
         owned_object_count,
+    })
+}
+
+/// MINSERT (§20.4.10): an INSERT repeated over a grid of columns and rows.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MInsert {
+    /// The INSERT fields it opens with, as §20.4.10 prints them.
+    pub insert: Insert,
+    /// `BS 70` — number of columns.
+    pub num_cols: u16,
+    /// `BS 71` — number of rows.
+    pub num_rows: u16,
+    /// `BD 44` — distance between columns.
+    pub col_spacing: f64,
+    /// `BD 45` — distance between rows.
+    pub row_spacing: f64,
+}
+
+/// Decodes the §20.4.10 MINSERT payload that follows the common entity
+/// data: the INSERT fields, then `BS` columns, `BS` rows, `BD` column
+/// spacing and `BD` row spacing.
+pub fn decode_minsert(c: &mut BitCursor<'_>, version: Version) -> Result<MInsert> {
+    let insert = decode(c, version)?;
+    let num_cols = c.read_bs_u()?;
+    let num_rows = c.read_bs_u()?;
+    let col_spacing = c.read_bd()?;
+    let row_spacing = c.read_bd()?;
+    Ok(MInsert {
+        insert,
+        num_cols,
+        num_rows,
+        col_spacing,
+        row_spacing,
     })
 }
 

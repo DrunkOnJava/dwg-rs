@@ -71,6 +71,8 @@ pub enum DecodedEntity {
     Attrib(attrib::Attrib),
     AttDef(attdef::AttDef),
     Insert(insert::Insert),
+    /// MINSERT (§20.4.10) — an INSERT repeated over a column and row grid.
+    MInsert(insert::MInsert),
     Block(block::Block),
     EndBlk(endblk::EndBlk),
     Vertex(vertex::Vertex),
@@ -196,6 +198,7 @@ impl DecodedEntity {
             Self::Attrib(_) => OBJECT_TYPE_ATTRIB,
             Self::AttDef(_) => OBJECT_TYPE_ATTDEF,
             Self::Insert(_) => OBJECT_TYPE_INSERT,
+            Self::MInsert(_) => OBJECT_TYPE_MINSERT,
             Self::Block(_) => OBJECT_TYPE_BLOCK,
             Self::EndBlk(_) => OBJECT_TYPE_ENDBLK,
             Self::Vertex(_) => OBJECT_TYPE_VERTEX_2D,
@@ -305,6 +308,7 @@ const OBJECT_TYPE_BLOCK: u16 = 0x04; // 4
 const OBJECT_TYPE_ENDBLK: u16 = 0x05; // 5
 const OBJECT_TYPE_SEQEND: u16 = 0x06; // 6
 const OBJECT_TYPE_INSERT: u16 = 0x07; // 7
+const OBJECT_TYPE_MINSERT: u16 = 0x08; // 8
 const OBJECT_TYPE_VERTEX_2D: u16 = 0x0A; // 10
 // VERTEX_3D / VERTEX_MESH / VERTEX_PFACE share one measured field list
 // (`RC flag, 3BD location`); VERTEX_PFACE_FACE has its own.
@@ -1202,7 +1206,7 @@ fn dispatch_table_entry(
         }
         // R13/R14 lay the dimension variables out in their own order and
         // widths (§20.4.68's "R13 & R14 Only" block).
-        ObjectType::DimStyle if matches!(version, Version::R14) => {
+        ObjectType::DimStyle if version.is_r13_r14() => {
             crate::tables::dimstyle::decode_r13_r14(c, version)
                 .map(DecodedEntity::DimStyle)
                 .map_err(|e| e.to_string())
@@ -1293,6 +1297,7 @@ fn fixed_entity_label(type_code: u16) -> Option<&'static str> {
         OBJECT_TYPE_ATTRIB => "ATTRIB",
         OBJECT_TYPE_ATTDEF => "ATTDEF",
         OBJECT_TYPE_INSERT => "INSERT",
+        OBJECT_TYPE_MINSERT => "MINSERT",
         OBJECT_TYPE_BLOCK => "BLOCK",
         OBJECT_TYPE_ENDBLK => "ENDBLK",
         OBJECT_TYPE_SEQEND => "SEQEND",
@@ -1351,14 +1356,14 @@ fn decode_fixed_entity_body(
     let _ = strings;
     Ok(match type_code {
         OBJECT_TYPE_LINE => DecodedEntity::Line(line::decode_versioned(c, version)?),
-        OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode(c)?),
-        OBJECT_TYPE_CIRCLE => DecodedEntity::Circle(circle::decode(c)?),
-        OBJECT_TYPE_ARC => DecodedEntity::Arc(arc::decode(c)?),
+        OBJECT_TYPE_POINT => DecodedEntity::Point(point::decode_for(c, version)?),
+        OBJECT_TYPE_CIRCLE => DecodedEntity::Circle(circle::decode_for(c, version)?),
+        OBJECT_TYPE_ARC => DecodedEntity::Arc(arc::decode_for(c, version)?),
         OBJECT_TYPE_ELLIPSE => DecodedEntity::Ellipse(ellipse::decode(c)?),
         OBJECT_TYPE_RAY => DecodedEntity::Ray(ray::decode(c)?),
         OBJECT_TYPE_XLINE => DecodedEntity::XLine(xline::decode(c)?),
-        OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode(c)?),
-        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode(c)?),
+        OBJECT_TYPE_SOLID => DecodedEntity::Solid(solid::decode_for(c, version)?),
+        OBJECT_TYPE_TRACE => DecodedEntity::Trace(trace::decode_for(c, version)?),
         OBJECT_TYPE_3DFACE => DecodedEntity::ThreeDFace(three_d_face::decode(c, version)?),
         // REGION / 3DSOLID / BODY — one §20.4.41 field list for all
         // three. `binary_chain` is the record's `has AcDs binary data`
@@ -1381,6 +1386,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_ATTRIB => DecodedEntity::Attrib(attrib::decode(c, version)?),
         OBJECT_TYPE_ATTDEF => DecodedEntity::AttDef(attdef::decode(c, version)?),
         OBJECT_TYPE_INSERT => DecodedEntity::Insert(insert::decode(c, version)?),
+        OBJECT_TYPE_MINSERT => DecodedEntity::MInsert(insert::decode_minsert(c, version)?),
         OBJECT_TYPE_BLOCK => DecodedEntity::Block(block::decode_field(c, version, strings)?),
         OBJECT_TYPE_ENDBLK => DecodedEntity::EndBlk(endblk::decode(c)?),
         OBJECT_TYPE_SEQEND => DecodedEntity::SeqEnd(seqend::decode(c)?),
@@ -1391,7 +1397,7 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_VERTEX_PFACE_FACE => {
             DecodedEntity::VertexPfaceFace(vertex::decode_pface_face(c)?)
         }
-        OBJECT_TYPE_POLYLINE_2D => DecodedEntity::Polyline(polyline::decode(c)?),
+        OBJECT_TYPE_POLYLINE_2D => DecodedEntity::Polyline(polyline::decode_for(c, version)?),
         OBJECT_TYPE_POLYLINE_3D => DecodedEntity::Polyline3d(polyline::decode_3d(c, version)?),
         OBJECT_TYPE_MLINE => DecodedEntity::MLine(Box::new(mline::decode(c)?)),
         OBJECT_TYPE_LWPOLYLINE => DecodedEntity::LwPolyline(lwpolyline::decode(c, version)?),
@@ -1755,6 +1761,7 @@ mod tests {
             OBJECT_TYPE_ENDBLK,
             OBJECT_TYPE_SEQEND,
             OBJECT_TYPE_INSERT,
+            OBJECT_TYPE_MINSERT,
             OBJECT_TYPE_VERTEX_2D,
             OBJECT_TYPE_VERTEX_3D,
             OBJECT_TYPE_VERTEX_MESH,
@@ -1802,7 +1809,7 @@ mod tests {
         // SHAPE has a code but no field list; the reserved range has
         // neither.
         assert!(fixed_entity_label(OBJECT_TYPE_SHAPE).is_none());
-        for code in [0x00u16, 0x08, 0x09, 0x1FF, 0xFFFF] {
+        for code in [0x00u16, 0x09, 0x1FF, 0xFFFF] {
             assert!(fixed_entity_label(code).is_none(), "0x{code:04X}");
         }
     }

@@ -90,7 +90,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
     let view_mode = viewmode_from_bits(modern::read_4bits(c)?, false);
-    let r2000_plus = !matches!(version, Version::R14);
+    let r2000_plus = !version.is_r13_r14();
     let render_mode = if r2000_plus { c.read_rc()? } else { 0 };
     let is_paperspace = c.read_b()?;
     let is_associated_ucs = if r2000_plus { c.read_b()? } else { false };
