@@ -2019,7 +2019,8 @@ fn mleader_layout(groups: &[DxfGroup], (s, e): (usize, usize)) -> Option<MLeader
     }
     let ctx_end = ctx_end?;
     let first_root = roots.first().map_or(ctx_end, |r| r.before.0 - 1);
-    let after_roots = roots.last().map_or(ctx_end, |r| r.after.1 + 1);
+    // Without roots the context's interior is one range, for both lookups.
+    let after_roots = roots.last().map_or(open + 1, |r| r.after.1 + 1);
     Some(MLeaderLayout {
         head: (s, open),
         context_before: (open + 1, first_root),
