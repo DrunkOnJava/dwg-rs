@@ -2985,7 +2985,7 @@ the transparency `0xC2802142`. The colour book colour (one entity, flag 0x40) is
 counted and not compared, since its RGB is not in the entity. R13 and R14 colours
 are the bare index, and the probe skips AC1014 drawings.
 
-## 7am. dwg-to-dxf: the CLASSES section (2026-10-27, #126)
+## 7ao. dwg-to-dxf: the CLASSES section (2026-10-27, #126)
 
 `src/dxf_classes.rs` writes a `CLASSES` section from the class table of `AcDb:Classes`,
 for a target of R2000 or later (R12 has none; R14 is not measured), one `CLASS` record
