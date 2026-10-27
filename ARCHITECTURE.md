@@ -3955,7 +3955,11 @@ group 100 hold a newline and a character outside ASCII: after `AcDbXrecord` a gr
 102 is application data, now escaped for the release like every other string (`^J` for the
 newline, `\U+00E9` for the accented letter on R2004), where before the newline split the
 record and the DXF no longer read (`malformed DXF at line 21`). No corpus drawing has such a string, so that check measures
-the writer and not a drawing.
+the writer and not a drawing. A second synthetic check writes an XRECORD whose application
+data holds `102 {ACAD_REACTORS` and a 330 to a handle no record has: the probe reads
+brackets only up to `100 AcDbXrecord`, as `DxfRecord::top_level` does, so that 330 counts
+as an application's handle and not as a dangling reactor, and a control XRECORD with a
+real reactor to an absent handle still counts as dangling.
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
