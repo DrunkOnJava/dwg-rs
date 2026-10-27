@@ -247,6 +247,7 @@ fn escape_check() -> Result<String, String> {
             HeaderGroup::Text(100, "AcDbXrecord".into()),
             HeaderGroup::Text(102, "line one\nline two".into()),
             HeaderGroup::Text(102, "caf\u{e9}".into()),
+            HeaderGroup::Text(100, "marker\nname \u{e9}".into()),
         ],
     };
     let entities = Entities {
@@ -270,10 +271,20 @@ fn escape_check() -> Result<String, String> {
         .filter(|g| g.code == 102)
         .filter_map(|g| g.value.as_str().map(str::to_string))
         .collect();
+    let subclass: Vec<String> = rec
+        .groups
+        .iter()
+        .filter(|g| g.code == 100)
+        .filter_map(|g| g.value.as_str().map(str::to_string))
+        .collect();
     let ok = strings.len() == 2
         && strings.iter().all(|t| !t.contains('\n'))
-        && strings[1] != "caf\u{e9}";
-    let shown = format!("{strings:?}");
+        && strings[1] != "caf\u{e9}"
+        && subclass.len() == 2
+        && subclass[0] == "AcDbXrecord"
+        && !subclass[1].contains('\n')
+        && subclass[1] != "marker\nname \u{e9}";
+    let shown = format!("{strings:?}, group 100 {subclass:?}");
     if ok {
         Ok(shown)
     } else {

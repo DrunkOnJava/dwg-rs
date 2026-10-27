@@ -1220,14 +1220,20 @@ fn block_markers(
 
 /// `groups` with their text escaped for the release `version` (see
 /// `dxf_header::escape_text`); the record and subclass markers are plain ASCII
-/// already. A group 102 here is application data (an XRECORD's): the structural
-/// `{ACAD_REACTORS` and `{ACAD_XDICTIONARY` brackets are written apart from the
-/// groups.
+/// already. After an `AcDbXrecord` marker the groups are application data: a 100 or
+/// a 102 there is a string of the application's, escaped like any other (the
+/// structural `{ACAD_REACTORS` and `{ACAD_XDICTIONARY` brackets are written apart
+/// from a record's groups).
 fn escaped(groups: &[HeaderGroup], version: DxfVersion) -> Vec<HeaderGroup> {
+    let mut application = false;
     groups
         .iter()
         .map(|g| match g {
-            HeaderGroup::Text(code, t) if !matches!(code, 0 | 100) => {
+            HeaderGroup::Text(100, t) if !application => {
+                application = t == "AcDbXrecord";
+                g.clone()
+            }
+            HeaderGroup::Text(code, t) if *code != 0 => {
                 HeaderGroup::Text(*code, crate::dxf_header::escape_text(version, t))
             }
             other => other.clone(),
