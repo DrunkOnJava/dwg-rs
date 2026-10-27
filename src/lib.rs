@@ -104,6 +104,7 @@ pub mod block_expansion;
 pub mod byte_source;
 pub mod cipher;
 pub mod classes;
+pub mod code_page;
 pub mod color;
 pub mod common_entity;
 pub mod crc;

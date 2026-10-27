@@ -149,7 +149,7 @@ fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }
 
