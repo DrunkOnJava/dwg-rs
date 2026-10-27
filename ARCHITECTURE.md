@@ -3799,6 +3799,64 @@ string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. 
 "description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
 after the insert-count run is wrong for these blocks. No layer of this change touches it.
 
+## 7av. BLOCK_HEADER: the insert-count run has no length cap (2026-10-27, #386)
+
+§20.4.52 puts, after the base point and the xref path, "Insert Count: a sequence of zero
+or more non-zero RC's, followed by a terminating 0 RC. The total number of these indicates
+how many insert handles will be present", then the description, the preview size and the
+preview bytes. The decoder read at most 257 of those RCs (`MAX_INSERT_COUNT`, "no realistic
+block carries more") and went on to the description from wherever it stood, so a block with
+more inserts than that misread everything after the run and the record errored, each in a
+different way: a reserved `BL` bit pattern, the bit cursor running out, a preview size of
+269,488,144 bytes (`0x10101010`, a `BL` read out of the run's bytes), or fields that closed 6,592 and
+7,216 bits past the boundary. The run now ends at its zero, and runs out of record only by
+the cursor's own bounds, in both decode paths (R2004 and earlier inline, R2007 and later
+from the data stream). `examples/probe_block_header_inserts.rs` is the evidence.
+
+It decodes every BLOCK_HEADER of the corpus and compares the run with the record's handle
+stream, which lists the block control, the reactors, the extension dictionary, a NULL, the
+owned entities (R2004 and later), the ENDBLK, one handle per insert and the layout (on R2000
+the first and last entity of a block that is not an xref). The record agrees when the handles
+after the extension dictionary number exactly that sum: a second count of the same run that
+reads none of its bytes. All 2,953 records of the 49 pinned drawings from R2000 to R2018 decode
+and agree, and the Corpus job runs it:
+
+| Release | Records | Decoded | Handle stream agrees | Run over 256 | Longest run |
+|---|---:|---:|---:|---:|---:|
+| R2000 | 51 | 51 | 51 | 0 | 10 |
+| R2004 | 2715 | 2715 | 2715 | 9 | 29895 |
+| R2007 | 48 | 48 | 48 | 0 | 10 |
+| R2010 | 48 | 48 | 48 | 0 | 10 |
+| R2013 | 48 | 48 | 48 | 0 | 10 |
+| R2018 | 43 | 43 | 43 | 0 | 10 |
+
+The nine records that errored before are the whole of the runs over 256, in four drawings of
+Seeed-Studio/OSHW-Jetson-Series (Apache-2.0) saved as R2004 by AutoCAD I.18.0.0; no other
+block of the corpus has a run that long (every byte of the run of `0x101` is `0x01`):
+
+| Drawing | Handle | Block | Insert handles | Owned objects | Before |
+|---|---|---|---:|---:|---|
+| A205_TOP | 0x101 | `SMOOTH_0$1` | 383 | 1 | reserved `BL` bit pattern |
+| A205_TOP | 0x151 | `SYM_TOP_3` | 426 | 8 | reserved `BL` bit pattern |
+| A205_TOP | 0x24CE | `STK_TOP_15` | 260 | 9 | bit cursor exhausted |
+| A205_TOP | 0x335E | `DRIL_HOLE_0` | 462 | 2 | fields end 6,592 bits past the boundary |
+| A205_TOP | 0x3501 | `SMOOTH_0$0254` | 14079 | 1 | preview of 269,488,144 bytes |
+| A206_TOP | 0x20CB | `STK_TOP_72` | 260 | 9 | bit cursor exhausted |
+| A206_TOP | 0x2875 | `SMOOTH_0$0254` | 29895 | 1 | preview of 269,488,144 bytes |
+| A206_TOP | 0x2AC6 | `DRIL_HOLE_0` | 384 | 2 | fields end 7,216 bits past the boundary |
+| A206_BOTTOM | 0x7A9 | `SMOOTH_0$0254` | 8493 | 1 | preview of 269,488,144 bytes |
+
+All nine now close on their data-stream boundary and agree with their handle stream, so the
+corpus baseline (`tools/corpus/baseline.tsv`) moves for those three drawings and no other:
+A205_TOP 35,002 decoded and 5 errored to 35,007 and 0, A206_TOP 50,626 and 3 to 50,629 and 0,
+A206_BOTTOM 13,367 and 1 to 13,368 and 0, and the ratchet check passes on the regenerated
+rows. No drawing of the corpus has an AutoCAD DXF export of these four, so the values of
+these records are not compared with an export: the boundary and the handle stream are the
+evidence (the name, flags and base point precede the run, so the fix does not touch them).
+Not corpus-measured: a run over 256 in an R2007 or later drawing (the longest
+there is 10; the same change applies to that path), and an R13 or R14 block (the field does
+not exist there).
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
