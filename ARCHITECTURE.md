@@ -2207,7 +2207,7 @@ for p in wipeout_variables purge_preventer block_representation pdf_definition d
 done
 ```
 
-## 7u. The dynamic-block evaluation objects, derived from AutoCAD's own output (2026-10-26)
+## 7aw. The dynamic-block evaluation objects, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for the objects AutoCAD hangs a dynamic block's
 parameters, grips and actions on. `src/objects/dynamic_block.rs` reads six of

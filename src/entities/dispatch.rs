@@ -154,7 +154,7 @@ pub enum DecodedEntity {
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
     /// DBCOLOR (§7t).
     DbColor(crate::objects::small_classes::DbColor),
-    /// A dynamic-block evaluation object (§7u).
+    /// A dynamic-block evaluation object (§7aw).
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
