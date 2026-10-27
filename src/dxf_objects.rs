@@ -504,27 +504,13 @@ fn mline_style_groups(
     Some(())
 }
 
-/// The groups of a LAYOUT: its plot settings, then the layout proper, then the
-/// handles. The handle stream lists, from R2004, the plot view, from R2007 the
-/// visual style, then the block record, the last active viewport, the base and
-/// the named UCS and a handle per viewport.
-fn layout_groups(
-    g: &mut Vec<HeaderGroup>,
-    l: &crate::objects::acad_layout::AcadLayout,
-    item: &Item,
-    defined: &HashSet<u64>,
-    views: &HashMap<u64, String>,
-) -> Option<()> {
+/// Whether every real a LAYOUT record writes is finite (§20.4.84): the plot
+/// settings, the limits, the elevation and the six 3D points (insertion point,
+/// extents, UCS origin and axes). A coordinate that is not (`BitCursor::read_bd`
+/// returns a NaN or an infinity as read) has no DXF spelling the reader accepts, so
+/// the record is not written.
+pub fn layout_is_finite(l: &crate::objects::acad_layout::AcadLayout) -> bool {
     let p = &l.plot_settings;
-    let skip = match item.version {
-        v if v.is_r2007_plus() => 2,
-        v if v.is_r2004_plus() => 1,
-        _ => 0,
-    };
-    let h = item.refs.rest.get(skip..)?;
-    let [block, last_viewport, base_ucs, named_ucs] = h.get(..4)? else {
-        return None;
-    };
     let reals = [
         p.margin_left,
         p.margin_bottom,
@@ -549,7 +535,42 @@ fn layout_groups(
         l.limmax.y,
         l.elevation,
     ];
-    if !reals.iter().all(|r| r.is_finite()) {
+    let points = [
+        l.insertion_point,
+        l.extent_min,
+        l.extent_max,
+        l.ucs_origin,
+        l.ucs_x_axis,
+        l.ucs_y_axis,
+    ];
+    reals.iter().all(|r| r.is_finite())
+        && points
+            .iter()
+            .all(|v| [v.x, v.y, v.z].iter().all(|c| c.is_finite()))
+}
+
+/// The groups of a LAYOUT: its plot settings, then the layout proper, then the
+/// handles. The handle stream lists, from R2004, the plot view, from R2007 the
+/// visual style, then the block record, the last active viewport, the base and
+/// the named UCS and a handle per viewport.
+fn layout_groups(
+    g: &mut Vec<HeaderGroup>,
+    l: &crate::objects::acad_layout::AcadLayout,
+    item: &Item,
+    defined: &HashSet<u64>,
+    views: &HashMap<u64, String>,
+) -> Option<()> {
+    let p = &l.plot_settings;
+    let skip = match item.version {
+        v if v.is_r2007_plus() => 2,
+        v if v.is_r2004_plus() => 1,
+        _ => 0,
+    };
+    let h = item.refs.rest.get(skip..)?;
+    let [block, last_viewport, base_ucs, named_ucs] = h.get(..4)? else {
+        return None;
+    };
+    if !layout_is_finite(l) {
         return None;
     }
     g.push(HeaderGroup::Text(100, "AcDbPlotSettings".into()));

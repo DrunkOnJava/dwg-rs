@@ -3650,10 +3650,17 @@ corpus, with the strings rewritten in memory as in §7ap:
 | `DwgFile::to_bytes` on the R2004 family | 23 of 23 rewritten drawings keep the header's page, and the 8 pre-R2007 ones decode to the same entities (5 more are refused by the experimental writer for their section map, as before) |
 | R2007 and later texts against the R2000 save, as above | 4 of 4 drawings, 59 of 59 each |
 
-No text of the corpus leaves ASCII in a pre-R2007 DXF, so `convert_dwg_to_dxf_bytes` writes
-exactly the bytes `convert_dwg_to_dxf` writes: 104 of 104 conversions of the corpus's 52
-drawings (R2000 and R2004 targets), identical. The first run of that check read 0 of 104 and
-named a real defect: four comments the writer itself emits (`999` groups in
+Until the OBJECTS section was written no text of the corpus left ASCII in a pre-R2007 DXF, so
+`convert_dwg_to_dxf_bytes` wrote exactly the bytes `convert_dwg_to_dxf` wrote: 104 of 104
+conversions of the corpus's 52 drawings (R2000 and R2004 targets), identical. The `ACAD_LAYOUT`
+dictionary of the GBK drawings now writes their layout name as a key (#126), the first
+character above ASCII in a written DXF of the corpus: `convert_dwg_to_dxf` spells it
+`\U+5E03\U+5C40`, `convert_dwg_to_dxf_bytes` writes the page's bytes `B2 BC BE D6`, the
+bytes AutoCAD's own export holds for that key, so 10 of the 122 conversions now differ
+(112 of 122 identical). The check is therefore that the bytes read back under the
+drawing's page to the `String` writer's text once every character above ASCII is spelled as
+its escape again, and that at least one conversion writes page bytes. The first run of the
+older, identical-bytes check read 0 of 104 and named a real defect: four comments the writer itself emits (`999` groups in
 `dxf_sections.rs`: the ACI colour note, the opaque proxy note and the custom-class
 pass-through note) held an em dash or a `≈`, which a pre-R2007 DXF reads as bytes of the
 code page, not UTF-8 (and which the bytes conversion cannot map to one byte). They are ASCII
@@ -3961,7 +3968,114 @@ brackets only up to `100 AcDbXrecord`, as `DxfRecord::top_level` does, so that 3
 as an application's handle and not as a dangling reactor, and a control XRECORD with a
 real reactor to an absent handle still counts as dangling.
 
-## 7ax. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
+## 7ax. The double-byte round trip, on the pinned drawings (2026-10-27, #375)
+
+#382 wrote `CodePage::encode` and proved it on the two single-byte pages the corpus then
+held (128 of 128 bytes of 1251 and of 1252); #384 named Shift_JIS and GBK and pinned
+nine drawings that hold their text. This section is the proof that the inverse holds on
+real double-byte strings, not on a chart: `examples/probe_code_page.rs` decodes every
+string of every pre-R2007 drawing with `CodePage::decode` and encodes the text back, and
+fails when the bytes differ from the bytes read.
+
+| Header short | Strings above ASCII, decoded | Encode back to their bytes | Hold U+FFFD | Differ |
+|---:|---:|---:|---:|---:|
+| 38 (`ANSI_932`, Shift_JIS) | 21 | 21 | 0 | 0 |
+| 39 (`ANSI_936`, GBK) | 16 | 12 | 4 | 0 |
+
+The 21 Shift_JIS strings are the names of the two Japanese layouts (`83 8C 83 43 83 41 83 45
+83 67 31` and `...32`, five two-byte characters and a digit), each as a dictionary entry and as
+the name of a LAYOUT object, in the four AC1014 drawings, and five more dictionary entries
+of `3d.dwg`; the 12 GBK strings are the two layout names (`B2 BC BE D6 31` and `...32`, two
+two-byte characters and a digit) in the same two places: the four AC1018 drawings hold the
+first, the AC1015 one both. Every
+string that decodes without an invalid sequence encodes to the bytes it came from,
+including those whose trail bytes are ASCII letters (`43`, `41`, `45`). The 4 that hold
+U+FFFD are the four 1,028-byte non-text "descriptions" of the BLOCK_HEADER records that
+error (#386, ARCHITECTURE.md 7au): bytes that are not text, so some of their pairs are not
+GBK, and an invalid sequence is not text to write back; the probe counts them and does
+not encode them. The check lives in the probe, so every row a later change adds is held
+to it.
+
+`CodePage::encode_char` returns bytes only when they decode back to the character (#382),
+which is what keeps this round trip exact on the WHATWG encoders' extra mappings, none of
+which the pinned strings use.
+
+
+## 7ay. AcDb:Classes as AutoCAD writes it, and a writer that matches it (2026-10-27, #45)
+
+`write_class_map` was "not a byte-exact AutoCAD emitter" (#45): it round-tripped through
+`ClassMap::parse` and no further. `examples/probe_class_roundtrip.rs` reads each
+drawing's `AcDb:Classes` as stored (decompressed on R2004 and later), parses it and
+writes it back for the drawing's own release, both under the code page its header names,
+and compares the bytes; where they differ it names the first differing byte and the part
+of the section it falls in. A drawing it cannot open, read or parse is counted as a
+failure, and `--strict` fails on any difference, any failure and a run with no match.
+
+The Corpus job runs it with `--strict` on every pinned drawing (step "Class table written
+back byte for byte on every pinned drawing", log `class-roundtrip-probe.log` in the
+`corpus-measurement` artifact); that run is the record. The figures below were measured
+locally with `python3 -I tools/corpus/fetch.py --dest ../dwg-corpus` and
+`cargo run --release --example probe_class_roundtrip -- ../dwg-corpus --strict`, before
+builds moved to the runners: the old writer matched none of the 52 drawings pinned then
+(the size word at byte 16 already differed on all of them), the writer in this change
+matched all 52, and 61 of 61 over the whole local corpus cache (the 52 and nine more from
+three other public sets, which `tools/corpus/pins.tsv` pins since).
+
+| Release | Drawings, then pinned | Match, old writer | Match, now |
+|---|---:|---:|---:|
+| R14 (AC1014) | 8 | 0 | 8 |
+| R2000 (AC1015) | 8 | 0 | 8 |
+| R2004 (AC1018) | 8 | 0 | 8 |
+| R2007 (AC1021) | 8 | 0 | 8 |
+| R2010 (AC1024) | 8 | 0 | 8 |
+| R2013 (AC1027) | 8 | 0 | 8 |
+| R2018 (AC1032) | 4 | 0 | 4 |
+
+The layout is §10.1 (R13 to R15) and §10.2 (R18 and later) of ODA v5.4.1, with the fields
+the spec leaves open taken from the bytes:
+
+```text
+SN 16 bytes                       start sentinel
+RL                                size of the class data area, in bytes
+(R2010+) RL                       0
+(R2007+) RL                       size of the class data in bits, plus 32
+class data, a bit stream (byte 20 on R14 to R2004, 24 on R2007, 28 on R2010+):
+  (R2004+) BL max class number, B true
+  records; before R2007 each with its three TVs inline; from R2007 the
+  non-string fields of all records, then the 3 x N strings, then (the
+  string-stream trailer) an RS with the string block's size in bits, preceded
+  by an RS of its high bits when the size is 0x8000 or more (the low word then
+  has bit 15 set), then a B true
+  padding to the byte boundary, the padding bits set
+RS CRC-8, seed 0xC0C1, over every byte from the size word to here
+SN 16 bytes                       end sentinel 72 5E 3B 47 3B 56 07 3A 3F 23 0B A0 18 30 49 75
+(R2004+) 8 bytes                  zero
+```
+
+What each departure from the old writer rests on:
+
+| Rule | Measured on |
+|---|---|
+| R13 to R15 have no `BL` maximum and no `B` before the first record, and no trailing zeros | `line_R14.dwg`: section 839 bytes, size 801, CRC at byte 821, end sentinel at 823; `line_2000.dwg`: 742 bytes, size 704, CRC at 724, end sentinel at 726. All 16 R14 and R2000 pinned drawings match |
+| Pre-R2007 `TV`s carry a terminating NUL that the `BS` length counts; R2007+ strings have none | all 24 R14, R2000 and R2004 pinned drawings match with the NUL written, all 28 R2007 to R2018 drawings without one (`read_tv` drops a trailing NUL, so the parsed table never shows it) |
+| On R2007 and later the byte size is the stream plus 4 (the bits `RL`) | `line_2010.dwg`: size 1090 = 4 + 1086, section 1140 bytes; `line_2013.dwg`: 985 = 4 + 981, 1035 bytes; `sample_AC1032.dwg`: 6246 = 4 + 6242, 6296 bytes. On R2004 it is the stream alone: `line_2004.dwg` 646, section 692 bytes |
+| The bit size is the stream's bits plus 32, the stream ending after the trailer | `line_2010.dwg`: 8714 = 8682 + 32; `line_2013.dwg`: 7875 = 7843 + 32; `sample_AC1032.dwg`: 49962 = 49930 + 32 |
+| The CRC covers every byte from the size word to the end of the data, so on R2007+ it includes the bit-size words (and on R2010+ the zero `RL`), and never the start sentinel | R14, R2000, R2004, R2010, R2013 and R2018 files, checked with an independent Python port, then all 52 pinned drawings through the Rust writer. The 2026-10-25 note on #45 had R2010 and R2013 matching none of the coverages tried |
+| The padding bits that round the class data up to a byte are ones | the writer matched only after they were set; it wrote them clear first |
+| R2004+ sections end with eight zero bytes after the end sentinel | every R2004 to R2018 drawing; §10.2 says "the ODA writes 0 bytes", AutoCAD writes eight |
+| A string block of 0x8000 bits or more takes two `RS` words, the high word first | `sample_AC1032.dwg`: 45,804 bits = high word 1, then 0xB2EC |
+
+What the section holds that a `ClassDef` does not, the two unknown `BL`s of an R2004+
+record and the `B` after the maximum class number, is written as `0` and `true`; every
+one of the 52 sections matches with those values, so no drawing carries anything else.
+Unmeasured: R13 (AC1012), for which the corpus holds no AutoCAD-written file, so its
+section is written by the R14 rule on the strength of §10.1 alone. The canonical
+fixtures on R2004 and later have no `AcDb:Classes` section, and the R2000 fixture's
+empty one is framed by `build_fixtures` itself, so none of them exercises this writer.
+
+
+
+## 7az. dwg-to-dxf: the LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #126)
 
 `dxf_objects` writes three more kinds, each from the decoder that already closed on
 the corpus. A **LAYOUT** is its plot settings (`AcDbPlotSettings`: page setup, printer,
@@ -4001,9 +4115,14 @@ agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a layo
 plots a named view (none of the 132 has plot type 3 or a non-empty group `6` in the
 export, so the plot view handle's resolution to the VIEW record's name is by the rule
 and not by a drawing), a visual style handle (`333`), an MLINESTYLE whose linetype is
-neither sentinel, and R2018 MLINESTYLE.
+neither sentinel, and R2018 MLINESTYLE. A LAYOUT whose plot settings, limits, elevation or
+any of its six 3D points (insertion point, extents, UCS origin and axes) holds a NaN or an
+infinity, which `read_bd` returns as read, is not written: the DXF reader rejects either.
+No pinned layout holds one (all 132 are written), so a synthetic check of the predicate
+(`layout_is_finite`, the one the planner uses) refuses all 63 cases, a NaN, an infinity and a
+negative infinity in each of the 18 coordinates of the six points and in one real of each other kind.
 
-## 7ay. dwg-to-dxf: the VISUALSTYLE objects (2026-10-27, #66)
+## 7ba. dwg-to-dxf: the VISUALSTYLE objects (2026-10-27, #66)
 
 `dxf_objects` writes the 24 built-in VISUALSTYLEs of every drawing from the fields
 `acad_visual_style` decodes (the layout the module derives from bytes, since §20.4 has no

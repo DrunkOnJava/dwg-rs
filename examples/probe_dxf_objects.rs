@@ -28,6 +28,9 @@
 //! application data holds a `102 {ACAD_REACTORS` bracket and a 330 to an absent handle,
 //! which must read as data and not as a dangling reactor, beside a control record whose
 //! real reactor to an absent handle must still count as dangling.
+//! A third writes no record: it checks that a LAYOUT with a NaN or an infinity in any of its
+//! six 3D points, its limits, elevation or plot settings is refused, as no record of the
+//! pinned corpus holds one.
 //!
 //! A record of the export of a kind the converter writes with no record written
 //! is a failure, unless its owner is a record the output does not write; one of a kind it does not write yet is counted by kind; one the
@@ -373,6 +376,62 @@ fn boundary_check() -> Result<String, String> {
         Ok(shown)
     } else {
         Err(format!("application data read as structure: {shown}"))
+    }
+}
+
+/// A LAYOUT is written only when every real it writes is finite, the six 3D points
+/// (insertion point, extents, UCS origin and axes) as much as the limits, the elevation
+/// and the plot settings: the DXF reader rejects a NaN or an infinity, and
+/// `BitCursor::read_bd` returns one as read. A layout of zeros must pass, and a NaN, an
+/// infinity and a negative infinity in each coordinate of each point, and in one real of
+/// each other kind, must each be refused. Synthetic (no pinned drawing holds a
+/// non-finite coordinate: every one of the corpus's layouts is written), so it measures
+/// the predicate `dwg-to-dxf` plans with and not a drawing.
+fn finite_check() -> Result<String, String> {
+    use dwg::dxf_objects::layout_is_finite;
+    use dwg::objects::acad_layout::AcadLayout;
+    if !layout_is_finite(&AcadLayout::default()) {
+        return Err("a layout of zeros reads as not finite".into());
+    }
+    let (mut refused, mut cases) = (0, 0);
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        for point in 0..6 {
+            for axis in 0..3 {
+                let mut l = AcadLayout::default();
+                let p = match point {
+                    0 => &mut l.insertion_point,
+                    1 => &mut l.extent_min,
+                    2 => &mut l.extent_max,
+                    3 => &mut l.ucs_origin,
+                    4 => &mut l.ucs_x_axis,
+                    _ => &mut l.ucs_y_axis,
+                };
+                match axis {
+                    0 => p.x = bad,
+                    1 => p.y = bad,
+                    _ => p.z = bad,
+                }
+                cases += 1;
+                refused += usize::from(!layout_is_finite(&l));
+            }
+        }
+        for other in 0..3 {
+            let mut l = AcadLayout::default();
+            match other {
+                0 => l.elevation = bad,
+                1 => l.limmax.y = bad,
+                _ => l.plot_settings.scale_factor = bad,
+            }
+            cases += 1;
+            refused += usize::from(!layout_is_finite(&l));
+        }
+    }
+    if refused == cases {
+        Ok(format!("{refused} of {cases} non-finite layouts refused"))
+    } else {
+        Err(format!(
+            "{refused} of {cases} non-finite layouts refused, so the others would be written as NaN or inf"
+        ))
     }
 }
 
@@ -1051,6 +1110,14 @@ fn main() -> ExitCode {
         Ok(shown) => println!("XRECORD group 102 escaping (synthetic): ok, read back {shown}"),
         Err(e) => {
             failures.push(format!("XRECORD group 102 escaping (synthetic): {e}"));
+        }
+    }
+    match finite_check() {
+        Ok(shown) => println!(
+            "LAYOUT non-finite coordinates (synthetic): ok, {shown}, counted as not written"
+        ),
+        Err(e) => {
+            failures.push(format!("LAYOUT non-finite coordinates (synthetic): {e}"));
         }
     }
     match boundary_check() {

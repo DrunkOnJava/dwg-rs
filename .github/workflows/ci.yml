@@ -469,6 +469,22 @@ jobs:
             echo "::error::no pinned drawing reached the code page probe"
             exit 1
           fi
+      # AcDb:Classes of every pinned drawing, read as stored, parsed, written back
+      # by write_class_map under the drawing's own code page and compared byte
+      # for byte (#45). --strict fails on a difference, on a drawing that cannot
+      # be opened, read or parsed, and on a run in which nothing matched, so the
+      # probe cannot pass without having compared a drawing.
+      - name: Class table written back byte for byte on every pinned drawing
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --example probe_class_roundtrip -- --strict "$HOME/dwg-corpus" > class-roundtrip-probe.log 2>&1
+          status=$?
+          set -e
+          cat class-roundtrip-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       # The insert-count run of every BLOCK_HEADER against the record's own handle
       # stream: the run ends the same count of handles the stream holds.
       - name: BLOCK_HEADER insert-count run against the handle stream
@@ -566,6 +582,7 @@ jobs:
             corpus-logs/
             corpus-tests.log
             header-probe.log
+            class-roundtrip-probe.log
             dxf-header-probe.log
             dxf-tables-probe.log
             dxf-entities-probe.log
