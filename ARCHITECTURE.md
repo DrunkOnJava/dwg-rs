@@ -2992,6 +2992,53 @@ the transparency `0xC2802142`. The colour book colour (one entity, flag 0x40) is
 counted and not compared, since its RGB is not in the entity. R13 and R14 colours
 are the bare index, and the probe skips AC1014 drawings.
 
+## 7am. R2007's object records are R2000's (2026-10-26, #205)
+
+The streaming object walker for R2007 (`src/streaming/r2007_objects.rs`) frames
+the `AcDb:AcDbObjects` section of an `AC1021` file into records without the
+`AcDb:Handles` map, exactly as §7ac's walker does for the R2004 family, and it
+needed one answer first: which record layout. R2007 is neither R2004 (§7ac's
+`RL`-sized record, which it shares) nor R2010 (the `MC` handle-stream size and a
+two-bit-tagged type), and the legacy walker's comment that "the R2004 and R2007
+corpus files tile their object stream exactly" had never been counted. It was,
+on every object section of the eight R2007 drawings of the pinned corpus (seven
+nextgis saves from AutoCAD 2016 and ACadSharp's `sample_AC1021.dwg` from AutoCAD
+2025), with an independent parse (`tools/streaming/verify_objects.py`'s framer
+over `r2007_ref.py`'s section bytes):
+
+| Property | `AC1021` |
+|---|---|
+| Records walked | 2,237 (186, 186, 198, 186, 185, 185, 186 in the seven nextgis drawings, 925 in `sample_AC1021`) |
+| The section opens with `CA 0D 00 00` (an `RL` of 0x0DCA), as R2004's does | 8 of 8 drawings |
+| Records (`MS`, `MS` bytes of payload, two-byte CRC) end exactly at the section's size, with no padding and no zero-length trailer | 8 of 8 |
+| The CRC (§2.14.1, seed `0xC0C1`) over the `MS` and the payload equals the two bytes after the payload | 2,237 |
+| The (handle, offset) pairs of the `AcDb:Handles` map, sorted by offset, equal the records' handles and starts | 8 of 8 drawings, 2,237 records |
+| The same bytes read as R2010 records (an `MC` after the `MS`, a two-bit-tagged type) | the first record's CRC fails in 8 of 8 |
+
+So an R2007 record is the R2000 record (`RecordFormat::R2000`: a `BS` type, an
+`RL` size in bits, then the handle), and the framer needed no new format. The
+`RL` and the type are read from the payload's first 16 bytes as before and the
+record is committed only after the CRC. The legacy reader reads the same bytes
+the same way, and the streaming walker's records equal its (handle, offset, `MS`,
+type, payload length, payload CRC-32) on all 2,237.
+
+Two facts about the pages that carry the records, which a bounded walker cannot
+ignore. The section's pages arrive in the order its section map lists them (a
+rising `data_offset` is enforced by the file walk, which looks each page up in
+the page map, §7aj), so unlike the R2004 family's page map the order of a page in
+the file does not matter and no out-of-order page can reach the framer; a stretch
+of the section that no page covers arrives as a `Hole` step, which the object
+walker refuses (`ObjectsOrder`) instead of framing zeros. And records do not
+respect pages: 34 of the 2,237 records straddle a page boundary (two in each
+nextgis drawing, twenty in `sample_AC1021`, whose 21 object pages hold up to
+70,912 decompressed bytes), the largest record takes 150,151 bytes of the section (`sample_AC1021`),
+and the framing carries across all of them unchanged.
+
+Not measured: an R2007 drawing larger than the 1.06 MB `sample_AC1021` (none is
+pinned or available locally), a section the file lists in a different page order
+(not a possible layout, per the above), and an encrypted section, which the file
+walk refuses.
+
 ## 7an. dwg-to-dxf: the ENTITIES section (2026-10-26, #126)
 
 `src/dxf_entities.rs` writes the entities of model space and of the active paper
