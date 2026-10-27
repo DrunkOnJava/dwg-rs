@@ -126,7 +126,7 @@ impl XRecord {
     /// data, or when a code has no type here, so a record that reads at all
     /// reads to its last byte.
     ///
-    /// Up to R2004 the data is read by [`crate::extended_data::xrecord_items`],
+    /// Up to R2004 the data is read by [`crate::extended_data::xrecord_values`],
     /// which decodes each string in the code page it names (§3.2.5, #375) and reads
     /// only the group code ranges the corpus measures. From R2007 a string is an
     /// `RS` length and that many UTF-16 units; a trailing NUL is dropped. A handle
