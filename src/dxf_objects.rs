@@ -32,16 +32,23 @@ use crate::tables::handles::{EntryRefs, refs};
 use crate::version::Version;
 
 /// The DXF kinds the writer writes of a drawing when the output targets `version`,
-/// whatever the drawing holds.
-pub fn kinds(_version: DxfVersion) -> Vec<&'static str> {
-    vec![
+/// whatever the drawing holds. An MLINESTYLE of R2018 names its linetypes by
+/// handle, which is not resolved yet.
+pub fn kinds(version: DxfVersion) -> Vec<&'static str> {
+    let mut out = vec![
         "DICTIONARY",
         "ACDBDICTIONARYWDFLT",
         "DICTIONARYVAR",
         "XRECORD",
         "SCALE",
+        "LAYOUT",
+        "GROUP",
         "ACDBPLACEHOLDER",
-    ]
+    ];
+    if version != DxfVersion::R2018 {
+        out.push("MLINESTYLE");
+    }
+    out
 }
 
 /// The objects of a drawing as the converter writes them.
@@ -168,6 +175,9 @@ pub fn plan(file: &DwgFile, header: &HeaderVars) -> Plan {
                 | DecodedEntity::XRecord(_)
                 | DecodedEntity::Placeholder(_)
                 | DecodedEntity::Scale(_)
+                | DecodedEntity::Layout(_)
+                | DecodedEntity::Group(_)
+                | DecodedEntity::MLineStyle(_)
         );
         let reads = refs(raw, version).ok();
         if let Some(r) = &reads {
@@ -213,6 +223,185 @@ fn p3(g: &mut Vec<HeaderGroup>, code: u16, p: [f64; 3]) {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02X}")).collect()
+}
+
+/// A point whose coordinates are the codes `code` and `code + 10`.
+fn p2(g: &mut Vec<HeaderGroup>, code: i32, x: f64, y: f64) {
+    g.push(HeaderGroup::Real(code, x));
+    g.push(HeaderGroup::Real(code + 10, y));
+}
+
+/// A point whose coordinates are the codes `code` and `code + 1`.
+fn pair(g: &mut Vec<HeaderGroup>, code: i32, x: f64, y: f64) {
+    g.push(HeaderGroup::Real(code, x));
+    g.push(HeaderGroup::Real(code + 1, y));
+}
+
+/// The ACI colour a DWG colour stands for, as DXF 62 writes it.
+fn aci_of(c: &crate::objects::color::ObjectColor) -> i64 {
+    match c.rgb >> 24 {
+        0xC0 => 256,
+        0xC1 => 0,
+        0xC3 => i64::from(c.rgb & 0xFF),
+        _ => i64::from(c.index),
+    }
+}
+
+/// The groups of an MLINESTYLE. The DWG's flag bits are not DXF's; a line's
+/// linetype is the sentinel index of `ByLayer` or `ByBlock`, and a linetype
+/// named by any other index, or by a handle from R2018, is not written.
+fn mline_style_groups(
+    g: &mut Vec<HeaderGroup>,
+    m: &crate::objects::acad_mlinestyle::AcadMlinestyle,
+    version: Version,
+) -> Option<()> {
+    if matches!(version, Version::R2018) || !(m.start_angle.is_finite() && m.end_angle.is_finite())
+    {
+        return None;
+    }
+    let f = i64::from(m.flags);
+    let mut flags = f & (16 | 256);
+    for (dwg, dxf) in [(1, 2), (2, 1), (32, 64), (64, 32), (512, 1024), (1024, 512)] {
+        if f & dwg != 0 {
+            flags |= dxf;
+        }
+    }
+    g.push(HeaderGroup::Text(100, "AcDbMlineStyle".into()));
+    g.push(HeaderGroup::Text(2, m.name.clone()));
+    g.push(HeaderGroup::Int(70, flags));
+    g.push(HeaderGroup::Text(3, m.description.clone()));
+    g.push(HeaderGroup::Int(62, aci_of(&m.fill_color)));
+    g.push(HeaderGroup::Real(51, m.start_angle.to_degrees()));
+    g.push(HeaderGroup::Real(52, m.end_angle.to_degrees()));
+    g.push(HeaderGroup::Int(71, m.lines.len() as i64));
+    for l in &m.lines {
+        let linetype = match l.linetype_index {
+            32767 => "BYLAYER",
+            32766 => "BYBLOCK",
+            _ => return None,
+        };
+        if !l.offset.is_finite() {
+            return None;
+        }
+        g.push(HeaderGroup::Real(49, l.offset));
+        g.push(HeaderGroup::Int(62, aci_of(&l.color)));
+        g.push(HeaderGroup::Text(6, linetype.into()));
+    }
+    Some(())
+}
+
+/// The groups of a LAYOUT: its plot settings, then the layout proper, then the
+/// handles. The handle stream lists, from R2004, the plot view, from R2007 the
+/// visual style, then the block record, the last active viewport, the base and
+/// the named UCS and a handle per viewport.
+fn layout_groups(
+    g: &mut Vec<HeaderGroup>,
+    l: &crate::objects::acad_layout::AcadLayout,
+    item: &Item,
+) -> Option<()> {
+    let p = &l.plot_settings;
+    let skip = match item.version {
+        v if v.is_r2007_plus() => 2,
+        v if v.is_r2004_plus() => 1,
+        _ => 0,
+    };
+    let h = item.refs.rest.get(skip..)?;
+    let [block, last_viewport, base_ucs, named_ucs] = h.get(..4)? else {
+        return None;
+    };
+    let reals = [
+        p.margin_left,
+        p.margin_bottom,
+        p.margin_right,
+        p.margin_top,
+        p.paper_width,
+        p.paper_height,
+        p.plot_origin.x,
+        p.plot_origin.y,
+        p.window_min.x,
+        p.window_min.y,
+        p.window_max.x,
+        p.window_max.y,
+        p.real_world_units,
+        p.drawing_units,
+        p.scale_factor,
+        p.paper_image_origin.x,
+        p.paper_image_origin.y,
+        l.limmin.x,
+        l.limmin.y,
+        l.limmax.x,
+        l.limmax.y,
+        l.elevation,
+    ];
+    if !reals.iter().all(|r| r.is_finite()) {
+        return None;
+    }
+    g.push(HeaderGroup::Text(100, "AcDbPlotSettings".into()));
+    g.push(HeaderGroup::Text(1, p.page_setup_name.clone()));
+    g.push(HeaderGroup::Text(2, p.printer_config_name.clone()));
+    g.push(HeaderGroup::Text(4, p.paper_size.clone()));
+    g.push(HeaderGroup::Text(6, p.plot_view_name.clone()));
+    for (code, v) in [
+        (40, p.margin_left),
+        (41, p.margin_bottom),
+        (42, p.margin_right),
+        (43, p.margin_top),
+        (44, p.paper_width),
+        (45, p.paper_height),
+    ] {
+        g.push(HeaderGroup::Real(code, v));
+    }
+    pair(g, 46, p.plot_origin.x, p.plot_origin.y);
+    pair(g, 48, p.window_min.x, p.window_min.y);
+    g.push(HeaderGroup::Real(140, p.window_max.x));
+    g.push(HeaderGroup::Real(141, p.window_max.y));
+    g.push(HeaderGroup::Real(142, p.real_world_units));
+    g.push(HeaderGroup::Real(143, p.drawing_units));
+    g.push(HeaderGroup::Int(70, i64::from(p.plot_layout_flags)));
+    g.push(HeaderGroup::Int(72, i64::from(p.paper_units)));
+    g.push(HeaderGroup::Int(73, i64::from(p.plot_rotation)));
+    g.push(HeaderGroup::Int(74, i64::from(p.plot_type)));
+    g.push(HeaderGroup::Text(7, p.current_style_sheet.clone()));
+    g.push(HeaderGroup::Int(75, i64::from(p.standard_scale_type)));
+    g.push(HeaderGroup::Real(147, p.scale_factor));
+    if item.version.is_r2004_plus() {
+        g.push(HeaderGroup::Int(76, i64::from(p.shade_plot_mode)));
+        g.push(HeaderGroup::Int(
+            77,
+            i64::from(p.shade_plot_resolution_level),
+        ));
+        g.push(HeaderGroup::Int(78, i64::from(p.shade_plot_custom_dpi)));
+    }
+    pair(g, 148, p.paper_image_origin.x, p.paper_image_origin.y);
+    g.push(HeaderGroup::Text(100, "AcDbLayout".into()));
+    g.push(HeaderGroup::Text(1, l.layout_name.clone()));
+    g.push(HeaderGroup::Int(70, i64::from(l.flags)));
+    g.push(HeaderGroup::Int(71, i64::from(l.tab_order)));
+    p2(g, 10, l.limmin.x, l.limmin.y);
+    p2(g, 11, l.limmax.x, l.limmax.y);
+    for (code, v) in [
+        (12, l.insertion_point),
+        (14, l.extent_min),
+        (15, l.extent_max),
+    ] {
+        p3(g, code, [v.x, v.y, v.z]);
+    }
+    g.push(HeaderGroup::Real(146, l.elevation));
+    for (code, v) in [(13, l.ucs_origin), (16, l.ucs_x_axis), (17, l.ucs_y_axis)] {
+        p3(g, code, [v.x, v.y, v.z]);
+    }
+    g.push(HeaderGroup::Int(76, i64::from(l.ucs_ortho_view_type)));
+    g.push(HeaderGroup::Handle(330, *block));
+    if *last_viewport != 0 {
+        g.push(HeaderGroup::Handle(331, *last_viewport));
+    }
+    if *named_ucs != 0 {
+        g.push(HeaderGroup::Handle(345, *named_ucs));
+    }
+    if *base_ucs != 0 {
+        g.push(HeaderGroup::Handle(346, *base_ucs));
+    }
+    Some(())
 }
 
 /// The record of `item`, or `None` when a group does not write.
@@ -281,6 +470,27 @@ fn record(item: &Item, defined: &HashSet<u64>) -> Option<EntityRecord> {
             }
             "XRECORD"
         }
+        DecodedEntity::Layout(l) => {
+            layout_groups(&mut g, l, item)?;
+            "LAYOUT"
+        }
+        DecodedEntity::Group(grp) => {
+            if item.refs.rest.len() != grp.num_members as usize {
+                return None;
+            }
+            g.push(HeaderGroup::Text(100, "AcDbGroup".into()));
+            g.push(HeaderGroup::Text(300, grp.name.clone()));
+            g.push(HeaderGroup::Int(70, i64::from(grp.unnamed)));
+            g.push(HeaderGroup::Int(71, i64::from(grp.selectable)));
+            for m in &item.refs.rest {
+                g.push(HeaderGroup::Handle(340, *m));
+            }
+            "GROUP"
+        }
+        DecodedEntity::MLineStyle(m) => {
+            mline_style_groups(&mut g, m, item.version)?;
+            "MLINESTYLE"
+        }
         DecodedEntity::Placeholder(_) => "ACDBPLACEHOLDER",
         _ => return None,
     };
@@ -333,6 +543,9 @@ pub fn build(
                     DecodedEntity::DictionaryVar(_) => "DICTIONARYVAR",
                     DecodedEntity::XRecord(_) => "XRECORD",
                     DecodedEntity::Scale(_) => "SCALE",
+                    DecodedEntity::Layout(_) => "LAYOUT",
+                    DecodedEntity::Group(_) => "GROUP",
+                    DecodedEntity::MLineStyle(_) => "MLINESTYLE",
                     _ => "ACDBPLACEHOLDER",
                 };
                 *out.skipped

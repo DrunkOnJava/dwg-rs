@@ -439,6 +439,19 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         }
         for bname in our_brackets.keys() {
             if !their_brackets.contains_key(bname) {
+                if bname == "ACAD_XDICTIONARY"
+                    && our_brackets[bname]
+                        .iter()
+                        .filter_map(|(_, v)| v.as_handle())
+                        .all(|x| dropped.contains_key(&x))
+                {
+                    *o.reasons
+                        .entry(format!(
+                            "{kind} extension dictionary the export leaves out (it names a dictionary the export does not have)"
+                        ))
+                        .or_default() += 1;
+                    continue;
+                }
                 t.extra += 1;
                 o.failures.push(format!(
                     "{name} {kind} {h:X}: bracket {bname} written but absent from the export"
