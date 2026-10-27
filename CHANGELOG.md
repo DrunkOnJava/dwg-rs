@@ -24,6 +24,18 @@ The file header's short at 0x13 (§3.2.5) is AutoCAD's own enumeration, not a Wi
 
 `CodePage::encode` turns a character the page holds into its byte (two on a double-byte page) and any other into AutoCAD's `\U+XXXX`. `convert_dwg_to_dxf_bytes` writes R12 to R2004 in that page, `classes::write_tv` encodes through the page in force, and `DwgFile::to_bytes` writes the drawing's page into the header, which used to be 0.
 
+### Added — dwg-to-dxf writes LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #373, #126)
+
+LAYOUT (its plot settings, then the layout and its handles), GROUP (description, flags and one `340` per member the output holds) and MLINESTYLE (name, flags, description, fill colour, angles and each line's offset, colour and linetype), each paired with AutoCAD's export by `probe_dxf_objects`. A layout with a non-finite coordinate, or a plot view named only by a handle the output lacks, is refused or resolved before it is written.
+
+### Fixed — write_class_map reproduces AutoCAD's AcDb:Classes byte for byte (2026-10-27, #405, closes #45)
+
+The section's size word, end sentinel, the R2004+ zero bytes, the CRC's starting point, pre-R2007 name terminators, padding bits and the long-string trailer now match AutoCAD's. The Corpus job's new step reads every pinned drawing's stored section, parses it and writes it back under the drawing's code page: 61 of 61 identical, R14 to R2018.
+
+### Added — the double-byte code pages round-trip (2026-10-27, #414, #375)
+
+`probe_code_page` decodes every pre-R2007 string and encodes it back, and fails when a cleanly decoded string returns other bytes; it runs over the pinned Shift_JIS and GBK drawings in the Corpus job.
+
 ### Added — dwg-to-dxf writes the OBJECTS section (2026-10-27, #372, #126)
 
 The dictionary family (DICTIONARY, ACDBDICTIONARYWDFLT, DICTIONARYVAR), XRECORD, SCALE and ACDBPLACEHOLDER are written in AutoCAD's order with their owners, reactors and extension dictionaries, and `probe_dxf_objects` in the Corpus job pairs every record with AutoCAD's export. An object is written only when its whole owner chain is, so no group 330, 340 or 360 names a record the output lacks; XRECORD application data in groups 100 and 102 is escaped and written in the drawing's code page. The placeholder records the converter used to write for every object are gone.
