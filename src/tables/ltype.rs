@@ -88,6 +88,10 @@ pub struct LtypeEntry {
     pub pattern_length: f64,
     pub alignment: u8,
     pub dashes: Vec<LtypeDash>,
+    /// The `X 9` text area as stored: 256 bytes up to R2004, on R2007 and later
+    /// 512 bytes of UTF-16LE when some dash carries text, else empty. A text
+    /// dash's `shape_number` is its text's byte offset in it.
+    pub text_area: Vec<u8>,
 }
 
 // Legacy alias retained so callers keep compiling while they migrate to
@@ -162,9 +166,10 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
     // §20.4.58 "R2004 and earlier: X 9 — 256 bytes of text area". It is
     // unconditional on these releases, unlike the R2007+ 512-byte area
     // which is written only when some dash sets `shapeflag & 0x02`.
+    let mut text_area = Vec::new();
     if !version.is_r2007_plus() {
         for _ in 0..LTYPE_TEXT_AREA_BYTES {
-            let _ = c.read_rc()?;
+            text_area.push(c.read_rc()?);
         }
     }
     Ok(LtypeEntry {
@@ -175,6 +180,7 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<LtypeEntry> {
         pattern_length,
         alignment,
         dashes,
+        text_area,
     })
 }
 
@@ -240,9 +246,10 @@ pub(crate) fn decode_modern_split_stream(
             text: DashText::None,
         });
     }
+    let mut text_area = Vec::new();
     if has_text_area {
         for _ in 0..512 {
-            let _ = split.data.read_rc()?;
+            text_area.push(split.data.read_rc()?);
         }
     }
     split.finish("LTYPE")?;
@@ -263,6 +270,7 @@ pub(crate) fn decode_modern_split_stream(
         pattern_length,
         alignment,
         dashes,
+        text_area,
     })
 }
 

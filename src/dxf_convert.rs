@@ -116,11 +116,14 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     // the default "0" layer every DXF reader requires. The header is written
     // first but names only records these tables define.
     let layers = [LayerEntry::default()];
-    let tables = match file.header_vars() {
-        Some(Ok(h)) if h.closed => {
-            crate::dxf_tables::build(file, version, &h, &written_object_handles(file))
-        }
-        _ => Vec::new(),
+    let object_handles = written_object_handles(file);
+    let header = match file.header_vars() {
+        Some(Ok(h)) if h.closed => Some(h),
+        _ => None,
+    };
+    let tables = match &header {
+        Some(h) => crate::dxf_tables::build(file, version, h, &object_handles),
+        None => Vec::new(),
     };
     let entity_layer = crate::dxf_tables::visible_layer(&tables)
         .map(|n| crate::dxf_header::escape_text(version, &n))
@@ -156,6 +159,29 @@ pub fn convert_dwg_to_dxf(file: &DwgFile, version: DxfVersion) -> crate::Result<
     // BLOCKS — *Model_Space + *Paper_Space placeholders. Real block
     // expansion is deferred.
     write_blocks_section(&mut writer);
+
+    // ENTITIES — with decoded tables, the entities of model space and of the
+    // active paper space from the handle-driven object walk (see
+    // crate::dxf_entities); otherwise the five curve primitives below.
+    let decoded_entities = match &header {
+        Some(h) if !tables.is_empty() && crate::dxf_entities::writes(file.version(), version) => {
+            Some(crate::dxf_entities::build(
+                file,
+                version,
+                h,
+                &tables,
+                &object_handles,
+            ))
+        }
+        _ => None,
+    };
+    if let Some(entities) = &decoded_entities {
+        crate::dxf_entities::write(&mut writer, entities);
+        let decoded_objects = collect_decoded_objects(file);
+        write_objects_section(&mut writer, decoded_objects);
+        writer.finish();
+        return Ok(writer.take_output());
+    }
 
     // ENTITIES — walk the full object list via the handle map. For
     // pre-R2004 family (R13/R14/R2000) we currently have no
@@ -356,9 +382,10 @@ fn raw_to_decoded_object(raw: &RawObject) -> Option<DecodedObject> {
 /// [`EntityRecord`]. Returns `None` for any entity whose geometry
 /// isn't one of the five Curve-shaped primitives this pipeline emits.
 fn decoded_entity_to_record(e: &DecodedEntity, layer: &str) -> Option<EntityRecord> {
-    // Layer + color aren't yet surfaced uniformly across
-    // DecodedEntity: every entity goes on `layer`, chosen so that it is
-    // visible (see `crate::dxf_tables::visible_layer`), in ACI 7.
+    // Layer + color aren't yet surfaced uniformly across DecodedEntity: every
+    // entity goes on `layer`, chosen so that it is visible (see
+    // `crate::dxf_tables::visible_layer`), in ACI 7. The path runs for a drawing
+    // without readable tables, for a target before R2000 and for an R14 source.
     let layer = layer.to_string();
     let aci = 7u8;
 

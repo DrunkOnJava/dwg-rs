@@ -61,14 +61,39 @@ const COPY_BLOCKS: [&[(usize, usize)]; 33] = [
     &[(16, 16), (16, 0)],
 ];
 
-fn emit(src: &[u8; 32], base: usize, count: usize, out: &mut [u8; 32], at: &mut usize) {
+/// Writes into `out`, from `at`, the source indices of the bytes of the
+/// `count`-byte copy at `base`, in the order §5.10.1's table hands them out.
+const fn expand(count: usize, base: usize, out: &mut [u8; 32], at: &mut usize) {
     if count == 1 {
-        out[*at] = src[base];
+        out[*at] = base as u8;
         *at += 1;
         return;
     }
-    for &(size, index) in COPY_BLOCKS[count] {
-        emit(src, base + index, size, out, at);
+    let blocks = COPY_BLOCKS[count];
+    let mut k = 0;
+    while k < blocks.len() {
+        let (size, index) = blocks[k];
+        expand(size, base + index, out, at);
+        k += 1;
+    }
+}
+
+/// For a block of `n` bytes, output byte `k` is input byte `PERMUTATION[n][k]`:
+/// the §5.10.1 table flattened at compile time, so a block is one gather.
+static PERMUTATION: [[u8; 32]; 33] = {
+    let mut table = [[0u8; 32]; 33];
+    let mut n = 1;
+    while n <= 32 {
+        let mut at = 0;
+        expand(n, 0, &mut table[n], &mut at);
+        n += 1;
+    }
+    table
+};
+
+fn emit(src: &[u8; 32], count: usize, out: &mut [u8; 32]) {
+    for (slot, &index) in out[..count].iter_mut().zip(&PERMUTATION[count][..count]) {
+        *slot = src[usize::from(index)];
     }
 }
 
@@ -290,9 +315,8 @@ impl R2007Lz {
                     i += n;
                     if self.blk_have == self.blk_need {
                         let need = usize::from(self.blk_need);
-                        let mut at = 0;
                         let mut pend = [0u8; 32];
-                        emit(&self.blk, 0, need, &mut pend, &mut at);
+                        emit(&self.blk, need, &mut pend);
                         self.pend = pend;
                         self.pend_len = self.blk_need;
                         self.pend_pos = 0;

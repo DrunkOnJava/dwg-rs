@@ -215,16 +215,6 @@ fn omission_reason(name: &str, header: &HeaderVars, theirs: &DxfDocument) -> Opt
         {
             Some("names a symbol record the output does not define")
         }
-        // A linetype with a shape or text dash is not written by TABLES.
-        "$CELTYPE" | "$DIMLTYPE" | "$DIMLTEX1" | "$DIMLTEX2"
-            if theirs.records.iter().any(|r| {
-                r.kind == "LTYPE"
-                    && r.first(2).and_then(DxfValue::as_str) == Some(named)
-                    && r.all(74).any(|v| v.as_i64().is_some_and(|f| f != 0))
-            }) =>
-        {
-            Some("names a linetype with a shape or text dash, which TABLES does not write")
-        }
         "$ACADMAINTVER" => Some(
             "not derivable: the file header says 15 where AC1015 exports 20, and 0 where AC1032 exports 228 or 329",
         ),
