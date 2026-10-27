@@ -1072,6 +1072,24 @@ pub fn score(
             c.int("display_quality", 71, i64::from(r.display_quality), None);
             c.int("units", 72, i64::from(r.units), None);
         }
+        // No spec section: every number is a group 90, taken in the order
+        // the DWG holds them (ARCHITECTURE.md §7aq).
+        D::PersSubentManager(m) => {
+            c.subclass("AcDbPersSubentManager");
+            c.int("version", 90, i64::from(m.version), None);
+            score_pers_arrays(&mut c, "arrays", &m.arrays);
+        }
+        // The same, then the final `B` as group 290.
+        D::AssocPersSubentManager(m) => {
+            c.subclass("AcDbAssocPersSubentManager");
+            c.int("version", 90, i64::from(m.version), None);
+            c.int("ids.count", 90, m.ids.len() as i64, None);
+            for (i, id) in m.ids.iter().enumerate() {
+                c.int(&format!("ids[{i}]"), 90, i64::from(*id), None);
+            }
+            score_pers_arrays(&mut c, "arrays", &m.arrays);
+            c.int("flag", 290, i64::from(m.flag), None);
+        }
         D::VisualStyle(v) => score_visualstyle(&mut c, v),
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::TableStyle(t) => score_tablestyle(&mut c, t),
@@ -1081,6 +1099,17 @@ pub fn score(
         _ => return Err("no scorer yet".into()),
     }
     Ok(c.finish())
+}
+
+/// The arrays of a persistent-subentity manager: each one's count, then its
+/// values, every one a group 90.
+fn score_pers_arrays(c: &mut Ctx<'_>, name: &str, arrays: &[Vec<u32>]) {
+    for (k, array) in arrays.iter().enumerate() {
+        c.int(&format!("{name}[{k}].count"), 90, array.len() as i64, None);
+        for (i, v) in array.iter().enumerate() {
+            c.int(&format!("{name}[{k}][{i}]"), 90, i64::from(*v), None);
+        }
+    }
 }
 
 // §20.4.3: 10/20 with the elevation as 30, 11/21/31 when stored, 210, 39,

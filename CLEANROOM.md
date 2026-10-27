@@ -544,3 +544,30 @@ for `ANSI_1252`; every other number is read as before and counted.
   (LibreDWG, the ODA or Autodesk SDKs, ACadSharp, ezdxf), recalled or read, for
   a number the corpus does not name. A page is added by a drawing and its export
   naming it, in the same pull request that adds the row.
+
+## 2026-10-27 — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never
+prints. The field lists in `src/objects/pers_subent.rs` were derived from the
+data bits of the 14 records of ACadSharp's `sample_base` saves (AutoCAD 2025:
+R14, R2000, R2004, R2007, R2010, R2013, R2018; one record of each class per
+release, handles 0xD62 and 0xD63 on every release) and AutoCAD's DXF export of
+the same handles (R2000 to R2018; the R14 save has no twin). Accepted: all 14
+close on the data-stream boundary, from R2007 on a string stream the field
+list leaves empty, and 120 values (every group 90 of both objects, in file
+order, and group 290 of the first) equal the decoded fields with 0 differences
+(`examples/probe_pers_subent.rs`, `probe_assoc_pers_subent.rs`), the number of
+groups 90 included. Unverified by value: where each array ends, since the DXF
+writes every number as group 90 (the reading of an ids array followed by one
+array per id, and of three arrays after the version, is the one that keeps
+every repeat count in the stream and closes all 14 records; two other readings
+parse the same bits), what any value means, whether the array at version 2 is
+gated by the version word or by the release, the width of every integer beyond
+the values the corpus holds (the `BL` form is claimed, `BS` is bit-identical on
+every record), and any value but those in the corpus; one drawing supplies all
+14 records. A version word other than 2 (the first class) or 1 and 2 (the
+second) is refused as unsupported. No vocabulary beyond the DXF group codes and
+subclass markers in the twins and the class names in `AcDb:Classes` was used
+(`version`, `ids` and `arrays` are positional names of this crate's, the role of `version` inferred from the 1 to 2 change across releases), and no third-party
+DWG or DXF implementation was consulted: only the data files of the corpus were
+read, never ACadSharp's code.
