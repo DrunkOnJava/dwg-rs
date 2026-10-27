@@ -32,6 +32,7 @@ fn make_raw(type_code: u16, payload: Vec<u8>) -> RawObject {
         },
         raw: payload,
         obj_size_bits: None,
+        code_page: Default::default(),
     }
 }
 

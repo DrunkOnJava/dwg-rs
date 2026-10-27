@@ -4,7 +4,7 @@
 //! # Stream shape
 //!
 //! R13-R14 write four `3BD` corners (10 to 13) and the invisible-edge
-//! `BS` (70) unconditionally (ARCHITECTURE.md §7n, #227). R2000+:
+//! `BS` (70) unconditionally (ARCHITECTURE.md §7o, #227). R2000+:
 //!
 //! ```text
 //! B    has_no_flag_ind         -- when set, no invisible-edge mask follows
