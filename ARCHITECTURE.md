@@ -3799,7 +3799,7 @@ string is that function's. Rows for 34, 35 and 37 wait for a pre-R2007 drawing. 
 "description" is bytes of something else, so the layout of the R2004 BLOCK_HEADER tail
 after the insert-count run is wrong for these blocks. No layer of this change touches it.
 
-## 7av. The double-byte round trip, on the pinned drawings (2026-10-27, #375)
+## 7ax. The double-byte round trip, on the pinned drawings (2026-10-27, #375)
 
 #382 wrote `CodePage::encode` and proved it on the two single-byte pages the corpus then
 held (128 of 128 bytes of 1251 and of 1252); #384 named Shift_JIS and GBK and pinned
