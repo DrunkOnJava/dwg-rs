@@ -60,7 +60,7 @@ fn main() -> ExitCode {
     let mut files: Vec<PathBuf> = read
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("dwg"))
+        .filter(|p| p.extension().is_some_and(|s| s.eq_ignore_ascii_case("dwg")))
         .collect();
     files.sort();
 
