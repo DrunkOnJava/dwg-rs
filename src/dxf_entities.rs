@@ -958,6 +958,15 @@ pub fn build(
         } else {
             &mut out.block_skipped
         };
+        if !in_entities && !exported.contains(&block) {
+            *skipped
+                .entry(format!(
+                    "{} (in a block that is not written)",
+                    kind_label(&decoded, raw)
+                ))
+                .or_default() += 1;
+            continue;
+        }
         if matches!(decoded, DecodedEntity::Insert(_))
             && !refs.rest.first().is_some_and(|h| exported.contains(h))
         {
