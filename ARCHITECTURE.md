@@ -3279,7 +3279,8 @@ extents, elevation, UCS, orthographic type) and its handles. The export's order
 puts `70` of the plot settings after `143` and the shade plot triple after `147`;
 the handle stream lists, from R2004 the plot view, from R2007 the visual style, then
 the block record (`330`), the last active viewport (`331`) and the base and named
-UCS (`346`, `345`), of which the null ones are not written. A **GROUP** is its
+UCS (`346`, `345`), of which the null ones are not written, and so is any that names a
+record the output does not define. A **GROUP** is its
 description (`300`), the unnamed and selectable flags and one `340` per member. An
 **MLINESTYLE** is its name, flags (the DWG's bits are not DXF's: bits 1, 2, 32, 64,
 512 and 1024 swap in pairs), description, fill colour, angles in degrees and one
@@ -3289,12 +3290,15 @@ linetype by handle), is not written.
 
 | Kind | Written | Paired | Groups | Agree | Relation | Disagree | Extra | Groups omitted |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| LAYOUT | 132 | 132 | 8068 | 8068 | 0 | 0 | 0 | 108 |
+| LAYOUT | 132 | 132 | 8182 | 8182 | 0 | 0 | 0 | 126 |
 | GROUP | 12 | 12 | 144 | 144 | 0 | 0 | 0 | 0 |
 | MLINESTYLE | 40 | 40 | 640 | 640 | 0 | 0 | 0 | 0 |
 
-The 108 groups a LAYOUT omits are extended data (1000 to 1070, the `ACAD_PSEXT`
-application data). The two R2018 MLINESTYLEs of the corpus are the records not
+The 126 groups a LAYOUT omits are extended data (1000 to 1070, the `ACAD_PSEXT`
+application data, 108) and the last active viewport (`331`, 18): it names a VIEWPORT
+entity, which is not written yet, so the group is left out and the probe names the reason.
+The probe compares every `330` after the record's owner, so a LAYOUT's block record is
+checked. The two R2018 MLINESTYLEs of the corpus are the records not
 written. With the layouts written, a BLOCK_RECORD's `340` and the dictionary entries
 of `ACAD_LAYOUT` are written too (132 more entries), and the tables probe still
 agrees. Not corpus-measured: a non-null base or named UCS (`345`, `346`), a plot
