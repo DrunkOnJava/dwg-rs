@@ -2864,7 +2864,10 @@ drawing of the corpus; a drawing with UCS records gets no UCS table, because the
 decoder has never read a real record (§20.4.62 lists a second orthographic `BS`
 that `tables::ucs` does not read).
 
-A LTYPE with a text or shape dash is written with its shape number (75), style
+A LTYPE with a text or shape dash is written with its shape number (75; 0 for a text
+dash, whose `shape_number` is an offset into the text area, not a shape: the export
+writes 0 on all six text dashes of the corpus, which all sit at offset 0, so the
+corpus does not tell the offset from 0 and DXF's 75 settles it), style
 handle (340), scale, rotation, offsets and text (44 to 46, 50, 9). The style is the
 handle after the xref block's, one per dash; the text is the NUL-terminated string at
 the dash's `shape_number` bytes into the linetype's text area (256 bytes to R2004,
@@ -3112,7 +3115,11 @@ Group rules the export shows, each checked on every record of its kind: the line
 1)` are omitted but an ELLIPSE always writes its 210; a TEXT writes its style only when
 it is not `Standard`, and the vertical alignment (73) under its second `AcDbText`; an
 ATTRIB writes the lock position (280) from R2007 and a version 280 before it from R2010;
-an LWPOLYLINE writes the constant width (43) unless it has per-vertex widths; an MTEXT
+an LWPOLYLINE writes the constant width (43) unless it has per-vertex widths, and is
+not written at all when its flag word has a bit the decoder does not name (the
+presence bits of §20.4.85 and the closed bit are named; PLINEGEN is none of them, no
+record of the 143 LWPOLYLINEs of the corpus exports sets it, whose group 70 is 0 or 1,
+and the spec does not say which bit it is); an MTEXT
 writes its rectangle height (46) only from R2007 and splits its text in 250-character
 `3` groups ahead of the `1` (a line feed, written `^J`, counts one character; no chunk
 passes 2,000 written characters, a DXF line's limit, where `\U+XXXX` escapes before

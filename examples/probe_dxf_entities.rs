@@ -191,6 +191,21 @@ fn entities(doc: &DxfDocument) -> Vec<&DxfRecord> {
         .collect()
 }
 
+/// A form of a supported kind that the writer leaves out, told from the export's
+/// own record: an embedded object (101), an MTEXT with a background fill (90, 441)
+/// or columns (75), a POLYLINE that is a 3D polygon mesh (70 bit 16), an LWPOLYLINE
+/// with PLINEGEN (70 bit 128).
+fn left_out(r: &DxfRecord) -> bool {
+    let flag = r.first(70).and_then(DxfValue::as_i64).unwrap_or(0);
+    r.groups.iter().any(|g| g.code == 101)
+        || match r.kind.as_str() {
+            "MTEXT" => r.groups.iter().any(|g| matches!(g.code, 90 | 441 | 75)),
+            "POLYLINE" => flag & 16 != 0,
+            "LWPOLYLINE" => flag & 128 != 0,
+            _ => false,
+        }
+}
+
 fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<Outcome>, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("read: {e}"))?;
     let file = DwgFile::from_bytes(bytes).map_err(|e| format!("open: {e}"))?;
@@ -382,18 +397,12 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
         }
         let t = o.tallies.entry(r.kind.clone()).or_default();
         t.unwritten += 1;
-        // An MTEXT with an embedded object (R2018), a background fill (90, 441) or
-        // columns (75) is a variant nothing writes yet.
-        let embedded = r
-            .groups
-            .iter()
-            .any(|g| g.code == 101 || (r.kind == "MTEXT" && matches!(g.code, 90 | 441 | 75)));
         // A child is written with its parent only.
         let parent_written = !matches!(r.kind.as_str(), "ATTRIB" | "VERTEX" | "SEQEND")
             || r.owner
                 .and_then(|o| by_handle.get(&o))
-                .is_none_or(|p| supported.contains(&p.kind.as_str()));
-        if supported.contains(&r.kind.as_str()) && !embedded && parent_written {
+                .is_none_or(|p| supported.contains(&p.kind.as_str()) && !left_out(p));
+        if supported.contains(&r.kind.as_str()) && !left_out(r) && parent_written {
             o.failures.push(format!(
                 "{name} {} {h:X}: in the export, not written, though the converter writes {}",
                 r.kind, r.kind

@@ -383,7 +383,17 @@ fn ltype_groups(
         if !finite(&[d.scale, d.rotation, d.x_offset, d.y_offset]) {
             return None;
         }
-        g.push(HeaderGroup::Int(75, i64::from(d.shape_number)));
+        // A text dash holds its text's offset in the text area where a shape dash
+        // holds its shape number; DXF's 75 is the shape number, and AutoCAD's
+        // export writes 0 for a text dash.
+        g.push(HeaderGroup::Int(
+            75,
+            if d.has_text() {
+                0
+            } else {
+                i64::from(d.shape_number)
+            },
+        ));
         if let Some(h) = styles
             .and_then(|s| s.get(i))
             .copied()

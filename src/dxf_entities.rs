@@ -555,7 +555,21 @@ fn own_groups(
             "MTEXT"
         }
         DecodedEntity::LwPolyline(p) => {
-            let ok = p.vertices.iter().all(|v| real_ok(&[v.x, v.y]))
+            // The flag word's bits the decoder names: the presence bits of §20.4.85
+            // and the closed bit. Any other (the one for PLINEGEN is none of them:
+            // no corpus record sets it, and the spec does not say which bit it is)
+            // would be dropped silently, so such a polyline is not written.
+            use crate::entities::lwpolyline::flag_bits::*;
+            const KNOWN: u16 = HAS_EXTRUSION
+                | HAS_THICKNESS
+                | CONSTANT_WIDTH
+                | HAS_ELEVATION
+                | HAS_BULGES
+                | HAS_VARIABLE_WIDTH
+                | CLOSED
+                | HAS_VERTEX_ID;
+            let ok = p.flag & !KNOWN == 0
+                && p.vertices.iter().all(|v| real_ok(&[v.x, v.y]))
                 && p.bulges.iter().all(|b| b.is_finite())
                 && p.widths.iter().all(|(a, b)| real_ok(&[*a, *b]))
                 && real_ok(&[
