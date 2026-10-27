@@ -102,7 +102,7 @@
 20.4.75	HATCH	188	partial	src/entities/hatch.rs	#147	Gradient block unconditional (ARCHITECTURE §7g); a spline edge with no fit points stores no tangents (§7y, #228). The 8 R14 records are never routed (#229). The spec's own example (§20.4.75.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.76	FIELD	192	missing		#149	
 20.4.77	FIELDLIST	193	missing		#149	
-20.4.78	GEODATA	194	closes	src/entities/geodata.rs	#150	Routed by class name; geoloc.dwg's record (object version 3) closes and all 77 values equal its DXF twin. The north direction is a 2RD, not 3RD (ARCHITECTURE §7aa). Object version 1 and the R2007-and-earlier civil block are unmeasured.
+20.4.78	GEODATA	194	closes	src/entities/geodata.rs	#150	Routed by class name; geoloc.dwg's record (object version 3) closes and all 77 values equal its DXF twin. The north direction is a 2RD, not 3RD (ARCHITECTURE §7aa). Object version 1 and the R2007-and-earlier civil block are unmeasured. DXF oracle (examples/dxf_oracle): 1 records R2018, every decoded value equals AutoCAD's (77 equal, 0 by the DXF default, 0 with no DXF group); 3 DXF groups not decoded.
 20.4.79	IDBUFFER	196	missing		#149	The spec's own example (§20.4.79.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.80	IMAGE	197	decoder	src/entities/image.rs	#150	The spec's own example (§20.4.80.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
 20.4.81	IMAGEDEF	199	decoder	src/entities/imagedef.rs	#150	The spec's own example (§20.4.81.1) is a class-numbered record with no class table printed, so only its walk and CRC are checked (#107).
