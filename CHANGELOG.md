@@ -8,6 +8,104 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — the table objects decode: TABLESTYLE from R2010, CELLSTYLEMAP, TABLEGEOMETRY, TABLECONTENT and ACAD_TABLE (2026-10-27 and 28, #313, #316, #317, #319, #151)
+
+TABLESTYLE (§20.4.101.2) and CELLSTYLEMAP (§20.4.102) share one cell-style reader (§20.4.101.3 and §20.4.101.4). TABLEGEOMETRY (§20.4.103), TABLECONTENT (§20.4.97) and the ACAD_TABLE entity (§20.4.96) follow, each paired with AutoCAD's DXF export by its probe. 103 skipped records of the pinned corpus now decode. An ACAD_TABLE's insertion rotation is compared in degrees against group 50; no pinned table is rotated, so that comparison is not yet measured on a nonzero angle.
+
+### Added — nineteen classes the spec does not print decode from AutoCAD's own DWG and DXF output (2026-10-28, #326 to #341, #152)
+
+Derived under the `CLEANROOM.md` method of 2026-10-26, on every release from R14 to R2018:
+- WIPEOUTVARIABLES, ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA, PDFDEFINITION and DBCOLOR (#326).
+- The dynamic-block evaluation objects BLOCKGRIPLOCATIONCOMPONENT, BLOCKLINEARGRIP, BLOCKVISIBILITYGRIP, BLOCKLINEARPARAMETER, BLOCKVISIBILITYPARAMETER and BLOCKSCALEACTION (#328).
+- DIMASSOC (#329).
+- ACSH_HISTORY_CLASS and ACSH_BOX_CLASS (#330), and ACSH_EXTRUSION_CLASS (#341).
+- SUN (#332).
+- DATATABLE (#335). Its column and cell lists start at no more than 1,024 entries and grow as entries decode, so a malformed count cannot reserve memory (#185).
+- ACDB_TEXTOBJECTCONTEXTDATA_CLASS (#337).
+- ACAD_EVALUATION_GRAPH (#339).
+
+PDFUNDERLAY now decodes on every release and is checked against AutoCAD's DXF (#331). With the table objects above, the corpus job's skipped records fell from 379 to 44, with none errored.
+
+### Added — the value oracle scores the DIMENSION family (2026-10-28, #387)
+
+§20.4.22 to §20.4.29, each dimension type's groups scored against AutoCAD's DXF export by handle.
+
+### Added — the canonical fixtures carry BLOCK_HEADER and BLOCK pairs (2026-10-28, #407, closes #78)
+
+`build_fixtures` writes a block header and its block for each synthetic drawing, so the block-name gate runs in CI on every release the writer covers.
+
+### Added — maintainer tools: a Jev review of stale prose and issues, and the AutoCAD trial session (2026-10-28, #406, #383)
+
+`tools/maintainer/jev_review.py` ranks the README, STATUS and ROADMAP statements, and the open issues, that a merged pull request may have overtaken (housekeeping item 10 in `docs/maintaining.md`). `tools/autocad/` writes the scripts, staged inputs and manifest for an AutoCAD session that re-saves the pinned R13 drawings and builds controlled drawings, and checks what the session produced.
+
+### Changed — the merge train lands stacked pull requests on its own (2026-10-28, #421, #422, #423)
+
+A PR stacked on one that has landed merges main against the newest commit of that PR it holds. Sections main renumbered are followed in its own lines. A PR that holds commits of an older open PR waits until that PR lands. A Codex thread that asks to commit the measured baseline is settled once the Corpus job passes.
+
+### Changed — the merge train builds and tests nothing locally (2026-10-27, #408)
+
+Every build, test and corpus measurement is a GitHub Actions run on the pull request. The train merges main in and pushes, then commits the corpus and oracle baselines and README coverage that the PR's own CI run measured, refusing anything worse than main. A PR stacked on another waits until GitHub retargets it to main.
+
+### Added — the pre-R2007 code pages real drawings prove: 1250, 1253, 1254, 1257 and the double-byte 932, 936, 949 and 950 (2026-10-27, #384, #375)
+
+The file header's short at 0x13 (§3.2.5) is AutoCAD's own enumeration, not a Windows code page number, so each new row is backed by a drawing: the `$DWGCODEPAGE` of AutoCAD's DXF export of the same file, or a known text found in its bytes. Shorts 28, 32, 33, 36, 38, 39, 40 and 41 join 29 and 30. Nine public drawings from three MIT and Apache-2.0 repositories are pinned for it, and `tools/corpus/fetch.py` percent-encodes paths with spaces and Chinese. A short no drawing names still decodes as lossy UTF-8.
+
+### Added — XRECORD values and extended entity data are read, each string in the code page it names (2026-10-27, #380, #375)
+
+`extended_data::read` (a walked record's extended data chain) and `extended_data::xrecord_values` (an XRECORD) turn R13 to R2004 bytes into values, decoding each string in the code page its own page byte names. R2007 and later return `Error::Unsupported`.
+
+### Changed — dwg-to-dxf and the DWG writer write a pre-R2007 drawing's own code page, not UTF-8 or bare escapes (2026-10-27, #382, #375)
+
+`CodePage::encode` turns a character the page holds into its byte (two on a double-byte page) and any other into AutoCAD's `\U+XXXX`. `convert_dwg_to_dxf_bytes` writes R12 to R2004 in that page, `classes::write_tv` encodes through the page in force, and `DwgFile::to_bytes` writes the drawing's page into the header, which used to be 0.
+
+### Added — MATERIAL decodes on every release from R14 to R2018 (2026-10-27, #325, #49, #152)
+
+The spec prints no layout for MATERIAL; its field list is learned from AutoCAD's own DWG and DXF output under the 2026-10-26 `CLEANROOM.md` method. 212 skipped records of the pinned corpus now decode, and the Corpus job's baseline moved with it.
+
+### Added — dwg-to-dxf writes VISUALSTYLE objects (2026-10-27, #413, #66)
+
+The 24 built-in visual styles of every pinned drawing are written in the three layouts AutoCAD's own exports use, and `probe_dxf_objects` pairs each with the export: in the Corpus job, 1,008 written and paired, 61,944 of 62,208 groups equal, 264 that differ only by a stated relation, and none that disagree.
+
+### Added — dwg-to-dxf writes LAYOUT, GROUP and MLINESTYLE objects (2026-10-27, #373, #126)
+
+LAYOUT (its plot settings, then the layout and its handles), GROUP (description, flags and one `340` per member the output holds) and MLINESTYLE (name, flags, description, fill colour, angles and each line's offset, colour and linetype), each paired with AutoCAD's export by `probe_dxf_objects`. A layout with a non-finite coordinate, or a plot view named only by a handle the output lacks, is refused or resolved before it is written.
+
+### Fixed — write_class_map reproduces AutoCAD's AcDb:Classes byte for byte (2026-10-27, #405, closes #45)
+
+The section's size word, end sentinel, the R2004+ zero bytes, the CRC's starting point, pre-R2007 name terminators, padding bits and the long-string trailer now match AutoCAD's. The Corpus job's new step reads every pinned drawing's stored section, parses it and writes it back under the drawing's code page: 61 of 61 identical, R14 to R2018.
+
+### Added — the double-byte code pages round-trip (2026-10-27, #414, #375)
+
+`probe_code_page` decodes every pre-R2007 string and encodes it back, and fails when a cleanly decoded string returns other bytes; it runs over the pinned Shift_JIS and GBK drawings in the Corpus job.
+
+### Added — dwg-to-dxf writes the OBJECTS section (2026-10-27, #372, #126)
+
+The dictionary family (DICTIONARY, ACDBDICTIONARYWDFLT, DICTIONARYVAR), XRECORD, SCALE and ACDBPLACEHOLDER are written in AutoCAD's order with their owners, reactors and extension dictionaries, and `probe_dxf_objects` in the Corpus job pairs every record with AutoCAD's export. An object is written only when its whole owner chain is, so no group 330, 340 or 360 names a record the output lacks; XRECORD application data in groups 100 and 102 is escaped and written in the drawing's code page. The placeholder records the converter used to write for every object are gone.
+
+### Added — dwg-to-dxf writes the BLOCKS section (2026-10-27, #371, #126)
+
+One block per `BLOCK_RECORD`, in the table's order, with its `BLOCK`, its entities and its `ENDBLK`, paired with AutoCAD's export by `probe_dxf_entities --section=BLOCKS` in the Corpus job. INSERTs, ATTRIBs and ATTDEFs are written once the block they name is, and the tables name only blocks the output holds.
+
+### Added — the value oracle scores MULTILEADER (2026-10-27, #385)
+
+90 records, R2000 to R2018, each part of the nested `CONTEXT_DATA{` / `LEADER{` / `LEADER_LINE{` groups scored within its own groups.
+
+### Changed — README.md shows decode coverage per pinned source and for the median drawing (2026-10-27, #404)
+
+The record-weighted aggregate moves when a source of large drawings is pinned, so `readme_status.py` also renders a per-source table and a median-drawing column, and no longer rounds a rate with records left undecoded to 100.0 %.
+
+### Added — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER decode on every release from R14 to R2018 (2026-10-27, #379, #152)
+
+The last two skipped types that had no decoder in progress. The spec prints neither, so their field lists are learned from AutoCAD's own DWG and DXF output under the 2026-10-26 `CLEANROOM.md` method. ACDBPERSSUBENTMANAGER is a `BL` version and three `BL`-counted `BL` arrays. ACDBASSOCPERSSUBENTMANAGER is a `BL` version, an id array, one array per id, a further array when the version is 2, and a closing `B` (group 290). All 14 records in the pinned corpus close on their data-stream boundary, and the value oracle scores both classes with 0 differences. The corpus moves from 15,527 to 15,541 decoded and from 547 to 533 skipped. Every field rests on one drawing (ACadSharp's `sample_base`), so the layout stays provisional until a controlled AutoCAD drawing confirms it (#348). A version word the corpus does not hold is reported as unhandled, never guessed.
+
+### Added — the value oracle scores SORTENTSTABLE (2026-10-27, #351)
+
+SORTENTSTABLE's decoded fields are compared with AutoCAD's DXF export of the same handle (§20.4.93).
+
+### Changed — README.md and STATUS.md render their measured numbers from the committed baselines (2026-10-27, #376)
+
+`tools/maintainer/readme_status.py` writes the coverage table, the totals and the DXF value oracle's totals from `tools/corpus/baseline.tsv` and `tools/oracle/baseline.tsv`. `--check` fails when a document disagrees with a baseline or has lost a block, and `tools/maintainer/audit.py` runs that check. README.md and RELEASE.md were brought up to `main` in the same change.
+
 ### Fixed — text before R2007 is decoded in the code page the header names (2026-10-27, closes #370)
 
 Pre-R2007 text was read as lossy UTF-8 at each reader. It is now decoded in the code page the file header names (§3.2.5) through one shared path, `CodePage::decode` (#374). v5.4.1 prints no table of the code page values, so the table is measured: the header short against the `$DWGCODEPAGE` of AutoCAD's own export of the same drawing (`examples/probe_code_page.rs`). It names two rows, 29 = ANSI_1251 (14 drawings) and 30 = ANSI_1252 (2 drawings); any other number is `CodePage::Unknown(n)`, whose text is read exactly as before, and the other Windows pages are not covered because no pinned drawing gives a number for them (`CLEANROOM.md` has the entry). `RawObject::code_page` is stamped by the walker from `DwgFile::code_page()`, and the shared `TV` readers (the tables, TEXT, ATTRIB, ATTDEF, MTEXT, TOLERANCE, IMAGEDEF, BLOCK and every object through `objects::modern::read_tv`), the class table, the header variables and the metadata sections read it back. `dxf_header`'s `$DWGCODEPAGE` name comes from the same table.

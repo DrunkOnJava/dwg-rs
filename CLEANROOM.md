@@ -545,6 +545,81 @@ for `ANSI_1252`; every other number is read as before and counted.
   a number the corpus does not name. A page is added by a drawing and its export
   naming it, in the same pull request that adds the row.
 
+## 2026-10-27 — The writers' code page: AutoCAD's own R12, R2000, R2004 and R2007 output (#375)
+
+`CodePage::encode`, `dxf_convert::convert_dwg_to_dxf_bytes` and the DWG writer's header
+page write text in the drawing's code page. What decides how:
+
+- **Observed.** The one raw high byte of a pre-R2007 DXF export in the pinned corpus
+  (`sample_AC1009_ascii.dxf`, R12), and the ASCII escape `\U+2205` that AutoCAD's R2000
+  and R2004 saves and exports of the ACadSharp samples hold where the R2007 and later
+  saves of the same drawing hold the character U+2205 (data files, read as data).
+- **Autodesk's public DXF Reference, recalled.** That DXF before R2007 is text in the
+  `$DWGCODEPAGE` code page. `src/dxf_reader.rs` already reads on the same statement; no
+  vocabulary beyond it is taken.
+- **Never used.** Any third-party implementation of DWG or DXF, for the escape or for
+  anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
+  ezdxf's code, comments or data.
+
+## 2026-10-27 — Code page rows 28 to 41: AutoCAD's output, known texts, three more public pins (#375)
+
+The 2026-10-27 entry above names a code page number only when AutoCAD's own
+output does. This entry adds eight rows by the same rule, with one more kind of
+evidence the rule already allowed in spirit: a text whose bytes are known. The
+header short is AutoCAD's own enumeration, not a Windows code page number (29
+and 30 are 1251 and 1252, but 38 is 932 and 39 is 936), so no row is derived
+from a number printed anywhere; each is read off a drawing:
+
+- **A twin names it.** The `$DWGCODEPAGE` of AutoCAD's DXF export of the same
+  drawing, with the DXF's `$FINGERPRINTGUID` or `$VERSIONGUID` found in the DWG
+  to show it is the same drawing (rows 28, 33, 36 and 41; 30 on an R14 drawing,
+  whose export carries no GUID, is the same stem only).
+- **A known text decodes.** The localized name AutoCAD gives the first layout
+  (`レイアウト1`, `布局1`, `배치1`) and Greek words found in the drawing's bytes,
+  each a constant of the language, so the page that decodes them is the page the
+  short names (rows 32, 38, 39 and 40). The strings are read through
+  `CodePage::decode` and compared with the constant, never the reverse.
+
+Three repositories' drawings are added to `tools/corpus/pins.tsv`, fetched by
+sha256 for a run and never committed, data files only (no source code of any of
+the three was consulted):
+
+- **`kurema/BookViewerApp3`** at `b8e1dcbf26183e96d199499e491c368c935fb0b0`:
+  **MIT** (the repository's `LICENSE`). Four AC1014 drawings
+  (`res/Explorer/history/2d.dwg`, `3d.dwg`, `res/Explorer/bookmark/Draw.dwg`,
+  `Draw2.dwg`), header short 38, with Japanese layout names. Three more
+  `icon.dwg` of the repository share a file name with each other and are left
+  out (the corpus keys files by name).
+- **`Seeed-Studio/OSHW-Jetson-Series`** at
+  `0f0797e4bb6cc5787f800af63908b23544050072`: **Apache-2.0** (`LICENSE`).
+  Four AC1018 drawings under `reComputer Jetson carrier board/` (A205 and A206,
+  each top and bottom), header short 39. Each drawing's `AcDb:AppInfo` names
+  AutoCAD build `I.18.0.0`, registry version `19.1`, locale 2052.
+- **`huifer/planar_algorithm`** at `884760e4768dc6d426c99bded29a6da45c172a0c`:
+  **Apache-2.0** (`LICENSE`). One AC1015 drawing,
+  `src/main/resources/polygon_select/原始数据.dwg`, header short 39.
+
+`Xinyuan-LilyGO/T-Dongle-S3` (MIT) has a drawing of the same kind
+(`case/USB3.0.dwg`, short 39) and is not pinned: its `AcDb:AppInfo` names
+Teigha 19.7 of the Open Design Alliance as the writer, not AutoCAD, and this
+project learns the numbers from AutoCAD's own output.
+
+**Local evidence, never pinned or committed.** Drawings from repositories that
+state no licence or a custom one were downloaded to this machine and read for
+two facts only: the header short with the DXF twin's `$DWGCODEPAGE`, and
+whether known strings decode from the bytes; their sha256 and the result are
+recorded in ARCHITECTURE.md. None is redistributed, none is a fixture, no text
+or geometry of them is quoted, and no file of a GPL-licensed repository is the
+evidence for any row. The Greek drawings are Greek municipal open data whose
+licence the publisher's own record leaves unstated (the harvested catalogue
+record says CC BY 4.0): they stay local until that is settled.
+
+What is never used is unchanged: the numbering of any third-party DWG
+implementation (LibreDWG, the ODA or Autodesk SDKs, ACadSharp, ezdxf), recalled
+or read. Teigha is named above only because a drawing's own `AcDb:AppInfo` names
+it as the writer.
+
+
 ## 2026-10-27 — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER: derived from AutoCAD's own output
 
 By the method of the 2026-10-26 entry on classes the specification never
@@ -571,3 +646,289 @@ subclass markers in the twins and the class names in `AcDb:Classes` was used
 (`version`, `ids` and `arrays` are positional names of this crate's, the role of `version` inferred from the 1 to 2 change across releases), and no third-party
 DWG or DXF implementation was consulted: only the data files of the corpus were
 read, never ACadSharp's code.
+
+
+## 2026-10-27 — XRECORD values and extended entity data: layouts measured, value widths from the DXF Reference (#375)
+
+`src/extended_data.rs` reads an XRECORD's data and the extended entity data chain as
+values. How each part was settled:
+
+- **Measured on AutoCAD's own output.** The string layout (an `RS` length, an `RC` code
+  page byte, the bytes), the byte order of an extended data handle (most significant first)
+  and of an XRECORD handle (least significant first), and every width of §28: read against
+  the DXF groups of AutoCAD's export of the same drawing, record by record
+  (`examples/probe_code_page.rs`), on the pinned `nextgis/dwg_samples` and ACadSharp
+  `samples/` drawings (data files).
+- **Autodesk's public DXF Reference, recalled.** The ranges of DXF group codes that give an
+  XRECORD value its type (16-bit, 32-bit, double, point, handle, binary chunk), taken only
+  for a range where a code of it occurs in those drawings. No other vocabulary.
+- **Never used.** Any third-party implementation of DWG or DXF, for a width, a byte order or
+  anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
+  ezdxf's code, comments or data.
+
+
+## 2026-10-26 — MATERIAL (`AcDbMaterial`): derived from AutoCAD's own output (#49, #152)
+
+The PR that decodes MATERIAL is the first to use the method of the entry
+above. ODA spec v5.4.1 prints no layout for it. The field list in
+`src/objects/acad_material.rs` was derived from the data bits of the 212
+MATERIAL records of the pinned corpus (32 on each of R14, R2000, R2004,
+R2007, R2010 and R2013, 20 on R2018) and from the `AcDbMaterial` objects
+AutoCAD exported to DXF for the same handles: the 21 default materials per
+release of the seven `nextgis/dwg_samples` drawings (AutoCAD 2016, R14 to
+R2013); the 11 materials per release of ACadSharp's `sample_base` saves
+(AutoCAD 2025, R14 to R2018), whose DXF twins cover R2000 to R2018; and the
+three defaults each of `empty.dwg`, `export_sample.dwg` and `geoloc.dwg`
+(R2018, with a twin for `geoloc.dwg` only). R14 has no twin in either
+source, so its records are held to their data-stream boundary alone.
+
+Accepted: every record closes on the data-stream boundary on every release,
+and, from R2007, on a string stream the field list consumes entirely; the
+DXF groups 1, 2, 3, 8, 70, 71, 76, 90, 91, 92, 72, 77, 171, 175, 179, 43,
+47, 49, 142, 144, 147, 44, 140, 143, 145, 148, 468, 93 and 94 equal the
+decoded fields in 13,058 comparisons with 0 differences
+(`examples/probe_material.rs`). Left unverified by value, because no DXF
+group in the corpus shows them or shows them with distinct values: the three
+colour factors, the blends of five of the six maps, the three bytes after
+every blend, the two 2-bit tail slots, the refraction map's source, every
+map's file name but the diffuse and the bump, which of ambient, diffuse and
+specular owns which colour group, and which of four maps owns which of
+groups 47, 49, 142 and 147 where their matrices coincide. Colour methods and
+map sources other than 0 and 1, and a non-zero tail slot, are refused as
+unsupported.
+
+The group codes are observed in the twins. The names of the fields (ambient,
+diffuse, specular, gloss, opacity, reflection, bump, refraction, blend,
+source) follow the `AcDbMaterial` vocabulary of Autodesk's public *DXF
+Reference* as recalled, which is published documentation and not SDK or
+product source; it contributed names only, and the roles it suggests for
+groups 72, 77, 171, 175 and 179 (map sources) and 94 (a bit per map with a
+file) were checked against the records by the probe, not taken from it. No
+other source was consulted: no third-party DWG or DXF implementation, and
+none of the ObjectARX or Teigha documentation.
+
+## 2026-10-26 — WIPEOUTVARIABLES, ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA, PDFDEFINITION, DBCOLOR: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never
+prints. The five field lists in `src/objects/small_classes.rs` were derived
+from the data bits of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013, R2018; one WIPEOUTVARIABLES, one
+ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, two ACDB_BLOCKREPRESENTATION_DATA, one
+PDFDEFINITION and one DBCOLOR per release, 42 records) and AutoCAD's DXF export
+of the same handles (R2000 to R2018). Accepted: all 42 close on the data-stream
+boundary, from R2007 on a fully consumed string stream, and 50 values (groups
+70, 1, 2, 420, 430 and the xdata integer 1071) equal the decoded fields with 0
+differences (`examples/probe_wipeout_variables.rs`, `probe_purge_preventer.rs`,
+`probe_block_representation.rs`, `probe_pdf_definition.rs`, `probe_dbcolor.rs`).
+Unverified by value: the R14 and R2000 DBCOLOR index (no twin shows it), the
+leading `BS` of the R2004+ DBCOLOR (reads 0, group 62 says 42), and the width of
+every integer beyond the one value each holds. No vocabulary beyond the DXF
+group codes seen in the twins and the class names in `AcDb:Classes` was used, and
+no third-party DWG or DXF implementation was consulted.
+
+## 2026-10-26 — BLOCKGRIPLOCATIONCOMPONENT, BLOCKLINEARGRIP, BLOCKVISIBILITYGRIP, BLOCKLINEARPARAMETER, BLOCKVISIBILITYPARAMETER, BLOCKSCALEACTION: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never
+prints. The field lists in `src/objects/dynamic_block.rs` were derived from the
+data bits of ACadSharp's `sample_base` saves (AutoCAD 2025: R14, R2000, R2004,
+R2007, R2010, R2013, R2018; 6 grip location components, 2 linear grips, 1 each of
+the visibility grip, linear parameter, visibility parameter and scale action per
+release, 84 records) and AutoCAD's DXF export of the same handles (R2000 to
+R2018). Accepted: all 84 close on the data-stream boundary, from R2007 on a
+fully consumed string stream, and 1,158 values (groups 90, 98, 99, 70, 140, 300,
+1071, 91 to 96, 170 to 177, 280, 281, 301 to 306, 1010 to 1032, 94 and 95 per
+state) equal the decoded fields with 0 differences
+(`examples/probe_dynamic_blocks.rs`), plus one measured pairing: the unset
+expression value `f64::MAX / 10` is written `1.797693134862314E+99`. Unverified
+by value: the `BL -1` that opens every record, the scale action's trailing byte,
+the order of the visibility parameter's two zero `BS` (groups 170 and 171), the
+meaning of the value type -9999, and the implied length of the linear
+parameter's property list; handles are not decoded. No vocabulary beyond the DXF
+group codes and subclass markers in the twins was used, and no third-party DWG
+or DXF implementation was consulted.
+
+## 2026-10-26 — DIMASSOC: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/dim_assoc.rs` was derived from the data bits of
+the 21 DIMASSOC records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013, R2018; three per release) and AutoCAD's DXF
+export of the same handles (R2000 to R2018). Accepted: all 21 close on the
+data-stream boundary, from R2007 on a fully consumed string stream, and 264
+values (groups 90, 70, 71, 1, 72, 73, 91, 40, 10, 20, 75 and the reference count)
+equal the decoded fields with 0 differences (`examples/probe_dim_assoc.rs`).
+Unverified by value: the `BS` between groups 72 and 73, the first `BD`, the
+trailing `B`, the order of groups 70 and 71 and of 10 and 20; the handles (330,
+331) are not decoded. No vocabulary beyond the DXF group codes and class names in
+the twins was used, and no third-party DWG or DXF implementation was consulted.
+
+## 2026-10-26 — ACSH_HISTORY_CLASS and ACSH_BOX_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field lists in `src/objects/sh_history.rs` were derived from the data bits of
+ACadSharp's `sample_base` saves (AutoCAD 2025: R14, R2000, R2004, R2007, R2010,
+R2013, R2018; two ACSH_HISTORY_CLASS and one ACSH_BOX_CLASS per release, 21
+records) and AutoCAD's DXF export of the same handles (R2007 to R2018: the R2000
+and R2004 exports hold neither object). Accepted: all 21 close on the data-stream
+boundary, from R2007 on a fully consumed string stream, and 152 values (groups 90,
+91, 92, 280, 281, 98, 99, 40 to 55, 62, 41 and 42) equal the decoded fields with 0
+differences (`examples/probe_sh_history.rs`), with two measured conventions: the
+DXF writes groups 50 to 55 in degrees, and group 62 = 256 for the colour word
+0xC0000000. Unverified by value: the `BL -1` that opens the evaluation base and the
+leading `BS` of the R2004+ colour; the handles (347, 360) are not decoded and
+ACSH_EXTRUSION_CLASS is not decoded. No vocabulary beyond the DXF group codes and
+subclass markers in the twins was used, and no third-party DWG or DXF implementation
+was consulted.
+
+## 2026-10-26 — PDFUNDERLAY: the field list checked against AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/entities/underlay.rs` predates the method: it was read from
+the one R2018 record of `sample_AC1032.dwg` alone. This entry records its check
+against the method's acceptance rule, on the data bits of the seven PDFUNDERLAY
+records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14, R2000, R2004, R2007,
+R2010, R2013 and R2018; one per release, handle 0xD07) and AutoCAD's DXF export of
+the same handle (R2000 to R2018). The check found two faults, neither in the field
+order. The dispatcher routed the class on R2010 and later only, so the R14, R2000,
+R2004 and R2007 records were never decoded; and the decoder read the definition
+handle inline before R2007, which overshot the data-stream boundary on R14, R2000
+and R2004 by 8, 8 and 16 bits, because the handle is in the handle stream on every
+release. Accepted: all seven records close on the data-stream boundary on every
+release, and 36 values (groups 10, 20, 30, 280, 281 and 282) equal the decoded
+fields with 0 differences (`examples/probe_underlay.rs`). Unverified by value: the
+scale, the rotation and the normal (the DXF omits groups 41 to 43, 50 and 210 to
+230 at their defaults, so no twin shows them) and the encoding of a clip vertex (no
+record in the corpus has one). The definition handle (group 340) is not decoded. No
+vocabulary beyond the DXF group codes in the twins was used, and no third-party DWG
+or DXF implementation was consulted.
+
+## 2026-10-26 — SUN: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/entities/sun.rs` replaces an earlier one that was never
+reachable (it sat on the fixed type code 0x4F9, which no corpus record carries, and
+its layout rested on no record of AutoCAD's output). The new list was derived from the data bits
+of the one SUN record of the pinned corpus (`geoloc.dwg`, AutoCAD, R2018, handle
+0x23B) and AutoCAD's DXF export of the same handle. Accepted: the record closes on
+the data-stream boundary on a string stream the field list consumes entirely, and 11
+values (groups 90, 290, 421, 40, 291, 91, 92, 292, 70, 71 and 280) equal the decoded
+fields with 0 differences (`examples/probe_sun.rs`). The class closes on one record
+of one release: no other drawing of the corpus holds a SUN, so no other release is
+shown, and a release before R2007 is refused as unsupported. Unverified by value:
+group 63 (7 in the twin; it is not a field of the data bits, whose leading colour
+`BS` reads 0), the order of the two booleans that read 0 (status, group 290, and
+daylight savings, group 292, are told apart by their position among the other
+fields and by the order of the DXF groups only), and the colour flag bits above 0.
+The owner handle (group 330) is not decoded. No vocabulary beyond the DXF group codes
+and subclass marker in the twin was used, and no third-party DWG or DXF
+implementation was consulted.
+
+
+
+## 2026-10-27 — AutoCAD trial scripts: AutoCAD's command prompts (ACadSharp's save script, MIT, and Autodesk's public documentation)
+
+`tools/autocad/` drives AutoCAD itself to produce evidence drawings: SAVEAS and
+DXFOUT of the pinned R13 drawings, and controlled drawings built with core
+AutoLISP. It holds no DWG or DXF implementation knowledge. To confirm the
+command-line prompt sequences of SAVEAS (the release keywords `2018` to `2000`
+and `LT98`) and of `SAVEAS DXF V <version> 16 <file>`, the
+`samples/sample_base/save_samples.lsp` AutoCAD script of `DomCR/ACadSharp` at
+the pinned commit `c30a97ce` (MIT) was read. It is the script that saved the
+pinned `sample_base` twins, already named in the 2026-10-26 "Public corpus"
+entry, and it contains no DWG or DXF implementation. Nothing was copied from
+it; the scripts and builders are written independently. Nothing under
+ACadSharp's `src/` or its test data was opened. All other AutoLISP functions
+and command names come from Autodesk's public AutoCAD product documentation,
+recalled; no ObjectARX, RealDWG or ODA SDK material was used. Every prompt
+sequence that could not be confirmed without AutoCAD running carries a
+`;; VERIFY:` comment.
+
+## 2026-10-26 — DATATABLE: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/data_table.rs` was derived from the data bits of the
+six DATATABLE records of ACadSharp's `sample_base` saves that hold the class (AutoCAD
+2025: R14, R2000 and R2004, two per release; the R2007 to R2018 saves declare the
+class and hold no object) and AutoCAD's DXF export of the R2004 pair (the R2000
+export holds no DATATABLE, and R14 has no twin). The twin's handles differ from the
+DWG's for these objects, so each record is paired with the DXF object that no DWG
+record shares a handle with, in file order; the row counts (21 and 20) agree.
+Accepted: all six close on the data-stream boundary on every release the class
+occurs in, and 155 values (groups 70, 90, 91, 1 and, per column, 92, 2 and the
+cells of groups 93 and 40) equal the decoded fields with 0 differences
+(`examples/probe_data_table.rs`). The cells of the handle column (group 360) are in
+the handle stream and are not decoded; the DXF writes 7 of them for the first table's
+21 rows and 20 for the second's 20. Column types other than 1, 2 and 6, and
+a table name or column name other than the empty one the corpus holds, are not shown
+by value: the former are refused as unsupported, the latter are read as `TV`. No
+vocabulary beyond the DXF group codes and subclass marker in the twin was used, and
+no third-party DWG or DXF implementation was consulted.
+
+
+## 2026-10-26 — ACDB_TEXTOBJECTCONTEXTDATA_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/text_context_data.rs` was derived from the data bits
+of the seven records of the pinned corpus: two each in ACadSharp's `sample_base`
+saves of R2010, R2013 and R2018 (AutoCAD 2025), and one in `export_sample.dwg`
+(R2018, no DXF twin), against AutoCAD's DXF export of the same handles for the six
+`sample_base` records. The R2004 and R2007 saves declare the class and hold no
+object. Accepted: all seven close on the data-stream boundary, and 48 values (the
+two groups 70, and 290, 50, 10, 20, 11 and 21) equal the decoded fields with 0
+differences (`examples/probe_text_context_data.rs`). Unverified by value: the unit
+of the rotation (group 50 is 0.0 in both twins; the record without a twin stores
+0.5235987755982988, 30 degrees as radians), the order of groups 11 and 21 (both
+0.0), and every release before R2010, which is refused as unsupported. The handle of
+the annotation scale (group 340) is not decoded. No vocabulary beyond the DXF group
+codes and subclass markers in the twins was used, and no third-party DWG or DXF
+implementation was consulted.
+
+## 2026-10-26 — ACAD_EVALUATION_GRAPH: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/eval_graph.rs` was derived from the data bits of the 21
+ACAD_EVALUATION_GRAPH records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013 and R2018; three per release: one graph of 12 nodes
+and 10 edges and two of one node) against AutoCAD's DXF export of the same handles
+(R2000 to R2018; the R2000 and R2004 exports keep the large graph and omit the two
+small ones). Accepted: all 21 close on the data-stream boundary on every release, and
+1,342 values (groups 96, 97, and per node 91, 93, 95 and four 92, per edge 92, 93, 94,
+two 91 and five 92) equal the decoded fields with 0 differences, and the decoded node
+and edge counts (two `BL` that no DXF group shows) equal the number of nodes and edges
+the DXF holds, by the group count after group 97 (`examples/probe_eval_graph.rs`). Four
+of the 21 records, the two small graphs on R2000 and R2004, have no DXF object and are
+held to their boundary, as are the three on R14, which has no twin. Unverified by value: what the four link
+values of a node and the five of an edge mean (each is tied to its DXF group by
+position and value only), the two counts' meaning beyond equalling the DXF's, and any
+graph larger than the one 12-node, 10-edge graph the corpus holds. The node handles
+(group 360) are not decoded. No vocabulary beyond the DXF group codes and the subclass
+marker in the twins was used, and no third-party DWG or DXF implementation was
+consulted.
+
+## 2026-10-26 — ACSH_EXTRUSION_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints. The
+field list in `src/objects/sh_history.rs` was derived from the data bits of the seven
+ACSH_EXTRUSION_CLASS records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013 and R2018; one per release, handle 0xD6D) and
+AutoCAD's DXF export of the same handle (R2007 to R2018: the R2000 and R2004 exports
+hold no such object). Accepted: all seven close on the data-stream boundary, from R2007
+on a fully consumed string stream, and 328 values (the evaluation base, the 16-value
+transform of groups 40 to 55 with groups 50 to 55 in degrees, groups 62 and 92 of the
+node, the sweep base's 90, 91, 10, 20, 30, 92, the bit count 90, the 84 bytes of the
+profile data of groups 310, 93, 42 to 45, 48, 49, 290, 70, 71, 292 to 296, 11, 21, 31,
+and the two 16-value matrices of groups 46 and 47) equal the decoded fields with 0
+differences (`examples/probe_sh_extrusion.rs`), with one measured convention: the DXF
+writes one byte more of group 310 than the bit count 672 holds (85, where 672 bits are
+84). The DXF lists the sweep base's groups in a different order from the data stream
+(the data holds the six scalars and the flags before the two matrices and the profile
+data, and group 93 last), so the probe pairs them by group code and ordinal. Unverified
+by value: the roles of the equal zeros among groups 42 to 45 and 49, of groups 293, 294
+and 296 and of groups 11, 21 and 31 (each reads 0 in the one object the corpus holds,
+seven times), the meaning of group 92 = 77, how a profile bit count that is not a
+multiple of 8 is stored (such a count is refused as unsupported), the profile data's own
+structure (it is carried as bytes), the `BL -1` that opens the evaluation base and the
+leading `BS` of the R2004+ colour; the handles (347 and the rest) are not decoded. No
+vocabulary beyond the DXF group codes and subclass markers in the twins was used, and no
+third-party DWG or DXF implementation was consulted.
+

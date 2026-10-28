@@ -172,7 +172,7 @@ fn group_reason(kind: &str, code: u16) -> Option<&'static str> {
         1000..=1071 => Some("extended data is not decoded for entities"),
         92 | 310 => Some("the entity's proxy graphics are not decoded"),
         420 | 430 => Some("a colour book colour's RGB and name are in its AcDbColor object"),
-        347 => Some("the material object is written as an untyped record"),
+        347 => Some("the material object is not written to OBJECTS yet"),
         _ => None,
     }
 }

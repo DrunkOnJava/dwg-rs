@@ -31,8 +31,12 @@ name: Perf
 #
 # A bench fails the job only when ALL THREE hold:
 #
-#   1. ratio  = pr_mean / main_mean  >=  RATIO_THRESHOLD (1.20)
-#   2. delta  = pr_mean - main_mean  >=  ABS_FLOOR_NS    (5 000 ns)
+#   1. ratio  = pr_min / main_min  >=  RATIO_THRESHOLD (1.20)
+#   2. delta  = pr_min - main_min  >=  ABS_FLOOR_NS    (5 000 ns)
+#
+#   where _min is the minimum per-iteration time over criterion's raw
+#   samples (the estimator the methodology note below recommends; the
+#   mean let #416, a docs-only PR, fail at 1.30x and 1.34x on 2026-10-27).
 #   3. the same bench trips (1) and (2) again on an immediate re-run.
 #
 # Why the ratio alone was not enough: issue #17 recorded
@@ -91,6 +95,18 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # Only a change that can move a bench runs the gate: a PR that touches
+    # docs or tooling alone compares identical code, so any difference is
+    # runner noise (#416 failed this way on 2026-10-27). Not a required
+    # check, so a skipped run blocks nothing.
+    paths:
+      - 'src/**'
+      - 'benches/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/perf.yml'
+      - '.github/scripts/criterion-gate.sh'
+      - '.github/scripts/run-benches.sh'
   workflow_dispatch:
 
 concurrency:

@@ -42,8 +42,8 @@
 //! - A standard arrowhead block `_BoxBlank` is `$DIMBLK` `BoxBlank`; a block with any
 //!   other name keeps its name verbatim.
 //! - A handle variable that names an object (`$CMATERIAL`, `$INTERFEREOBJVS`,
-//!   `$INTERFEREVPVS`, `$CPSNID`) is omitted: the converter exports those objects
-//!   as untyped placeholders, so the reference would point at the wrong thing.
+//!   `$INTERFEREVPVS`, `$CPSNID`) is omitted: OBJECTS does not write those objects
+//!   yet, so the reference would point at nothing.
 //!   `$HANDSEED`, the next free handle, is written. (A null handle there is
 //!   where AutoCAD's export names the default visual style, which the DWG does
 //!   not hold.)
@@ -60,6 +60,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::code_page::CodePage;
 use crate::dxf::DxfVersion;
 use crate::dxf_sections::{HeaderEntry, HeaderGroup};
 use crate::dxf_tables::Defined;
@@ -346,12 +347,31 @@ fn measurement(file: &DwgFile) -> Option<i64> {
 }
 
 /// `s` as text for the DXF release `version` (see `text_for`): control
-/// characters in caret notation, and before R2007 what is not ASCII as
-/// `\U+XXXX` escapes. R12 and R14 targets are returned unchanged.
+/// characters in caret notation, and before R2007 what is not ASCII as the byte of
+/// the code page in force ([`crate::code_page::active`]) or, outside the page, as a
+/// `\U+XXXX` escape. R12 and R14 targets are returned unchanged under a page the
+/// crate does not name, and with the same page bytes and escapes under one it does.
 pub(crate) fn escape_text(version: DxfVersion, s: &str) -> String {
     match target_release(version) {
         Some(rel) => text_for(rel, s),
-        None => s.to_string(),
+        None if matches!(crate::code_page::active(), CodePage::Unknown(_)) => s.to_string(),
+        None => s
+            .chars()
+            .flat_map(|c| page_text(c).chars().collect::<Vec<_>>())
+            .collect(),
+    }
+}
+
+/// `c` as the pre-R2007 writer's text: ASCII as it is, a character of the code page
+/// in force as the char of its byte's code point, any other as `\U+XXXX` escapes.
+/// [`crate::dxf_convert::convert_dwg_to_dxf_bytes`] turns those chars into bytes.
+fn page_text(c: char) -> String {
+    if c.is_ascii() {
+        return c.to_string();
+    }
+    match crate::code_page::active().encode_char(c) {
+        Some(bytes) => bytes.into_iter().map(char::from).collect(),
+        None => String::from_utf8(CodePage::default().encode(&c.to_string())).unwrap_or_default(),
     }
 }
 
@@ -558,12 +578,14 @@ const BUILTIN_ARROWHEADS: &[&str] = &[
 
 /// Text for a target release. Control characters and the caret are written in
 /// DXF's caret notation on every release. DXF before R2007 reads bytes in
-/// `$DWGCODEPAGE`, not UTF-8, so what that code page cannot be assumed to hold
-/// is written as `\U+XXXX` escapes, which every release reads; from R2007 it is
-/// UTF-8.
+/// `$DWGCODEPAGE`, not UTF-8: a character the code page in force holds is written
+/// as its byte (here as the char of the same code point, which
+/// [`crate::dxf_convert::convert_dwg_to_dxf_bytes`] turns back into the byte), and
+/// every other as `\U+XXXX` escapes, which every release reads; from R2007 it is
+/// UTF-8. Outside [`crate::code_page::with_code_page`], or under a page the crate
+/// does not name, every character above ASCII is an escape.
 fn text_for(target: Rel, s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 8);
-    let mut units = [0u16; 2];
     for c in s.chars() {
         if c == '^' {
             // DXF writes a caret as a caret and a space.
@@ -576,9 +598,7 @@ fn text_for(target: Rel, s: &str) -> String {
         } else if c.is_ascii() || target >= R2007 {
             out.push(c);
         } else {
-            for u in c.encode_utf16(&mut units) {
-                out.push_str(&format!("\\U+{u:04X}"));
-            }
+            out.push_str(&page_text(c));
         }
     }
     out
