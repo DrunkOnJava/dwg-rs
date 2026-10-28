@@ -29,16 +29,29 @@ wait_at_end() {
 # A PR stacked on an older open PR targets main but holds that PR's commits. Landed first, it would
 # carry the older PR's work into main under its own title; refreshed while the older PR is held, it
 # merges main over the older PR's commits and can no longer merge against them once that PR lands.
-# It waits until the older PR (a lower number) holding commits main does not have lands or closes.
+# It waits while an older open PR (a lower number, whatever branch it targets) shares a commit with it
+# that is neither on main nor in a PR that has already landed by squash: two PRs built on the same
+# landed PR share only that PR's commits and do not wait for each other. Every PR head is fetched to
+# refs/train/pr/<n> in the main clone. Prints the PR to wait for, or nothing; any failed lookup
+# returns 2, and the caller then defers the PR rather than letting it through unchecked.
+g() { git -C "$TRAIN_CLONE" "$@"; }
 older_open() {
-  local head n h c
-  git -C "$TRAIN_CLONE" fetch -q origin main 2> /dev/null && git -C "$TRAIN_CLONE" fetch -q origin "pull/$1/head" 2> /dev/null || return
-  head=$(git -C "$TRAIN_CLONE" rev-parse FETCH_HEAD)
-  gh pr list -R "$TRAIN_REPO" --state open --base main --limit 200 --json number,headRefOid --jq ".[]|select(.number < $1)|\"\(.number) \(.headRefOid)\"" 2> /dev/null |
-  while read -r n h; do
-    git -C "$TRAIN_CLONE" cat-file -e "$h^{commit}" 2> /dev/null || git -C "$TRAIN_CLONE" fetch -q origin "pull/$n/head" 2> /dev/null || continue
-    for c in $(git -C "$TRAIN_CLONE" merge-base --all "$h" "$head" 2> /dev/null); do
-      git -C "$TRAIN_CLONE" merge-base --is-ancestor "$c" origin/main || { echo "$n"; exit 0; }
+  local head open merged="" n h c pr
+  g fetch -q origin main '+refs/pull/*/head:refs/train/pr/*' 2> /dev/null || return 2
+  head=$(g rev-parse -q --verify "refs/train/pr/$1^{commit}") || return 2
+  open=$(gh api --paginate "repos/$TRAIN_REPO/pulls?state=open&per_page=100" --jq ".[]|select(.number < $1)|.number" 2> /dev/null) || return 2
+  for n in $open; do
+    h=$(g rev-parse -q --verify "refs/train/pr/$n^{commit}") || return 2
+    for c in $(g merge-base --all "$h" "$head"); do
+      g merge-base --is-ancestor "$c" origin/main && continue
+      if [ -z "$merged" ]; then
+        merged=$(gh api --paginate "repos/$TRAIN_REPO/pulls?state=closed&per_page=100" --jq '.[]|select(.merged_at)|.number' 2> /dev/null) || return 2
+      fi
+      for pr in $(g for-each-ref --contains "$c" --format='%(refname:lstrip=3)' refs/train/pr/); do
+        grep -qx "$pr" <<< "$merged" && continue 2
+      done
+      echo "$n"
+      return 0
     done
   done
 }
@@ -50,7 +63,8 @@ while :; do
     read -r st base < <(gh pr view "$P" -R "$TRAIN_REPO" --json state,baseRefName --jq '"\(.state) \(.baseRefName)"' 2>/dev/null)
     [ "$st" != OPEN ] && { log "TRAIN #$P skipped: state=$st"; break; }
     [ "$base" != main ] && { wait_at_end "waits: it targets $base, not main; back to the end of the queue"; break; }
-    under=$(older_open "$P")
+    under=$(older_open "$P"); orc=$?
+    [ $orc != 0 ] && { wait_at_end "waits: could not check which open PRs it builds on; back to the end of the queue"; break; }
     [ -n "$under" ] && { wait_at_end "waits: it holds commits of open #$under, which lands first; back to the end of the queue"; break; }
     log "TRAIN #$P refresh (attempt $attempt)"
     out=$(bash "$TRAIN_HERE/refresh.sh" "$P" 2>&1); rc=$?
