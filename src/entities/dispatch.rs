@@ -54,6 +54,8 @@ pub enum DecodedEntity {
     Circle(circle::Circle),
     Arc(arc::Arc),
     Ellipse(ellipse::Ellipse),
+    AcadTable(Box<crate::entities::acad_table::AcadTable>),
+    AcadTableLegacy(Box<crate::entities::acad_table::AcadTableLegacy>),
     Ray(ray::Ray),
     XLine(xline::XLine),
     Solid(solid::Solid),
@@ -143,7 +145,16 @@ pub enum DecodedEntity {
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
+    TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
+    CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
+    TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
+    TableContent(Box<crate::objects::table_content::TableContent>),
     ImageDef(crate::entities::imagedef::ImageDef),
+    /// MATERIAL, a custom class with no spec section: derived from
+    /// AutoCAD's own output (ARCHITECTURE.md §7bb).
+    Material(Box<crate::objects::acad_material::Material>),
+    /// RAPIDRTRENDERENVIRONMENT (ARCHITECTURE.md §7bs).
+    RenderEnvironment(crate::objects::render_environment::RenderEnvironment),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
     /// ACDBPERSSUBENTMANAGER, a custom class with no spec section: derived
@@ -151,6 +162,36 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bf).
+    WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bf).
+    DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7bf).
+    BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
+    /// PDFDEFINITION (§7bf).
+    PdfDefinition(crate::objects::small_classes::PdfDefinition),
+    /// DBCOLOR (§7bf).
+    DbColor(crate::objects::small_classes::DbColor),
+    /// A dynamic-block evaluation object (§7bg).
+    DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
+    /// DIMASSOC (§7bi).
+    DimAssoc(crate::objects::dim_assoc::DimAssoc),
+    /// ACAD_EVALUATION_GRAPH (§7bo).
+    EvalGraph(Box<crate::objects::eval_graph::EvalGraph>),
+    /// DATATABLE (§7bm).
+    DataTable(Box<crate::objects::data_table::DataTable>),
+    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bn).
+    TextObjectContextData(crate::objects::text_context_data::TextObjectContextData),
+    /// ACSH_HISTORY_CLASS (§7bj).
+    ShHistory(crate::objects::sh_history::ShHistory),
+    /// ACSH_BOX_CLASS (§7bj).
+    ShBox(Box<crate::objects::sh_history::ShBox>),
+    /// ACSH_EXTRUSION_CLASS (§7bp).
+    ShExtrusion(Box<crate::objects::sh_history::ShExtrusion>),
+    /// ACSH_CYLINDER_CLASS (§7bq).
+    ShCylinder(Box<crate::objects::sh_history::ShCylinder>),
+    /// ACSH_REVOLVE_CLASS (§7bq).
+    ShRevolve(Box<crate::objects::sh_history::ShRevolve>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -182,6 +223,9 @@ impl DecodedEntity {
             Self::Circle(_) => OBJECT_TYPE_CIRCLE,
             Self::Arc(_) => OBJECT_TYPE_ARC,
             Self::Ellipse(_) => OBJECT_TYPE_ELLIPSE,
+            // ACAD_TABLE is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::AcadTable(_) | Self::AcadTableLegacy(_) => 0,
             Self::Ray(_) => OBJECT_TYPE_RAY,
             Self::XLine(_) => OBJECT_TYPE_XLINE,
             Self::Solid(_) => OBJECT_TYPE_SOLID,
@@ -225,7 +269,6 @@ impl DecodedEntity {
             Self::MLeader(_) => 0,
             Self::Viewport(_) => OBJECT_TYPE_VIEWPORT,
             Self::Camera(_) => OBJECT_TYPE_CAMERA,
-            Self::Sun(_) => OBJECT_TYPE_SUN,
             Self::Light(_) => OBJECT_TYPE_LIGHT,
             Self::GeoData(_) => OBJECT_TYPE_GEODATA,
             // SURFACE family + HELIX are custom classes — their type
@@ -269,16 +312,38 @@ impl DecodedEntity {
             Self::DictionaryVar(_)
             | Self::Scale(_)
             | Self::ImageDef(_)
+            | Self::Material(_)
+            | Self::RenderEnvironment(_)
             | Self::ImageDefReactor(_)
             | Self::RasterVariables(_)
             | Self::PersSubentManager(_)
             | Self::AssocPersSubentManager(_)
+            | Self::WipeoutVariables(_)
+            | Self::DynamicBlockPurgePreventer(_)
+            | Self::BlockRepresentationData(_)
+            | Self::PdfDefinition(_)
+            | Self::DbColor(_)
+            | Self::DynamicBlock(_)
+            | Self::DimAssoc(_)
+            | Self::DataTable(_)
+            | Self::EvalGraph(_)
+            | Self::TextObjectContextData(_)
+            | Self::ShHistory(_)
+            | Self::ShBox(_)
+            | Self::ShExtrusion(_)
+            | Self::ShCylinder(_)
+            | Self::ShRevolve(_)
+            | Self::Sun(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
             | Self::DetailViewStyle(_)
             | Self::SectionViewStyle(_)
-            | Self::TableStyle(_) => 0,
+            | Self::TableStyle(_)
+            | Self::TableStyleModern(_)
+            | Self::CellStyleMap(_)
+            | Self::TableGeometry(_)
+            | Self::TableContent(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -349,12 +414,14 @@ const OBJECT_TYPE_TOLERANCE: u16 = 0x2E; // 46
 const OBJECT_TYPE_OLE2FRAME: u16 = 0x4A; // 74
 const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
 const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
-// CAMERA / SUN / LIGHT are visual/scene entities introduced in R2007+,
-// and GEODATA (§20.4.78) is a non-entity object. Per the spec all four
+// CAMERA / LIGHT are visual/scene entities introduced in R2007+, and
+// GEODATA (§20.4.78) is a non-entity object. Per the spec all three
 // take a class number from AcDb:Classes per file (geoloc.dwg's GEODATA
 // does), and such a record is routed by its DXF class name through
 // decode_from_raw_with_class_map. The fixed codes below are kept for
-// records that carry them; GEODATA's goes to the object path.
+// records that carry them; GEODATA's goes to the object path. SUN is
+// not among them: it is a non-entity object that the corpus carries as
+// a custom class (`objects` path below).
 /// `AcDb:Classes` item class id that marks a class as a non-entity
 /// object (§5.7). `0x1F2` is its entity counterpart.
 const PROXY_OBJECT_ITEM_CLASS_ID: u16 = 0x1F3;
@@ -369,7 +436,6 @@ const OBJECT_TYPE_LAYOUT: u16 = 0x52; // 82
 const OBJECT_TYPE_MLINESTYLE: u16 = 0x49; // 73
 
 const OBJECT_TYPE_CAMERA: u16 = 0x4F8; // 1272
-const OBJECT_TYPE_SUN: u16 = 0x4F9; // 1273
 const OBJECT_TYPE_LIGHT: u16 = 0x4FA; // 1274
 const OBJECT_TYPE_GEODATA: u16 = 0x4FB; // 1275
 
@@ -494,6 +560,17 @@ fn decode_with_class_map_in_page(
         "HELIX" | "ACDBHELIX" => checked_inline(raw, body_start, version, "HELIX", |c, _, _, _| {
             helix::decode(c).map(DecodedEntity::Helix)
         }),
+        "ACAD_TABLE" | "ACDBTABLE" => {
+            checked_inline(raw, body_start, version, "ACAD_TABLE", |c, v, ce, s| {
+                if v.is_r2010_plus() {
+                    crate::entities::acad_table::decode(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTable(Box::new(t)))
+                } else {
+                    crate::entities::acad_table::decode_legacy(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTableLegacy(Box::new(t)))
+                }
+            })
+        }
         // WIPEOUT shares the IMAGE payload (§19.4.86).
         "WIPEOUT" | "ACDBWIPEOUT" => {
             checked_inline(raw, body_start, version, "WIPEOUT", |c, v, _, _| {
@@ -509,6 +586,19 @@ fn decode_with_class_map_in_page(
         "HATCH" => checked_inline(raw, body_start, version, "HATCH", |c, v, _, _| {
             hatch::decode(c, v).map(DecodedEntity::Hatch)
         }),
+        // UNDERLAY family (not in the v5.4.1 spec; see `entities::underlay`).
+        // No `TV` field, so it belongs on every release, not only on R2010+.
+        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
+        | "ACDBDGNUNDERLAY" => {
+            let kind = match name {
+                "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
+                "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
+                _ => underlay::UnderlayKind::Pdf,
+            };
+            checked_inline(raw, body_start, version, "UNDERLAY", move |c, _, _, _| {
+                underlay::decode(c, kind).map(DecodedEntity::Underlay)
+            })
+        }
 
         // MULTILEADER before R2007: AutoCAD writes the record into R14
         // to R2004 saves too, with its `TV`s inline (#229).
@@ -517,6 +607,12 @@ fn decode_with_class_map_in_page(
                 mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
             })
         }
+        // LIGHT is an entity class from AutoCAD's rendering, saved by name on every release
+        // that declares it, with its `TV`s inline before R2007 and in the string stream
+        // after it (ARCHITECTURE.md §7br).
+        "LIGHT" => checked_inline(raw, body_start, version, "LIGHT", |c, v, _, s| {
+            light::read_body(c, s, v).map(DecodedEntity::Light)
+        }),
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -534,6 +630,11 @@ fn decode_with_class_map_in_page(
     };
     match result {
         Ok(entity) => entity,
+        // "this release's layout is not decoded" is not a decode failure.
+        Err(crate::error::Error::Unsupported { .. }) => DecodedEntity::Unhandled {
+            type_code,
+            kind: raw.kind,
+        },
         Err(e) => DecodedEntity::Error {
             type_code,
             kind: raw.kind,
@@ -778,10 +879,28 @@ fn dispatch_object_class(
             )
             .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
         }
+        "TABLESTYLE" | "ACDBTABLESTYLE" if version.is_r2010_plus() => {
+            crate::objects::acad_table_style::decode_object_modern(
+                payload, body_start, inline_end, version,
+            )
+            .map(|style| DecodedEntity::TableStyleModern(Box::new(style)))
+        }
         "TABLESTYLE" | "ACDBTABLESTYLE" => crate::objects::acad_table_style::decode_object(
             payload, body_start, inline_end, version,
         )
         .map(|style| DecodedEntity::TableStyle(Box::new(style))),
+        "CELLSTYLEMAP" | "ACDBCELLSTYLEMAP" => crate::objects::acad_cell_style_map::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
+        "TABLECONTENT" | "ACDBTABLECONTENT" => {
+            crate::objects::table_content::decode_object(payload, body_start, inline_end, version)
+                .map(|content| DecodedEntity::TableContent(Box::new(content)))
+        }
+        "TABLEGEOMETRY" | "ACDBTABLEGEOMETRY" => {
+            crate::objects::table_geometry::decode_object(payload, body_start, inline_end, version)
+                .map(|geometry| DecodedEntity::TableGeometry(Box::new(geometry)))
+        }
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
@@ -797,10 +916,93 @@ fn dispatch_object_class(
             )
             .map(DecodedEntity::Dictionary)
         }
+        "MATERIAL" => {
+            crate::objects::acad_material::decode_object(payload, body_start, inline_end, version)
+                .map(|material| DecodedEntity::Material(Box::new(material)))
+        }
+        "RAPIDRTRENDERENVIRONMENT" => crate::objects::render_environment::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::RenderEnvironment),
         // §20.4.78: a non-entity object with a class number.
         "GEODATA" | "ACDBGEODATA" => {
             geodata::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::GeoData)
+        }
+        "WIPEOUTVARIABLES" => crate::objects::small_classes::decode_wipeout_variables(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::WipeoutVariables),
+        "ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION" => {
+            crate::objects::small_classes::decode_dynamic_block_purge_preventer(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::DynamicBlockPurgePreventer)
+        }
+        "ACDB_BLOCKREPRESENTATION_DATA" => {
+            crate::objects::small_classes::decode_block_representation_data(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::BlockRepresentationData)
+        }
+        "PDFDEFINITION" => crate::objects::small_classes::decode_pdf_definition(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PdfDefinition),
+        "DBCOLOR" => {
+            crate::objects::small_classes::decode_db_color(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DbColor)
+        }
+        "BLOCKGRIPLOCATIONCOMPONENT"
+        | "BLOCKLINEARGRIP"
+        | "BLOCKVISIBILITYGRIP"
+        | "BLOCKLINEARPARAMETER"
+        | "BLOCKVISIBILITYPARAMETER"
+        | "BLOCKSCALEACTION" => crate::objects::dynamic_block::decode_object(
+            dxf_class_name,
+            payload,
+            body_start,
+            inline_end,
+            version,
+        )
+        .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
+        "ACDB_TEXTOBJECTCONTEXTDATA_CLASS" => crate::objects::text_context_data::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::TextObjectContextData),
+        "ACAD_EVALUATION_GRAPH" => {
+            crate::objects::eval_graph::decode_object(payload, body_start, inline_end, version)
+                .map(|g| DecodedEntity::EvalGraph(Box::new(g)))
+        }
+        "DATATABLE" => {
+            crate::objects::data_table::decode_object(payload, body_start, inline_end, version)
+                .map(|t| DecodedEntity::DataTable(Box::new(t)))
+        }
+        "DIMASSOC" => {
+            crate::objects::dim_assoc::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DimAssoc)
+        }
+        "ACSH_HISTORY_CLASS" => {
+            crate::objects::sh_history::decode_history(payload, body_start, inline_end, version)
+                .map(DecodedEntity::ShHistory)
+        }
+        "ACSH_EXTRUSION_CLASS" => {
+            crate::objects::sh_history::decode_extrusion(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShExtrusion(Box::new(e)))
+        }
+        "ACSH_CYLINDER_CLASS" => {
+            crate::objects::sh_history::decode_cylinder(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShCylinder(Box::new(e)))
+        }
+        "ACSH_REVOLVE_CLASS" => {
+            crate::objects::sh_history::decode_revolve(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShRevolve(Box::new(e)))
+        }
+        "SUN" => crate::entities::sun::decode_object(payload, body_start, inline_end, version)
+            .map(DecodedEntity::Sun),
+        "ACSH_BOX_CLASS" => {
+            crate::objects::sh_history::decode_box(payload, body_start, inline_end, version)
+                .map(|b| DecodedEntity::ShBox(Box::new(b)))
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
@@ -886,25 +1088,6 @@ fn dispatch_split_stream_class(
         "MULTILEADER" | "MLEADER" | "ACDBMULTILEADER" => {
             mleader::decode_modern_split_stream(&raw.raw, object_body_start, version)
                 .map(|m| DecodedEntity::MLeader(Box::new(m)))
-        }
-        // UNDERLAY family (§ not in v5.4 — see `entities::underlay`).
-        "PDFUNDERLAY" | "ACDBPDFUNDERLAY" | "DWFUNDERLAY" | "ACDBDWFUNDERLAY" | "DGNUNDERLAY"
-        | "ACDBDGNUNDERLAY"
-            if version.is_r2010_plus() =>
-        {
-            let kind = match dxf_class_name {
-                "DWFUNDERLAY" | "ACDBDWFUNDERLAY" => underlay::UnderlayKind::Dwf,
-                "DGNUNDERLAY" | "ACDBDGNUNDERLAY" => underlay::UnderlayKind::Dgn,
-                _ => underlay::UnderlayKind::Pdf,
-            };
-            checked_inline(
-                raw,
-                object_body_start,
-                version,
-                "UNDERLAY",
-                move |c, v, _ce, _s| underlay::decode(c, kind, v),
-            )
-            .map(DecodedEntity::Underlay)
         }
         _ => return None,
     };
@@ -1313,7 +1496,6 @@ fn fixed_entity_label(type_code: u16) -> Option<&'static str> {
         OBJECT_TYPE_HATCH => "HATCH",
         OBJECT_TYPE_VIEWPORT => "VIEWPORT",
         OBJECT_TYPE_CAMERA => "CAMERA",
-        OBJECT_TYPE_SUN => "SUN",
         OBJECT_TYPE_LIGHT => "LIGHT",
         OBJECT_TYPE_GEODATA => "GEODATA",
         // DIMENSION family per ODA §5 Table 4:
@@ -1405,7 +1587,6 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_HATCH => DecodedEntity::Hatch(hatch::decode(c, version)?),
         OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c, version, strings)?),
         OBJECT_TYPE_CAMERA => DecodedEntity::Camera(camera::decode(c, version)?),
-        OBJECT_TYPE_SUN => DecodedEntity::Sun(sun::decode(c, version)?),
         OBJECT_TYPE_LIGHT => DecodedEntity::Light(light::decode(c, version)?),
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind =
@@ -1787,7 +1968,6 @@ mod tests {
             OBJECT_TYPE_LWPOLYLINE,
             OBJECT_TYPE_HATCH,
             OBJECT_TYPE_CAMERA,
-            OBJECT_TYPE_SUN,
             OBJECT_TYPE_LIGHT,
             OBJECT_TYPE_GEODATA,
         ]

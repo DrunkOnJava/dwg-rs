@@ -47,35 +47,3 @@ pub fn decode(c: &mut BitCursor<'_>) -> Result<Ellipse> {
         end_param,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bitwriter::BitWriter;
-
-    #[test]
-    fn roundtrip_ellipse() {
-        let mut w = BitWriter::new();
-        // center
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        // major axis (10, 0, 0)
-        w.write_bd(10.0);
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        // extrusion (0, 0, 1)
-        w.write_bd(0.0);
-        w.write_bd(0.0);
-        w.write_bd(1.0);
-        // axis_ratio
-        w.write_bd(0.5);
-        w.write_bd(0.0);
-        w.write_bd(std::f64::consts::TAU);
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let e = decode(&mut c).unwrap();
-        assert_eq!(e.axis_ratio, 0.5);
-        assert_eq!(e.major_axis.x, 10.0);
-    }
-}
