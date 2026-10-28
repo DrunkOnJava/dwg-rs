@@ -16,7 +16,8 @@
 //! `*Paper_Space`, so the sentinel is the authority.
 //!
 //! [`dwg::graph::resolve_block_names`] performs that join; these tests
-//! pin it. They skip when the sample corpus is absent.
+//! pin it. The corpus tests skip when the sample corpus is absent; the
+//! test on the committed canonical fixtures never does.
 
 use dwg::entities::DecodedEntity;
 use dwg::{DwgFile, ObjectType};
@@ -38,11 +39,112 @@ fn open_if_present(name: &str) -> Option<DwgFile> {
     Some(DwgFile::open(&p).unwrap_or_else(|e| panic!("{name} open failed: {e}")))
 }
 
-/// Every R2007+ file that carries blocks: the resolved name of each
+/// The block-name gate on one drawing: the resolved name of each
 /// BLOCK_HEADER must equal the name its `BLOCK` sentinel carries, the
-/// resolved names must be unique (a symbol table cannot hold two
-/// entries under one name), and the header's own stored string must be
-/// the resolved name minus a decimal suffix.
+/// resolved names must be unique (a symbol table cannot hold two entries
+/// under one name), and the header's own stored string must be the
+/// resolved name minus a decimal suffix. Returns the resolved names, in
+/// handle order.
+fn check_block_names(name: &str, file: &DwgFile) -> Vec<String> {
+    let version = file.version();
+    let objects = file
+        .all_objects()
+        .unwrap_or_else(|| panic!("{name}: no handle-map-driven walk"))
+        .unwrap_or_else(|e| panic!("{name}: walk failed: {e}"));
+
+    let mut sentinels: BTreeMap<u64, String> = BTreeMap::new();
+    for object in &objects {
+        if object.kind != ObjectType::Block {
+            continue;
+        }
+        match dwg::entities::decode_from_raw(object, version) {
+            DecodedEntity::Block(b) => {
+                sentinels.insert(object.handle.value, b.name);
+            }
+            other => panic!("{name}: BLOCK {} decoded as {other:?}", object.handle.value),
+        }
+    }
+
+    let headers: Vec<_> = objects
+        .iter()
+        .filter(|o| o.kind == ObjectType::BlockHeader)
+        .collect();
+    assert!(
+        !headers.is_empty(),
+        "{name}: expected at least one BLOCK_HEADER"
+    );
+    assert_eq!(
+        headers.len(),
+        sentinels.len(),
+        "{name}: one BLOCK sentinel per BLOCK_HEADER"
+    );
+
+    let resolved = dwg::graph::resolve_block_names(&objects, version);
+    assert_eq!(
+        resolved.len(),
+        headers.len(),
+        "{name}: resolve_block_names must cover every BLOCK_HEADER"
+    );
+
+    let mut seen: BTreeMap<&str, u64> = BTreeMap::new();
+    for header in &headers {
+        let DecodedEntity::BlockRecord(record) = dwg::entities::decode_from_raw(header, version)
+        else {
+            panic!(
+                "{name}: BLOCK_HEADER {} did not decode",
+                header.handle.value
+            );
+        };
+        let sentinel = dwg::tables::block_record::block_sentinel_handle_of(header, version)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{name}: BLOCK_HEADER {} names no BLOCK sentinel",
+                    header.handle.value
+                )
+            });
+        let sentinel_name = sentinels.get(&sentinel).unwrap_or_else(|| {
+            panic!(
+                "{name}: BLOCK_HEADER {} points at {sentinel}, which is not a BLOCK",
+                header.handle.value
+            )
+        });
+
+        // The join must reproduce the sentinel's name exactly.
+        let full = &resolved[&header.handle.value];
+        assert_eq!(
+            full, sentinel_name,
+            "{name}: BLOCK_HEADER {} resolved to {full:?}, sentinel says {sentinel_name:?}",
+            header.handle.value
+        );
+
+        // The record's own string is that name minus a decimal
+        // suffix — never a different string.
+        let stem = &record.header.name;
+        let suffix = full.strip_prefix(stem.as_str()).unwrap_or_else(|| {
+            panic!(
+                "{name}: BLOCK_HEADER {} stores {stem:?}, which is not a prefix of {full:?}",
+                header.handle.value
+            )
+        });
+        assert!(
+            suffix.chars().all(|c| c.is_ascii_digit()),
+            "{name}: BLOCK_HEADER {} stem {stem:?} differs from {full:?} by {suffix:?}, \
+             which is not a decimal suffix",
+            header.handle.value
+        );
+
+        if let Some(other) = seen.insert(full.as_str(), header.handle.value) {
+            panic!(
+                "{name}: block name {full:?} resolved for both {other} and {}",
+                header.handle.value
+            );
+        }
+    }
+    resolved.into_values().collect()
+}
+
+/// [`check_block_names`] on every corpus drawing that carries blocks
+/// (R2000 to R2018). Skips a drawing the sample corpus does not have.
 #[test]
 fn resolved_block_names_agree_with_their_block_sentinels() {
     for name in [
@@ -64,101 +166,7 @@ fn resolved_block_names_agree_with_their_block_sentinels() {
         let Some(file) = open_if_present(name) else {
             continue;
         };
-        let version = file.version();
-        let objects = file
-            .all_objects()
-            .unwrap_or_else(|| panic!("{name}: no handle-map-driven walk"))
-            .unwrap_or_else(|e| panic!("{name}: walk failed: {e}"));
-
-        let mut sentinels: BTreeMap<u64, String> = BTreeMap::new();
-        for object in &objects {
-            if object.kind != ObjectType::Block {
-                continue;
-            }
-            match dwg::entities::decode_from_raw(object, version) {
-                DecodedEntity::Block(b) => {
-                    sentinels.insert(object.handle.value, b.name);
-                }
-                other => panic!("{name}: BLOCK {} decoded as {other:?}", object.handle.value),
-            }
-        }
-
-        let headers: Vec<_> = objects
-            .iter()
-            .filter(|o| o.kind == ObjectType::BlockHeader)
-            .collect();
-        assert!(
-            !headers.is_empty(),
-            "{name}: expected at least one BLOCK_HEADER"
-        );
-        assert_eq!(
-            headers.len(),
-            sentinels.len(),
-            "{name}: one BLOCK sentinel per BLOCK_HEADER"
-        );
-
-        let resolved = dwg::graph::resolve_block_names(&objects, version);
-        assert_eq!(
-            resolved.len(),
-            headers.len(),
-            "{name}: resolve_block_names must cover every BLOCK_HEADER"
-        );
-
-        let mut seen: BTreeMap<&str, u64> = BTreeMap::new();
-        for header in &headers {
-            let DecodedEntity::BlockRecord(record) =
-                dwg::entities::decode_from_raw(header, version)
-            else {
-                panic!(
-                    "{name}: BLOCK_HEADER {} did not decode",
-                    header.handle.value
-                );
-            };
-            let sentinel = dwg::tables::block_record::block_sentinel_handle_of(header, version)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{name}: BLOCK_HEADER {} names no BLOCK sentinel",
-                        header.handle.value
-                    )
-                });
-            let sentinel_name = sentinels.get(&sentinel).unwrap_or_else(|| {
-                panic!(
-                    "{name}: BLOCK_HEADER {} points at {sentinel}, which is not a BLOCK",
-                    header.handle.value
-                )
-            });
-
-            // The join must reproduce the sentinel's name exactly.
-            let full = &resolved[&header.handle.value];
-            assert_eq!(
-                full, sentinel_name,
-                "{name}: BLOCK_HEADER {} resolved to {full:?}, sentinel says {sentinel_name:?}",
-                header.handle.value
-            );
-
-            // The record's own string is that name minus a decimal
-            // suffix — never a different string.
-            let stem = &record.header.name;
-            let suffix = full.strip_prefix(stem.as_str()).unwrap_or_else(|| {
-                panic!(
-                    "{name}: BLOCK_HEADER {} stores {stem:?}, which is not a prefix of {full:?}",
-                    header.handle.value
-                )
-            });
-            assert!(
-                suffix.chars().all(|c| c.is_ascii_digit()),
-                "{name}: BLOCK_HEADER {} stem {stem:?} differs from {full:?} by {suffix:?}, \
-                 which is not a decimal suffix",
-                header.handle.value
-            );
-
-            if let Some(other) = seen.insert(full.as_str(), header.handle.value) {
-                panic!(
-                    "{name}: block name {full:?} resolved for both {other} and {}",
-                    header.handle.value
-                );
-            }
-        }
+        check_block_names(name, &file);
     }
 }
 
@@ -265,12 +273,15 @@ fn r14_block_names_stay_unresolved_for_want_of_a_handle_stream() {
     assert_eq!(names, ["*MODEL_SPACE", "*PAPER_SPACE", "*PAPER_SPACE"]);
 }
 
-/// The committed canonical corpus carries no block definitions, so the
-/// gate above cannot run there. Pin that fact: the moment
-/// `examples/build_fixtures.rs` grows a BLOCK_HEADER, this test fails
-/// and the fixture path must be added to the gate.
+/// The same gate on the committed canonical fixtures, which
+/// `examples/build_fixtures.rs` writes with three block definitions each
+/// (#78): `FixtureBlock`, whose header and sentinel agree, and two
+/// anonymous blocks whose headers both store the stem `*D` and whose
+/// sentinels read `*D1` and `*D2`. Unlike the corpus tests above, this one
+/// never skips: the fixtures are in the repository, so the join runs under
+/// every `cargo test` on every platform, on every band the writer emits.
 #[test]
-fn canonical_fixtures_carry_no_block_definitions() {
+fn canonical_fixtures_block_names_agree_with_their_sentinels() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/canonical");
     for name in [
         "synthetic_2000.dwg",
@@ -280,15 +291,11 @@ fn canonical_fixtures_carry_no_block_definitions() {
         "synthetic_2018.dwg",
     ] {
         let file = DwgFile::open(dir.join(name)).unwrap_or_else(|e| panic!("{name}: {e}"));
-        let objects = file.all_objects().expect("walk").expect("walk");
-        let blocks = objects
-            .iter()
-            .filter(|o| matches!(o.kind, ObjectType::BlockHeader | ObjectType::Block))
-            .count();
+        let resolved = check_block_names(name, &file);
         assert_eq!(
-            blocks, 0,
-            "{name} now carries block records — add it to \
-             resolved_block_names_agree_with_their_block_sentinels"
+            resolved,
+            ["FixtureBlock", "*D1", "*D2"],
+            "{name}: resolved block names"
         );
     }
 }

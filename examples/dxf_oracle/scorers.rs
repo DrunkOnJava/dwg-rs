@@ -47,6 +47,16 @@
 //! - A `101` group starts an embedded object (R2018 MTEXT and multi-line
 //!   attributes) whose codes repeat the record's; lookups stop there.
 //! - R12 DXF has no subclass markers: the whole record is the scope.
+//! - MULTILEADER nests its parts in marker groups (`300 CONTEXT_DATA{`,
+//!   `302 LEADER{`, `304 LEADER_LINE{`, closed by `301`, `303`, `305`) whose
+//!   fields reuse each other's codes (90, 91, 92, 290, 291, 40, 10, 11,
+//!   170, 171, 271 to 273); each part is scored within its own groups, in
+//!   the context before and after its leader roots, in each root before and
+//!   after its lines, and in the entity's tail after `301`.
+//! - A colour before R2004 is a bare index in the DWG, which the export
+//!   writes as the matching 32-bit word; a true colour the older file
+//!   cannot hold stays `different` (MULTILEADER's text background on R2000,
+//!   #381).
 //!
 //! # Tolerance for reals
 //!
@@ -75,7 +85,7 @@
 //! exactly.
 
 use crate::corpus::DwgRecord;
-use dwg::dxf_reader::{DxfDocument, DxfRecord, DxfValue};
+use dwg::dxf_reader::{DxfDocument, DxfGroup, DxfRecord, DxfValue};
 use dwg::entities::{DecodedEntity, Point2D, Point3D};
 use dwg::objects::color::ObjectColor;
 use std::collections::BTreeMap;
@@ -720,11 +730,19 @@ pub fn section_of(label: &str) -> &'static str {
         "ENDBLK" => "§20.4.7",
         "ARC" => "§20.4.18",
         "CIRCLE" => "§20.4.20",
+        "TOLERANCE" => "§20.4.49",
         "TEXT" => "§20.4.3",
         "ATTRIB" => "§20.4.4",
         "ATTDEF" => "§20.4.5",
         "SEQEND" => "§20.4.8",
         "INSERT" => "§20.4.9",
+        "DIMENSION_ORDINATE" => "§20.4.23",
+        "DIMENSION_LINEAR" => "§20.4.24",
+        "DIMENSION_ALIGNED" => "§20.4.25",
+        "DIMENSION_ANG_3PT" => "§20.4.26",
+        "DIMENSION_ANG_2LN" => "§20.4.27",
+        "DIMENSION_RADIUS" => "§20.4.28",
+        "DIMENSION_DIAMETER" => "§20.4.29",
         "VERTEX_2D" => "§20.4.11",
         "VERTEX_3D" => "§20.4.12",
         "VERTEX_MESH" => "§20.4.13",
@@ -739,9 +757,12 @@ pub fn section_of(label: &str) -> &'static str {
         "RAY" => "§20.4.42",
         "XLINE" => "§20.4.43",
         "MTEXT" => "§20.4.46",
+        "MULTILEADER" => "§20.4.48",
         "LINE" => "§20.4.21",
         "POINT" => "§20.4.31",
+        "VIEWPORT" => "§20.4.38",
         "ELLIPSE" => "§20.4.39",
+        "HATCH" => "§20.4.75",
         "DICTIONARY" => "§20.4.44",
         "ACDBDICTIONARYWDFLT" => "§20.4.45",
         "BLOCK_CONTROL" => "§20.4.51",
@@ -762,6 +783,7 @@ pub fn section_of(label: &str) -> &'static str {
         "DIMSTYLE_CONTROL" => "§20.4.67",
         "DIMSTYLE" => "§20.4.68",
         "MLINESTYLE" => "§20.4.73",
+        "MLINE" => "§20.4.50",
         "MLEADERSTYLE" => "§20.4.87",
         "DICTIONARYVAR" => "§20.4.74",
         "LAYOUT" => "§20.4.84",
@@ -1001,9 +1023,12 @@ pub fn score(
             }
         }
         D::MText(m) => score_mtext(&mut c, m),
+        D::Dimension(d) => score_dimension(&mut c, d),
         D::Layer(l) => score_layer(&mut c, l),
         D::Ltype(l) => score_ltype(&mut c, l),
+        D::Hatch(h) => score_hatch(&mut c, h),
         D::Style(s) => score_style(&mut c, s),
+        D::Tolerance(t) => score_tolerance(&mut c, t),
         // §20.4.66: the entry header, then the RC unknown in 71.
         D::AppId(a) => {
             c.subclass("AcDbRegAppTableRecord");
@@ -1027,6 +1052,7 @@ pub fn score(
             }
         }
         D::Dictionary(d) => score_dictionary(&mut c, d, dwg),
+        D::Viewport(v) => score_viewport(&mut c, v),
         // §20.4.74: 280 schema, 1 value.
         D::DictionaryVar(v) => {
             c.subclass("DictionaryVariables");
@@ -1061,6 +1087,7 @@ pub fn score(
             );
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
+        D::MLine(m) => score_mline(&mut c, m),
         // §20.4.82: the class version in 90; the IMAGE it serves is a handle.
         D::ImageDefReactor(r) => {
             c.subclass("AcDbRasterImageDefReactor");
@@ -1096,6 +1123,7 @@ pub fn score(
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
+        D::MLeader(m) => score_mleader(&mut c, m),
         D::Unhandled { .. } => return Err("no decoder".into()),
         D::Error { message, .. } => return Err(format!("decode error: {message}")),
         _ => return Err("no scorer yet".into()),
@@ -1256,6 +1284,132 @@ fn score_mtext(c: &mut Ctx<'_>, m: &dwg::entities::mtext::MText) {
     c.real("linespace_factor", 44, m.linespace_factor, None);
 }
 
+// §20.4.22 with §20.4.23 to §20.4.29, against the DXF Reference's
+// AcDbDimension groups and each subtype's own subclass. The record is
+// scored as a whole: every code is written once, except 10, whose
+// subtype-specific point lives in AcDbDimension and whose z the DWG stores
+// in full. Angles are degrees in the DXF (53, 51, 54, 52, 50) and radians
+// in the DWG. The text midpoint, the clone insertion point and the angular
+// 16-point are 2D points whose z is the common elevation (§20.4.22). The
+// DWG's `flags` byte is not group 70: the type the subtype implies, 32 for
+// its bit 1 and 128 for the absence of its bit 0, and 64 for an ordinate
+// dimension's second flag byte make the group (§20.4.22, §20.4.23); that
+// derived value is the one compared. Omitted groups stand for the DXF
+// Reference's defaults (line spacing style 1 and factor 1, rotations 0,
+// empty text). The handles (the dimension style in 3, the anonymous block
+// in 2) are not decoded; 73 is the spec's "unknown" and not surfaced.
+fn score_dimension(c: &mut Ctx<'_>, d: &dwg::entities::dimension::Dimension) {
+    use dwg::entities::dimension::Dimension as Dm;
+    let (common, kind, flag2) = match d {
+        Dm::Linear(x) => (&x.common, 0, 0),
+        Dm::Aligned(x) => (&x.common, 1, 0),
+        Dm::Angular2Line(x) => (&x.common, 2, 0),
+        Dm::Diameter(x) => (&x.common, 3, 0),
+        Dm::Radius(x) => (&x.common, 4, 0),
+        Dm::Angular3Pt(x) => (&x.common, 5, 0),
+        Dm::Ordinate(x) => (&x.common, 6, i64::from(x.flag_2 & 1) * 64),
+    };
+    c.whole();
+    if c.peek(280).is_some() {
+        c.int("version_flag", 280, i64::from(common.version_flag), None);
+    }
+    c.point3("extrusion", 210, common.extrusion, Some(Z));
+    c.point2("text_midpoint", 11, common.text_midpoint);
+    c.real("elevation (z of 11)", 31, common.elevation, None);
+    let flags = i64::from(common.flags);
+    let type70 =
+        kind | if flags & 2 != 0 { 32 } else { 0 } | if flags & 1 == 0 { 128 } else { 0 } | flag2;
+    c.int(
+        "flags (the subtype and flag bits, as group 70)",
+        70,
+        type70,
+        None,
+    );
+    c.text("user_text", 1, &common.user_text, Some(""));
+    c.angle("text_rotation", 53, common.text_rotation, Some(0.0));
+    c.angle("horiz_dir", 51, common.horiz_dir, Some(0.0));
+    c.dwg_only(
+        "ins_scale.x (41 is the line spacing factor)",
+        common.ins_scale.x,
+    );
+    c.dwg_only("ins_scale.y (42 is the measurement)", common.ins_scale.y);
+    c.real("ins_scale.z", 43, common.ins_scale.z, Some(1.0));
+    c.angle("ins_rotation", 54, common.ins_rotation, Some(0.0));
+    c.int("attachment", 71, i64::from(common.attachment), None);
+    c.int(
+        "line_spacing_style",
+        72,
+        i64::from(common.line_spacing_style),
+        Some(1),
+    );
+    c.real(
+        "line_spacing_factor",
+        41,
+        common.line_spacing_factor,
+        Some(1.0),
+    );
+    c.real("actual_measurement", 42, common.actual_measurement, None);
+    if c.peek(74).is_some() {
+        c.int("flip_arrow_1", 74, i64::from(common.flip_arrow_1), None);
+        c.int("flip_arrow_2", 75, i64::from(common.flip_arrow_2), None);
+    }
+    c.point2("def_point_12", 12, common.def_point_12);
+    match d {
+        Dm::Linear(x) => {
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.angle(
+                "extension_line_rotation",
+                52,
+                x.extension_line_rotation,
+                Some(0.0),
+            );
+            c.angle("dim_rotation", 50, x.dim_rotation, Some(0.0));
+        }
+        Dm::Aligned(x) => {
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.angle(
+                "extension_line_rotation",
+                52,
+                x.extension_line_rotation,
+                Some(0.0),
+            );
+        }
+        Dm::Ordinate(x) => {
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.point3("feature_location_13", 13, x.feature_location_13, None);
+            c.point3("leader_endpoint_14", 14, x.leader_endpoint_14, None);
+        }
+        Dm::Angular3Pt(x) => {
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_15", 15, x.def_point_15, None);
+        }
+        Dm::Angular2Line(x) => {
+            c.point2("def_point_16", 16, x.def_point_16);
+            c.real("elevation (z of 16)", 36, common.elevation, None);
+            c.point3("def_point_13", 13, x.def_point_13, None);
+            c.point3("def_point_14", 14, x.def_point_14, None);
+            c.point3("def_point_15", 15, x.def_point_15, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+        }
+        Dm::Radius(x) => {
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.point3("def_point_15", 15, x.def_point_15, None);
+            c.real("leader_length", 40, x.leader_length, None);
+        }
+        Dm::Diameter(x) => {
+            c.point3("def_point_15", 15, x.def_point_15, None);
+            c.point3("def_point_10", 10, x.def_point_10, None);
+            c.real("leader_length", 40, x.leader_length, None);
+        }
+    }
+}
+
 fn reactor_count(dxf: &DxfRecord) -> usize {
     let mut inside = false;
     let mut n = 0;
@@ -1269,6 +1423,21 @@ fn reactor_count(dxf: &DxfRecord) -> usize {
         }
     }
     n
+}
+
+// §20.4.49 against the DXF Reference's AcDbFcf: 10 the insertion point, 11
+// the x direction, 210 the extrusion and 1 the text. The R13-R14 unknown
+// short, height and dimgap are not in an R2000+ record (the decoder leaves
+// them 0) and R14 has no DXF twin; the dimension style is a handle.
+fn score_tolerance(c: &mut Ctx<'_>, t: &dwg::entities::tolerance::Tolerance) {
+    if !c.subclass("AcDbFcf") {
+        c.dwg_only("(the export has no AcDbFcf subclass)", ());
+        return;
+    }
+    c.point3("insertion_point", 10, t.insertion_point, None);
+    c.point3("x_axis_direction", 11, t.x_axis_direction, None);
+    c.point3("extrusion", 210, t.extrusion, Some(Z));
+    c.text("text_string", 1, &t.text_string, None);
 }
 
 /// The entry header every table record starts with (§20.4.54 and the other
@@ -1481,6 +1650,65 @@ fn block_name(c: &mut Ctx<'_>, field: &str, name: &str) {
         );
     } else {
         c.text(field, 2, name, None);
+    }
+}
+
+// §20.4.50 against the DXF Reference's AcDbMline: 40 the scale, 70 the
+// justification, 71 the flags, 72 and 73 the vertex and element counts, 10
+// the base point and 210 the extrusion, then per vertex 11, 12 and 13 (its
+// position, segment direction and miter direction) and per element 74 with
+// that many 41 segment parameters and 75 with that many 42 area-fill
+// parameters. The groups of the vertices come in the order the decoder
+// holds them, so each is taken as the next group of its code. The style (2
+// and 340) is a name and a handle.
+fn score_mline(c: &mut Ctx<'_>, m: &dwg::entities::mline::MLine) {
+    use dwg::entities::mline::Justification;
+    if !c.subclass("AcDbMline") {
+        c.dwg_only("(the export has no AcDbMline subclass)", ());
+        return;
+    }
+    c.real("scale_factor", 40, m.scale_factor, None);
+    let just = match m.justification {
+        Justification::Top => 0,
+        Justification::Zero => 1,
+        Justification::Bottom => 2,
+        Justification::Unknown(x) => i64::from(x),
+    };
+    c.int("justification", 70, just, None);
+    c.int(
+        "open_closed_flags",
+        71,
+        i64::from(m.open_closed_flags),
+        None,
+    );
+    c.int("vertex count", 72, m.vertices.len() as i64, None);
+    c.int("num_lines", 73, i64::from(m.num_lines), None);
+    c.point3("scale_point", 10, m.scale_point, None);
+    c.point3("extrusion", 210, m.extrusion, Some(Z));
+    for v in &m.vertices {
+        c.point3("vertices.vertex_point", 11, v.vertex_point, None);
+        c.point3("vertices.segment_direction", 12, v.segment_direction, None);
+        c.point3("vertices.miter_direction", 13, v.miter_direction, None);
+        for r in &v.sub_records {
+            c.int(
+                "vertices.elements.segment parameter count",
+                74,
+                r.segment_parameters.len() as i64,
+                None,
+            );
+            for p in &r.segment_parameters {
+                c.real("vertices.elements.segment_parameters", 41, *p, None);
+            }
+            c.int(
+                "vertices.elements.area fill count",
+                75,
+                r.area_fill_parameters.len() as i64,
+                None,
+            );
+            for p in &r.area_fill_parameters {
+                c.real("vertices.elements.area_fill_parameters", 42, *p, None);
+            }
+        }
     }
 }
 
@@ -1762,6 +1990,227 @@ fn score_mlinestyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mlinestyle::AcadMlin
     }
 }
 
+/// Scores the groups one after another: each step scopes the lookups to
+/// the next `n` groups of the subclass, runs the scorers there, and moves
+/// on past what they took, so a group order the spec fixes is checked as
+/// well as its values.
+struct Seq {
+    pos: usize,
+    end: usize,
+}
+
+impl Seq {
+    fn new(c: &Ctx<'_>) -> Self {
+        Self {
+            pos: c.scope.0,
+            end: c.scope.1,
+        }
+    }
+
+    fn step(&mut self, c: &mut Ctx<'_>, n: usize, f: impl FnOnce(&mut Ctx<'_>)) {
+        let to = (self.pos + n).min(self.end);
+        c.scope = (self.pos, to);
+        f(c);
+        self.pos += (self.pos..to).filter(|&i| c.used[i]).count();
+    }
+
+    /// Skips `n` groups the decoder does not surface, leaving them among
+    /// the record's not-decoded groups.
+    fn skip(&mut self, n: usize) {
+        self.pos = (self.pos + n).min(self.end);
+    }
+}
+
+// §20.4.75 against the DXF Reference's AcDbHatch groups, which the export
+// writes in the order the spec prints them: the dummy elevation point (10
+// and 20 zero, 30 the elevation), the extrusion in 210/220/230, 2, 70, 71,
+// 91 and per path 92, its vertices or edges (72 the edge type) and 97 with
+// that many 330 handles, then 75, 76, the pattern block when the fill is
+// not solid (52, 41, 77, 78 and per line 53, 43/44, 45/46, 79 and 49 per
+// dash), 47 when a path is derived, 98 with the seed points and, for a
+// gradient, 450 to 470. The groups are scored in that order, each within
+// the next few groups of the record, so an out-of-order group shows as a
+// missing one; the paths, edges and pattern lines are scored under one
+// field name each. The DWG's angles are radians, the DXF's 50 to 53
+// degrees. A gradient colour is a CMC word: the DWG keeps the method byte
+// 0xC2 and the RGB, which is group 421; group 63 is the ACI AutoCAD
+// derives from it and the DWG does not store. Only line edges and
+// polylines occur in the corpus; another edge type ends the scoring of its
+// record, since its groups are not walked.
+fn score_hatch(c: &mut Ctx<'_>, h: &dwg::entities::hatch::Hatch) {
+    use dwg::entities::hatch::{HatchEdge, HatchPathSegments};
+    if !c.subclass("AcDbHatch") {
+        c.dwg_only("(the export has no AcDbHatch subclass)", ());
+        return;
+    }
+    let mut q = Seq::new(c);
+    q.skip(2);
+    q.step(c, 1, |c| {
+        c.real("elevation (z of 10)", 30, h.elevation, None)
+    });
+    q.step(c, 3, |c| c.point3("extrusion", 210, h.extrusion, Some(Z)));
+    q.step(c, 1, |c| c.text("pattern_name", 2, &h.pattern_name, None));
+    q.step(c, 1, |c| {
+        c.int("solid_fill", 70, i64::from(h.solid_fill), None)
+    });
+    q.step(c, 1, |c| {
+        c.int("associative", 71, i64::from(h.associative), None)
+    });
+    q.step(c, 1, |c| {
+        c.int("path count", 91, h.paths.len() as i64, None)
+    });
+    for p in &h.paths {
+        q.step(c, 1, |c| c.int("paths.flags", 92, i64::from(p.flags), None));
+        match &p.segments {
+            HatchPathSegments::Polyline {
+                has_bulge,
+                is_closed,
+                vertices,
+            } => {
+                q.step(c, 1, |c| {
+                    c.int("paths.has_bulge", 72, i64::from(*has_bulge), None)
+                });
+                q.step(c, 1, |c| {
+                    c.int("paths.is_closed", 73, i64::from(*is_closed), None)
+                });
+                q.step(c, 1, |c| {
+                    c.int("paths.vertex count", 93, vertices.len() as i64, None)
+                });
+                for (v, b) in vertices {
+                    q.step(c, 2, |c| c.point2("paths.vertices", 10, *v));
+                    if let Some(b) = b {
+                        q.step(c, 1, |c| c.real("paths.bulges", 42, *b, None));
+                    }
+                }
+            }
+            HatchPathSegments::Edges(edges) => {
+                q.step(c, 1, |c| {
+                    c.int("paths.edge count", 93, edges.len() as i64, None)
+                });
+                for e in edges {
+                    match e {
+                        HatchEdge::Line { start, end } => {
+                            q.step(c, 1, |c| c.int("paths.edges.type", 72, 1, None));
+                            q.step(c, 2, |c| c.point2("paths.edges.start", 10, *start));
+                            q.step(c, 2, |c| c.point2("paths.edges.end", 11, *end));
+                        }
+                        _ => {
+                            // Its groups are not walked, so no later group could be paired by
+                            // position: the rest of the record stays unscored.
+                            c.dwg_only("paths.edges (type not scored; the rest of the record is not scored)", ());
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        q.step(c, 1, |c| {
+            c.int(
+                "paths.boundary handle count",
+                97,
+                i64::from(p.num_boundary_handles),
+                None,
+            );
+        });
+        q.skip(p.num_boundary_handles as usize);
+    }
+    q.step(c, 1, |c| {
+        c.int("pattern_style", 75, i64::from(h.pattern_style), None)
+    });
+    q.step(c, 1, |c| {
+        c.int("pattern_type", 76, i64::from(h.pattern_type), None)
+    });
+    if !h.solid_fill {
+        q.step(c, 1, |c| {
+            c.angle("pattern_angle", 52, h.pattern_angle, None)
+        });
+        q.step(c, 1, |c| c.real("pattern_scale", 41, h.pattern_scale, None));
+        q.step(c, 1, |c| {
+            c.int("pattern_double", 77, i64::from(h.pattern_double), None)
+        });
+        q.step(c, 1, |c| {
+            c.int("pattern line count", 78, h.pattern_lines.len() as i64, None);
+        });
+        for l in &h.pattern_lines {
+            q.step(c, 1, |c| c.angle("pattern_lines.angle", 53, l.angle, None));
+            q.step(c, 2, |c| {
+                c.real("pattern_lines.origin.x", 43, l.origin.x, None);
+                c.real("pattern_lines.origin.y", 44, l.origin.y, None);
+            });
+            q.step(c, 2, |c| {
+                c.real("pattern_lines.offset.x", 45, l.offset.x, None);
+                c.real("pattern_lines.offset.y", 46, l.offset.y, None);
+            });
+            q.step(c, 1, |c| {
+                c.int("pattern_lines.dash count", 79, l.dashes.len() as i64, None);
+            });
+            for d in &l.dashes {
+                q.step(c, 1, |c| c.real("pattern_lines.dashes", 49, *d, None));
+            }
+        }
+    }
+    if h.paths.iter().any(|p| p.flags & 4 != 0) {
+        q.step(c, 1, |c| c.real("pixel_size", 47, h.pixel_size, None));
+    }
+    q.step(c, 1, |c| {
+        c.int("seed point count", 98, h.seed_points.len() as i64, None)
+    });
+    for (x, y) in &h.seed_points {
+        q.step(c, 2, |c| {
+            c.real("seed_points.x", 10, *x, None);
+            c.real("seed_points.y", 20, *y, None);
+        });
+    }
+    if let Some(g) = &h.gradient {
+        q.step(c, 1, |c| c.int("gradient flag", 450, 1, None));
+        q.skip(1);
+        q.step(c, 1, |c| c.real("gradient.angle", 460, g.angle, None));
+        q.step(c, 1, |c| c.real("gradient.shift", 461, g.shift, None));
+        q.step(c, 1, |c| {
+            c.int(
+                "gradient.is_single_color",
+                452,
+                i64::from(g.is_single_color),
+                None,
+            );
+        });
+        q.step(c, 1, |c| c.real("gradient.tint", 462, g.tint, None));
+        q.step(c, 1, |c| {
+            c.int("gradient.color count", 453, g.colors.len() as i64, None)
+        });
+        for col in &g.colors {
+            q.step(c, 1, |c| {
+                c.real(
+                    "gradient.colors.unknown_double",
+                    463,
+                    col.unknown_double,
+                    None,
+                );
+            });
+            q.step(c, 2, |c| {
+                c.dwg_only("gradient.colors.unknown_short", col.unknown_short);
+                if let Some(v) = c.take(63) {
+                    c.not_decoded(
+                        "63 (the ACI the export derives from the RGB)",
+                        v.to_string(),
+                    );
+                }
+                if col.rgb >> 24 == 0xC2 {
+                    c.int(
+                        "gradient.colors.rgb (CMC word 0xC2, payload)",
+                        421,
+                        i64::from(col.rgb & 0x00FF_FFFF),
+                        None,
+                    );
+                } else {
+                    c.dwg_only("gradient.colors.rgb (not a true colour)", col.rgb);
+                }
+            });
+        }
+        q.step(c, 1, |c| c.text("gradient.name", 470, &g.name, None));
+    }
+}
+
 // §20.4.84: the plot settings under AcDbPlotSettings, then LAYOUT's own under
 // AcDbLayout.
 fn score_layout(c: &mut Ctx<'_>, l: &dwg::objects::acad_layout::AcadLayout) {
@@ -1979,6 +2428,464 @@ fn score_lwpolyline(c: &mut Ctx<'_>, p: &dwg::entities::lwpolyline::LwPolyline) 
         }
     }
     c.scope = (s, e);
+}
+
+/// The DXF 90-range word a MULTILEADER colour (`CMC`) exports as: the
+/// 32-bit true-colour word as a signed integer. Before R2004 the DWG holds
+/// the bare index, which the export writes as the matching word (see
+/// [`color_word`]).
+fn cmc_word(c: &dwg::entities::mleader::Cmc) -> i64 {
+    let word = if c.rgb != 0 {
+        c.rgb
+    } else {
+        match c.index {
+            0 => 0xC100_0000,
+            256 => 0xC000_0000,
+            257 => 0xC800_0000,
+            n => 0xC300_0000 | u32::from(n as u16),
+        }
+    };
+    i64::from(word as i32)
+}
+
+/// Where the parts of an `AcDbMLeader` subclass sit among its groups. The
+/// export nests the embedded context in `300 CONTEXT_DATA{` ... `301 }`,
+/// each leader root in `302 LEADER{` ... `303 }` and each leader line in
+/// `304 LEADER_LINE{` ... `305 }`; the context's own fields come before
+/// the first root and after the last, a root's before its first line and
+/// after its last.
+struct MLeaderLayout {
+    head: (usize, usize),
+    context_before: (usize, usize),
+    roots: Vec<MLeaderRootLayout>,
+    context_after: (usize, usize),
+    tail: (usize, usize),
+    markers: Vec<usize>,
+}
+
+struct MLeaderRootLayout {
+    before: (usize, usize),
+    lines: Vec<(usize, usize)>,
+    after: (usize, usize),
+}
+
+fn marker_at(g: &DxfGroup, code: u16, text: &str) -> bool {
+    g.code == code && g.value.as_str() == Some(text)
+}
+
+fn mleader_layout(groups: &[DxfGroup], (s, e): (usize, usize)) -> Option<MLeaderLayout> {
+    let open = (s..e).find(|&i| marker_at(&groups[i], 300, "CONTEXT_DATA{"))?;
+    let mut markers = vec![open];
+    let mut roots: Vec<MLeaderRootLayout> = Vec::new();
+    let mut ctx_end = None;
+    let mut i = open + 1;
+    while i < e {
+        let g = &groups[i];
+        if marker_at(g, 302, "LEADER{") {
+            markers.push(i);
+            let mut root = MLeaderRootLayout {
+                before: (i + 1, i + 1),
+                lines: Vec::new(),
+                after: (i + 1, i + 1),
+            };
+            let mut j = i + 1;
+            let mut last_end = i + 1;
+            while j < e && !marker_at(&groups[j], 303, "}") {
+                if marker_at(&groups[j], 304, "LEADER_LINE{") {
+                    markers.push(j);
+                    if root.lines.is_empty() {
+                        root.before = (i + 1, j);
+                    }
+                    let start = j + 1;
+                    while j < e && !marker_at(&groups[j], 305, "}") {
+                        j += 1;
+                    }
+                    if j >= e {
+                        return None;
+                    }
+                    markers.push(j);
+                    root.lines.push((start, j));
+                    last_end = j + 1;
+                }
+                j += 1;
+            }
+            if j >= e {
+                return None;
+            }
+            if root.lines.is_empty() {
+                root.before = (i + 1, j);
+            }
+            root.after = (last_end, j);
+            markers.push(j);
+            roots.push(root);
+            i = j;
+        } else if marker_at(g, 301, "}") {
+            markers.push(i);
+            ctx_end = Some(i);
+            break;
+        }
+        i += 1;
+    }
+    let ctx_end = ctx_end?;
+    let first_root = roots.first().map_or(ctx_end, |r| r.before.0 - 1);
+    // Without roots the context's interior is one range, for both lookups.
+    let after_roots = roots.last().map_or(open + 1, |r| r.after.1 + 1);
+    Some(MLeaderLayout {
+        head: (s, open),
+        context_before: (open + 1, first_root),
+        roots,
+        context_after: (after_roots, ctx_end),
+        tail: (ctx_end + 1, e),
+        markers,
+    })
+}
+
+// §20.4.48 with §20.4.86's embedded MLeaderAnnotContext, against the DXF
+// Reference's AcDbMLeader groups, which the export nests: the context in
+// 300 CONTEXT_DATA{ .. 301 }, each leader root in 302 LEADER{ .. 303 } and
+// each leader line in 304 LEADER_LINE{ .. 305 }. Angles are radians on both
+// sides; colours are the CMC's 32-bit word (before R2004 the DWG holds the
+// bare index and the export writes the matching word). The handles
+// (340-344) are not decoded. The break points of a leader line are read and
+// dropped by the decoder.
+fn score_mleader(c: &mut Ctx<'_>, m: &dwg::entities::mleader::MLeader) {
+    if !c.subclass("AcDbMLeader") {
+        c.dwg_only("(the export has no AcDbMLeader subclass)", ());
+        return;
+    }
+    let Some(lay) = mleader_layout(&c.record().groups, c.scope) else {
+        c.dwg_only("(the export has no complete CONTEXT_DATA block)", ());
+        return;
+    };
+    for &i in &lay.markers {
+        c.take_at(i);
+    }
+    let ctx = &m.context;
+    c.scope = lay.head;
+    if m.legacy.is_none() {
+        c.int("class_version", 270, i64::from(m.class_version), None);
+    }
+
+    c.scope = lay.context_before;
+    c.real("context.overall_scale", 40, ctx.overall_scale, None);
+    c.point3(
+        "context.content_base_point",
+        10,
+        ctx.content_base_point,
+        None,
+    );
+    c.real("context.text_height", 41, ctx.text_height, None);
+    c.real("context.arrow_head_size", 140, ctx.arrow_head_size, None);
+    c.real("context.landing_gap", 145, ctx.landing_gap, None);
+    c.int(
+        "context.left_attachment",
+        174,
+        i64::from(ctx.left_attachment),
+        None,
+    );
+    c.int(
+        "context.right_attachment",
+        175,
+        i64::from(ctx.right_attachment),
+        None,
+    );
+    c.int(
+        "context.text_align_type",
+        176,
+        i64::from(ctx.text_align_type),
+        None,
+    );
+    c.int(
+        "context.attachment_type",
+        177,
+        i64::from(ctx.attachment_type),
+        None,
+    );
+    c.int("context.has_text", 290, i64::from(ctx.text.is_some()), None);
+    if let Some(t) = &ctx.text {
+        c.text("text.label", 304, &t.label, None);
+        c.point3("text.normal", 11, t.normal, None);
+        c.point3("text.location", 12, t.location, None);
+        c.point3("text.direction", 13, t.direction, None);
+        c.real("text.rotation", 42, t.rotation, None);
+        c.real("text.boundary_width", 43, t.boundary_width, None);
+        c.real("text.boundary_height", 44, t.boundary_height, None);
+        c.real("text.line_spacing_factor", 45, t.line_spacing_factor, None);
+        c.int(
+            "text.line_spacing_style",
+            170,
+            i64::from(t.line_spacing_style),
+            None,
+        );
+        c.int("text.color", 90, cmc_word(&t.color), None);
+        c.int("text.alignment", 171, i64::from(t.alignment), None);
+        c.int(
+            "text.flow_direction",
+            172,
+            i64::from(t.flow_direction),
+            None,
+        );
+        c.int(
+            "text.background_color",
+            91,
+            cmc_word(&t.background_color),
+            None,
+        );
+        c.real("text.background_scale", 141, t.background_scale, None);
+        c.int(
+            "text.background_transparency",
+            92,
+            i64::from(t.background_transparency),
+            None,
+        );
+        c.int(
+            "text.background_fill_enabled",
+            291,
+            i64::from(t.background_fill_enabled),
+            None,
+        );
+        c.int(
+            "text.background_mask_fill_on",
+            292,
+            i64::from(t.background_mask_fill_on),
+            None,
+        );
+        c.int("text.column_type", 173, i64::from(t.column_type), None);
+        c.int(
+            "text.text_height_automatic",
+            293,
+            i64::from(t.text_height_automatic),
+            None,
+        );
+        c.real("text.column_width", 142, t.column_width, None);
+        c.real("text.column_gutter", 143, t.column_gutter, None);
+        c.int(
+            "text.column_flow_reversed",
+            294,
+            i64::from(t.column_flow_reversed),
+            None,
+        );
+        for (i, w) in t.column_sizes.iter().enumerate() {
+            c.real(&format!("text.column_sizes[{i}]"), 144, *w, None);
+        }
+        c.int("text.word_break", 295, i64::from(t.word_break), None);
+        c.dwg_only("text.unknown_flag", t.unknown_flag);
+    }
+    // §20.4.86 reads the has-block bit only when there is no text, so on a
+    // text multileader the DWG does not hold the export's 296.
+    if ctx.text.is_some() {
+        if let Some(v) = c.take(296) {
+            c.not_decoded(
+                "296 (has block; the DWG stores it only without text)",
+                v.to_string(),
+            );
+        }
+    } else {
+        c.int(
+            "context.has_block",
+            296,
+            i64::from(ctx.block.is_some()),
+            None,
+        );
+    }
+    if let Some(b) = &ctx.block {
+        c.point3("block.normal", 14, b.normal, None);
+        c.point3("block.location", 15, b.location, None);
+        c.point3("block.scale", 16, b.scale, None);
+        c.real("block.rotation", 46, b.rotation, None);
+        c.int("block.color", 93, cmc_word(&b.color), None);
+        for (i, v) in b.transform.iter().enumerate() {
+            c.real(&format!("block.transform[{i}]"), 47, *v, None);
+        }
+    }
+    c.point3("context.base_point", 110, ctx.base_point, None);
+    c.point3("context.base_direction", 111, ctx.base_direction, None);
+    c.point3("context.base_vertical", 112, ctx.base_vertical, None);
+    c.int(
+        "context.normal_reversed",
+        297,
+        i64::from(ctx.normal_reversed),
+        None,
+    );
+
+    c.derived(
+        "context.leader_root_count (302 LEADER{ blocks)",
+        "302",
+        ctx.leader_roots.len() == lay.roots.len(),
+        ctx.leader_roots.len().to_string(),
+        lay.roots.len().to_string(),
+    );
+    for (k, (root, rl)) in ctx.leader_roots.iter().zip(&lay.roots).enumerate() {
+        let n = format!("roots[{k}]");
+        c.scope = rl.before;
+        c.int(
+            &format!("{n}.content_valid"),
+            290,
+            i64::from(root.content_valid),
+            None,
+        );
+        c.int(
+            &format!("{n}.unknown_flag"),
+            291,
+            i64::from(root.unknown_flag),
+            None,
+        );
+        c.point3(
+            &format!("{n}.connection_point"),
+            10,
+            root.connection_point,
+            None,
+        );
+        c.point3(&format!("{n}.direction"), 11, root.direction, None);
+        for (j, (a, b)) in root.break_points.iter().enumerate() {
+            c.point3(&format!("{n}.break_points[{j}].start"), 12, *a, None);
+            c.point3(&format!("{n}.break_points[{j}].end"), 13, *b, None);
+        }
+        c.int(&format!("{n}.index"), 90, i64::from(root.index), None);
+        c.real(
+            &format!("{n}.landing_distance"),
+            40,
+            root.landing_distance,
+            None,
+        );
+        c.derived(
+            &format!("{n}.line_count (304 LEADER_LINE{{ blocks)"),
+            "304",
+            root.lines.len() == rl.lines.len(),
+            root.lines.len().to_string(),
+            rl.lines.len().to_string(),
+        );
+        for (l, (line, range)) in root.lines.iter().zip(&rl.lines).enumerate() {
+            let n = format!("{n}.lines[{l}]");
+            c.scope = *range;
+            for (p, pt) in line.points.iter().enumerate() {
+                c.point3(&format!("{n}.points[{p}]"), 10, *pt, None);
+            }
+            c.int(&format!("{n}.index"), 91, i64::from(line.index), None);
+            if m.legacy.is_none() {
+                c.int(
+                    &format!("{n}.leader_type"),
+                    170,
+                    i64::from(line.leader_type),
+                    None,
+                );
+                c.int(&format!("{n}.color"), 92, cmc_word(&line.color), None);
+                c.int(
+                    &format!("{n}.line_weight"),
+                    171,
+                    i64::from(line.line_weight),
+                    None,
+                );
+                c.real(&format!("{n}.arrow_size"), 40, line.arrow_size, None);
+                c.int(
+                    &format!("{n}.override_flags"),
+                    93,
+                    i64::from(line.override_flags),
+                    None,
+                );
+            }
+        }
+        if m.legacy.is_none() {
+            c.scope = rl.after;
+            c.int(
+                &format!("{n}.attachment_direction"),
+                271,
+                i64::from(root.attachment_direction),
+                None,
+            );
+        }
+    }
+
+    if m.legacy.is_none() {
+        c.scope = lay.context_after;
+        c.int(
+            "context.bottom_attachment",
+            272,
+            i64::from(ctx.bottom_attachment),
+            None,
+        );
+        c.int(
+            "context.top_attachment",
+            273,
+            i64::from(ctx.top_attachment),
+            None,
+        );
+    }
+
+    c.scope = lay.tail;
+    c.int("override_flags", 90, i64::from(m.override_flags), None);
+    c.int("leader_type", 170, i64::from(m.leader_type), None);
+    c.int("leader_color", 91, cmc_word(&m.leader_color), None);
+    c.int("line_weight", 171, i64::from(m.line_weight), None);
+    c.int("landing_enabled", 290, i64::from(m.landing_enabled), None);
+    c.int("dogleg_enabled", 291, i64::from(m.dogleg_enabled), None);
+    c.real("landing_distance", 41, m.landing_distance, None);
+    c.real("arrow_head_size", 42, m.arrow_head_size, None);
+    c.int("content_type", 172, i64::from(m.content_type), None);
+    c.int("left_attachment", 173, i64::from(m.left_attachment), None);
+    c.int("right_attachment", 95, i64::from(m.right_attachment), None);
+    c.int("text_angle_type", 174, i64::from(m.text_angle_type), None);
+    c.int("unknown_175", 175, i64::from(m.unknown_175), None);
+    c.int("text_color", 92, cmc_word(&m.text_color), None);
+    c.int(
+        "text_frame_enabled",
+        292,
+        i64::from(m.text_frame_enabled),
+        None,
+    );
+    c.int("block_color", 93, cmc_word(&m.block_color), None);
+    c.point3("block_scale", 10, m.block_scale, None);
+    c.real("block_rotation", 43, m.block_rotation, None);
+    c.int(
+        "block_attachment_type",
+        176,
+        i64::from(m.block_attachment_type),
+        None,
+    );
+    c.int("is_annotative", 293, i64::from(m.is_annotative), None);
+    if let Some(l) = &m.legacy {
+        c.int(
+            "legacy.text_direction_negative",
+            294,
+            i64::from(l.text_direction_negative),
+            None,
+        );
+        c.int("legacy.ipe_align", 178, i64::from(l.ipe_align), None);
+        c.int(
+            "legacy.justification",
+            179,
+            i64::from(l.justification),
+            None,
+        );
+        c.real("legacy.scale_factor", 45, l.scale_factor, None);
+        c.dwg_only("legacy.arrow_heads_default", &l.arrow_heads_default);
+        c.dwg_only("legacy.block_labels", &l.block_labels);
+    } else {
+        c.int(
+            "attachment_direction",
+            271,
+            i64::from(m.attachment_direction),
+            None,
+        );
+        c.int(
+            "bottom_attachment",
+            272,
+            i64::from(m.bottom_attachment),
+            None,
+        );
+        c.int("top_attachment", 273, i64::from(m.top_attachment), None);
+        c.dwg_only("undocumented_mc", m.undocumented_mc);
+        c.dwg_only("undocumented_flag", m.undocumented_flag);
+        // R2013+ only: the DWG and the export both lack it on R2010.
+        if c.peek(295).is_some() {
+            c.int(
+                "leader_extended_to_text",
+                295,
+                i64::from(m.leader_extended_to_text),
+                None,
+            );
+        }
+    }
 }
 
 use dwg::objects::acad_visual_style::{AcadVisualStyle, VisualStyleColor, VisualStyleValue};
@@ -2384,6 +3291,108 @@ fn score_mleaderstyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mleader_style::Aca
         }
     }
     c.int("extended_flag", 298, i64::from(m.extended_flag), Some(0));
+}
+
+// §20.4.38 against the DXF Reference's AcDbViewport groups, named in the
+// decoder's field list: 10, 40, 41, then the R2000+ view block. Angles are
+// degrees in the DXF (51, 50) and radians in the DWG. The ambient light
+// colour is a CMC whose ACI index is group 63 (421 is the RGB the export
+// derives from it). The count of frozen layers is the handle stream's;
+// the export lists the layers as 331 handles.
+fn score_viewport(c: &mut Ctx<'_>, v: &dwg::entities::viewport::Viewport) {
+    if !c.subclass("AcDbViewport") {
+        c.dwg_only("(the export has no AcDbViewport subclass)", ());
+        return;
+    }
+    c.point3("center", 10, v.center, None);
+    c.real("width", 40, v.width, None);
+    c.real("height", 41, v.height, None);
+    let Some(w) = &v.view else {
+        return;
+    };
+    c.point3("view_target", 17, w.view_target, None);
+    c.point3("view_direction", 16, w.view_direction, None);
+    c.angle("view_twist_angle", 51, w.view_twist_angle, None);
+    c.real("view_height", 45, w.view_height, None);
+    c.real("lens_length", 42, w.lens_length, None);
+    c.real("front_clip_z", 43, w.front_clip_z, None);
+    c.real("back_clip_z", 44, w.back_clip_z, None);
+    c.angle("snap_angle", 50, w.snap_angle, None);
+    c.point2("view_center", 12, w.view_center);
+    c.point2("snap_base", 13, w.snap_base);
+    c.point2("snap_spacing", 14, w.snap_spacing);
+    c.point2("grid_spacing", 15, w.grid_spacing);
+    c.int("circle_zoom", 72, i64::from(w.circle_zoom), None);
+    if let Some(g) = w.grid_major {
+        c.int("grid_major", 61, i64::from(g), None);
+    }
+    c.dwg_only("frozen_layer_count", w.frozen_layer_count);
+    c.int("status_flags", 90, i64::from(w.status_flags), None);
+    c.text("style_sheet", 1, &w.style_sheet, None);
+    c.int("render_mode", 281, i64::from(w.render_mode), None);
+    c.int("ucs_at_origin", 74, i64::from(w.ucs_at_origin), None);
+    c.int("ucs_per_viewport", 71, i64::from(w.ucs_per_viewport), None);
+    c.point3("ucs_origin", 110, w.ucs_origin, None);
+    c.point3("ucs_x_axis", 111, w.ucs_x_axis, None);
+    c.point3("ucs_y_axis", 112, w.ucs_y_axis, None);
+    c.real("ucs_elevation", 146, w.ucs_elevation, None);
+    c.int(
+        "ucs_ortho_view_type",
+        79,
+        i64::from(w.ucs_ortho_view_type),
+        None,
+    );
+    if let Some(s) = w.shade_plot_mode {
+        c.int("shade_plot_mode", 170, i64::from(s), None);
+    }
+    if let Some(l) = &w.lighting {
+        c.int(
+            "use_default_lights",
+            292,
+            i64::from(l.use_default_lights),
+            None,
+        );
+        c.int(
+            "default_lighting_type",
+            282,
+            i64::from(l.default_lighting_type),
+            None,
+        );
+        c.real("brightness", 141, l.brightness, None);
+        c.real("contrast", 142, l.contrast, None);
+        let col = &l.ambient_light_color;
+        match col.rgb >> 24 {
+            0xC3 => {
+                c.int(
+                    "ambient_light_color (ACI)",
+                    63,
+                    i64::from(col.rgb & 0xFF),
+                    None,
+                );
+                if let Some(v) = c.take(421) {
+                    c.not_decoded(
+                        "421 (the RGB the export derives from the ACI)",
+                        v.to_string(),
+                    );
+                }
+            }
+            0xC2 => {
+                if let Some(v) = c.take(63) {
+                    c.not_decoded(
+                        "63 (the ACI the export derives from the RGB)",
+                        v.to_string(),
+                    );
+                }
+                c.int(
+                    "ambient_light_color (RGB, CMC word 0xC2 payload)",
+                    421,
+                    i64::from(col.rgb & 0x00FF_FFFF),
+                    None,
+                );
+            }
+            _ => c.dwg_only("ambient_light_color (neither ACI nor RGB)", col.rgb),
+        }
+    }
 }
 
 // §20.4.60 VIEW: 40, 41, 10/20, 12/22/32 target, 11/21/31 direction, 50
