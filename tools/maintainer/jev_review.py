@@ -59,6 +59,7 @@ STATUS = re.compile(
     r"|\bskipped\b|\berrored\b|\bstubs?\b|\bdraft\b|\bv\d+\.\d",
     re.I,
 )
+SECTION_STATUS = re.compile(r"\bnot\b|\bpending\b|\bremaining\b|\bmissing\b|\bplanned\b|\bin review\b|\blimit", re.I)
 STOP = set(
     """about after again against also because been before being below between both
     could does doing down during each every from further have having here into itself
@@ -239,7 +240,7 @@ def pr_record(pr):
 
 GAP = {
     "type": "noul",
-    "instructions": "Does `statement` name a specific feature, type, section or tool of this project that is missing, "
+    "instructions": "Read with the heading in `section`, does `statement` name a specific feature, type, section or tool of this project that is missing, "
     "pending, in review, not done yet, unsupported or limited today?",
     "criteria": {
         "true": {
@@ -307,7 +308,11 @@ def prose(args, key):
             since = (datetime.fromisoformat(last) - timedelta(days=2)).date().isoformat()
         prs = gh("pr", "list", "-R", REPO, "--state", "merged", "--search", f"merged:>={since}", "--limit", "300", "--json", "number,title,body,mergedAt")
         idf = prepare(prs)
-        cands = [u for u in statements(path) if STATUS.search(u["text"]) and not MEASURED.search(u["text"])]
+        cands = [
+            u
+            for u in statements(path)
+            if (STATUS.search(u["text"]) or SECTION_STATUS.search(u["section"])) and not MEASURED.search(u["text"])
+        ]
         numbers += [(doc, u) for u in units(path) if MEASURED.search(u["text"])]
         for u in cands:
             short = shortlist(u["text"], prs, args.k, idf)
@@ -325,7 +330,7 @@ def prose(args, key):
                         "type": "noul",
                         "instructions": {
                             "pull_request": pr_record(pr),
-                            "question": "Does `pull_request` deliver something that `statement` says is missing, pending, "
+                            "question": "Does `pull_request` deliver something that `statement`, read with the heading in `section`, says is missing, pending, "
                             "in review, not done yet, unsupported or limited?",
                         },
                         "criteria": DELIVERS,
