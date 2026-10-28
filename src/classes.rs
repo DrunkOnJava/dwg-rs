@@ -451,42 +451,50 @@ fn read_r2004_record_tail(c: &mut BitCursor<'_>) -> Option<RecordTail> {
 // files whose author used non-ASCII identifiers.
 
 // ================================================================
-// L12-07 — class map writer (task #380)
+// L12-07 — class map writer (task #380, byte-exact #45)
 //
-// Inverse of [`ClassMap::parse`]. Assembles the 5-field class-record
-// layout + trailing CRC per ODA Open Design Specification v5.4.1 §5.7
-// (R2004+) / §21.4.2.
-//
-// Produced stream — the exact inverse of the measured layout in this
-// module's docs:
+// Inverse of [`ClassMap::parse`], laid out as AutoCAD writes the section:
+// ODA Open Design Specification v5.4.1 §10.1 (R13-R15) and §10.2 (R18+),
+// with the layout measured on the public corpus (`examples/probe_class_roundtrip.rs`).
 //
 // ```text
 // [0..16]   16 bytes               — ClassMap::SENTINEL_START
-// [16..20]  4 bytes little-endian  — size of the class data area, bytes
-// [20..24]  4 bytes little-endian  — (R2010+) unknown, written as 0
-// [24..28]  4 bytes little-endian  — (R2010+) class data area, in bits
-// [20..] / [28..]                  — the bit-packed class list
+// [16..20]  RL                     — size of the class data area, bytes
+// [20..24]  RL                     — (R2010+) 0
+// [..]      RL                     — (R2007+) size in bits of the class data
+//                                    area plus 32
+// bit stream (byte 20 on R13-R2004, 24 on R2007, 28 on R2010+):
+//   (R2004+) BL max class number, B true
+//   one record per class; pre-R2007 with its three TVs inline, from R2007
+//   the non-string fields of every record, then the 3 × N strings, then
+//   the string-stream trailer: (RS high word, if the size word has bit 15
+//   set,) RS size of the string block in bits, B true
+//   padding to a byte boundary, the padding bits set
+// RS CRC-8 (§2.14.1, seed 0xC0C1) over bytes 16 up to here
+// 16 bytes                         — SENTINEL_END
+// (R2004+) 8 bytes                 — 0 (§10.2: "The ODA writes 0 bytes";
+//                                    AutoCAD writes eight zeros)
 // ```
-//
-// The bit-packed list opens with `BL max_class_number` and one unknown
-// `B`, then one record per class. Pre-R2007 a
-// record carries its three `TV`s inline; from R2007 the non-string
-// fields of every record come first and the `3 × N` strings follow as a
-// block, in record order. A trailing CRC-8 (§2.14.1, seed 0xC0C1)
-// covers the whole byte-aligned payload.
 // ================================================================
+
+/// The sentinel that closes the section, after the CRC (§10.1, §10.2).
+const SENTINEL_END: [u8; 16] = [
+    0x72, 0x5E, 0x3B, 0x47, 0x3B, 0x56, 0x07, 0x3A, 0x3F, 0x23, 0x0B, 0xA0, 0x18, 0x30, 0x49, 0x75,
+];
 
 /// Write a TV (variable text) field per spec §2, branching on version.
 ///
-/// - R2007+ → UTF-16LE: `BS len` then `len` little-endian u16 code units.
+/// - R2007+ → UTF-16LE: `BS len` then `len` little-endian u16 code units,
+///   no terminator (measured on the class strings of every R2007 to R2018
+///   drawing of the corpus).
 /// - Older   → 8-bit: `BS len` then `len` bytes in the code page in force
-///   ([`crate::code_page::active`], [`crate::code_page::CodePage::encode`]):
-///   what the page holds as its byte, the rest as `\U+XXXX` escapes.
+///   ([`crate::code_page::active`], [`crate::code_page::CodePage::encode`]:
+///   what the page holds as its byte, the rest as `\U+XXXX` escapes), the
+///   last of them the NUL AutoCAD terminates class names with, so `len`
+///   counts it.
 ///
-/// The decoder counterpart is [`crate::tables::read_tv`]. It pops a
-/// trailing NUL unit if present; the writer emits the string verbatim
-/// without appending a NUL because callers pass the already-decoded
-/// value, not the on-disk bytes.
+/// The decoder counterpart is [`crate::tables::read_tv`], which drops that
+/// trailing NUL; the strings passed in here are the decoded values.
 fn write_tv(w: &mut BitWriter, s: &str, version: Version) {
     if version.uses_utf16_text() {
         let units: Vec<u16> = s.encode_utf16().collect();
@@ -497,10 +505,11 @@ fn write_tv(w: &mut BitWriter, s: &str, version: Version) {
         }
     } else {
         let bytes = crate::code_page::active().encode(s);
-        w.write_bs_u(bytes.len() as u16);
+        w.write_bs_u(bytes.len() as u16 + 1);
         for b in bytes {
             w.write_rc(b);
         }
+        w.write_rc(0);
     }
 }
 
@@ -529,9 +538,9 @@ fn write_r2004_record_tail(w: &mut BitWriter, def: &ClassDef) {
 ///
 /// `writer` is used for internal bit-packing; the returned `Vec<u8>` is
 /// the fully-assembled section bytes ready for LZ77 compression by the
-/// section writer. The 16-byte sentinel, the byte-aligned size header
-/// and the trailing CRC-8 are included; the caller composes this with
-/// the R2004+ page framing layer.
+/// section writer on R2004+. The 16-byte sentinel, the byte-aligned size
+/// header, the class list, the CRC and the end sentinel are included; the
+/// caller composes this with the R2004+ page framing layer.
 ///
 /// The internal `writer` argument is there purely so the function
 /// signature matches the write-path convention used by the element
@@ -539,21 +548,22 @@ fn write_r2004_record_tail(w: &mut BitWriter, def: &ClassDef) {
 /// produced in a fresh [`BitWriter`] and then prefixed / suffixed by
 /// the sentinel, size header, and CRC.
 ///
-/// # Not a byte-exact AutoCAD emitter
+/// # Byte-exact where the table carries what the file does
 ///
-/// This is the inverse of [`ClassMap::parse`], not a reproduction of
-/// what AutoCAD writes. Two known differences on R2007+: the
-/// `size in bits` header is written as the bit length of the class
-/// data alone, where real files carry that length plus 32 (see the
-/// module docs), and the §19.4.1 string-stream trailer that real files
-/// append after the string block is not emitted. Neither is read back
-/// by [`ClassMap::parse`], so the round trip is exact.
+/// The layout is the one in the comment block above, which is §10.1 and
+/// §10.2 as AutoCAD's files bear them out. `examples/probe_class_roundtrip.rs`
+/// reads each pinned drawing's section, parses it and writes it back:
+/// where the bytes differ, it names the first differing byte. What the
+/// section holds that a [`ClassDef`] does not (the two unknown `BL`s of an
+/// R2004+ record, the `B` after the maximum class number) is written as
+/// the spec gives it (`0` and `true`), and the padding that rounds the
+/// class data up to a byte is written as ones, as AutoCAD does.
 ///
 /// # CRC
 ///
-/// A 2-byte CRC-8 (§2.14.1, seed 0xC0C1) is appended covering the
-/// entire byte-aligned payload starting at the sentinel. This matches
-/// the reader's validation path.
+/// A 2-byte CRC-8 (§2.14.1, seed 0xC0C1) is appended covering the size
+/// words and the class list, from byte 16 on and not the sentinel — which
+/// is what every R13 to R2018 section measured carries.
 pub fn write_class_map(
     classes: &ClassMap,
     _writer: &mut BitWriter,
@@ -562,8 +572,12 @@ pub fn write_class_map(
     use crate::crc::crc8;
 
     let mut inner = BitWriter::new();
-    inner.write_bl_u(u32::from(class_list_max(classes)));
-    inner.write_b(true); // unknown
+    // R13-R15 records start on the first bit of the data area; from R2004
+    // the area opens with the maximum class number and a `B`.
+    if version.is_r2004_plus() {
+        inner.write_bl_u(u32::from(class_list_max(classes)));
+        inner.write_b(true); // unknown
+    }
     if version.is_r2007_plus() {
         for def in &classes.classes {
             inner.write_bs_u(def.class_number);
@@ -572,11 +586,23 @@ pub fn write_class_map(
             inner.write_bs_u(def.item_class_id);
             write_r2004_record_tail(&mut inner, def);
         }
+        let strings_at = inner.position_bits();
         for def in &classes.classes {
             write_tv(&mut inner, &def.app_name, version);
             write_tv(&mut inner, &def.cpp_class_name, version);
             write_tv(&mut inner, &def.dxf_class_name, version);
         }
+        // The §19.4.1 string-stream trailer: the size of the string block
+        // in bits, then a set `B`. A size of 0x8000 or more sets bit 15 of
+        // the low word and puts the rest in a high word before it.
+        let string_bits = inner.position_bits() - strings_at;
+        if string_bits >= 0x8000 {
+            inner.write_rs((string_bits >> 15) as i16);
+            inner.write_rs(((string_bits & 0x7FFF) | 0x8000) as i16);
+        } else {
+            inner.write_rs(string_bits as i16);
+        }
+        inner.write_b(true);
     } else {
         for def in &classes.classes {
             inner.write_bs_u(def.class_number);
@@ -591,21 +617,34 @@ pub fn write_class_map(
             }
         }
     }
-    let bits_written = inner.position_bits();
-    let classes_bytes = inner.into_bytes();
-
-    let mut out = Vec::with_capacity(32 + classes_bytes.len());
-    out.extend_from_slice(&ClassMap::SENTINEL_START);
-    out.extend_from_slice(&(classes_bytes.len() as u32).to_le_bytes());
-    if version.is_r2007_plus() {
-        out.extend_from_slice(&0u32.to_le_bytes());
-        out.extend_from_slice(&(bits_written as u32).to_le_bytes());
+    let stream_bits = inner.position_bits();
+    // The bits that round the class data up to a byte are set, not clear,
+    // in every section measured.
+    for _ in 0..(8 - stream_bits % 8) % 8 {
+        inner.write_b(true);
     }
-    out.extend_from_slice(&classes_bytes);
+    let stream = inner.into_bytes();
 
-    // CRC-8 over [sentinel, size, max, payload] with seed 0xC0C1.
-    let crc = crc8(0xC0C1, &out);
+    let mut out = Vec::with_capacity(64 + stream.len());
+    out.extend_from_slice(&ClassMap::SENTINEL_START);
+    // The size counts the bits `RL` along with the stream on R2007+.
+    let size = stream.len() + if version.is_r2007_plus() { 4 } else { 0 };
+    out.extend_from_slice(&(size as u32).to_le_bytes());
+    if version.is_r2010_plus() {
+        out.extend_from_slice(&0u32.to_le_bytes());
+    }
+    if version.is_r2007_plus() {
+        out.extend_from_slice(&((stream_bits + 32) as u32).to_le_bytes());
+    }
+    out.extend_from_slice(&stream);
+
+    // CRC-8 over everything after the sentinel, seed 0xC0C1.
+    let crc = crc8(0xC0C1, &out[16..]);
     out.extend_from_slice(&crc.to_le_bytes());
+    out.extend_from_slice(&SENTINEL_END);
+    if version.is_r2004_plus() {
+        out.extend_from_slice(&[0u8; 8]);
+    }
     Ok(out)
 }
 
@@ -637,8 +676,10 @@ mod tests {
         let bytes = write_class_map(&map, &mut w, Version::R2004).unwrap();
         assert_eq!(&bytes[..16], &ClassMap::SENTINEL_START);
         // sentinel(16) + size(4) + the 35-bit class-list header rounded
-        // up to 5 bytes + CRC(2).
-        assert_eq!(bytes.len(), 27);
+        // up to 5 bytes + CRC(2) + end sentinel(16) + 8 zero bytes.
+        assert_eq!(bytes.len(), 51);
+        assert_eq!(bytes[27..43], SENTINEL_END);
+        assert_eq!(bytes[43..], [0u8; 8]);
         let size_bytes = u32::from_le_bytes(bytes[16..20].try_into().unwrap());
         assert_eq!(size_bytes, 5);
         assert_eq!(
@@ -651,7 +692,8 @@ mod tests {
     }
 
     /// R2010+ inserts two extra `RL`s between the size header and the
-    /// class list; the writer must emit them or the reader starts eight
+    /// class list, and R2007+ ends the list with the string-stream
+    /// trailer; the writer must emit them or the reader starts eight
     /// bytes early.
     #[test]
     fn write_class_map_r2010_header_carries_the_two_extra_rls() {
@@ -663,11 +705,19 @@ mod tests {
         let r2004 = write_class_map(&map, &mut w, Version::R2004).unwrap();
         let mut w2 = BitWriter::new();
         let r2018 = write_class_map(&map, &mut w2, Version::R2018).unwrap();
-        assert_eq!(r2018.len(), r2004.len() + 8);
+        // Eight bytes of extra header, plus the 17-bit trailer (a size
+        // word and its `B`) that takes the 35-bit list to 52 bits: two
+        // more bytes.
+        assert_eq!(r2018.len(), r2004.len() + 10);
         assert_eq!(u32::from_le_bytes(r2018[20..24].try_into().unwrap()), 0);
-        // The third RL is the class data area in bits: 35 for a header
-        // with no records.
-        assert_eq!(u32::from_le_bytes(r2018[24..28].try_into().unwrap()), 35);
+        // The size counts the bits `RL` and the 7 bytes after it.
+        assert_eq!(u32::from_le_bytes(r2018[16..20].try_into().unwrap()), 11);
+        // The third RL is the class data area in bits, plus 32: 52 for a
+        // header with no records and the trailer.
+        assert_eq!(
+            u32::from_le_bytes(r2018[24..28].try_into().unwrap()),
+            52 + 32
+        );
     }
 
     /// Build one representative class table and require a byte-exact
