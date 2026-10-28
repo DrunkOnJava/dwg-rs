@@ -5,7 +5,7 @@
 //! ODA spec v5.4.1 prints no layout for it. The field list is derived from the bits of the
 //! eight records of two R14 drawings and held to the record boundary alone: the corpus holds
 //! no DXF export of either drawing, so no value is scored (CLEANROOM.md, 2026-10-28;
-//! ARCHITECTURE.md §7br).
+//! ARCHITECTURE.md §7bs).
 //!
 //! ```text
 //! BL   version                 -- 2 in every record
@@ -27,7 +27,7 @@ use crate::objects::small_classes::open_and_finish;
 use crate::version::Version;
 
 /// RAPIDRTRENDERENVIRONMENT: an HDR backdrop for the RapidRT renderer. Held to its record
-/// boundary alone; no DXF twin scores any value (ARCHITECTURE.md §7br).
+/// boundary alone; no DXF twin scores any value (ARCHITECTURE.md §7bs).
 #[derive(Debug, Clone, PartialEq)]
 pub struct RenderEnvironment {
     /// `BL`: 2 in every corpus record.
@@ -43,7 +43,7 @@ pub struct RenderEnvironment {
 }
 
 /// Decode a RAPIDRTRENDERENVIRONMENT record from the layout of the module docs (derived from
-/// AutoCAD's output, ARCHITECTURE.md §7br), ending exactly on the data-stream boundary and,
+/// AutoCAD's output, ARCHITECTURE.md §7bs), ending exactly on the data-stream boundary and,
 /// from R2007, with the string stream consumed.
 pub(crate) fn decode_object(
     payload: &[u8],

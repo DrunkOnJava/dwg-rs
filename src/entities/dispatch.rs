@@ -153,7 +153,7 @@ pub enum DecodedEntity {
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7bb).
     Material(Box<crate::objects::acad_material::Material>),
-    /// RAPIDRTRENDERENVIRONMENT (ARCHITECTURE.md §7br).
+    /// RAPIDRTRENDERENVIRONMENT (ARCHITECTURE.md §7bs).
     RenderEnvironment(crate::objects::render_environment::RenderEnvironment),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),

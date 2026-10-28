@@ -2,7 +2,7 @@
 //!
 //! ODA spec v5.4.1 prints no layout for the class; `src/objects/render_environment.rs` was
 //! derived from the bits of the eight records of `3d.dwg` and `Draw2.dwg` (CLEANROOM.md,
-//! 2026-10-28; ARCHITECTURE.md §7br). For every record of every drawing under the corpus
+//! 2026-10-28; ARCHITECTURE.md §7bs). For every record of every drawing under the corpus
 //! directory this reports whether the decoder closed exactly on the record's data-stream
 //! boundary. No value is scored: the corpus holds no DXF export of either drawing, so the
 //! values are printed, not compared.

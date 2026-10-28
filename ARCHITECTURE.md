@@ -5100,7 +5100,7 @@ for p in sh_cylinder sh_revolve; do
 done
 ```
 
-## 7br. RAPIDRTRENDERENVIRONMENT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+## 7bs. RAPIDRTRENDERENVIRONMENT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
 
 ODA spec v5.4.1 prints no layout for the object AutoCAD writes for the RapidRT renderer's
 environment (its C++ class in `AcDb:Classes` is `AcDbIBLBackground`, an image-based lighting
