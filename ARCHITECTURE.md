@@ -4394,6 +4394,119 @@ cargo run --release --example probe_tablegeometry -- ../dwg-corpus
 | R2013 | 2 | 2 | 577 | 0 |
 | R2018 | 2 | 2 | 577 | 0 |
 
+## 7be. TABLECONTENT (2026-10-26, #151)
+
+§20.4.97 prints the cells of a table and what they hold as one data stream
+through four inherited classes (AcDbLinkedData, AcDbLinkedTableData,
+AcDbFormattedTableData, AcDbTableContent): a name, a description, the columns,
+the rows and per row the cells, per cell its contents (a value, a field or a
+block), each with an optional content format, then the cell style overrides of
+every column, row, cell and the table, the merged ranges and the table style
+handle. §20.4.97 reaches TABLE through its extension dictionary, and the record
+had no decoder, so all 14 of the corpus's (two tables on each of R14 to R2018,
+the ACadSharp sample set) were skipped.
+
+The field list closes on all 14, on each release's data-stream boundary, once
+two readings the spec does not print are taken from the bits:
+
+- **A value's string, from R2007, is a `BL` byte count and that many bytes of
+  UTF-16LE in the data stream.** §20.4.99 types it `TV`, and a `TV` reads from
+  the string stream, which holds nothing of it: the drawing's cell texts are in
+  the data stream. Before R2007 a string value is a `TV` as printed.
+- **A value whose flags have bit 1 set (`Flags & 0x01`, the spec's "kGeneral")
+  still has its data type but no data.** The spec prints the data as "not
+  present" in that case and does not say the data type stays. The empty cells
+  of the corpus carry flags 7, a data type of 0 and nothing between the type
+  and the unit type.
+
+The data types 128 and 256 the spec does not describe, so they are refused as
+unsupported, not guessed.
+
+Against AutoCAD's DXF export (R2000 to R2018) all values equal the groups that
+carry them, 26694 in all, 0 differ: every count, name, flag and size, the
+values by type (long as group 91, double as 140, string as 1, date as 92 and
+310, points as 11 to 31), the cell styles of every override (the shared
+§20.4.101.3 and §20.4.101.4 reader of CELLSTYLEMAP) and the merged ranges. The
+object and field handles (groups 340 and 330) sit in the handle stream and are
+not decoded, which is the 1038 values the DXF holds that the probe omits. The
+second table's TABLECONTENT was created while saving and has another handle in
+the DXF, so the probe pairs a DWG record that finds no DXF record of its
+handle with the next unpaired DXF record of the type, in file order. R14 has
+no twin.
+
+```sh
+cargo run --release --example probe_tablecontent -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 2 | 2 | no twin | |
+| R2000 | 2 | 2 | 4227 | 0 |
+| R2004 | 2 | 2 | 4227 | 0 |
+| R2007 | 2 | 2 | 4560 | 0 |
+| R2010 | 2 | 2 | 4560 | 0 |
+| R2013 | 2 | 2 | 4560 | 0 |
+| R2018 | 2 | 2 | 4560 | 0 |
+
+
+
+## 7bf. Five small classes, derived from AutoCAD's own output (2026-10-26)
+
+ODA spec v5.4.1 prints no layout for WIPEOUTVARIABLES,
+ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA,
+PDFDEFINITION or DBCOLOR. `src/objects/small_classes.rs` reads each from the
+layout below, derived by the CLEANROOM.md method of 2026-10-26: the data bits
+of every record in `sample_base` (ACadSharp, AutoCAD 2025, saved as R14, R2000,
+R2004, R2007, R2010, R2013 and R2018) against the DXF object of the same
+handle. All 42 records close on every release, from R2007 on a string stream
+the list consumes entirely.
+
+| Class | Fields | DXF groups | Records per release |
+|---|---|---|---:|
+| WIPEOUTVARIABLES | `BS` | 70 | 1 |
+| ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION | `BS` | 70 | 1 |
+| ACDB_BLOCKREPRESENTATION_DATA | `BS`, hard handle (handle stream) | 70, 340 | 2 |
+| PDFDEFINITION | `TV` file, `TV` page | 1, 2 | 1 |
+| DBCOLOR before R2004 | `BS` index | none in the twin | 1 |
+| DBCOLOR from R2004 | `BS`, `BL` colour word, `RC` flags, `TV` name (flag 1), `TV` book (flag 2) | 420, 430, xdata 1071 | 1 |
+
+| Class | Releases that close | Values compared | Differ |
+|---|---|---:|---:|
+| WIPEOUTVARIABLES | 7 of 7 | 6 | 0 |
+| ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION | 7 of 7 | 6 | 0 |
+| ACDB_BLOCKREPRESENTATION_DATA | 7 of 7 (14 records) | 12 | 0 |
+| PDFDEFINITION | 7 of 7 | 12 | 0 |
+| DBCOLOR | 7 of 7 | 14 | 0 |
+
+R14 has no DXF twin in either source, and R2000's DXF carries none of DBCOLOR's
+groups, so those records are held to their boundary alone. Each integer is
+the `BS` of the corpus (value 1, or 42 for DBCOLOR's index), read only in its
+two short forms; a wider form, and a DBCOLOR flag other than 0 to 3, are
+refused with `Error::Unsupported`.
+
+What was found, and what is unverified by value:
+
+- DBCOLOR is a true colour. Its colour word `0xC2E29000` has DXF group 420
+  (`14848000`) in its low 24 bits and is the xdata integer 1071 (`-1025339392`)
+  as a signed 32-bit value; the two `TV`s are the name `RAL 1006` and the book
+  `RAL CLASSIC`, joined by the DXF as `RAL CLASSIC$RAL 1006` (group 430).
+- The leading `BS` of the R2004+ colour reads 0 where DXF group 62 says 42
+  (AutoCAD's nearest index to the RGB), so that field is unverified by value.
+  Before R2004 the one `BS` reads 42 and no twin shows it.
+- The hard handle of ACDB_BLOCKREPRESENTATION_DATA (group 340) is a handle-stream
+  field and is not decoded.
+- Every class holds one distinct record (two for the block representation, with
+  the same `BS`), saved on seven releases: the widths are pinned on seven
+  readings of the same value, so the controlled drawings should vary each value
+  (wipeout frame on and off, a second colour book, a second page, a second
+  purge-preventer version).
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+for p in wipeout_variables purge_preventer block_representation pdf_definition dbcolor; do
+  cargo run --release --example probe_$p -- ../dwg-corpus
+done
+```
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

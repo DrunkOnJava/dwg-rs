@@ -25,7 +25,9 @@
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
 //! | TABLESTYLE               | [`acad_table_style`]      | §20.4.101        |
 //! | cell styles              | [`table_cell_style`]      | §20.4.101.3-4    |
+//! | TABLECONTENT             | [`table_content`]         | §20.4.97         |
 //! | TABLEGEOMETRY            | [`table_geometry`]        | §20.4.103        |
+//! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -106,7 +108,9 @@ pub mod pers_subent;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod small_classes;
 pub mod table_cell_style;
+pub mod table_content;
 pub mod table_geometry;
 pub mod xdata;
 pub mod xrecord;

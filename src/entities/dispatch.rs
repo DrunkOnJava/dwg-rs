@@ -146,6 +146,7 @@ pub enum DecodedEntity {
     TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
     CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
     TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
+    TableContent(Box<crate::objects::table_content::TableContent>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7bb).
@@ -157,6 +158,16 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bf).
+    WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bf).
+    DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7bf).
+    BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
+    /// PDFDEFINITION (§7bf).
+    PdfDefinition(crate::objects::small_classes::PdfDefinition),
+    /// DBCOLOR (§7bf).
+    DbColor(crate::objects::small_classes::DbColor),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -280,6 +291,11 @@ impl DecodedEntity {
             | Self::RasterVariables(_)
             | Self::PersSubentManager(_)
             | Self::AssocPersSubentManager(_)
+            | Self::WipeoutVariables(_)
+            | Self::DynamicBlockPurgePreventer(_)
+            | Self::BlockRepresentationData(_)
+            | Self::PdfDefinition(_)
+            | Self::DbColor(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -288,7 +304,8 @@ impl DecodedEntity {
             | Self::TableStyle(_)
             | Self::TableStyleModern(_)
             | Self::CellStyleMap(_)
-            | Self::TableGeometry(_) => 0,
+            | Self::TableGeometry(_)
+            | Self::TableContent(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -802,6 +819,10 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
+        "TABLECONTENT" | "ACDBTABLECONTENT" => {
+            crate::objects::table_content::decode_object(payload, body_start, inline_end, version)
+                .map(|content| DecodedEntity::TableContent(Box::new(content)))
+        }
         "TABLEGEOMETRY" | "ACDBTABLEGEOMETRY" => {
             crate::objects::table_geometry::decode_object(payload, body_start, inline_end, version)
                 .map(|geometry| DecodedEntity::TableGeometry(Box::new(geometry)))
@@ -829,6 +850,30 @@ fn dispatch_object_class(
         "GEODATA" | "ACDBGEODATA" => {
             geodata::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::GeoData)
+        }
+        "WIPEOUTVARIABLES" => crate::objects::small_classes::decode_wipeout_variables(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::WipeoutVariables),
+        "ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION" => {
+            crate::objects::small_classes::decode_dynamic_block_purge_preventer(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::DynamicBlockPurgePreventer)
+        }
+        "ACDB_BLOCKREPRESENTATION_DATA" => {
+            crate::objects::small_classes::decode_block_representation_data(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::BlockRepresentationData)
+        }
+        "PDFDEFINITION" => crate::objects::small_classes::decode_pdf_definition(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PdfDefinition),
+        "DBCOLOR" => {
+            crate::objects::small_classes::decode_db_color(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DbColor)
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
