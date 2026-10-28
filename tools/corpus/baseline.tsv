@@ -8,7 +8,7 @@
 # handle-stream boundary, whose references go unchecked.
 file	source	release	decoded	skipped	errored	walk_skips	handle_mismatches	census	between	refs	unanswered	hard	no_boundary
 2d.dwg	bookviewerapp3	AC1014	315	2	0	0	0	-	0	0	0	0	317
-3d.dwg	bookviewerapp3	AC1014	486	16	0	0	0	-	0	0	0	0	502
+3d.dwg	bookviewerapp3	AC1014	487	15	0	0	0	-	0	0	0	0	502
 A205_BOTTOM.dwg	oshw-jetson	AC1018	5561	0	0	0	0	-	0	21446	0	0	0
 A205_TOP.dwg	oshw-jetson	AC1018	35011	0	0	0	0	CELLSTYLEMAP 2>1;DICTIONARYVAR 12>6	0	148264	0	0	0
 A206_BOTTOM.dwg	oshw-jetson	AC1018	13372	0	0	0	0	-	0	59450	0	0	0
