@@ -138,6 +138,11 @@ pub enum Pairing {
     /// AutoCAD created while saving, whose handles differ between the DWG and
     /// the DXF of the same drawing.
     HandleThenOrder,
+    /// The DXF record with the same handle. An object the export omits while
+    /// holding others of its kind (AutoCAD's R2000 and R2004 exports drop some
+    /// objects of a class and keep one) is checked by its boundary alone, and
+    /// the line says so, instead of failing for want of a partner.
+    HandleOrAbsent,
     /// The one record of the DXF type in the twin, for an object AutoCAD
     /// writes afresh on every save, so that the two files never share a
     /// handle. A twin with none or several has no partner for it.
@@ -389,7 +394,9 @@ pub fn run_with_twin(
                         None
                     } else {
                         d.twin.as_ref().map(|t| match pairing {
-                            Pairing::Handle => t.record(handle).filter(|r| r.kind == p.dxf_kind),
+                            Pairing::Handle | Pairing::HandleOrAbsent => {
+                                t.record(handle).filter(|r| r.kind == p.dxf_kind)
+                            }
                             Pairing::HandleThenOrder => t
                                 .record(handle)
                                 .filter(|r| r.kind == p.dxf_kind)
@@ -405,6 +412,14 @@ pub fn run_with_twin(
                     // the record is compared by its boundary only, as on R14. A missing record
                     // where the export does hold others of the kind still fails.
                     let rec = match rec {
+                        Some(None) if matches!(pairing, Pairing::HandleOrAbsent) => {
+                            println!(
+                                "{name} ({release}) {tag} 0x{handle:X} closes; this release's DXF \
+                                 export omits this {}, so it is checked by its boundary only",
+                                p.dxf_kind
+                            );
+                            None
+                        }
                         Some(None)
                             if d.twin
                                 .as_ref()
