@@ -43,13 +43,18 @@ base=$(git rev-parse HEAD)
 # conflict with the stacked copies of the same lines. Such a PR merges against the newest commit of
 # the landed PR it holds, the base the lanes chose by hand: main's side is then exactly what main
 # changed since, the train's commits included, and the PR's side only its own work.
-mb=$(git merge-base origin/main HEAD); stack=""; under=""
+# Such a base must already hold every main commit the branch holds: when the branch merged main
+# after taking the landed PR's commits, that history would drop out of the merge and main's later
+# changes to it could be undone, so the branch merges as it always has.
+mb=$(git merge-base origin/main HEAD); mball=$(git merge-base --all origin/main HEAD); stack=""; under=""
 for n in $(git log --format=%s "$mb..origin/main" | sed -n 's/.*(#\([0-9][0-9]*\))$/\1/p'); do
   h=$(gh pr view "$n" -R "$TRAIN_REPO" --json headRefOid --jq .headRefOid 2> /dev/null) || continue
   git cat-file -e "$h^{commit}" 2> /dev/null || git fetch -q origin "refs/pull/$n/head" 2> /dev/null || continue
-  c=$(git merge-base "$h" HEAD 2> /dev/null) || continue
-  git merge-base --is-ancestor "$c" origin/main && continue
-  if [ -z "$stack" ] || [ "$(git rev-list --count "$c..HEAD")" -lt "$(git rev-list --count "$stack..HEAD")" ]; then stack=$c; under=$n; fi
+  for c in $(git merge-base --all "$h" HEAD 2> /dev/null); do
+    git merge-base --is-ancestor "$c" origin/main && continue
+    for m in $mball; do git merge-base --is-ancestor "$m" "$c" || continue 2; done
+    if [ -z "$stack" ] || [ "$(git rev-list --count "$c..HEAD")" -lt "$(git rev-list --count "$stack..HEAD")" ]; then stack=$c; under=$n; fi
+  done
 done
 mb=${stack:-$mb}
 echo "$base" > "$OUT/pr-head.sha"; echo "$mb" > "$OUT/merge-base.sha"
