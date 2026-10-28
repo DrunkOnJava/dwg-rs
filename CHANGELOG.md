@@ -8,6 +8,18 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — LIGHT by class name, ACSH_CYLINDER_CLASS, ACSH_REVOLVE_CLASS and RAPIDRTRENDERENVIRONMENT decode to their record boundary (2026-10-28, #425, #426, #427, #152)
+
+Three classes in the BookViewerApp3 drawings, and LIGHT declared by class name there, now decode. Those drawings have no AutoCAD DXF export, so each field list is the one the records close on to the bit, and its values are not yet scored ("boundary closes, values unscored"). Their state stays `decoder`.
+
+LIGHT's field list was replaced by one its R14 record closes on: `Light`'s position and target are no longer optional, and its colour is a `ShColor`.
+
+The corpus job's skipped records fell from 44 to 32.
+
+### Added — the value oracle scores HATCH and TOLERANCE (2026-10-28, #389, #392)
+
+HATCH (§20.4.75) is scored path by path. A record whose boundary has an arc, ellipse or spline edge stops being scored at that edge. TOLERANCE (§20.4.49) adds 60 rows to the oracle baseline.
+
 ### Added — the table objects decode: TABLESTYLE from R2010, CELLSTYLEMAP, TABLEGEOMETRY, TABLECONTENT and ACAD_TABLE (2026-10-27 and 28, #313, #316, #317, #319, #151)
 
 TABLESTYLE (§20.4.101.2) and CELLSTYLEMAP (§20.4.102) share one cell-style reader (§20.4.101.3 and §20.4.101.4). TABLEGEOMETRY (§20.4.103), TABLECONTENT (§20.4.97) and the ACAD_TABLE entity (§20.4.96) follow, each paired with AutoCAD's DXF export by its probe. 103 skipped records of the pinned corpus now decode. An ACAD_TABLE's insertion rotation is compared in degrees against group 50; no pinned table is rotated, so that comparison is not yet measured on a nonzero angle.

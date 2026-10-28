@@ -730,6 +730,7 @@ pub fn section_of(label: &str) -> &'static str {
         "ENDBLK" => "§20.4.7",
         "ARC" => "§20.4.18",
         "CIRCLE" => "§20.4.20",
+        "TOLERANCE" => "§20.4.49",
         "TEXT" => "§20.4.3",
         "ATTRIB" => "§20.4.4",
         "ATTDEF" => "§20.4.5",
@@ -1025,6 +1026,7 @@ pub fn score(
         D::Ltype(l) => score_ltype(&mut c, l),
         D::Hatch(h) => score_hatch(&mut c, h),
         D::Style(s) => score_style(&mut c, s),
+        D::Tolerance(t) => score_tolerance(&mut c, t),
         // §20.4.66: the entry header, then the RC unknown in 71.
         D::AppId(a) => {
             c.subclass("AcDbRegAppTableRecord");
@@ -1419,6 +1421,21 @@ fn reactor_count(dxf: &DxfRecord) -> usize {
         }
     }
     n
+}
+
+// §20.4.49 against the DXF Reference's AcDbFcf: 10 the insertion point, 11
+// the x direction, 210 the extrusion and 1 the text. The R13-R14 unknown
+// short, height and dimgap are not in an R2000+ record (the decoder leaves
+// them 0) and R14 has no DXF twin; the dimension style is a handle.
+fn score_tolerance(c: &mut Ctx<'_>, t: &dwg::entities::tolerance::Tolerance) {
+    if !c.subclass("AcDbFcf") {
+        c.dwg_only("(the export has no AcDbFcf subclass)", ());
+        return;
+    }
+    c.point3("insertion_point", 10, t.insertion_point, None);
+    c.point3("x_axis_direction", 11, t.x_axis_direction, None);
+    c.point3("extrusion", 210, t.extrusion, Some(Z));
+    c.text("text_string", 1, &t.text_string, None);
 }
 
 /// The entry header every table record starts with (§20.4.54 and the other
