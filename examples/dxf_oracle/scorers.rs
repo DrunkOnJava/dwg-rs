@@ -781,6 +781,7 @@ pub fn section_of(label: &str) -> &'static str {
         "DIMSTYLE_CONTROL" => "§20.4.67",
         "DIMSTYLE" => "§20.4.68",
         "MLINESTYLE" => "§20.4.73",
+        "MLINE" => "§20.4.50",
         "MLEADERSTYLE" => "§20.4.87",
         "DICTIONARYVAR" => "§20.4.74",
         "LAYOUT" => "§20.4.84",
@@ -1082,6 +1083,7 @@ pub fn score(
             );
         }
         D::MLineStyle(m) => score_mlinestyle(&mut c, m),
+        D::MLine(m) => score_mline(&mut c, m),
         // §20.4.82: the class version in 90; the IMAGE it serves is a handle.
         D::ImageDefReactor(r) => {
             c.subclass("AcDbRasterImageDefReactor");
@@ -1629,6 +1631,65 @@ fn block_name(c: &mut Ctx<'_>, field: &str, name: &str) {
         );
     } else {
         c.text(field, 2, name, None);
+    }
+}
+
+// §20.4.50 against the DXF Reference's AcDbMline: 40 the scale, 70 the
+// justification, 71 the flags, 72 and 73 the vertex and element counts, 10
+// the base point and 210 the extrusion, then per vertex 11, 12 and 13 (its
+// position, segment direction and miter direction) and per element 74 with
+// that many 41 segment parameters and 75 with that many 42 area-fill
+// parameters. The groups of the vertices come in the order the decoder
+// holds them, so each is taken as the next group of its code. The style (2
+// and 340) is a name and a handle.
+fn score_mline(c: &mut Ctx<'_>, m: &dwg::entities::mline::MLine) {
+    use dwg::entities::mline::Justification;
+    if !c.subclass("AcDbMline") {
+        c.dwg_only("(the export has no AcDbMline subclass)", ());
+        return;
+    }
+    c.real("scale_factor", 40, m.scale_factor, None);
+    let just = match m.justification {
+        Justification::Top => 0,
+        Justification::Zero => 1,
+        Justification::Bottom => 2,
+        Justification::Unknown(x) => i64::from(x),
+    };
+    c.int("justification", 70, just, None);
+    c.int(
+        "open_closed_flags",
+        71,
+        i64::from(m.open_closed_flags),
+        None,
+    );
+    c.int("vertex count", 72, m.vertices.len() as i64, None);
+    c.int("num_lines", 73, i64::from(m.num_lines), None);
+    c.point3("scale_point", 10, m.scale_point, None);
+    c.point3("extrusion", 210, m.extrusion, Some(Z));
+    for v in &m.vertices {
+        c.point3("vertices.vertex_point", 11, v.vertex_point, None);
+        c.point3("vertices.segment_direction", 12, v.segment_direction, None);
+        c.point3("vertices.miter_direction", 13, v.miter_direction, None);
+        for r in &v.sub_records {
+            c.int(
+                "vertices.elements.segment parameter count",
+                74,
+                r.segment_parameters.len() as i64,
+                None,
+            );
+            for p in &r.segment_parameters {
+                c.real("vertices.elements.segment_parameters", 41, *p, None);
+            }
+            c.int(
+                "vertices.elements.area fill count",
+                75,
+                r.area_fill_parameters.len() as i64,
+                None,
+            );
+            for p in &r.area_fill_parameters {
+                c.real("vertices.elements.area_fill_parameters", 42, *p, None);
+            }
+        }
     }
 }
 

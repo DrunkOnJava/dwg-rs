@@ -712,6 +712,29 @@ R2000	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2000	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2000	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2000	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2000	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2000	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2000	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2000	§20.4.50	MLINE	justification	70	3	0	0	0
+R2000	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2000	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2000	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2000	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2000	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2000	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2000	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2000	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2000	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2000	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2000	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2000	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -1769,6 +1792,29 @@ R2004	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2004	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2004	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2004	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2004	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2004	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2004	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2004	§20.4.50	MLINE	justification	70	3	0	0	0
+R2004	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2004	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2004	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2004	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2004	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2004	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2004	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2004	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2004	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2004	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2004	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2004	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -2868,6 +2914,29 @@ R2007	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2007	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2007	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2007	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2007	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2007	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2007	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2007	§20.4.50	MLINE	justification	70	3	0	0	0
+R2007	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2007	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2007	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2007	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2007	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2007	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2007	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2007	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2007	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2007	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2007	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2007	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -3926,6 +3995,29 @@ R2010	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2010	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2010	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2010	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2010	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2010	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2010	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2010	§20.4.50	MLINE	justification	70	3	0	0	0
+R2010	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2010	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2010	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2010	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2010	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2010	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2010	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2010	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2010	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2010	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2010	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2010	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -5044,6 +5136,29 @@ R2013	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2013	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2013	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2013	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2013	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2013	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2013	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2013	§20.4.50	MLINE	justification	70	3	0	0	0
+R2013	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2013	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2013	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2013	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2013	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2013	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2013	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2013	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2013	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2013	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2013	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2013	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -6164,6 +6279,29 @@ R2018	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2018	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2018	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2018	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2018	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2018	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2018	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2018	§20.4.50	MLINE	justification	70	3	0	0	0
+R2018	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2018	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2018	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2018	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2018	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2018	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2018	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2018	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2018	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2018	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2018	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2018	§20.4.51	BLOCK_CONTROL	num_entries	70	2	0	0	0
 R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	29	0	0	0
 R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	29	0	0	0
