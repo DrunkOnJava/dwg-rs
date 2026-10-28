@@ -3,7 +3,7 @@
 //!
 //! ODA spec v5.4.1 prints no layout for PDFDEFINITION; `src/objects/small_classes.rs`
 //! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7av). For every PDFDEFINITION of every drawing under the corpus directory this
+//! §7bf). For every PDFDEFINITION of every drawing under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary (from R2007 with the string stream consumed) and compares the file name (group 1) and the page (group 2)
 //! with the `PDFDEFINITION` whose handle (group 5) matches in the DXF twin. A group the

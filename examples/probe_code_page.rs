@@ -58,7 +58,7 @@ use dwg::extended_data::{self, GroupItem, GroupValue};
 use dwg::file_writer::{WriterScaffold, assemble_dwg_bytes_with_page};
 use dwg::object::RawObject;
 use dwg::{DwgFile, ObjectType};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use twin::{Group, Record, Twin};
@@ -195,7 +195,41 @@ struct Tally {
     compared: usize,
     new_equal: usize,
     old_equal: usize,
+    /// The non-ASCII text the drawing being read decoded to.
+    texts: BTreeSet<String>,
+    /// How many of the drawing's strings hold a `\U+` and a `\M+` escape, and the first of each.
+    escapes: [usize; 2],
+    examples: [Option<String>; 2],
+    /// By header short: strings decoded, those `CodePage::encode` returns the bytes read
+    /// for, those that hold U+FFFD (an invalid sequence, never encoded back), and those
+    /// whose bytes differ.
+    round: BTreeMap<u16, [usize; 4]>,
 }
+
+const ESCAPES: [&str; 2] = ["\\U+", "\\M+"];
+
+/// Texts whose spelling is known, by header short: the name AutoCAD gives a drawing's
+/// first layout in the language of a localized installation (38, 39, 40), and Greek
+/// words of the municipal drawings (32). A drawing that holds the bytes of one is an
+/// oracle for its page without a DXF twin. The ones the pinned corpus holds are
+/// checked (`checked`: a drawing of that short that decodes to none of them fails);
+/// the others are only reported.
+const KNOWN_TEXTS: [(u16, &[&str], bool); 4] = [
+    (38, &["\u{30EC}\u{30A4}\u{30A2}\u{30A6}\u{30C8}1"], true),
+    (39, &["\u{5E03}\u{5C40}1"], true),
+    (40, &["\u{BC30}\u{CE58}1"], false),
+    (
+        32,
+        &[
+            "\u{394}\u{397}\u{39C}\u{39F}\u{3A3}",
+            "\u{3A3}\u{3A7}\u{395}\u{394}\u{399}\u{39F}",
+            "\u{39A}\u{3A4}\u{399}\u{3A1}\u{399}",
+            "\u{39A}\u{3A5}\u{39A}\u{39B}\u{39F}\u{3A6}\u{39F}\u{3A1}\u{399}",
+            "\u{3A0}\u{39B}\u{391}\u{3A4}\u{395}\u{399}\u{391}",
+        ],
+        false,
+    ),
+];
 
 /// One decode's strings: tally them, and list and look up each that leaves ASCII.
 fn census(
@@ -209,6 +243,16 @@ fn census(
 ) {
     for o in seen {
         tally.strings += 1;
+        for (i, escape) in ESCAPES.iter().enumerate() {
+            if o.bytes
+                .windows(escape.len())
+                .any(|w| w == escape.as_bytes())
+            {
+                tally.escapes[i] += 1;
+                tally.examples[i]
+                    .get_or_insert_with(|| String::from_utf8_lossy(&o.bytes).into_owned());
+            }
+        }
         if o.bytes.is_ascii() {
             continue;
         }
@@ -224,6 +268,22 @@ fn census(
             continue;
         };
         tally.changed += usize::from(new != old);
+        tally.texts.insert(new.to_string());
+        let slot = tally.round.entry(o.page.header_value()).or_default();
+        slot[0] += 1;
+        if new.contains('\u{FFFD}') {
+            slot[2] += 1;
+        } else if o.page.encode(new) == o.bytes {
+            slot[1] += 1;
+        } else {
+            slot[3] += 1;
+            *failed = true;
+            println!(
+                "  {release} {name} {what}: bytes {} decode to {new:?} and encode to {}",
+                hex(&o.bytes),
+                hex(&o.page.encode(new))
+            );
+        }
         let verdict = match rec.map(candidates) {
             Some(c) => {
                 tally.compared += 1;
@@ -865,7 +925,8 @@ fn expected(short: u16, rest: &str) -> Option<String> {
     match CodePage::from_header(short) {
         CodePage::Ansi1252 => Some(format!("{AS_1252}{rest}")),
         CodePage::Ansi1251 => Some(format!("{AS_1251}{rest}")),
-        CodePage::Unknown(_) => None,
+        // The charts above are those of 1251 and 1252, the pages the patched copies run under.
+        _ => None,
     }
 }
 
@@ -1123,16 +1184,23 @@ fn paired_texts_section(paths: &[PathBuf], failed: &mut bool) {
     }
 }
 
-/// No text of the pinned corpus leaves ASCII in a pre-R2007 DXF, so the bytes the page
-/// writer returns must be exactly the text the `String` writer returns, for every
-/// drawing and every pre-R2007 target that writes one.
+/// A pre-R2007 DXF holds a character above ASCII as the `String` writer spells it,
+/// `\U+XXXX`, and as the page writer does, as the bytes of the drawing's page when the
+/// page holds it. So the bytes the page writer returns must read back under the page
+/// to the text the `String` writer returns once every character above ASCII is spelled
+/// as that escape again, for every drawing and every pre-R2007 target that writes
+/// one; a page the crate does not name holds no character, so there the two are the
+/// same bytes. The pinned drawings that write such a character (the layout name in the
+/// `ACAD_LAYOUT` dictionary of the GBK drawings) must exist, or the check measures only
+/// ASCII.
 fn bytes_api_section(paths: &[PathBuf], failed: &mut bool) {
     println!("\nconvert_dwg_to_dxf_bytes against convert_dwg_to_dxf:");
-    let (mut total, mut same) = (0, 0);
+    let (mut total, mut same, mut paged, mut chars) = (0, 0, 0, 0);
     for path in paths {
         let Ok(file) = DwgFile::open(path) else {
             continue;
         };
+        let page = file.code_page();
         for target in [DxfVersion::R2000, DxfVersion::R2004] {
             let text = dwg::dxf_convert::convert_dwg_to_dxf(&file, target);
             let bytes = dwg::dxf_convert::convert_dwg_to_dxf_bytes(&file, target);
@@ -1140,31 +1208,44 @@ fn bytes_api_section(paths: &[PathBuf], failed: &mut bool) {
                 continue;
             };
             total += 1;
-            if text.as_bytes() == bytes.as_slice() {
+            let decoded = page.try_decode(&bytes);
+            let spelled = decoded.as_ref().map(|d| CodePage::default().encode(d));
+            if spelled.as_deref() == Some(text.as_bytes()) {
                 same += 1;
+                if text.as_bytes() != bytes.as_slice() {
+                    paged += 1;
+                    chars += decoded
+                        .iter()
+                        .flat_map(|d| d.chars())
+                        .filter(|c| !c.is_ascii())
+                        .count();
+                }
             } else if total - same <= 3 {
+                let other = spelled.unwrap_or_else(|| bytes.clone());
                 let at = text
                     .bytes()
-                    .zip(bytes.iter().copied())
+                    .zip(other.iter().copied())
                     .position(|(a, b)| a != b)
-                    .unwrap_or(text.len().min(bytes.len()));
+                    .unwrap_or(text.len().min(other.len()));
                 println!(
-                    "  {} {target:?}: {} against {} bytes, first difference at {at}: {:?} against {:?}",
+                    "  {} {target:?}: {} bytes against {} read back under {page:?}, first difference at {at}: {:?} against {:?}",
                     path.display(),
                     text.len(),
-                    bytes.len(),
+                    other.len(),
                     String::from_utf8_lossy(
                         &text.as_bytes()[at.saturating_sub(30)..(at + 30).min(text.len())]
                     ),
                     String::from_utf8_lossy(
-                        &bytes[at.saturating_sub(30)..(at + 30).min(bytes.len())]
+                        &other[at.saturating_sub(30)..(at + 30).min(other.len())]
                     ),
                 );
             }
         }
     }
-    println!("  {same} of {total} conversions (R2000 and R2004 targets) write the same bytes");
-    *failed |= same != total || total == 0;
+    println!(
+        "  {same} of {total} conversions (R2000 and R2004 targets) read back as the String writer's text; {paged} write {chars} characters above ASCII as the bytes of their page"
+    );
+    *failed |= same != total || total == 0 || paged == 0;
 }
 
 fn main() -> ExitCode {
@@ -1183,6 +1264,9 @@ fn main() -> ExitCode {
     let mut pairs: BTreeMap<(u16, String), usize> = BTreeMap::new();
     let mut unpaired: BTreeMap<(String, u16), usize> = BTreeMap::new();
     let mut by_release: BTreeMap<String, Tally> = BTreeMap::new();
+    let mut known: BTreeMap<u16, Vec<(String, bool, bool)>> = BTreeMap::new();
+    let mut escaped: BTreeMap<(u16, usize), (usize, usize)> = BTreeMap::new();
+    let mut in_export: BTreeMap<u16, (usize, usize, usize)> = BTreeMap::new();
     let mut ext: BTreeMap<String, ExtTally> = BTreeMap::new();
     let mut utf16 = 0usize;
     let mut drawings = 0usize;
@@ -1202,11 +1286,6 @@ fn main() -> ExitCode {
             }
         };
         let version = file.version();
-        if version.is_r2007_plus() {
-            utf16 += 1;
-            continue;
-        }
-        drawings += 1;
         let release = version.to_string();
         let page = file.code_page();
         let twin = twin_of(path, page);
@@ -1231,8 +1310,16 @@ fn main() -> ExitCode {
                     .or_default() += 1
             }
         }
+        if version.is_r2007_plus() {
+            utf16 += 1;
+            continue;
+        }
+        drawings += 1;
 
         let tally = by_release.entry(release.clone()).or_default();
+        tally.texts.clear();
+        tally.escapes = [0; 2];
+        tally.examples = [None, None];
         let objects = match file.all_objects() {
             Some(Ok(o)) => o,
             _ => Vec::new(),
@@ -1301,6 +1388,57 @@ fn main() -> ExitCode {
             &seen,
             &mut failed,
         );
+        if let Some(t) = twin.as_ref().filter(|_| !tally.texts.is_empty()) {
+            let theirs: BTreeSet<String> = t
+                .records()
+                .iter()
+                .flat_map(|r| r.groups.iter())
+                .map(|g| norm(g.value.trim_end_matches('\r')))
+                .filter(|s| !s.is_ascii())
+                .collect();
+            let found = tally
+                .texts
+                .iter()
+                .filter(|s| theirs.contains(&norm(s)))
+                .count();
+            let total = in_export.entry(page.header_value()).or_default();
+            total.0 += 1;
+            total.1 += found;
+            total.2 += tally.texts.len();
+            println!(
+                "  {release} {name}: {found} of {} distinct non-ASCII strings occur in its export",
+                tally.texts.len()
+            );
+        }
+        for (i, escape) in ESCAPES.iter().enumerate() {
+            if tally.escapes[i] > 0 {
+                let total = escaped.entry((page.header_value(), i)).or_default();
+                total.0 += 1;
+                total.1 += tally.escapes[i];
+                let example = tally.examples[i].as_deref().unwrap_or("");
+                println!(
+                    "  {release} {name}: {} strings hold {escape}, the first {:?}",
+                    tally.escapes[i],
+                    example.chars().take(60).collect::<String>()
+                );
+            }
+        }
+        if let Some((_, expected, checked)) = KNOWN_TEXTS
+            .iter()
+            .find(|(short, _, _)| *short == page.header_value())
+        {
+            let present = expected
+                .iter()
+                .any(|e| tally.texts.iter().any(|t| t.contains(e)));
+            known
+                .entry(page.header_value())
+                .or_default()
+                .push((name.clone(), present, *checked));
+            if *checked && !present {
+                println!("  {release} {name}: none of {expected:?} is among its decoded strings");
+                failed = true;
+            }
+        }
         ext_census(
             ext.entry(release.clone()).or_default(),
             &name,
@@ -1311,7 +1449,7 @@ fn main() -> ExitCode {
             &mut failed,
         );
 
-        if !version.is_r2007_plus() {
+        if !version.is_r2007_plus() && matches!(page.header_value(), 29 | 30) {
             patchable.push((name, file));
         }
     }
@@ -1325,6 +1463,51 @@ fn main() -> ExitCode {
     }
     for ((release, short), n) in &unpaired {
         println!("  {short:>3}  (no export names it) {n:>3} {release} drawings");
+    }
+    println!("\nthe known texts (a localized layout name, Greek words), decoded, by header short:");
+    for (short, rows) in &known {
+        let present = rows.iter().filter(|(_, p, _)| *p).count();
+        let name = KNOWN_TEXTS
+            .iter()
+            .find(|(s, _, _)| s == short)
+            .map_or(&[][..], |(_, n, _)| *n);
+        println!(
+            "  short {short} ({}): {present} of {} drawings decode to one of {name:?}",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row"),
+            rows.len()
+        );
+    }
+    println!("\ndistinct non-ASCII strings that occur in the export (by header short):");
+    for (short, (drawings, found, total)) in &in_export {
+        println!(
+            "  short {short:>3} ({}): {found} of {total} in {drawings} drawings",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row")
+        );
+    }
+    println!("\nescapes in the strings (by header short): drawings and strings holding each");
+    for ((short, i), (drawings, strings)) in &escaped {
+        println!(
+            "  short {short:>3} {}: {strings} strings in {drawings} drawings",
+            ESCAPES[*i]
+        );
+    }
+    let mut round: BTreeMap<u16, [usize; 4]> = BTreeMap::new();
+    for t in by_release.values() {
+        for (short, r) in &t.round {
+            let total = round.entry(*short).or_default();
+            for (a, b) in total.iter_mut().zip(r) {
+                *a += b;
+            }
+        }
+    }
+    println!(
+        "\nthe round trip, decode then encode (by header short): strings, back to their bytes, invalid sequences, differing"
+    );
+    for (short, [strings, same, invalid, differ]) in &round {
+        println!(
+            "  short {short:>3} ({}): {strings} strings, {same}, {invalid}, {differ}",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row")
+        );
     }
     println!("\nstrings decoded, by release:");
     println!(
