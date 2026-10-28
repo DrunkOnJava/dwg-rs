@@ -170,7 +170,7 @@ pub enum DecodedEntity {
     DbColor(crate::objects::small_classes::DbColor),
     /// A dynamic-block evaluation object (§7bg).
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
-    /// DIMASSOC (§7bh).
+    /// DIMASSOC (§7bi).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {

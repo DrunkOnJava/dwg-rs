@@ -3,7 +3,7 @@
 //!
 //! ODA spec v5.4.1 prints no layout for DIMASSOC; `src/objects/dim_assoc.rs` was
 //! derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7bh). For every DIMASSOC of every drawing under the corpus directory this
+//! §7bi). For every DIMASSOC of every drawing under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary (from R2007 with the string stream consumed) and compares each
 //! decoded value with the `AcDbDimAssoc` whose handle (group 5) matches in the
