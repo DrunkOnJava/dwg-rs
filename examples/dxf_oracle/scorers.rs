@@ -1953,7 +1953,8 @@ impl Seq {
 // degrees. A gradient colour is a CMC word: the DWG keeps the method byte
 // 0xC2 and the RGB, which is group 421; group 63 is the ACI AutoCAD
 // derives from it and the DWG does not store. Only line edges and
-// polylines occur in the corpus; the other edge types are not scored.
+// polylines occur in the corpus; another edge type ends the scoring of its
+// record, since its groups are not walked.
 fn score_hatch(c: &mut Ctx<'_>, h: &dwg::entities::hatch::Hatch) {
     use dwg::entities::hatch::{HatchEdge, HatchPathSegments};
     if !c.subclass("AcDbHatch") {
@@ -2011,7 +2012,12 @@ fn score_hatch(c: &mut Ctx<'_>, h: &dwg::entities::hatch::Hatch) {
                             q.step(c, 2, |c| c.point2("paths.edges.start", 10, *start));
                             q.step(c, 2, |c| c.point2("paths.edges.end", 11, *end));
                         }
-                        _ => c.dwg_only("paths.edges (type not scored)", ()),
+                        _ => {
+                            // Its groups are not walked, so no later group could be paired by
+                            // position: the rest of the record stays unscored.
+                            c.dwg_only("paths.edges (type not scored; the rest of the record is not scored)", ());
+                            return;
+                        }
                     }
                 }
             }
