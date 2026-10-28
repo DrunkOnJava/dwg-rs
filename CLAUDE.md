@@ -59,7 +59,7 @@ python3 tools/streaming/verify.py target/debug/examples/stream_header target/deb
 
 Features: `lz77-trace` (plus `DWG_LZ77_TRACE=1` at runtime) traces the LZ77 decoder; `dhat-heap` enables `examples/dhat_profile.rs`. Benches are Criterion (`cargo bench`); the Perf workflow fails a PR only when a bench is at least 20% and at least 5 µs slower than `main` and repeats on a re-run. Measure before touching `bitcursor.rs`, `bitwriter.rs` or `lz77*.rs`.
 
-`wasm/` (`wasm-pack build --target web --release`), `fuzz/` (`cargo +nightly fuzz run <target>`, targets in `fuzz/fuzz_targets/`) and `tools/synthetic-dwg/` are separate crates, not workspace members. `python3 tools/maintainer/audit.py` runs the read-only GitHub housekeeping checks from `docs/maintaining.md` (needs `gh`).
+`wasm/` (`wasm-pack build --target web --release`) and `fuzz/` (`cargo +nightly fuzz run <target>`, targets in `fuzz/fuzz_targets/`) are separate crates, not workspace members. `python3 tools/maintainer/audit.py` runs the read-only GitHub housekeeping checks from `docs/maintaining.md` (needs `gh`).
 
 ## Real-file corpus
 

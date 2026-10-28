@@ -30,12 +30,12 @@ CACHE_LIMIT_BYTES = 10 * 1024**3
 # A research or Measure branch with no pull request is kept while its work is
 # live; one whose last commit is older than this is stale (docs/maintaining.md).
 BRANCH_STALE_DAYS = 14
-# Directories with a lockfile that Dependabot deliberately does not update, and why
-# (docs/maintaining.md says the same).
 # The 1.0 release decision; every open issue under the 1.0.0 milestone serves one of
 # its requirements (docs/maintaining.md, housekeeping item 8).
 RELEASE_CRITERIA = ROOT / "docs" / "release-1.0-criteria.md"
-UNWATCHED = {"/tools/synthetic-dwg": "superseded by examples/build_fixtures.rs; its removal is #20"}
+# Directories with a lockfile that Dependabot deliberately does not update, mapped to
+# why. None today.
+UNWATCHED = {}
 results = []
 
 
