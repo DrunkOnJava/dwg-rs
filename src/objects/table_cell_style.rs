@@ -161,7 +161,8 @@ pub struct NamedCellStyle {
     pub name: String,
 }
 
-fn read_content_format(
+/// Read one content format (§20.4.101.3).
+pub(crate) fn read_content_format(
     c: &mut BitCursor<'_>,
     strings: &mut Option<StringReader<'_>>,
     version: Version,
