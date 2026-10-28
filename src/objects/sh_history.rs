@@ -30,6 +30,19 @@
 //! refused with [`crate::error::Error::Unsupported`]. ACSH_EXTRUSION_CLASS follows the
 //! same evaluation base and node, then the sweep base with its profile data and two
 //! more matrices (ARCHITECTURE.md §7bp).
+//!
+//! ACSH_CYLINDER_CLASS and ACSH_REVOLVE_CLASS follow the same evaluation base and node
+//! (ARCHITECTURE.md §7bq). Their field lists are derived from the bits of the three
+//! records of one R14 drawing and held to the record boundary alone: the corpus holds no
+//! DXF export of that drawing, so no value is scored.
+//!
+//! ```text
+//! ACSH_CYLINDER_CLASS  the evaluation base and node of ACSH_BOX_CLASS (BL 92 included),
+//!                      BL 90, BL 91 of the cylinder, BD x4
+//! ACSH_REVOLVE_CLASS   the same base and node, BL 90, BL 91, 3BD, 3BD, BD (2 pi), six
+//!                      values stored in the zero form of BD, BL or BS, BL 92 (77),
+//!                      BL bit count (1272) and that many bits
+//! ```
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -329,6 +342,176 @@ pub(crate) fn decode_extrusion(
                 dxf_92,
                 profile,
                 dxf_93,
+            })
+        },
+    )
+}
+
+/// ACSH_CYLINDER_CLASS: a solid cylinder. Held to its record boundary alone; no DXF twin
+/// scores any value (ARCHITECTURE.md §7bq).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShCylinder {
+    pub eval: EvalExpr,
+    /// `BL`, group 90 of the history node as ACSH_BOX_CLASS has it (33).
+    pub node_90: u32,
+    /// `BL`, group 91 of the history node as ACSH_BOX_CLASS has it (73 in the corpus).
+    pub node_91: u32,
+    /// `BD` x16, the transform as ACSH_BOX_CLASS has it.
+    pub transform: [f64; 16],
+    pub color: ShColor,
+    /// `BL`, group 92 of the history node as ACSH_BOX_CLASS has it (6 and 7 in the corpus).
+    pub node_92: u32,
+    /// `BL` after the node (33), the counterpart of the box's group 90.
+    pub cylinder_90: u32,
+    /// `BL` after the node (73 in the corpus), the counterpart of the box's group 91.
+    pub cylinder_91: u32,
+    /// `BD` x4: 0.4, 0.15, 0.15, 0.15 and 0.1, 0.25, 0.25, 0.25 in the two corpus records.
+    /// The first differs from the other three, which are equal in each record, so the
+    /// first reads as the height and the rest as radii; no value is scored, so the roles
+    /// are unverified.
+    pub size: [f64; 4],
+}
+
+/// Decode an ACSH_CYLINDER_CLASS record from the layout of the module docs (derived from
+/// AutoCAD's output, ARCHITECTURE.md §7bq), ending exactly on the data-stream boundary and,
+/// from R2007, with the string stream consumed.
+pub(crate) fn decode_cylinder(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<ShCylinder> {
+    open_and_finish(
+        "ACSH_CYLINDER_CLASS",
+        payload,
+        body_start,
+        inline_data_end,
+        version,
+        |c, strings| {
+            let eval = read_eval(c)?;
+            let node_90 = c.read_bl_u()?;
+            let node_91 = c.read_bl_u()?;
+            let transform = read_array::<16>(c)?;
+            let color = read_color(c, strings, version)?;
+            let node_92 = c.read_bl_u()?;
+            let cylinder_90 = c.read_bl_u()?;
+            let cylinder_91 = c.read_bl_u()?;
+            let size = read_array::<4>(c)?;
+            Ok(ShCylinder {
+                eval,
+                node_90,
+                node_91,
+                transform,
+                color,
+                node_92,
+                cylinder_90,
+                cylinder_91,
+                size,
+            })
+        },
+    )
+}
+
+/// ACSH_REVOLVE_CLASS: a solid made by revolving a profile. Held to its record boundary
+/// alone; no DXF twin scores any value (ARCHITECTURE.md §7bq).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShRevolve {
+    pub eval: EvalExpr,
+    /// `BL`, group 90 of the history node as ACSH_BOX_CLASS has it (33).
+    pub node_90: u32,
+    /// `BL`, group 91 of the history node as ACSH_BOX_CLASS has it (73 in the corpus).
+    pub node_91: u32,
+    /// `BD` x16, the transform as ACSH_BOX_CLASS has it.
+    pub transform: [f64; 16],
+    pub color: ShColor,
+    /// `BL`, group 92 of the history node as ACSH_BOX_CLASS has it (8 in the corpus).
+    pub node_92: u32,
+    /// `BL` after the node (33), the counterpart of the box's group 90.
+    pub revolve_90: u32,
+    /// `BL` after the node (73 in the corpus), the counterpart of the box's group 91.
+    pub revolve_91: u32,
+    /// `BD` x3: 0, -0.525, 0 in the one corpus record, read as a point on the axis.
+    pub point: [f64; 3],
+    /// `BD` x3: 0, 1, 0 in the one corpus record, read as the axis direction.
+    pub axis: [f64; 3],
+    /// `BD`: 6.283185307179586 (2 pi) in the one corpus record, read as the angle swept.
+    pub angle: f64,
+    /// `BL` before the profile data (77), the value the extrusion's group 92 holds.
+    pub dxf_92: u32,
+    /// The profile data: a `BL` bit count (1272) and that many bits, read as bytes. A count
+    /// that is not a multiple of 8 is refused.
+    pub profile: Vec<u8>,
+}
+
+/// Decode an ACSH_REVOLVE_CLASS record from the layout of the module docs (derived from
+/// AutoCAD's output, ARCHITECTURE.md §7bq), ending exactly on the data-stream boundary and,
+/// from R2007, with the string stream consumed. The six slots between the angle and the
+/// profile data are read only in the 2-bit zero form that `BD`, `BL` and `BS` share: the
+/// corpus record holds six zeros there, and which of the three types each slot is cannot
+/// be told from those bits, so any other form is refused as unsupported.
+pub(crate) fn decode_revolve(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<ShRevolve> {
+    open_and_finish(
+        "ACSH_REVOLVE_CLASS",
+        payload,
+        body_start,
+        inline_data_end,
+        version,
+        |c, strings| {
+            let eval = read_eval(c)?;
+            let node_90 = c.read_bl_u()?;
+            let node_91 = c.read_bl_u()?;
+            let transform = read_array::<16>(c)?;
+            let color = read_color(c, strings, version)?;
+            let node_92 = c.read_bl_u()?;
+            let revolve_90 = c.read_bl_u()?;
+            let revolve_91 = c.read_bl_u()?;
+            let point = read_array::<3>(c)?;
+            let axis = read_array::<3>(c)?;
+            let angle = c.read_bd()?;
+            for _ in 0..6 {
+                if c.read_bb()? != 0b10 {
+                    return Err(Error::Unsupported {
+                        feature: "ACSH_REVOLVE_CLASS slot that is not the zero form".into(),
+                    });
+                }
+            }
+            let dxf_92 = c.read_bl_u()?;
+            let bits = c.read_bl_u()? as usize;
+            if bits % 8 != 0 {
+                return Err(Error::Unsupported {
+                    feature: "ACSH_REVOLVE_CLASS profile bit count that is not a multiple of 8"
+                        .into(),
+                });
+            }
+            if bits > c.remaining_bits() {
+                return Err(Error::SectionMap(format!(
+                    "ACSH_REVOLVE_CLASS profile of {bits} bits exceeds the {} bits left in the record",
+                    c.remaining_bits()
+                )));
+            }
+            let mut profile = Vec::with_capacity(bits / 8);
+            for _ in 0..bits / 8 {
+                profile.push(c.read_rc()?);
+            }
+            Ok(ShRevolve {
+                eval,
+                node_90,
+                node_91,
+                transform,
+                color,
+                node_92,
+                revolve_90,
+                revolve_91,
+                point,
+                axis,
+                angle,
+                dxf_92,
+                profile,
             })
         },
     )
