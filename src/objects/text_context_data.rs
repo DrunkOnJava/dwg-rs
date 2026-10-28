@@ -4,7 +4,7 @@
 //! ODA spec v5.4.1 prints no layout for it. The field list is derived from
 //! AutoCAD's own output under the method in `CLEANROOM.md` (2026-10-26): the data
 //! bits of the seven corpus records (R2010, R2013 and R2018) against the DXF object
-//! of the same handle. ARCHITECTURE.md §7bc holds the evidence.
+//! of the same handle. ARCHITECTURE.md §7bm holds the evidence.
 //!
 //! ```text
 //! BS  version                   (DXF group 70 of AcDbObjectContextData: 4)
@@ -49,7 +49,7 @@ pub struct TextObjectContextData {
 
 /// Decode an ACDB_TEXTOBJECTCONTEXTDATA_CLASS record straight from its raw object
 /// payload, from the layout of the module docs (derived from AutoCAD's output,
-/// ARCHITECTURE.md §7bc), ending exactly on the data-stream boundary.
+/// ARCHITECTURE.md §7bm), ending exactly on the data-stream boundary.
 pub(crate) fn decode_object(
     payload: &[u8],
     body_start: usize,

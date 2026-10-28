@@ -2,7 +2,7 @@
 //! corpus record, and do its values equal AutoCAD's DXF export?
 //!
 //! ODA spec v5.4.1 prints no layout for the class; `src/objects/text_context_data.rs`
-//! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md §7bc).
+//! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md §7bm).
 //! For every record of every drawing under the corpus directory this reports whether
 //! the decoder closed exactly on the record's data-stream boundary and compares each
 //! decoded value with the object of the same handle (group 5) in the DXF twin: the
