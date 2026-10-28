@@ -3669,7 +3669,7 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7au. TABLESTYLE from R2010, and CELLSTYLEMAP (2026-10-26, #151)
+## 7bc. TABLESTYLE from R2010, and CELLSTYLEMAP (2026-10-26, #151)
 
 §20.4.101.2 prints TABLESTYLE's R2010 layout and §20.4.102 CELLSTYLEMAP,
 both as sequences of cell styles (§20.4.101.4, with the content format of
