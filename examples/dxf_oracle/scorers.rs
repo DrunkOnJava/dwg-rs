@@ -865,6 +865,7 @@ pub fn score(
             block_name(&mut c, "name", &b.name);
         }
         D::EndBlk(_) | D::SeqEnd(_) => {}
+        D::Mesh(m) => score_mesh(&mut c, m),
         // §20.4.3: TEXT writes AcDbText twice; 73 is in the second.
         D::Text(t) => {
             c.whole();
@@ -1139,6 +1140,52 @@ fn score_pers_arrays(c: &mut Ctx<'_>, name: &str, arrays: &[Vec<u32>]) {
         for (i, v) in array.iter().enumerate() {
             c.int(&format!("{name}[{k}][{i}]"), 90, i64::from(*v), None);
         }
+    }
+}
+
+// MESH, which v5.4.1 does not prescribe, against the DXF Reference's
+// AcDbSubDMesh: 71 the version, 72 the crease blend, 91 the subdivision
+// level, 92 the vertex count and 10 the vertices, 93 the face list's entry
+// count and the faces as groups 90 (each face's vertex count, then its
+// indices), 94 the edge count and each edge's two vertex indices as groups
+// 90, 95 the crease count and 140 the creases. The record ends with a 90
+// the decoder checks to be 0 and does not surface. Groups of one code come
+// in the order the decoder holds them, so each is taken as the next of its
+// code; vertices, faces, edges and creases are scored under one field name
+// each.
+fn score_mesh(c: &mut Ctx<'_>, m: &dwg::entities::mesh::Mesh) {
+    if !c.subclass("AcDbSubDMesh") {
+        c.dwg_only("(the export has no AcDbSubDMesh subclass)", ());
+        return;
+    }
+    c.int("version", 71, i64::from(m.version), None);
+    c.int("blend_crease", 72, i64::from(m.blend_crease), None);
+    c.int(
+        "subdivision_level",
+        91,
+        i64::from(m.subdivision_level),
+        None,
+    );
+    c.int("vertex count", 92, m.vertices.len() as i64, None);
+    for v in &m.vertices {
+        c.point3("vertices", 10, *v, None);
+    }
+    let entries: usize = m.faces.iter().map(|f| 1 + f.len()).sum();
+    c.int("face list entries", 93, entries as i64, None);
+    for f in &m.faces {
+        c.int("faces.vertex count", 90, f.len() as i64, None);
+        for x in f {
+            c.int("faces.indices", 90, i64::from(*x), None);
+        }
+    }
+    c.int("edge count", 94, m.edges.len() as i64, None);
+    for (a, b) in &m.edges {
+        c.int("edges.start", 90, i64::from(*a), None);
+        c.int("edges.end", 90, i64::from(*b), None);
+    }
+    c.int("crease count", 95, m.creases.len() as i64, None);
+    for x in &m.creases {
+        c.real("creases", 140, *x, None);
     }
 }
 

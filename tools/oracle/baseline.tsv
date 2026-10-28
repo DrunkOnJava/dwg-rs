@@ -54,6 +54,21 @@ R2000	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2000	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2000	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2000	-	ACDBPLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2000	-	MESH	blend_crease	72	2	0	0	0
+R2000	-	MESH	crease count	95	2	0	0	0
+R2000	-	MESH	creases	140	260	0	0	0
+R2000	-	MESH	edge count	94	2	0	0	0
+R2000	-	MESH	edges.end	90	260	0	0	0
+R2000	-	MESH	edges.start	90	260	0	0	0
+R2000	-	MESH	face list entries	93	2	0	0	0
+R2000	-	MESH	faces.indices	90	520	0	0	0
+R2000	-	MESH	faces.vertex count	90	136	0	0	0
+R2000	-	MESH	subdivision_level	91	2	0	0	0
+R2000	-	MESH	version	71	2	0	0	0
+R2000	-	MESH	vertex count	92	2	0	0	0
+R2000	-	MESH	vertices.x	10	126	0	0	0
+R2000	-	MESH	vertices.y	20	126	0	0	0
+R2000	-	MESH	vertices.z	30	126	0	0	0
 R2000	-	VISUALSTYLE	description	2	192	0	0	0
 R2000	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2000	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
@@ -1153,6 +1168,21 @@ R2004	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2004	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2004	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2004	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2004	-	MESH	blend_crease	72	2	0	0	0
+R2004	-	MESH	crease count	95	2	0	0	0
+R2004	-	MESH	creases	140	260	0	0	0
+R2004	-	MESH	edge count	94	2	0	0	0
+R2004	-	MESH	edges.end	90	260	0	0	0
+R2004	-	MESH	edges.start	90	260	0	0	0
+R2004	-	MESH	face list entries	93	2	0	0	0
+R2004	-	MESH	faces.indices	90	520	0	0	0
+R2004	-	MESH	faces.vertex count	90	136	0	0	0
+R2004	-	MESH	subdivision_level	91	2	0	0	0
+R2004	-	MESH	version	71	2	0	0	0
+R2004	-	MESH	vertex count	92	2	0	0	0
+R2004	-	MESH	vertices.x	10	126	0	0	0
+R2004	-	MESH	vertices.y	20	126	0	0	0
+R2004	-	MESH	vertices.z	30	126	0	0	0
 R2004	-	VISUALSTYLE	description	2	192	0	0	0
 R2004	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2004	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
@@ -2269,6 +2299,21 @@ R2007	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2007	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2007	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2007	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2007	-	MESH	blend_crease	72	2	0	0	0
+R2007	-	MESH	crease count	95	2	0	0	0
+R2007	-	MESH	creases	140	260	0	0	0
+R2007	-	MESH	edge count	94	2	0	0	0
+R2007	-	MESH	edges.end	90	260	0	0	0
+R2007	-	MESH	edges.start	90	260	0	0	0
+R2007	-	MESH	face list entries	93	2	0	0	0
+R2007	-	MESH	faces.indices	90	520	0	0	0
+R2007	-	MESH	faces.vertex count	90	136	0	0	0
+R2007	-	MESH	subdivision_level	91	2	0	0	0
+R2007	-	MESH	version	71	2	0	0	0
+R2007	-	MESH	vertex count	92	2	0	0	0
+R2007	-	MESH	vertices.x	10	126	0	0	0
+R2007	-	MESH	vertices.y	20	126	0	0	0
+R2007	-	MESH	vertices.z	30	126	0	0	0
 R2007	-	VISUALSTYLE	description	2	192	0	0	0
 R2007	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2007	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
@@ -3415,6 +3460,21 @@ R2010	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2010	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2010	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2010	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2010	-	MESH	blend_crease	72	2	0	0	0
+R2010	-	MESH	crease count	95	2	0	0	0
+R2010	-	MESH	creases	140	260	0	0	0
+R2010	-	MESH	edge count	94	2	0	0	0
+R2010	-	MESH	edges.end	90	260	0	0	0
+R2010	-	MESH	edges.start	90	260	0	0	0
+R2010	-	MESH	face list entries	93	2	0	0	0
+R2010	-	MESH	faces.indices	90	520	0	0	0
+R2010	-	MESH	faces.vertex count	90	136	0	0	0
+R2010	-	MESH	subdivision_level	91	2	0	0	0
+R2010	-	MESH	version	71	2	0	0	0
+R2010	-	MESH	vertex count	92	2	0	0	0
+R2010	-	MESH	vertices.x	10	126	0	0	0
+R2010	-	MESH	vertices.y	20	126	0	0	0
+R2010	-	MESH	vertices.z	30	126	0	0	0
 R2010	-	VISUALSTYLE	description	2	192	0	0	0
 R2010	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2010	-	VISUALSTYLE	display_brightness flag	176	192	0	0	0
@@ -4522,6 +4582,21 @@ R2013	-	ACDBPERSSUBENTMANAGER	arrays[1][1]	90	1	0	0	0
 R2013	-	ACDBPERSSUBENTMANAGER	arrays[2].count	90	1	0	0	0
 R2013	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2013	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2013	-	MESH	blend_crease	72	2	0	0	0
+R2013	-	MESH	crease count	95	2	0	0	0
+R2013	-	MESH	creases	140	260	0	0	0
+R2013	-	MESH	edge count	94	2	0	0	0
+R2013	-	MESH	edges.end	90	260	0	0	0
+R2013	-	MESH	edges.start	90	260	0	0	0
+R2013	-	MESH	face list entries	93	2	0	0	0
+R2013	-	MESH	faces.indices	90	520	0	0	0
+R2013	-	MESH	faces.vertex count	90	136	0	0	0
+R2013	-	MESH	subdivision_level	91	2	0	0	0
+R2013	-	MESH	version	71	2	0	0	0
+R2013	-	MESH	vertex count	92	2	0	0	0
+R2013	-	MESH	vertices.x	10	126	0	0	0
+R2013	-	MESH	vertices.y	20	126	0	0	0
+R2013	-	MESH	vertices.z	30	126	0	0	0
 R2013	-	VISUALSTYLE	description	2	192	0	0	0
 R2013	-	VISUALSTYLE	display_brightness	40	192	0	0	0
 R2013	-	VISUALSTYLE	display_brightness flag	176	192	0	0	0
@@ -5699,6 +5774,21 @@ R2018	-	ACDBPERSSUBENTMANAGER	arrays[1][1]	90	1	0	0	0
 R2018	-	ACDBPERSSUBENTMANAGER	arrays[2].count	90	1	0	0	0
 R2018	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2018	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	2	0	0	0
+R2018	-	MESH	blend_crease	72	2	0	0	0
+R2018	-	MESH	crease count	95	2	0	0	0
+R2018	-	MESH	creases	140	260	0	0	0
+R2018	-	MESH	edge count	94	2	0	0	0
+R2018	-	MESH	edges.end	90	260	0	0	0
+R2018	-	MESH	edges.start	90	260	0	0	0
+R2018	-	MESH	face list entries	93	2	0	0	0
+R2018	-	MESH	faces.indices	90	520	0	0	0
+R2018	-	MESH	faces.vertex count	90	136	0	0	0
+R2018	-	MESH	subdivision_level	91	2	0	0	0
+R2018	-	MESH	version	71	2	0	0	0
+R2018	-	MESH	vertex count	92	2	0	0	0
+R2018	-	MESH	vertices.x	10	126	0	0	0
+R2018	-	MESH	vertices.y	20	126	0	0	0
+R2018	-	MESH	vertices.z	30	126	0	0	0
 R2018	-	VISUALSTYLE	description	2	48	0	0	0
 R2018	-	VISUALSTYLE	display_brightness	40	48	0	0	0
 R2018	-	VISUALSTYLE	display_brightness flag	176	48	0	0	0
