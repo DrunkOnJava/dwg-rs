@@ -5043,6 +5043,55 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sh_extrusion -- ../dwg-corpus
 ```
 
+## 7bq. LIGHT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+
+ODA spec v5.4.1 prints no layout for the LIGHT entity. `src/entities/light.rs` reads it from
+a layout derived from the one LIGHT record of the pinned corpus and held to that record's
+data-stream boundary alone, by the entry CLEANROOM.md records for 2026-10-28 (the record has no
+DXF twin to score a value against). **Its state is `decoder`, not `closes`.**
+
+The record is handle 0x34F of `3d.dwg` (the `kurema/BookViewerApp3` drawing, AC1014). Its
+class, number 529, is declared as an entity (item class id 0x1F2) under the DXF name LIGHT. The
+dispatcher had no class-name route for it, and the decoder it would have reached was the one
+that read a LIGHT only from R2007 and with another field list; that list does not close this
+record (read against it with the text inline, it ends 395 bits before the boundary). The
+route and the list are both new. The three unit tests that pinned the old list are removed
+with it.
+
+| Record | Release | Preview | Data bits (459 to 1243) | Close |
+|---|---|---|---:|---:|
+| `3d.dwg` 0x34F | R14 | 8 bytes | 784 | yes |
+
+```text
+BL version (1), TV name, BL light_type (2), B is_on, BS colour (7), B plot_glyph (0),
+BD x7 (5, 20, -50, 50, 20, -50, 40),
+BL attenuation_type (0), B use_attenuation_limits (0),
+BD x4 (1.0, 10.0, 0.7853981633974483, 0.8726646259971648),
+B cast_shadows (1), BL shadow_type (0), BS shadow_map_size (256), RC shadow_map_softness (1)
+```
+
+- **What the bytes settle.** The record closes on its boundary to the bit, and the values
+  read as plain numbers: the two angles are 45 and 50 degrees in radians, the attenuation
+  limits 1 and 10, the shadow map 256. The name is Shift-JIS (the drawing's header code page
+  is 38, which the 2026-10-27 CLEANROOM.md entry reads as 932): the bytes 93 5F 8C F5 8C B9 31
+  read "点光源1", Japanese for point light 1, which fits light type 2 being the point light.
+- **What they do not settle.** How the seven `BD` after the plot glyph split. They close the
+  record equally as an intensity then a position and a target (5; 20, -50, 50; 20, -50, 40),
+  the order Autodesk's public DXF Reference lists the groups in (recalled; it contributes
+  names and this order only), and as a position, a target and an intensity (5, 20, -50;
+  50, 20, -50; 40). The decoder takes the first; it is unverified. A point light also carries a
+  target in the data, so the old rule that only spot and web lights have one is wrong for it.
+- **Unverified by value.** The roles of the colour, the two shadow fields and the softness,
+  the light types 1, 3 and 4, and the colour form from R2004, which is read as the ACSH nodes
+  and DBCOLOR have it by analogy: the corpus holds no LIGHT of that release. One record in
+  one drawing is not a measured range; a DXF export of the drawing, which AutoCAD's trial
+  tooling can make, would score all of it.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_light -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

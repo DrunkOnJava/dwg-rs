@@ -598,6 +598,12 @@ fn decode_with_class_map_in_page(
                 mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
             })
         }
+        // LIGHT is an entity class from AutoCAD's rendering, saved by name on every release
+        // that declares it, with its `TV`s inline before R2007 and in the string stream
+        // after it (ARCHITECTURE.md §7bq).
+        "LIGHT" => checked_inline(raw, body_start, version, "LIGHT", |c, v, _, s| {
+            light::read_body(c, s, v).map(DecodedEntity::Light)
+        }),
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
