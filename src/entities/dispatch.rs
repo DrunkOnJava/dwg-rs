@@ -176,6 +176,8 @@ pub enum DecodedEntity {
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
     /// DATATABLE (§7bm).
     DataTable(Box<crate::objects::data_table::DataTable>),
+    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bn).
+    TextObjectContextData(crate::objects::text_context_data::TextObjectContextData),
     /// ACSH_HISTORY_CLASS (§7bj).
     ShHistory(crate::objects::sh_history::ShHistory),
     /// ACSH_BOX_CLASS (§7bj).
@@ -313,6 +315,7 @@ impl DecodedEntity {
             | Self::DynamicBlock(_)
             | Self::DimAssoc(_)
             | Self::DataTable(_)
+            | Self::TextObjectContextData(_)
             | Self::ShHistory(_)
             | Self::ShBox(_)
             | Self::Sun(_)
@@ -938,6 +941,10 @@ fn dispatch_object_class(
             version,
         )
         .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
+        "ACDB_TEXTOBJECTCONTEXTDATA_CLASS" => crate::objects::text_context_data::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::TextObjectContextData),
         "DATATABLE" => {
             crate::objects::data_table::decode_object(payload, body_start, inline_end, version)
                 .map(|t| DecodedEntity::DataTable(Box::new(t)))

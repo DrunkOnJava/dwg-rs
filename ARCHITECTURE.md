@@ -4894,6 +4894,48 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_data_table -- ../dwg-corpus
 ```
 
+## 7bn. ACDB_TEXTOBJECTCONTEXTDATA_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the annotation-scale state AutoCAD keeps for a
+text object. `src/objects/text_context_data.rs` reads it from the layout below,
+derived by the CLEANROOM.md method of 2026-10-26: the data bits of the seven records
+in the corpus (two in each `sample_base` save of R2010, R2013 and R2018, and one in
+`export_sample.dwg`) against the object of the same handle in the DXF export. All
+seven close, and 48 values equal the DXF with 0 differences. The R2004 and R2007
+saves declare the class and hold no object (the corpus census counts "2>0" for each).
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R2010 | 2 | 2 | 16 | 0 |
+| R2013 | 2 | 2 | 16 | 0 |
+| R2018 | 3 | 3 | 16 (the third has no twin) | 0 |
+| Total | 7 | 7 | 48 | 0 |
+
+```text
+BS 70 (4), B 290 (1), BS 70 (0), BD 50, RD 10, RD 20, RD 11, RD 21
+```
+
+- **Two subclasses, one record.** The DXF object carries `AcDbObjectContextData`
+  (group 70, 290), `AcDbAnnotScaleObjectContextData` (the scale handle, group 340)
+  and the text's own groups (70, 50, 10, 20, 11, 21). The data stream holds the first
+  and third in that order; the handle of the second is in the handle stream.
+- **Where the 64-bit values show.** Group 10 and group 20 are two raw 8-byte doubles
+  (147.8194471194604 and 10.32574050131268 in one record, 147.589772910276 and
+  39.8189544778985 in the other); the bits after the rotation are exactly 256 in the
+  R2010 band, which is four `RD`, and the record closes with a delta of 0. Groups 11
+  and 21 are 0.0 in every record, so their order is unverified.
+- **The rotation.** A `BD`. Both DXF twins show 0.0, and the one record without a twin
+  stores 0.5235987755982988, which is 30 degrees as radians; the DXF writes some other
+  angles in degrees (ARCHITECTURE.md §7bj), so the unit of group 50 is unverified.
+- **Release.** The layout is shown on R2010, R2013 and R2018, where the common object
+  data differs by one `B` (R2013 adds it) and the field list does not. A release before
+  R2010 is refused as unsupported.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_text_context_data -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
