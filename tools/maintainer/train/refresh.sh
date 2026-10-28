@@ -55,7 +55,7 @@ mb=${stack:-$mb}
 echo "$base" > "$OUT/pr-head.sha"; echo "$mb" > "$OUT/merge-base.sha"
 [ -n "$stack" ] && say "stacked on #$under: merging against ${stack:0:9}, the newest commit of #$under this branch holds"
 map=$(python3 -I "$TRAIN_HERE/arch.py" renumber "$mb" origin/main 2> "$OUT/renumber.log") || { say "REFUSED: section renumber failed: $(cat "$OUT/renumber.log")"; exit 4; }
-if [ -n "$map" ]; then
+if [ -n "$map" ] && ! git diff --quiet; then
   git commit -qam "docs(architecture): renumber the new section ($map) after the sections main added" || exit 1
   say "renumbered ARCHITECTURE.md section $map"
 fi

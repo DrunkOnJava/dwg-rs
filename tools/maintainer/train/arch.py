@@ -89,6 +89,10 @@ def renumber(mb, main):
     if not mapping:
         return
     pattern = re.compile(r'(§7|^## 7)(' + '|'.join(sorted(mapping, key=len, reverse=True)) + r')(?![a-z])')
+    used = set()
+    def swap(m):
+        used.add(m.group(2))
+        return m.group(1) + mapping[m.group(2)]
     for path, lines in added.items():
         # A heading line moves only if it is one of the PR's new sections; an edited heading keeps
         # its suffix even when it shares it with a new one.
@@ -97,10 +101,13 @@ def renumber(mb, main):
             continue
         with open(path, encoding='utf-8') as fh:
             text = fh.read().split('\n')
-        text = [pattern.sub(lambda m: m.group(1) + mapping[m.group(2)], l) if l in hits else l for l in text]
+        text = [pattern.sub(swap, l) if l in hits else l for l in text]
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write('\n'.join(text))
-    print(' '.join([f'7{k}->7{v}' for k, v in own.items()] + [f'§7{k}->§7{v}' for k, v in moved.items()]))
+    # Only the moves that rewrote a line are reported: an empty report means nothing changed.
+    done = [f'7{k}->7{v}' for k, v in own.items() if k in used] + [f'§7{k}->§7{v}' for k, v in moved.items() if k in used]
+    if done:
+        print(' '.join(done))
 
 
 def sections(lines):
