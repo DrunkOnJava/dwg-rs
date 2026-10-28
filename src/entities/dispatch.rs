@@ -148,6 +148,9 @@ pub enum DecodedEntity {
     TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
     TableContent(Box<crate::objects::table_content::TableContent>),
     ImageDef(crate::entities::imagedef::ImageDef),
+    /// MATERIAL, a custom class with no spec section: derived from
+    /// AutoCAD's own output (ARCHITECTURE.md §7bb).
+    Material(Box<crate::objects::acad_material::Material>),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
     /// ACDBPERSSUBENTMANAGER, a custom class with no spec section: derived
@@ -273,6 +276,7 @@ impl DecodedEntity {
             Self::DictionaryVar(_)
             | Self::Scale(_)
             | Self::ImageDef(_)
+            | Self::Material(_)
             | Self::ImageDefReactor(_)
             | Self::RasterVariables(_)
             | Self::PersSubentManager(_)
@@ -822,6 +826,10 @@ fn dispatch_object_class(
                 payload, body_start, inline_end, version,
             )
             .map(DecodedEntity::Dictionary)
+        }
+        "MATERIAL" => {
+            crate::objects::acad_material::decode_object(payload, body_start, inline_end, version)
+                .map(|material| DecodedEntity::Material(Box::new(material)))
         }
         // §20.4.78: a non-entity object with a class number.
         "GEODATA" | "ACDBGEODATA" => {

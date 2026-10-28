@@ -5,8 +5,10 @@ renumber MB MAIN   at the PR head: the `## 7X.` sections the PR adds (relative t
                    `§7X` in lines the PR added (any file) follows it. Edits files in place; prints
                    the mapping, or nothing when no section moves.
 resolve PATH       during a merge: each conflict hunk whose base side is empty (both sides appended
-                   at the same place) becomes theirs, a blank line, then ours. Any other conflict
-                   hunk exits 1 without writing.
+                   at the same place) becomes theirs, a blank line, then ours, less every `## `
+                   section of ours that main's file already holds word for word (a PR stacked on
+                   another carries that PR's sections, which main now has from its squash). Any
+                   other conflict hunk exits 1 without writing.
 check [PATH]       the `## 7X.` sections of PATH (default ARCHITECTURE.md) run 7a, 7b, ... with no
                    suffix repeated or skipped; exits 1 naming the first one that does not (CI).
 """
@@ -91,6 +93,37 @@ def renumber(mb, main):
     print(' '.join(f'7{k}->7{v}' for k, v in mapping.items()))
 
 
+def sections(lines):
+    """Each `## ` section of lines, heading to the next heading, as stripped text."""
+    out, block = set(), []
+    for line in lines + ['## ']:
+        if line.startswith('## '):
+            if block and block[0].startswith('## '):
+                out.add('\n'.join(block).strip())
+            block = []
+        block.append(line)
+    return out
+
+
+def without_known(lines, main_text):
+    """Lines less each `## ` section (heading to the next heading) that equals one of main_text's whole sections."""
+    known = sections(main_text.split('\n'))
+    kept, block = [], []
+    def flush():
+        text = '\n'.join(block).strip()
+        if not (block and block[0].startswith('## ') and text in known):
+            kept.extend(block)
+    for line in lines:
+        if line.startswith('## '):
+            flush()
+            block = []
+        block.append(line)
+    flush()
+    while kept and not kept[-1].strip():
+        kept.pop()
+    return kept
+
+
 def resolve(path):
     stages = {}
     for n in (1, 2, 3):
@@ -99,6 +132,8 @@ def resolve(path):
             fh.write(git('show', f':{n}:{path}'))
     merged = subprocess.run(['git', 'merge-file', '-p', '--diff3', stages[2], stages[1], stages[3]],
                             capture_output=True, text=True).stdout
+    with open(stages[3], encoding='utf-8') as fh:
+        main_text = fh.read()
     for f in stages.values():
         subprocess.run(['rm', '-f', f])
     out, state, ours, base, theirs = [], None, [], [], []
@@ -114,7 +149,7 @@ def resolve(path):
                 raise SystemExit(f'conflict in {path} rewrites shared text; not an append')
             while theirs and not theirs[-1].strip():
                 theirs.pop()
-            out += theirs + [''] + ours
+            out += theirs + [''] + without_known(ours, main_text)
             state = None
         elif state == 'ours':
             ours.append(line)
