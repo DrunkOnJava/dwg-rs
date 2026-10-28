@@ -759,6 +759,7 @@ pub fn section_of(label: &str) -> &'static str {
         "LINE" => "§20.4.21",
         "POINT" => "§20.4.31",
         "ELLIPSE" => "§20.4.39",
+        "HATCH" => "§20.4.75",
         "DICTIONARY" => "§20.4.44",
         "ACDBDICTIONARYWDFLT" => "§20.4.45",
         "BLOCK_CONTROL" => "§20.4.51",
@@ -1020,6 +1021,7 @@ pub fn score(
         D::Dimension(d) => score_dimension(&mut c, d),
         D::Layer(l) => score_layer(&mut c, l),
         D::Ltype(l) => score_ltype(&mut c, l),
+        D::Hatch(h) => score_hatch(&mut c, h),
         D::Style(s) => score_style(&mut c, s),
         // §20.4.66: the entry header, then the RC unknown in 71.
         D::AppId(a) => {
@@ -1903,6 +1905,227 @@ fn score_mlinestyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mlinestyle::AcadMlin
         c.real(&format!("lines[{i}].offset"), 49, l.offset, None);
         c.int(&format!("lines[{i}].color"), 62, aci_of(&l.color), None);
         c.dwg_only(&format!("lines[{i}].linetype_index"), l.linetype_index);
+    }
+}
+
+/// Scores the groups one after another: each step scopes the lookups to
+/// the next `n` groups of the subclass, runs the scorers there, and moves
+/// on past what they took, so a group order the spec fixes is checked as
+/// well as its values.
+struct Seq {
+    pos: usize,
+    end: usize,
+}
+
+impl Seq {
+    fn new(c: &Ctx<'_>) -> Self {
+        Self {
+            pos: c.scope.0,
+            end: c.scope.1,
+        }
+    }
+
+    fn step(&mut self, c: &mut Ctx<'_>, n: usize, f: impl FnOnce(&mut Ctx<'_>)) {
+        let to = (self.pos + n).min(self.end);
+        c.scope = (self.pos, to);
+        f(c);
+        self.pos += (self.pos..to).filter(|&i| c.used[i]).count();
+    }
+
+    /// Skips `n` groups the decoder does not surface, leaving them among
+    /// the record's not-decoded groups.
+    fn skip(&mut self, n: usize) {
+        self.pos = (self.pos + n).min(self.end);
+    }
+}
+
+// §20.4.75 against the DXF Reference's AcDbHatch groups, which the export
+// writes in the order the spec prints them: the dummy elevation point (10
+// and 20 zero, 30 the elevation), the extrusion in 210/220/230, 2, 70, 71,
+// 91 and per path 92, its vertices or edges (72 the edge type) and 97 with
+// that many 330 handles, then 75, 76, the pattern block when the fill is
+// not solid (52, 41, 77, 78 and per line 53, 43/44, 45/46, 79 and 49 per
+// dash), 47 when a path is derived, 98 with the seed points and, for a
+// gradient, 450 to 470. The groups are scored in that order, each within
+// the next few groups of the record, so an out-of-order group shows as a
+// missing one; the paths, edges and pattern lines are scored under one
+// field name each. The DWG's angles are radians, the DXF's 50 to 53
+// degrees. A gradient colour is a CMC word: the DWG keeps the method byte
+// 0xC2 and the RGB, which is group 421; group 63 is the ACI AutoCAD
+// derives from it and the DWG does not store. Only line edges and
+// polylines occur in the corpus; another edge type ends the scoring of its
+// record, since its groups are not walked.
+fn score_hatch(c: &mut Ctx<'_>, h: &dwg::entities::hatch::Hatch) {
+    use dwg::entities::hatch::{HatchEdge, HatchPathSegments};
+    if !c.subclass("AcDbHatch") {
+        c.dwg_only("(the export has no AcDbHatch subclass)", ());
+        return;
+    }
+    let mut q = Seq::new(c);
+    q.skip(2);
+    q.step(c, 1, |c| {
+        c.real("elevation (z of 10)", 30, h.elevation, None)
+    });
+    q.step(c, 3, |c| c.point3("extrusion", 210, h.extrusion, Some(Z)));
+    q.step(c, 1, |c| c.text("pattern_name", 2, &h.pattern_name, None));
+    q.step(c, 1, |c| {
+        c.int("solid_fill", 70, i64::from(h.solid_fill), None)
+    });
+    q.step(c, 1, |c| {
+        c.int("associative", 71, i64::from(h.associative), None)
+    });
+    q.step(c, 1, |c| {
+        c.int("path count", 91, h.paths.len() as i64, None)
+    });
+    for p in &h.paths {
+        q.step(c, 1, |c| c.int("paths.flags", 92, i64::from(p.flags), None));
+        match &p.segments {
+            HatchPathSegments::Polyline {
+                has_bulge,
+                is_closed,
+                vertices,
+            } => {
+                q.step(c, 1, |c| {
+                    c.int("paths.has_bulge", 72, i64::from(*has_bulge), None)
+                });
+                q.step(c, 1, |c| {
+                    c.int("paths.is_closed", 73, i64::from(*is_closed), None)
+                });
+                q.step(c, 1, |c| {
+                    c.int("paths.vertex count", 93, vertices.len() as i64, None)
+                });
+                for (v, b) in vertices {
+                    q.step(c, 2, |c| c.point2("paths.vertices", 10, *v));
+                    if let Some(b) = b {
+                        q.step(c, 1, |c| c.real("paths.bulges", 42, *b, None));
+                    }
+                }
+            }
+            HatchPathSegments::Edges(edges) => {
+                q.step(c, 1, |c| {
+                    c.int("paths.edge count", 93, edges.len() as i64, None)
+                });
+                for e in edges {
+                    match e {
+                        HatchEdge::Line { start, end } => {
+                            q.step(c, 1, |c| c.int("paths.edges.type", 72, 1, None));
+                            q.step(c, 2, |c| c.point2("paths.edges.start", 10, *start));
+                            q.step(c, 2, |c| c.point2("paths.edges.end", 11, *end));
+                        }
+                        _ => {
+                            // Its groups are not walked, so no later group could be paired by
+                            // position: the rest of the record stays unscored.
+                            c.dwg_only("paths.edges (type not scored; the rest of the record is not scored)", ());
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        q.step(c, 1, |c| {
+            c.int(
+                "paths.boundary handle count",
+                97,
+                i64::from(p.num_boundary_handles),
+                None,
+            );
+        });
+        q.skip(p.num_boundary_handles as usize);
+    }
+    q.step(c, 1, |c| {
+        c.int("pattern_style", 75, i64::from(h.pattern_style), None)
+    });
+    q.step(c, 1, |c| {
+        c.int("pattern_type", 76, i64::from(h.pattern_type), None)
+    });
+    if !h.solid_fill {
+        q.step(c, 1, |c| {
+            c.angle("pattern_angle", 52, h.pattern_angle, None)
+        });
+        q.step(c, 1, |c| c.real("pattern_scale", 41, h.pattern_scale, None));
+        q.step(c, 1, |c| {
+            c.int("pattern_double", 77, i64::from(h.pattern_double), None)
+        });
+        q.step(c, 1, |c| {
+            c.int("pattern line count", 78, h.pattern_lines.len() as i64, None);
+        });
+        for l in &h.pattern_lines {
+            q.step(c, 1, |c| c.angle("pattern_lines.angle", 53, l.angle, None));
+            q.step(c, 2, |c| {
+                c.real("pattern_lines.origin.x", 43, l.origin.x, None);
+                c.real("pattern_lines.origin.y", 44, l.origin.y, None);
+            });
+            q.step(c, 2, |c| {
+                c.real("pattern_lines.offset.x", 45, l.offset.x, None);
+                c.real("pattern_lines.offset.y", 46, l.offset.y, None);
+            });
+            q.step(c, 1, |c| {
+                c.int("pattern_lines.dash count", 79, l.dashes.len() as i64, None);
+            });
+            for d in &l.dashes {
+                q.step(c, 1, |c| c.real("pattern_lines.dashes", 49, *d, None));
+            }
+        }
+    }
+    if h.paths.iter().any(|p| p.flags & 4 != 0) {
+        q.step(c, 1, |c| c.real("pixel_size", 47, h.pixel_size, None));
+    }
+    q.step(c, 1, |c| {
+        c.int("seed point count", 98, h.seed_points.len() as i64, None)
+    });
+    for (x, y) in &h.seed_points {
+        q.step(c, 2, |c| {
+            c.real("seed_points.x", 10, *x, None);
+            c.real("seed_points.y", 20, *y, None);
+        });
+    }
+    if let Some(g) = &h.gradient {
+        q.step(c, 1, |c| c.int("gradient flag", 450, 1, None));
+        q.skip(1);
+        q.step(c, 1, |c| c.real("gradient.angle", 460, g.angle, None));
+        q.step(c, 1, |c| c.real("gradient.shift", 461, g.shift, None));
+        q.step(c, 1, |c| {
+            c.int(
+                "gradient.is_single_color",
+                452,
+                i64::from(g.is_single_color),
+                None,
+            );
+        });
+        q.step(c, 1, |c| c.real("gradient.tint", 462, g.tint, None));
+        q.step(c, 1, |c| {
+            c.int("gradient.color count", 453, g.colors.len() as i64, None)
+        });
+        for col in &g.colors {
+            q.step(c, 1, |c| {
+                c.real(
+                    "gradient.colors.unknown_double",
+                    463,
+                    col.unknown_double,
+                    None,
+                );
+            });
+            q.step(c, 2, |c| {
+                c.dwg_only("gradient.colors.unknown_short", col.unknown_short);
+                if let Some(v) = c.take(63) {
+                    c.not_decoded(
+                        "63 (the ACI the export derives from the RGB)",
+                        v.to_string(),
+                    );
+                }
+                if col.rgb >> 24 == 0xC2 {
+                    c.int(
+                        "gradient.colors.rgb (CMC word 0xC2, payload)",
+                        421,
+                        i64::from(col.rgb & 0x00FF_FFFF),
+                        None,
+                    );
+                } else {
+                    c.dwg_only("gradient.colors.rgb (not a true colour)", col.rgb);
+                }
+            });
+        }
+        q.step(c, 1, |c| c.text("gradient.name", 470, &g.name, None));
     }
 }
 
