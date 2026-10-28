@@ -7,6 +7,10 @@ the CI measurement on `main`. The rendered text sits between HTML comment marker
 
 - `<!-- corpus-table:begin -->` / `<!-- corpus-table:end -->` in README.md: the
   per-release table;
+- `<!-- corpus-sources:begin -->` / `<!-- corpus-sources:end -->` in README.md: the
+  per-source table. Sources differ in size by orders of magnitude (one R2004 drawing can
+  hold more records than forty small ones), so the record-weighted aggregate moves when a
+  source is pinned; each source's own row and the median drawing do not;
 - `<!-- corpus-summary:begin -->` / `<!-- corpus-summary:end -->` in README.md and
   STATUS.md: the one-line totals;
 - `<!-- oracle-summary:begin -->` / `<!-- oracle-summary:end -->` in README.md: the DXF
@@ -34,9 +38,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "tools" / "corpus" / "baseline.tsv"
+PINS = ROOT / "tools" / "corpus" / "pins.tsv"
 ORACLE = ROOT / "tools" / "oracle" / "baseline.tsv"
 DOCS = {
-    ROOT / "README.md": ("corpus-run", "corpus-table", "corpus-summary", "oracle-summary"),
+    ROOT / "README.md": ("corpus-run", "corpus-table", "corpus-sources", "corpus-summary", "oracle-summary"),
     ROOT / "STATUS.md": ("corpus-run", "corpus-summary"),
 }
 REPO = "DrunkOnJava/dwg-rs"
@@ -58,7 +63,10 @@ def rows():
 
 
 def pct(decoded, total):
-    return f"{100 * decoded / total:.1f} %" if total else "-"
+    if not total:
+        return "-"
+    share = f"{100 * decoded / total:.1f}"
+    return "> 99.9 %" if share == "100.0" and decoded < total else f"{share} %"
 
 
 def totals(rs):
@@ -70,15 +78,55 @@ def totals(rs):
 
 def table(rs):
     out = [
-        "| Version | Files tested | Decoded | Skipped | Errored | Success rate |",
-        "|---------|--------------|---------|---------|---------|--------------|",
+        "| Version | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |",
+        "|---------|--------------|---------|---------|---------|--------------|----------------|",
     ]
     for code, name in RELEASES:
-        n, d, s, e = totals([r for r in rs if r["release"] == code])
+        mine = [r for r in rs if r["release"] == code]
+        n, d, s, e = totals(mine)
         if n:
-            out.append(f"| {name} ({code}) | {n} | {d} | {s} | {e} | **{pct(d, d + s + e)}** |")
+            out.append(f"| {name} ({code}) | {n} | {d} | {s} | {e} | **{pct(d, d + s + e)}** | {median(mine)} |")
     n, d, s, e = totals(rs)
-    out.append(f"| **Aggregate** | **{n}** | **{d}** | **{s}** | **{e}** | **{pct(d, d + s + e)}** |")
+    out.append(f"| **Aggregate** | **{n}** | **{d}** | **{s}** | **{e}** | **{pct(d, d + s + e)}** | **{median(rs)}** |")
+    return "\n".join(out)
+
+
+def median(rs):
+    """The median of each drawing's own decoded share, so every drawing weighs the same."""
+    shares = [
+        (int(r["decoded"]), t)
+        for r in rs
+        if (t := int(r["decoded"]) + int(r["skipped"]) + int(r["errored"]))
+    ]
+    if not shares:
+        return "-"
+    shares.sort(key=lambda x: x[0] / x[1])
+    mid = len(shares) // 2
+    if len(shares) % 2:
+        return pct(*shares[mid])
+    (d1, t1), (d2, t2) = shares[mid - 1], shares[mid]
+    return pct(d1 * t2 + d2 * t1, 2 * t1 * t2)
+
+
+def sources(rs):
+    """Each source in rs, in the order tools/corpus/pins.tsv first names it."""
+    with PINS.open() as f:
+        pinned = [r["source"] for r in csv.DictReader((line for line in f if not line.startswith("#")), delimiter="\t")]
+    have = {r["source"] for r in rs}
+    return [s for s in dict.fromkeys(pinned) if s in have] + sorted(have - set(pinned))
+
+
+def source_table(rs):
+    out = [
+        "| Source | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |",
+        "|--------|--------------|---------|---------|---------|--------------|----------------|",
+    ]
+    for src in sources(rs):
+        mine = [r for r in rs if r["source"] == src]
+        n, d, s, e = totals(mine)
+        out.append(f"| {src} | {n} | {d} | {s} | {e} | **{pct(d, d + s + e)}** | {median(mine)} |")
+    n, d, s, e = totals(rs)
+    out.append(f"| **All sources** | **{n}** | **{d}** | **{s}** | **{e}** | **{pct(d, d + s + e)}** | **{median(rs)}** |")
     return "\n".join(out)
 
 
@@ -89,8 +137,13 @@ def summary(rs):
         rn, rd, rsk, re_ = totals([r for r in rs if r["release"] == code])
         if rn:
             per.append(f"{name} {pct(rd, rd + rsk + re_)}")
+    src = []
+    for name in sources(rs):
+        sn, sd, ss, se = totals([r for r in rs if r["source"] == name])
+        src.append(f"{name} {pct(sd, sd + ss + se)} ({sn})")
     return (
-        f"{d:,} decoded / {s:,} skipped / **{e:,} errored** / {pct(d, d + s + e)} on {n} drawings. "
+        f"{d:,} decoded / {s:,} skipped / **{e:,} errored** / {pct(d, d + s + e)} of all records on {n} drawings; "
+        f"the median drawing decodes {median(rs)}. Per source (drawings): {', '.join(src)}. "
         f"Per version: {', '.join(per)}."
     )
 
@@ -108,7 +161,12 @@ def oracle():
 
 
 def blocks(rs):
-    return {"corpus-table": table(rs), "corpus-summary": summary(rs), "oracle-summary": oracle()}
+    return {
+        "corpus-table": table(rs),
+        "corpus-sources": source_table(rs),
+        "corpus-summary": summary(rs),
+        "oracle-summary": oracle(),
+    }
 
 
 def pattern(name):
@@ -116,7 +174,7 @@ def pattern(name):
 
 
 def render(name, body):
-    return f"\n{body}\n" if name == "corpus-table" else body
+    return f"\n{body}\n" if name in ("corpus-table", "corpus-sources") else body
 
 
 def latest_run():
