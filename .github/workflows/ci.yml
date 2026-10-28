@@ -291,15 +291,21 @@ jobs:
         with:
           path: ~/dwg-corpus
           key: dwg-corpus-${{ hashFiles('tools/corpus/pins.tsv') }}
-      # tests/samples.rs, class_census.rs, block_names.rs, corpus_roundtrip.rs
-      # and r2013_entity_values.rs read ../../samples and skip silently when a
-      # file is absent, so a skip here would be a vacuous pass.
+      # Every tests/ target of tools/ci/test-targets.txt that reads ../../samples
+      # (class real): samples, class_census, block_names, corpus_roundtrip,
+      # r2013_entity_values, integration_dxf_roundtrip, integration_gltf and
+      # integration_legacy_container. They skip silently when a file is absent,
+      # so a skip here would be a vacuous pass; integration_dxf_roundtrip also
+      # returns early, printing "convert failed", when the converter errors on
+      # the drawing, which passes just as vacuously. Both fail the step below.
       - name: Real-file tests on the 19-file corpus
         if: steps.fetch.outputs.measured == 'true'
         run: |
           set +e
           cargo +stable test --release --all-features --test samples --test class_census \
             --test block_names --test corpus_roundtrip --test r2013_entity_values \
+            --test integration_dxf_roundtrip --test integration_gltf \
+            --test integration_legacy_container \
             -- --nocapture > corpus-tests.log 2>&1
           status=$?
           set -e
@@ -307,8 +313,8 @@ jobs:
           if [ "$status" -ne 0 ]; then
             exit "$status"
           fi
-          if grep -n -i 'skipping' corpus-tests.log; then
-            echo "::error::a corpus test skipped although the corpus is present"
+          if grep -n -i -e 'skipping' -e 'convert failed' corpus-tests.log; then
+            echo "::error::a corpus test skipped or returned early although the corpus is present"
             exit 1
           fi
       - name: Measure every pinned drawing and check the ratchet
