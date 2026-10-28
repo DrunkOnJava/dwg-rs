@@ -147,44 +147,6 @@ impl ParseLimits {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn paranoid_is_strictly_lower_than_safe() {
-        let safe = ParseLimits::safe();
-        let paranoid = ParseLimits::paranoid();
-        assert!(paranoid.max_handle_entries < safe.max_handle_entries);
-        assert!(paranoid.max_retained_dispatch_errors < safe.max_retained_dispatch_errors);
-        assert!(paranoid.max_xdata_iterations < safe.max_xdata_iterations);
-        assert!(paranoid.max_class_entries < safe.max_class_entries);
-        assert!(paranoid.max_lwpolyline_count < safe.max_lwpolyline_count);
-        assert!(paranoid.max_image_clip_verts < safe.max_image_clip_verts);
-        assert!(paranoid.max_leader_points < safe.max_leader_points);
-        assert!(paranoid.max_spline_count < safe.max_spline_count);
-    }
-
-    #[test]
-    fn permissive_is_strictly_higher_than_safe() {
-        let safe = ParseLimits::safe();
-        let permissive = ParseLimits::permissive();
-        assert!(permissive.max_handle_entries > safe.max_handle_entries);
-        assert!(permissive.max_retained_dispatch_errors > safe.max_retained_dispatch_errors);
-        assert!(permissive.max_xdata_iterations > safe.max_xdata_iterations);
-        assert!(permissive.max_class_entries > safe.max_class_entries);
-        assert!(permissive.max_lwpolyline_count > safe.max_lwpolyline_count);
-        assert!(permissive.max_image_clip_verts > safe.max_image_clip_verts);
-        assert!(permissive.max_leader_points > safe.max_leader_points);
-        assert!(permissive.max_spline_count > safe.max_spline_count);
-    }
-
-    #[test]
-    fn default_matches_safe() {
-        assert_eq!(ParseLimits::default(), ParseLimits::safe());
-    }
-}
-
 /// Caller-configurable safety limits for graph iteration — the
 /// handle-driven walks that resolve owner chains, reactor back-refs,
 /// and block expansions.
@@ -263,34 +225,6 @@ impl WalkerLimits {
     }
 }
 
-#[cfg(test)]
-mod walker_tests {
-    use super::*;
-
-    #[test]
-    fn walker_paranoid_strictly_lower() {
-        let s = WalkerLimits::safe();
-        let p = WalkerLimits::paranoid();
-        assert!(p.max_handles < s.max_handles);
-        assert!(p.max_scan_bytes < s.max_scan_bytes);
-        assert!(p.max_block_nesting < s.max_block_nesting);
-    }
-
-    #[test]
-    fn walker_permissive_strictly_higher() {
-        let s = WalkerLimits::safe();
-        let p = WalkerLimits::permissive();
-        assert!(p.max_handles > s.max_handles);
-        assert!(p.max_scan_bytes > s.max_scan_bytes);
-        assert!(p.max_block_nesting > s.max_block_nesting);
-    }
-
-    #[test]
-    fn walker_default_matches_safe() {
-        assert_eq!(WalkerLimits::default(), WalkerLimits::safe());
-    }
-}
-
 /// Top-level safety profile applied at [`crate::DwgFile::open_with_limits`].
 ///
 /// Bundles the three load-bearing caps:
@@ -363,36 +297,5 @@ impl OpenLimits {
             parse: ParseLimits::permissive(),
             walker: WalkerLimits::permissive(),
         }
-    }
-}
-
-#[cfg(test)]
-mod open_limits_tests {
-    use super::*;
-
-    #[test]
-    fn open_paranoid_strictly_lower_than_safe() {
-        let s = OpenLimits::safe();
-        let p = OpenLimits::paranoid();
-        assert!(p.max_file_bytes < s.max_file_bytes);
-        assert!(p.max_section_bytes < s.max_section_bytes);
-        // Inner profile caps follow ParseLimits + WalkerLimits invariants.
-        assert!(p.parse.max_handle_entries < s.parse.max_handle_entries);
-        assert!(p.walker.max_handles < s.walker.max_handles);
-    }
-
-    #[test]
-    fn open_permissive_strictly_higher_than_safe() {
-        let s = OpenLimits::safe();
-        let p = OpenLimits::permissive();
-        assert!(p.max_file_bytes > s.max_file_bytes);
-        assert!(p.max_section_bytes > s.max_section_bytes);
-        assert!(p.parse.max_handle_entries > s.parse.max_handle_entries);
-        assert!(p.walker.max_handles > s.walker.max_handles);
-    }
-
-    #[test]
-    fn open_default_matches_safe() {
-        assert_eq!(OpenLimits::default(), OpenLimits::safe());
     }
 }

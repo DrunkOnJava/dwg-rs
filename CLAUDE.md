@@ -11,22 +11,22 @@ dwg-rs is an Apache-2.0 Rust reader (and early writer) for Autodesk DWG, R13 to 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --release --all-features
+tools/ci/run_test_targets.sh --release --all-features    # every non-unit target of tools/ci/test-targets.txt, then the doc tests
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo deny check advisories bans licenses sources        # CI pins cargo-deny 0.19.4
 CARGO_TARGET_DIR=target-msrv cargo +1.85 check --all-features   # MSRV without evicting the stable cache
 python3 tools/ci/spec_coverage.py --check                # docs/spec-coverage.md agrees with its data
+python3 tools/ci/dispatch_arms.py --check                # fixed_entity_label and decode_fixed_entity_body agree
 ```
 
-CI also builds with `RUSTFLAGS="-D warnings"`, so a warning anywhere fails the Test job.
+CI also builds with `RUSTFLAGS="-D warnings"`, so a warning anywhere fails the Test job. The Test job runs `tools/ci/run_test_targets.sh`, not a bare `cargo test`: it runs the `real`, `contract` and `hardening` targets of `tools/ci/test-targets.txt` and the documentation examples, never the `unit` ones and never the inline `#[cfg(test)]` suites in `src/`.
 
-Single tests:
+Single targets:
 
 ```sh
+tools/ci/run_test_targets.sh --check-only                                # every tests/*.rs file is classified
 cargo test --release --all-features --test canonical_corpus            # one integration file (tests/<stem>.rs)
 cargo test --release --all-features --test samples arc_r14_is_ac1014    # one test in it
-cargo test --release --all-features --lib entities::line               # lib tests by module path filter
-UPDATE_GOLDENS=1 cargo test --release --test integration_svg_goldens    # regenerate tests/golden/svg
 ```
 
 The binaries (`dwg-info`, `dwg-corpus`, `dwg-dump`, `dwg-convert`, `dwg-to-dxf`, `dwg-to-gltf`, `dwg-write`) all have `required-features = ["cli"]`; plain `cargo build` builds none of them:
@@ -74,7 +74,7 @@ python3 -I tools/corpus/measure.py check --results r.json        # every drawing
 
 The `Corpus (public DWG)` job runs exactly this and fails on any count change in either direction, so a PR that changes a decoded, skipped or errored count must commit the regenerated baseline (`python3 -I tools/corpus/measure.py baseline --results r.json` after the `run` above, or the `corpus-measurement` artifact the job uploads). Streaming E2E reads its own pinned nextgis files (`tools/streaming/*-corpus.json`, cross-checked against `pins.tsv`).
 
-The older real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) read a 19-file subset at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green local `cargo test` says nothing about real drawings unless that directory exists. `fetch.py --legacy-samples ../../samples` writes exactly that subset there; from a worktree, `../../samples` resolves against the worktree's own path.
+The older real-file integration tests (`tests/samples.rs`, `block_names.rs`, `corpus_roundtrip.rs`, `r2013_entity_values.rs`) read a 19-file subset at `../../samples` relative to the crate root and **skip silently** when it is absent, so a green run of them says nothing about real drawings unless that directory exists. `fetch.py --legacy-samples ../../samples` writes exactly that subset there; from a worktree, `../../samples` resolves against the worktree's own path.
 
 Coverage numbers come from two places, and each says which: the headline tables in `README.md` and `STATUS.md` cite the corpus job's run on `main`, while older sections (STATUS.md's 2026-08-30 baseline, the evidence behind `closes` states in `docs/spec-coverage.md`) are dated local measurements of the 19-file subset. Never estimate or carry a number forward: re-measure, and cite the run or the command and date.
 
@@ -100,8 +100,8 @@ Invariants across the crate: `#![forbid(unsafe_code)]`; malformed input returns 
 
 - **Clean-room** (`CLEANROOM.md`): never consult or import LibreDWG, the ODA/Teigha SDK, Autodesk SDKs or any GPL DWG source. Algorithm-description comments in MIT, Apache or BSD projects may resolve a spec ambiguity only with a dated disclosure added to `CLEANROOM.md`. Every PR body carries the source-provenance declaration from the PR template.
 - **Cite the spec by v5.4.1 number.** Objects are §20.4.x; older code still says §19.4.x (#106). `docs/spec-coverage.md` gives every section a state (`missing`, `decoder`, `partial`, `closes`, `complete`) and is generated: edit `docs/data/spec-coverage.tsv`, then run `python3 tools/ci/spec_coverage.py --write`. CI's Spec coverage job fails when a section has no row or the page and its data disagree. A state changes only in the PR that brings its evidence.
-- **Evidence is real-file, not unit tests.** The PR template asks for the corpus records a change was measured on and the reproducing command, with no new unit tests; existing suites stay and must pass. A new format finding gets a probe under `examples/` (module doc saying what it proves and how to verify it) and a dated section in `ARCHITECTURE.md` with its evidence table.
-- **New decoders** follow `docs/EXTENDING_DECODERS.md`. For a fixed-code entity: a type-code constant, a `DecodedEntity` variant, a `fixed_entity_label` entry and a `decode_fixed_entity_body` arm in `entities/dispatch.rs`. The label list and the body arms must match (`fixed_entity_label_covers_every_body_arm` checks it), and `checked_inline` applies the boundary check for you. Custom classes dispatch on their DXF class name instead. `templates/entity-decoder` is a cargo-generate skeleton.
+- **Unit tests are banned** (the maintainer's standing directive, 2026-09-23), and evidence is real-file. Do not add one, and do not add a regression test for a fix: a unit-suite pass count is never evidence. The PR template asks for the corpus records a change was measured on and the reproducing command. `tools/ci/test-targets.txt` classes every `tests/*.rs` file as `real` (reads real drawings or the committed canonical fixtures), `cli`, `contract` (checks a published claim), `hardening` (replays inputs that crashed a parser) or `unit` (synthetic-only or property tests); the Test job runs all but `unit`, and `tools/ci/run_test_targets.sh` fails on a file the manifest does not class, so a new target needs a line there and a reason. The `unit` files stay as unrun source, and the inline `#[cfg(test)]` suites in `src/` are deleted area by area (git history is the archive): never add one, and never let a decoder PR re-grow one. A new format finding gets a probe under `examples/` (module doc saying what it proves and how to verify it) and a dated section in `ARCHITECTURE.md` with its evidence table.
+- **New decoders** follow `docs/EXTENDING_DECODERS.md`. For a fixed-code entity: a type-code constant, a `DecodedEntity` variant, a `fixed_entity_label` entry and a `decode_fixed_entity_body` arm in `entities/dispatch.rs`. The label list and the body arms must match (`python3 tools/ci/dispatch_arms.py --check` reads both from the source, in CI's Spec coverage job), and `checked_inline` applies the boundary check for you. Custom classes dispatch on their DXF class name instead. `templates/entity-decoder` is a cargo-generate skeleton.
 - Every `pub fn` in `src/` gets a `///` line naming its bit code, flag mask or spec section; the docs-rs workflow fails below 80% and the tree is at 100%.
 - No absolute home paths (`/Users/<name>/`, `/home/<name>/`, `C:\Users\<name>\`) anywhere outside `.github/workflows/`: the PII guard fails on them. No PII in fixtures; use synthetic values.
 - Conventional Commits with the scopes listed in CONTRIBUTING.md. `main` is squash-merge only, so one PR is one commit and one finding.

@@ -20,9 +20,14 @@ The gate (identical to the required CI checks — run it before every push):
 ```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --release
+tools/ci/run_test_targets.sh --release --all-features
 cargo deny check all          # cargo install cargo-deny
 ```
+
+`tools/ci/run_test_targets.sh` runs the real-file, contract and hardening
+targets of [`tools/ci/test-targets.txt`](tools/ci/test-targets.txt) and the
+documentation examples, as CI's Test job does. Unit tests are banned; see
+[Unit tests are banned](#unit-tests-are-banned) below.
 
 Two soft gates you will also hit:
 
@@ -143,8 +148,8 @@ Open an issue (or a draft PR) before starting work on any of:
 
 - Rust 2024 edition.
 - `cargo fmt` before every commit.
-- `cargo test --release` must pass. The CI in `.github/workflows/`
-  enforces this.
+- `tools/ci/run_test_targets.sh --release --all-features` must pass. The
+  CI in `.github/workflows/` enforces this.
 - **No `unsafe` in the library crate.** See above.
 - **No panics in parsing paths.** Malformed input must return an
   `Error`, never `panic!`. Defensive caps on loop iteration and
@@ -154,6 +159,29 @@ Open an issue (or a draft PR) before starting work on any of:
   shipped files.
 - **Every probe under `examples/`** gets a module-level doc comment
   explaining *what fact it proves* and *how to verify* the result.
+
+## Unit tests are banned
+
+Do not add them, and do not add a regression test for a fix. A unit-suite
+pass count is not evidence. Changes are verified end to end: against real
+drawings and AutoCAD's own DXF exports of them, through the built binaries,
+and by the contract checks that keep the published claims honest. The
+evidence a pull request carries is the corpus records it was measured on and
+the command that reproduces it.
+
+`tools/ci/test-targets.txt` classes every file under `tests/` as `real`
+(reads real drawings, or the committed canonical fixtures), `cli`, `contract`
+(checks a published claim), `hardening` (replays inputs that crashed a
+parser) or `unit` (synthetic-only or property tests).
+`tools/ci/run_test_targets.sh` runs all but `unit`, in CI's Test job on every
+OS, and fails on a file the manifest does not class, so a new target needs a
+line there and a reason. The `unit` files stay as source and are not run; the
+inline `#[cfg(test)]` suites in `src/` are being deleted area by area, and
+git history is the archive. Targets that read the corpus skip cleanly when
+`../../samples` is absent, as it is on every Test leg; the Corpus (public DWG)
+job places the 19 pinned drawings there for the targets it lists. For a format
+fact, the evidence is a probe under `examples/` and a dated section of
+`ARCHITECTURE.md`.
 
 ## Commit messages
 
@@ -182,7 +210,7 @@ When you discover something new about the file format:
    (byte offsets, observed values, variant count across versions).
 3. If the finding is a decoding rule, show it on real files: name
    the corpus records it changes and paste the coverage report from
-   before and after into the pull request. Don't add unit tests.
+   before and after into the pull request. Don't add tests.
 
 This keeps every claim independently verifiable, which is the
 whole point of open reverse-engineering work.

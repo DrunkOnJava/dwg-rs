@@ -54,6 +54,21 @@ R2000	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2000	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2000	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2000	-	ACDBPLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2000	-	MESH	blend_crease	72	2	0	0	0
+R2000	-	MESH	crease count	95	2	0	0	0
+R2000	-	MESH	creases	140	260	0	0	0
+R2000	-	MESH	edge count	94	2	0	0	0
+R2000	-	MESH	edges.end	90	260	0	0	0
+R2000	-	MESH	edges.start	90	260	0	0	0
+R2000	-	MESH	face list entries	93	2	0	0	0
+R2000	-	MESH	faces.indices	90	520	0	0	0
+R2000	-	MESH	faces.vertex count	90	136	0	0	0
+R2000	-	MESH	subdivision_level	91	2	0	0	0
+R2000	-	MESH	version	71	2	0	0	0
+R2000	-	MESH	vertex count	92	2	0	0	0
+R2000	-	MESH	vertices.x	10	126	0	0	0
+R2000	-	MESH	vertices.y	20	126	0	0	0
+R2000	-	MESH	vertices.z	30	126	0	0	0
 R2000	-	VISUALSTYLE	description	2	192	0	0	0
 R2000	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2000	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
@@ -86,6 +101,34 @@ R2000	-	VISUALSTYLE	face_opacity	40	192	0	0	0
 R2000	-	VISUALSTYLE	face_specular	41	192	0	0	0
 R2000	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
 R2000	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
+R2000	-	WIPEOUT	brightness	281	1	0	0	0
+R2000	-	WIPEOUT	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary closing vertex (the first again).x	14	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary closing vertex (the first again).y	24	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[0].x	14	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[0].y	24	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[1].x	14	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[1].y	24	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[2].x	14	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[2].y	24	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[3].x	14	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary[3].y	24	1	0	0	0
+R2000	-	WIPEOUT	clip_boundary_type	71	1	0	0	0
+R2000	-	WIPEOUT	clipping	280	1	0	0	0
+R2000	-	WIPEOUT	contrast	282	1	0	0	0
+R2000	-	WIPEOUT	display_flags	70	1	0	0	0
+R2000	-	WIPEOUT	fade	283	1	0	0	0
+R2000	-	WIPEOUT	image_size.x	13	1	0	0	0
+R2000	-	WIPEOUT	image_size.y	23	1	0	0	0
+R2000	-	WIPEOUT	insertion_point.x	10	1	0	0	0
+R2000	-	WIPEOUT	insertion_point.y	20	1	0	0	0
+R2000	-	WIPEOUT	insertion_point.z	30	1	0	0	0
+R2000	-	WIPEOUT	u_vector.x	11	1	0	0	0
+R2000	-	WIPEOUT	u_vector.y	21	1	0	0	0
+R2000	-	WIPEOUT	u_vector.z	31	1	0	0	0
+R2000	-	WIPEOUT	v_vector.x	12	1	0	0	0
+R2000	-	WIPEOUT	v_vector.y	22	1	0	0	0
+R2000	-	WIPEOUT	v_vector.z	32	1	0	0	0
 R2000	§20.4.101	TABLESTYLE	bit_flags	71	8	0	0	0
 R2000	§20.4.101	TABLESTYLE	data.background_enabled	283	8	0	0	0
 R2000	§20.4.101	TABLESTYLE	data.borders[0].color	64	8	0	0	0
@@ -209,6 +252,217 @@ R2000	§20.4.21	LINE	start.x	10	99	0	0	0
 R2000	§20.4.21	LINE	start.y	20	99	0	0	0
 R2000	§20.4.21	LINE	start.z	30	99	0	0	0
 R2000	§20.4.21	LINE	thickness	39	0	99	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	actual_measurement	42	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	attachment	71	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	def_point_10.x	10	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	def_point_10.y	20	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	def_point_10.z	30	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	def_point_12.x	12	0	0	0	2
+R2000	§20.4.23	DIMENSION_ORDINATE	def_point_12.y	22	0	0	0	2
+R2000	§20.4.23	DIMENSION_ORDINATE	elevation (z of 11)	31	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	extrusion.x	210	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	extrusion.y	220	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	extrusion.z	230	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	feature_location_13.x	13	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	feature_location_13.y	23	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	feature_location_13.z	33	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	horiz_dir	51	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	ins_rotation	54	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2000	§20.4.23	DIMENSION_ORDINATE	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2000	§20.4.23	DIMENSION_ORDINATE	ins_scale.z	43	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.x	14	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.y	24	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.z	34	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	line_spacing_factor	41	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	line_spacing_style	72	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	text_midpoint.x	11	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	text_midpoint.y	21	2	0	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	text_rotation	53	0	2	0	0
+R2000	§20.4.23	DIMENSION_ORDINATE	user_text	1	0	2	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	actual_measurement	42	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	attachment	71	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_10.x	10	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_10.y	20	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_10.z	30	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_12.x	12	0	0	0	3
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_12.y	22	0	0	0	3
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_13.x	13	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_13.y	23	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_13.z	33	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_14.x	14	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_14.y	24	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	def_point_14.z	34	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	dim_rotation	50	1	2	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	elevation (z of 11)	31	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	extension_line_rotation	52	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	extrusion.x	210	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	extrusion.y	220	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	extrusion.z	230	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	flags (the subtype and flag bits, as group 70)	70	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	horiz_dir	51	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	ins_rotation	54	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	ins_scale.x (41 is the line spacing factor)	-	0	0	0	3
+R2000	§20.4.24	DIMENSION_LINEAR	ins_scale.y (42 is the measurement)	-	0	0	0	3
+R2000	§20.4.24	DIMENSION_LINEAR	ins_scale.z	43	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	line_spacing_factor	41	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	line_spacing_style	72	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	text_midpoint.x	11	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	text_midpoint.y	21	3	0	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	text_rotation	53	0	3	0	0
+R2000	§20.4.24	DIMENSION_LINEAR	user_text	1	0	3	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	actual_measurement	42	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	attachment	71	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_10.x	10	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_10.y	20	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_10.z	30	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_12.x	12	0	0	0	2
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_12.y	22	0	0	0	2
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_13.x	13	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_13.y	23	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_13.z	33	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_14.x	14	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_14.y	24	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	def_point_14.z	34	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	elevation (z of 11)	31	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	extension_line_rotation	52	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	extrusion.x	210	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	extrusion.y	220	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	extrusion.z	230	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	horiz_dir	51	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	ins_rotation	54	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2000	§20.4.25	DIMENSION_ALIGNED	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2000	§20.4.25	DIMENSION_ALIGNED	ins_scale.z	43	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	line_spacing_factor	41	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	line_spacing_style	72	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	text_midpoint.x	11	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	text_midpoint.y	21	2	0	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	text_rotation	53	0	2	0	0
+R2000	§20.4.25	DIMENSION_ALIGNED	user_text	1	0	2	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	actual_measurement	42	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	attachment	71	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_10.x	10	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_10.y	20	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_10.z	30	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_12.x	12	0	0	0	1
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_12.y	22	0	0	0	1
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_13.x	13	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_13.y	23	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_13.z	33	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_14.x	14	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_14.y	24	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_14.z	34	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_15.x	15	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_15.y	25	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	def_point_15.z	35	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	elevation (z of 11)	31	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	extrusion.x	210	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	extrusion.y	220	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	extrusion.z	230	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	horiz_dir	51	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	ins_rotation	54	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2000	§20.4.26	DIMENSION_ANG_3PT	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2000	§20.4.26	DIMENSION_ANG_3PT	ins_scale.z	43	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	line_spacing_factor	41	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	line_spacing_style	72	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.x	11	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.y	21	1	0	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	text_rotation	53	0	1	0	0
+R2000	§20.4.26	DIMENSION_ANG_3PT	user_text	1	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	actual_measurement	42	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	attachment	71	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_10.x	10	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_10.y	20	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_10.z	30	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_12.x	12	0	0	0	1
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_12.y	22	0	0	0	1
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_13.x	13	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_13.y	23	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_13.z	33	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_14.x	14	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_14.y	24	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_14.z	34	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_15.x	15	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_15.y	25	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_15.z	35	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_16.x	16	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	def_point_16.y	26	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 11)	31	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 16)	36	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	extrusion.x	210	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	extrusion.y	220	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	extrusion.z	230	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	horiz_dir	51	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	ins_rotation	54	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2000	§20.4.27	DIMENSION_ANG_2LN	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2000	§20.4.27	DIMENSION_ANG_2LN	ins_scale.z	43	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	line_spacing_factor	41	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	line_spacing_style	72	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.x	11	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.y	21	1	0	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	text_rotation	53	0	1	0	0
+R2000	§20.4.27	DIMENSION_ANG_2LN	user_text	1	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	actual_measurement	42	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	attachment	71	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_10.x	10	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_10.y	20	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_10.z	30	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_12.x	12	0	0	0	1
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_12.y	22	0	0	0	1
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_15.x	15	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_15.y	25	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	def_point_15.z	35	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	elevation (z of 11)	31	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	extrusion.x	210	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	extrusion.y	220	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	extrusion.z	230	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	horiz_dir	51	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	ins_rotation	54	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2000	§20.4.28	DIMENSION_RADIUS	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2000	§20.4.28	DIMENSION_RADIUS	ins_scale.z	43	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	leader_length	40	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	line_spacing_factor	41	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	line_spacing_style	72	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	text_midpoint.x	11	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	text_midpoint.y	21	1	0	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	text_rotation	53	0	1	0	0
+R2000	§20.4.28	DIMENSION_RADIUS	user_text	1	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	actual_measurement	42	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	attachment	71	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_10.x	10	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_10.y	20	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_10.z	30	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_12.x	12	0	0	0	1
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_12.y	22	0	0	0	1
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_15.x	15	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_15.y	25	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	def_point_15.z	35	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	elevation (z of 11)	31	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	extrusion.x	210	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	extrusion.y	220	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	extrusion.z	230	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	horiz_dir	51	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	ins_rotation	54	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2000	§20.4.29	DIMENSION_DIAMETER	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2000	§20.4.29	DIMENSION_DIAMETER	ins_scale.z	43	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	leader_length	40	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	line_spacing_factor	41	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	line_spacing_style	72	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	text_midpoint.x	11	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	text_midpoint.y	21	1	0	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	text_rotation	53	0	1	0	0
+R2000	§20.4.29	DIMENSION_DIAMETER	user_text	1	0	1	0	0
 R2000	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
 R2000	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
 R2000	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
@@ -264,6 +518,49 @@ R2000	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
 R2000	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
 R2000	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
 R2000	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2000	§20.4.38	VIEWPORT	back_clip_z	44	6	0	0	0
+R2000	§20.4.38	VIEWPORT	center.x	10	6	0	0	0
+R2000	§20.4.38	VIEWPORT	center.y	20	6	0	0	0
+R2000	§20.4.38	VIEWPORT	center.z	30	6	0	0	0
+R2000	§20.4.38	VIEWPORT	circle_zoom	72	6	0	0	0
+R2000	§20.4.38	VIEWPORT	front_clip_z	43	6	0	0	0
+R2000	§20.4.38	VIEWPORT	frozen_layer_count	-	0	0	0	6
+R2000	§20.4.38	VIEWPORT	grid_spacing.x	15	6	0	0	0
+R2000	§20.4.38	VIEWPORT	grid_spacing.y	25	6	0	0	0
+R2000	§20.4.38	VIEWPORT	height	41	6	0	0	0
+R2000	§20.4.38	VIEWPORT	lens_length	42	6	0	0	0
+R2000	§20.4.38	VIEWPORT	render_mode	281	6	0	0	0
+R2000	§20.4.38	VIEWPORT	snap_angle	50	6	0	0	0
+R2000	§20.4.38	VIEWPORT	snap_base.x	13	6	0	0	0
+R2000	§20.4.38	VIEWPORT	snap_base.y	23	6	0	0	0
+R2000	§20.4.38	VIEWPORT	snap_spacing.x	14	6	0	0	0
+R2000	§20.4.38	VIEWPORT	snap_spacing.y	24	6	0	0	0
+R2000	§20.4.38	VIEWPORT	status_flags	90	6	0	0	0
+R2000	§20.4.38	VIEWPORT	style_sheet	1	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_at_origin	74	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_elevation	146	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_origin.x	110	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_origin.y	120	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_origin.z	130	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_ortho_view_type	79	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_per_viewport	71	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_x_axis.x	111	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_x_axis.y	121	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_x_axis.z	131	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_y_axis.x	112	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_y_axis.y	122	6	0	0	0
+R2000	§20.4.38	VIEWPORT	ucs_y_axis.z	132	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_center.x	12	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_center.y	22	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_direction.x	16	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_direction.y	26	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_direction.z	36	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_height	45	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_target.x	17	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_target.y	27	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_target.z	37	6	0	0	0
+R2000	§20.4.38	VIEWPORT	view_twist_angle	51	6	0	0	0
+R2000	§20.4.38	VIEWPORT	width	40	6	0	0	0
 R2000	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
 R2000	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
 R2000	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
@@ -299,6 +596,20 @@ R2000	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2000	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2000	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2000	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2000	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2000	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2000	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2000	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2000	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2000	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2000	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2000	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2000	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2000	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2000	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2000	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2000	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2000	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2000	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2000	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2000	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -455,6 +766,16 @@ R2000	§20.4.48	MULTILEADER	text_angle_type	174	15	0	0	0
 R2000	§20.4.48	MULTILEADER	text_color	92	15	0	0	0
 R2000	§20.4.48	MULTILEADER	text_frame_enabled	292	15	0	0	0
 R2000	§20.4.48	MULTILEADER	unknown_175	175	15	0	0	0
+R2000	§20.4.49	TOLERANCE	extrusion.x	210	0	3	0	0
+R2000	§20.4.49	TOLERANCE	extrusion.y	220	0	3	0	0
+R2000	§20.4.49	TOLERANCE	extrusion.z	230	0	3	0	0
+R2000	§20.4.49	TOLERANCE	insertion_point.x	10	3	0	0	0
+R2000	§20.4.49	TOLERANCE	insertion_point.y	20	3	0	0	0
+R2000	§20.4.49	TOLERANCE	insertion_point.z	30	3	0	0	0
+R2000	§20.4.49	TOLERANCE	text_string	1	3	0	0	0
+R2000	§20.4.49	TOLERANCE	x_axis_direction.x	11	0	0	0	3
+R2000	§20.4.49	TOLERANCE	x_axis_direction.y	21	0	0	0	3
+R2000	§20.4.49	TOLERANCE	x_axis_direction.z	31	0	0	0	3
 R2000	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
 R2000	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
 R2000	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
@@ -479,6 +800,29 @@ R2000	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2000	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2000	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2000	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2000	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2000	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2000	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2000	§20.4.50	MLINE	justification	70	3	0	0	0
+R2000	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2000	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2000	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2000	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2000	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2000	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2000	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2000	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2000	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2000	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2000	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2000	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2000	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2000	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -653,6 +997,74 @@ R2000	§20.4.73	MLINESTYLE	name	2	8	0	0	0
 R2000	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
 R2000	§20.4.74	DICTIONARYVAR	schema	280	81	0	0	0
 R2000	§20.4.74	DICTIONARYVAR	value	1	81	0	0	0
+R2000	§20.4.75	HATCH	associative	71	8	0	0	0
+R2000	§20.4.75	HATCH	elevation (z of 10)	30	8	0	0	0
+R2000	§20.4.75	HATCH	extrusion.x	210	8	0	0	0
+R2000	§20.4.75	HATCH	extrusion.y	220	8	0	0	0
+R2000	§20.4.75	HATCH	extrusion.z	230	8	0	0	0
+R2000	§20.4.75	HATCH	path count	91	8	0	0	0
+R2000	§20.4.75	HATCH	paths.boundary handle count	97	8	0	0	0
+R2000	§20.4.75	HATCH	paths.edge count	93	5	0	0	0
+R2000	§20.4.75	HATCH	paths.edges.end.x	11	20	0	0	0
+R2000	§20.4.75	HATCH	paths.edges.end.y	21	20	0	0	0
+R2000	§20.4.75	HATCH	paths.edges.start.x	10	20	0	0	0
+R2000	§20.4.75	HATCH	paths.edges.start.y	20	20	0	0	0
+R2000	§20.4.75	HATCH	paths.edges.type	72	20	0	0	0
+R2000	§20.4.75	HATCH	paths.flags	92	8	0	0	0
+R2000	§20.4.75	HATCH	paths.has_bulge	72	3	0	0	0
+R2000	§20.4.75	HATCH	paths.is_closed	73	3	0	0	0
+R2000	§20.4.75	HATCH	paths.vertex count	93	3	0	0	0
+R2000	§20.4.75	HATCH	paths.vertices.x	10	12	0	0	0
+R2000	§20.4.75	HATCH	paths.vertices.y	20	12	0	0	0
+R2000	§20.4.75	HATCH	pattern line count	78	6	0	0	0
+R2000	§20.4.75	HATCH	pattern_angle	52	6	0	0	0
+R2000	§20.4.75	HATCH	pattern_double	77	6	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.angle	53	449	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.dash count	79	449	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.dashes	49	896	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.offset.x	45	449	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.offset.y	46	449	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.origin.x	43	449	0	0	0
+R2000	§20.4.75	HATCH	pattern_lines.origin.y	44	449	0	0	0
+R2000	§20.4.75	HATCH	pattern_name	2	8	0	0	0
+R2000	§20.4.75	HATCH	pattern_scale	41	6	0	0	0
+R2000	§20.4.75	HATCH	pattern_style	75	8	0	0	0
+R2000	§20.4.75	HATCH	pattern_type	76	8	0	0	0
+R2000	§20.4.75	HATCH	pixel_size	47	3	0	0	0
+R2000	§20.4.75	HATCH	seed point count	98	8	0	0	0
+R2000	§20.4.75	HATCH	seed_points.x	10	8	0	0	0
+R2000	§20.4.75	HATCH	seed_points.y	20	8	0	0	0
+R2000	§20.4.75	HATCH	solid_fill	70	8	0	0	0
+R2000	§20.4.80	IMAGE	brightness	281	1	0	0	0
+R2000	§20.4.80	IMAGE	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2000	§20.4.80	IMAGE	clip_boundary[0].x	14	1	0	0	0
+R2000	§20.4.80	IMAGE	clip_boundary[0].y	24	1	0	0	0
+R2000	§20.4.80	IMAGE	clip_boundary[1].x	14	1	0	0	0
+R2000	§20.4.80	IMAGE	clip_boundary[1].y	24	1	0	0	0
+R2000	§20.4.80	IMAGE	clip_boundary_type	71	1	0	0	0
+R2000	§20.4.80	IMAGE	clipping	280	1	0	0	0
+R2000	§20.4.80	IMAGE	contrast	282	1	0	0	0
+R2000	§20.4.80	IMAGE	display_flags	70	1	0	0	0
+R2000	§20.4.80	IMAGE	fade	283	1	0	0	0
+R2000	§20.4.80	IMAGE	image_size.x	13	1	0	0	0
+R2000	§20.4.80	IMAGE	image_size.y	23	1	0	0	0
+R2000	§20.4.80	IMAGE	insertion_point.x	10	1	0	0	0
+R2000	§20.4.80	IMAGE	insertion_point.y	20	1	0	0	0
+R2000	§20.4.80	IMAGE	insertion_point.z	30	1	0	0	0
+R2000	§20.4.80	IMAGE	u_vector.x	11	1	0	0	0
+R2000	§20.4.80	IMAGE	u_vector.y	21	1	0	0	0
+R2000	§20.4.80	IMAGE	u_vector.z	31	1	0	0	0
+R2000	§20.4.80	IMAGE	v_vector.x	12	1	0	0	0
+R2000	§20.4.80	IMAGE	v_vector.y	22	1	0	0	0
+R2000	§20.4.80	IMAGE	v_vector.z	32	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	class_version	90	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	file_path	1	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	image_size_pixels.x	10	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	image_size_pixels.y	20	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	is_loaded	280	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	pixel_height_size	21	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	pixel_size_units	281	1	0	0	0
+R2000	§20.4.81	IMAGEDEF	pixel_width_size	11	1	0	0	0
 R2000	§20.4.82	IMAGEDEF_REACTOR	class_version	90	1	0	0	0
 R2000	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
 R2000	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
@@ -835,6 +1247,21 @@ R2004	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2004	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2004	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2004	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2004	-	MESH	blend_crease	72	2	0	0	0
+R2004	-	MESH	crease count	95	2	0	0	0
+R2004	-	MESH	creases	140	260	0	0	0
+R2004	-	MESH	edge count	94	2	0	0	0
+R2004	-	MESH	edges.end	90	260	0	0	0
+R2004	-	MESH	edges.start	90	260	0	0	0
+R2004	-	MESH	face list entries	93	2	0	0	0
+R2004	-	MESH	faces.indices	90	520	0	0	0
+R2004	-	MESH	faces.vertex count	90	136	0	0	0
+R2004	-	MESH	subdivision_level	91	2	0	0	0
+R2004	-	MESH	version	71	2	0	0	0
+R2004	-	MESH	vertex count	92	2	0	0	0
+R2004	-	MESH	vertices.x	10	126	0	0	0
+R2004	-	MESH	vertices.y	20	126	0	0	0
+R2004	-	MESH	vertices.z	30	126	0	0	0
 R2004	-	VISUALSTYLE	description	2	192	0	0	0
 R2004	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2004	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
@@ -869,6 +1296,34 @@ R2004	-	VISUALSTYLE	face_opacity	40	192	0	0	0
 R2004	-	VISUALSTYLE	face_specular	41	192	0	0	0
 R2004	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
 R2004	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
+R2004	-	WIPEOUT	brightness	281	1	0	0	0
+R2004	-	WIPEOUT	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary closing vertex (the first again).x	14	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary closing vertex (the first again).y	24	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[0].x	14	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[0].y	24	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[1].x	14	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[1].y	24	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[2].x	14	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[2].y	24	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[3].x	14	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary[3].y	24	1	0	0	0
+R2004	-	WIPEOUT	clip_boundary_type	71	1	0	0	0
+R2004	-	WIPEOUT	clipping	280	1	0	0	0
+R2004	-	WIPEOUT	contrast	282	1	0	0	0
+R2004	-	WIPEOUT	display_flags	70	1	0	0	0
+R2004	-	WIPEOUT	fade	283	1	0	0	0
+R2004	-	WIPEOUT	image_size.x	13	1	0	0	0
+R2004	-	WIPEOUT	image_size.y	23	1	0	0	0
+R2004	-	WIPEOUT	insertion_point.x	10	1	0	0	0
+R2004	-	WIPEOUT	insertion_point.y	20	1	0	0	0
+R2004	-	WIPEOUT	insertion_point.z	30	1	0	0	0
+R2004	-	WIPEOUT	u_vector.x	11	1	0	0	0
+R2004	-	WIPEOUT	u_vector.y	21	1	0	0	0
+R2004	-	WIPEOUT	u_vector.z	31	1	0	0	0
+R2004	-	WIPEOUT	v_vector.x	12	1	0	0	0
+R2004	-	WIPEOUT	v_vector.y	22	1	0	0	0
+R2004	-	WIPEOUT	v_vector.z	32	1	0	0	0
 R2004	§20.4.101	TABLESTYLE	bit_flags	71	8	0	0	0
 R2004	§20.4.101	TABLESTYLE	data.background_enabled	283	8	0	0	0
 R2004	§20.4.101	TABLESTYLE	data.borders[0].color	64	8	0	0	0
@@ -993,6 +1448,217 @@ R2004	§20.4.21	LINE	start.x	10	99	0	0	0
 R2004	§20.4.21	LINE	start.y	20	99	0	0	0
 R2004	§20.4.21	LINE	start.z	30	99	0	0	0
 R2004	§20.4.21	LINE	thickness	39	0	99	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	actual_measurement	42	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	attachment	71	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	def_point_10.x	10	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	def_point_10.y	20	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	def_point_10.z	30	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	def_point_12.x	12	0	0	0	2
+R2004	§20.4.23	DIMENSION_ORDINATE	def_point_12.y	22	0	0	0	2
+R2004	§20.4.23	DIMENSION_ORDINATE	elevation (z of 11)	31	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	extrusion.x	210	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	extrusion.y	220	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	extrusion.z	230	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	feature_location_13.x	13	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	feature_location_13.y	23	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	feature_location_13.z	33	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	horiz_dir	51	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	ins_rotation	54	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2004	§20.4.23	DIMENSION_ORDINATE	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2004	§20.4.23	DIMENSION_ORDINATE	ins_scale.z	43	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.x	14	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.y	24	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.z	34	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	line_spacing_factor	41	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	line_spacing_style	72	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	text_midpoint.x	11	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	text_midpoint.y	21	2	0	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	text_rotation	53	0	2	0	0
+R2004	§20.4.23	DIMENSION_ORDINATE	user_text	1	0	2	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	actual_measurement	42	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	attachment	71	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_10.x	10	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_10.y	20	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_10.z	30	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_12.x	12	0	0	0	3
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_12.y	22	0	0	0	3
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_13.x	13	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_13.y	23	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_13.z	33	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_14.x	14	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_14.y	24	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	def_point_14.z	34	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	dim_rotation	50	1	2	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	elevation (z of 11)	31	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	extension_line_rotation	52	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	extrusion.x	210	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	extrusion.y	220	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	extrusion.z	230	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	flags (the subtype and flag bits, as group 70)	70	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	horiz_dir	51	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	ins_rotation	54	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	ins_scale.x (41 is the line spacing factor)	-	0	0	0	3
+R2004	§20.4.24	DIMENSION_LINEAR	ins_scale.y (42 is the measurement)	-	0	0	0	3
+R2004	§20.4.24	DIMENSION_LINEAR	ins_scale.z	43	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	line_spacing_factor	41	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	line_spacing_style	72	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	text_midpoint.x	11	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	text_midpoint.y	21	3	0	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	text_rotation	53	0	3	0	0
+R2004	§20.4.24	DIMENSION_LINEAR	user_text	1	0	3	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	actual_measurement	42	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	attachment	71	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_10.x	10	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_10.y	20	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_10.z	30	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_12.x	12	0	0	0	2
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_12.y	22	0	0	0	2
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_13.x	13	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_13.y	23	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_13.z	33	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_14.x	14	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_14.y	24	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	def_point_14.z	34	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	elevation (z of 11)	31	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	extension_line_rotation	52	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	extrusion.x	210	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	extrusion.y	220	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	extrusion.z	230	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	horiz_dir	51	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	ins_rotation	54	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2004	§20.4.25	DIMENSION_ALIGNED	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2004	§20.4.25	DIMENSION_ALIGNED	ins_scale.z	43	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	line_spacing_factor	41	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	line_spacing_style	72	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	text_midpoint.x	11	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	text_midpoint.y	21	2	0	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	text_rotation	53	0	2	0	0
+R2004	§20.4.25	DIMENSION_ALIGNED	user_text	1	0	2	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	actual_measurement	42	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	attachment	71	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_10.x	10	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_10.y	20	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_10.z	30	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_12.x	12	0	0	0	1
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_12.y	22	0	0	0	1
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_13.x	13	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_13.y	23	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_13.z	33	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_14.x	14	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_14.y	24	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_14.z	34	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_15.x	15	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_15.y	25	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	def_point_15.z	35	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	elevation (z of 11)	31	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	extrusion.x	210	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	extrusion.y	220	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	extrusion.z	230	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	horiz_dir	51	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	ins_rotation	54	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2004	§20.4.26	DIMENSION_ANG_3PT	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2004	§20.4.26	DIMENSION_ANG_3PT	ins_scale.z	43	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	line_spacing_factor	41	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	line_spacing_style	72	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.x	11	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.y	21	1	0	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	text_rotation	53	0	1	0	0
+R2004	§20.4.26	DIMENSION_ANG_3PT	user_text	1	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	actual_measurement	42	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	attachment	71	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_10.x	10	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_10.y	20	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_10.z	30	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_12.x	12	0	0	0	1
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_12.y	22	0	0	0	1
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_13.x	13	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_13.y	23	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_13.z	33	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_14.x	14	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_14.y	24	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_14.z	34	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_15.x	15	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_15.y	25	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_15.z	35	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_16.x	16	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	def_point_16.y	26	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 11)	31	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 16)	36	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	extrusion.x	210	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	extrusion.y	220	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	extrusion.z	230	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	horiz_dir	51	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	ins_rotation	54	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2004	§20.4.27	DIMENSION_ANG_2LN	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2004	§20.4.27	DIMENSION_ANG_2LN	ins_scale.z	43	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	line_spacing_factor	41	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	line_spacing_style	72	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.x	11	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.y	21	1	0	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	text_rotation	53	0	1	0	0
+R2004	§20.4.27	DIMENSION_ANG_2LN	user_text	1	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	actual_measurement	42	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	attachment	71	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_10.x	10	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_10.y	20	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_10.z	30	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_12.x	12	0	0	0	1
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_12.y	22	0	0	0	1
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_15.x	15	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_15.y	25	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	def_point_15.z	35	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	elevation (z of 11)	31	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	extrusion.x	210	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	extrusion.y	220	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	extrusion.z	230	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	horiz_dir	51	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	ins_rotation	54	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2004	§20.4.28	DIMENSION_RADIUS	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2004	§20.4.28	DIMENSION_RADIUS	ins_scale.z	43	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	leader_length	40	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	line_spacing_factor	41	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	line_spacing_style	72	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	text_midpoint.x	11	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	text_midpoint.y	21	1	0	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	text_rotation	53	0	1	0	0
+R2004	§20.4.28	DIMENSION_RADIUS	user_text	1	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	actual_measurement	42	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	attachment	71	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_10.x	10	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_10.y	20	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_10.z	30	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_12.x	12	0	0	0	1
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_12.y	22	0	0	0	1
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_15.x	15	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_15.y	25	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	def_point_15.z	35	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	elevation (z of 11)	31	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	extrusion.x	210	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	extrusion.y	220	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	extrusion.z	230	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	horiz_dir	51	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	ins_rotation	54	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2004	§20.4.29	DIMENSION_DIAMETER	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2004	§20.4.29	DIMENSION_DIAMETER	ins_scale.z	43	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	leader_length	40	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	line_spacing_factor	41	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	line_spacing_style	72	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	text_midpoint.x	11	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	text_midpoint.y	21	1	0	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	text_rotation	53	0	1	0	0
+R2004	§20.4.29	DIMENSION_DIAMETER	user_text	1	0	1	0	0
 R2004	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
 R2004	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
 R2004	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
@@ -1049,6 +1715,50 @@ R2004	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
 R2004	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
 R2004	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
 R2004	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2004	§20.4.38	VIEWPORT	back_clip_z	44	6	0	0	0
+R2004	§20.4.38	VIEWPORT	center.x	10	6	0	0	0
+R2004	§20.4.38	VIEWPORT	center.y	20	6	0	0	0
+R2004	§20.4.38	VIEWPORT	center.z	30	6	0	0	0
+R2004	§20.4.38	VIEWPORT	circle_zoom	72	6	0	0	0
+R2004	§20.4.38	VIEWPORT	front_clip_z	43	6	0	0	0
+R2004	§20.4.38	VIEWPORT	frozen_layer_count	-	0	0	0	6
+R2004	§20.4.38	VIEWPORT	grid_spacing.x	15	6	0	0	0
+R2004	§20.4.38	VIEWPORT	grid_spacing.y	25	6	0	0	0
+R2004	§20.4.38	VIEWPORT	height	41	6	0	0	0
+R2004	§20.4.38	VIEWPORT	lens_length	42	6	0	0	0
+R2004	§20.4.38	VIEWPORT	render_mode	281	6	0	0	0
+R2004	§20.4.38	VIEWPORT	shade_plot_mode	170	6	0	0	0
+R2004	§20.4.38	VIEWPORT	snap_angle	50	6	0	0	0
+R2004	§20.4.38	VIEWPORT	snap_base.x	13	6	0	0	0
+R2004	§20.4.38	VIEWPORT	snap_base.y	23	6	0	0	0
+R2004	§20.4.38	VIEWPORT	snap_spacing.x	14	6	0	0	0
+R2004	§20.4.38	VIEWPORT	snap_spacing.y	24	6	0	0	0
+R2004	§20.4.38	VIEWPORT	status_flags	90	6	0	0	0
+R2004	§20.4.38	VIEWPORT	style_sheet	1	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_at_origin	74	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_elevation	146	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_origin.x	110	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_origin.y	120	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_origin.z	130	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_ortho_view_type	79	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_per_viewport	71	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_x_axis.x	111	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_x_axis.y	121	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_x_axis.z	131	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_y_axis.x	112	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_y_axis.y	122	6	0	0	0
+R2004	§20.4.38	VIEWPORT	ucs_y_axis.z	132	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_center.x	12	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_center.y	22	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_direction.x	16	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_direction.y	26	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_direction.z	36	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_height	45	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_target.x	17	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_target.y	27	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_target.z	37	6	0	0	0
+R2004	§20.4.38	VIEWPORT	view_twist_angle	51	6	0	0	0
+R2004	§20.4.38	VIEWPORT	width	40	6	0	0	0
 R2004	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
 R2004	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
 R2004	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
@@ -1084,6 +1794,20 @@ R2004	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2004	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2004	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2004	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2004	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2004	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2004	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2004	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2004	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2004	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2004	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2004	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2004	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2004	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2004	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2004	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2004	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2004	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2004	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2004	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2004	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -1240,6 +1964,16 @@ R2004	§20.4.48	MULTILEADER	text_angle_type	174	15	0	0	0
 R2004	§20.4.48	MULTILEADER	text_color	92	15	0	0	0
 R2004	§20.4.48	MULTILEADER	text_frame_enabled	292	15	0	0	0
 R2004	§20.4.48	MULTILEADER	unknown_175	175	15	0	0	0
+R2004	§20.4.49	TOLERANCE	extrusion.x	210	0	3	0	0
+R2004	§20.4.49	TOLERANCE	extrusion.y	220	0	3	0	0
+R2004	§20.4.49	TOLERANCE	extrusion.z	230	0	3	0	0
+R2004	§20.4.49	TOLERANCE	insertion_point.x	10	3	0	0	0
+R2004	§20.4.49	TOLERANCE	insertion_point.y	20	3	0	0	0
+R2004	§20.4.49	TOLERANCE	insertion_point.z	30	3	0	0	0
+R2004	§20.4.49	TOLERANCE	text_string	1	3	0	0	0
+R2004	§20.4.49	TOLERANCE	x_axis_direction.x	11	0	0	0	3
+R2004	§20.4.49	TOLERANCE	x_axis_direction.y	21	0	0	0	3
+R2004	§20.4.49	TOLERANCE	x_axis_direction.z	31	0	0	0	3
 R2004	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
 R2004	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
 R2004	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
@@ -1264,6 +1998,29 @@ R2004	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2004	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2004	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2004	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2004	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2004	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2004	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2004	§20.4.50	MLINE	justification	70	3	0	0	0
+R2004	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2004	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2004	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2004	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2004	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2004	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2004	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2004	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2004	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2004	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2004	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2004	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2004	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2004	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -1440,6 +2197,84 @@ R2004	§20.4.73	MLINESTYLE	name	2	8	0	0	0
 R2004	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
 R2004	§20.4.74	DICTIONARYVAR	schema	280	53	0	0	0
 R2004	§20.4.74	DICTIONARYVAR	value	1	53	0	0	0
+R2004	§20.4.75	HATCH	associative	71	8	0	0	0
+R2004	§20.4.75	HATCH	elevation (z of 10)	30	8	0	0	0
+R2004	§20.4.75	HATCH	extrusion.x	210	8	0	0	0
+R2004	§20.4.75	HATCH	extrusion.y	220	8	0	0	0
+R2004	§20.4.75	HATCH	extrusion.z	230	8	0	0	0
+R2004	§20.4.75	HATCH	gradient flag	450	2	0	0	0
+R2004	§20.4.75	HATCH	gradient.angle	460	2	0	0	0
+R2004	§20.4.75	HATCH	gradient.color count	453	2	0	0	0
+R2004	§20.4.75	HATCH	gradient.colors.rgb (CMC word 0xC2, payload)	421	4	0	0	0
+R2004	§20.4.75	HATCH	gradient.colors.unknown_double	463	4	0	0	0
+R2004	§20.4.75	HATCH	gradient.colors.unknown_short	-	0	0	0	4
+R2004	§20.4.75	HATCH	gradient.is_single_color	452	2	0	0	0
+R2004	§20.4.75	HATCH	gradient.name	470	2	0	0	0
+R2004	§20.4.75	HATCH	gradient.shift	461	2	0	0	0
+R2004	§20.4.75	HATCH	gradient.tint	462	2	0	0	0
+R2004	§20.4.75	HATCH	path count	91	8	0	0	0
+R2004	§20.4.75	HATCH	paths.boundary handle count	97	8	0	0	0
+R2004	§20.4.75	HATCH	paths.edge count	93	5	0	0	0
+R2004	§20.4.75	HATCH	paths.edges.end.x	11	20	0	0	0
+R2004	§20.4.75	HATCH	paths.edges.end.y	21	20	0	0	0
+R2004	§20.4.75	HATCH	paths.edges.start.x	10	20	0	0	0
+R2004	§20.4.75	HATCH	paths.edges.start.y	20	20	0	0	0
+R2004	§20.4.75	HATCH	paths.edges.type	72	20	0	0	0
+R2004	§20.4.75	HATCH	paths.flags	92	8	0	0	0
+R2004	§20.4.75	HATCH	paths.has_bulge	72	3	0	0	0
+R2004	§20.4.75	HATCH	paths.is_closed	73	3	0	0	0
+R2004	§20.4.75	HATCH	paths.vertex count	93	3	0	0	0
+R2004	§20.4.75	HATCH	paths.vertices.x	10	12	0	0	0
+R2004	§20.4.75	HATCH	paths.vertices.y	20	12	0	0	0
+R2004	§20.4.75	HATCH	pattern line count	78	6	0	0	0
+R2004	§20.4.75	HATCH	pattern_angle	52	6	0	0	0
+R2004	§20.4.75	HATCH	pattern_double	77	6	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.angle	53	449	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.dash count	79	449	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.dashes	49	896	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.offset.x	45	449	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.offset.y	46	449	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.origin.x	43	449	0	0	0
+R2004	§20.4.75	HATCH	pattern_lines.origin.y	44	449	0	0	0
+R2004	§20.4.75	HATCH	pattern_name	2	8	0	0	0
+R2004	§20.4.75	HATCH	pattern_scale	41	6	0	0	0
+R2004	§20.4.75	HATCH	pattern_style	75	8	0	0	0
+R2004	§20.4.75	HATCH	pattern_type	76	8	0	0	0
+R2004	§20.4.75	HATCH	pixel_size	47	3	0	0	0
+R2004	§20.4.75	HATCH	seed point count	98	8	0	0	0
+R2004	§20.4.75	HATCH	seed_points.x	10	8	0	0	0
+R2004	§20.4.75	HATCH	seed_points.y	20	8	0	0	0
+R2004	§20.4.75	HATCH	solid_fill	70	8	0	0	0
+R2004	§20.4.80	IMAGE	brightness	281	1	0	0	0
+R2004	§20.4.80	IMAGE	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2004	§20.4.80	IMAGE	clip_boundary[0].x	14	1	0	0	0
+R2004	§20.4.80	IMAGE	clip_boundary[0].y	24	1	0	0	0
+R2004	§20.4.80	IMAGE	clip_boundary[1].x	14	1	0	0	0
+R2004	§20.4.80	IMAGE	clip_boundary[1].y	24	1	0	0	0
+R2004	§20.4.80	IMAGE	clip_boundary_type	71	1	0	0	0
+R2004	§20.4.80	IMAGE	clipping	280	1	0	0	0
+R2004	§20.4.80	IMAGE	contrast	282	1	0	0	0
+R2004	§20.4.80	IMAGE	display_flags	70	1	0	0	0
+R2004	§20.4.80	IMAGE	fade	283	1	0	0	0
+R2004	§20.4.80	IMAGE	image_size.x	13	1	0	0	0
+R2004	§20.4.80	IMAGE	image_size.y	23	1	0	0	0
+R2004	§20.4.80	IMAGE	insertion_point.x	10	1	0	0	0
+R2004	§20.4.80	IMAGE	insertion_point.y	20	1	0	0	0
+R2004	§20.4.80	IMAGE	insertion_point.z	30	1	0	0	0
+R2004	§20.4.80	IMAGE	u_vector.x	11	1	0	0	0
+R2004	§20.4.80	IMAGE	u_vector.y	21	1	0	0	0
+R2004	§20.4.80	IMAGE	u_vector.z	31	1	0	0	0
+R2004	§20.4.80	IMAGE	v_vector.x	12	1	0	0	0
+R2004	§20.4.80	IMAGE	v_vector.y	22	1	0	0	0
+R2004	§20.4.80	IMAGE	v_vector.z	32	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	class_version	90	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	file_path	1	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	image_size_pixels.x	10	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	image_size_pixels.y	20	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	is_loaded	280	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	pixel_height_size	21	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	pixel_size_units	281	1	0	0	0
+R2004	§20.4.81	IMAGEDEF	pixel_width_size	11	1	0	0	0
 R2004	§20.4.82	IMAGEDEF_REACTOR	class_version	90	1	0	0	0
 R2004	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
 R2004	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
@@ -1622,6 +2457,21 @@ R2007	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2007	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2007	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2007	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2007	-	MESH	blend_crease	72	2	0	0	0
+R2007	-	MESH	crease count	95	2	0	0	0
+R2007	-	MESH	creases	140	260	0	0	0
+R2007	-	MESH	edge count	94	2	0	0	0
+R2007	-	MESH	edges.end	90	260	0	0	0
+R2007	-	MESH	edges.start	90	260	0	0	0
+R2007	-	MESH	face list entries	93	2	0	0	0
+R2007	-	MESH	faces.indices	90	520	0	0	0
+R2007	-	MESH	faces.vertex count	90	136	0	0	0
+R2007	-	MESH	subdivision_level	91	2	0	0	0
+R2007	-	MESH	version	71	2	0	0	0
+R2007	-	MESH	vertex count	92	2	0	0	0
+R2007	-	MESH	vertices.x	10	126	0	0	0
+R2007	-	MESH	vertices.y	20	126	0	0	0
+R2007	-	MESH	vertices.z	30	126	0	0	0
 R2007	-	VISUALSTYLE	description	2	192	0	0	0
 R2007	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2007	-	VISUALSTYLE	display_shadow_type	173	192	0	0	0
@@ -1656,6 +2506,34 @@ R2007	-	VISUALSTYLE	face_opacity	40	192	0	0	0
 R2007	-	VISUALSTYLE	face_specular	41	192	0	0	0
 R2007	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
 R2007	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
+R2007	-	WIPEOUT	brightness	281	1	0	0	0
+R2007	-	WIPEOUT	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary closing vertex (the first again).x	14	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary closing vertex (the first again).y	24	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[0].x	14	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[0].y	24	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[1].x	14	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[1].y	24	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[2].x	14	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[2].y	24	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[3].x	14	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary[3].y	24	1	0	0	0
+R2007	-	WIPEOUT	clip_boundary_type	71	1	0	0	0
+R2007	-	WIPEOUT	clipping	280	1	0	0	0
+R2007	-	WIPEOUT	contrast	282	1	0	0	0
+R2007	-	WIPEOUT	display_flags	70	1	0	0	0
+R2007	-	WIPEOUT	fade	283	1	0	0	0
+R2007	-	WIPEOUT	image_size.x	13	1	0	0	0
+R2007	-	WIPEOUT	image_size.y	23	1	0	0	0
+R2007	-	WIPEOUT	insertion_point.x	10	1	0	0	0
+R2007	-	WIPEOUT	insertion_point.y	20	1	0	0	0
+R2007	-	WIPEOUT	insertion_point.z	30	1	0	0	0
+R2007	-	WIPEOUT	u_vector.x	11	1	0	0	0
+R2007	-	WIPEOUT	u_vector.y	21	1	0	0	0
+R2007	-	WIPEOUT	u_vector.z	31	1	0	0	0
+R2007	-	WIPEOUT	v_vector.x	12	1	0	0	0
+R2007	-	WIPEOUT	v_vector.y	22	1	0	0	0
+R2007	-	WIPEOUT	v_vector.z	32	1	0	0	0
 R2007	§20.4.101	TABLESTYLE	bit_flags	71	8	0	0	0
 R2007	§20.4.101	TABLESTYLE	data.background_enabled	283	8	0	0	0
 R2007	§20.4.101	TABLESTYLE	data.borders[0].color	64	8	0	0	0
@@ -1789,6 +2667,231 @@ R2007	§20.4.21	LINE	start.x	10	99	0	0	0
 R2007	§20.4.21	LINE	start.y	20	99	0	0	0
 R2007	§20.4.21	LINE	start.z	30	99	0	0	0
 R2007	§20.4.21	LINE	thickness	39	0	99	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	actual_measurement	42	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	attachment	71	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	def_point_10.x	10	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	def_point_10.y	20	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	def_point_10.z	30	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	def_point_12.x	12	0	0	0	2
+R2007	§20.4.23	DIMENSION_ORDINATE	def_point_12.y	22	0	0	0	2
+R2007	§20.4.23	DIMENSION_ORDINATE	elevation (z of 11)	31	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	extrusion.x	210	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	extrusion.y	220	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	extrusion.z	230	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	feature_location_13.x	13	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	feature_location_13.y	23	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	feature_location_13.z	33	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	flip_arrow_1	74	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	flip_arrow_2	75	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	horiz_dir	51	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	ins_rotation	54	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2007	§20.4.23	DIMENSION_ORDINATE	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2007	§20.4.23	DIMENSION_ORDINATE	ins_scale.z	43	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.x	14	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.y	24	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.z	34	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	line_spacing_factor	41	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	line_spacing_style	72	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	text_midpoint.x	11	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	text_midpoint.y	21	2	0	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	text_rotation	53	0	2	0	0
+R2007	§20.4.23	DIMENSION_ORDINATE	user_text	1	0	2	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	actual_measurement	42	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	attachment	71	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_10.x	10	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_10.y	20	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_10.z	30	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_12.x	12	0	0	0	3
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_12.y	22	0	0	0	3
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_13.x	13	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_13.y	23	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_13.z	33	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_14.x	14	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_14.y	24	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	def_point_14.z	34	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	dim_rotation	50	1	2	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	elevation (z of 11)	31	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	extension_line_rotation	52	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	extrusion.x	210	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	extrusion.y	220	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	extrusion.z	230	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	flags (the subtype and flag bits, as group 70)	70	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	flip_arrow_1	74	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	flip_arrow_2	75	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	horiz_dir	51	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	ins_rotation	54	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	ins_scale.x (41 is the line spacing factor)	-	0	0	0	3
+R2007	§20.4.24	DIMENSION_LINEAR	ins_scale.y (42 is the measurement)	-	0	0	0	3
+R2007	§20.4.24	DIMENSION_LINEAR	ins_scale.z	43	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	line_spacing_factor	41	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	line_spacing_style	72	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	text_midpoint.x	11	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	text_midpoint.y	21	3	0	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	text_rotation	53	0	3	0	0
+R2007	§20.4.24	DIMENSION_LINEAR	user_text	1	0	3	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	actual_measurement	42	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	attachment	71	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_10.x	10	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_10.y	20	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_10.z	30	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_12.x	12	0	0	0	2
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_12.y	22	0	0	0	2
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_13.x	13	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_13.y	23	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_13.z	33	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_14.x	14	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_14.y	24	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	def_point_14.z	34	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	elevation (z of 11)	31	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	extension_line_rotation	52	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	extrusion.x	210	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	extrusion.y	220	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	extrusion.z	230	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	flip_arrow_1	74	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	flip_arrow_2	75	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	horiz_dir	51	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	ins_rotation	54	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2007	§20.4.25	DIMENSION_ALIGNED	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2007	§20.4.25	DIMENSION_ALIGNED	ins_scale.z	43	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	line_spacing_factor	41	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	line_spacing_style	72	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	text_midpoint.x	11	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	text_midpoint.y	21	2	0	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	text_rotation	53	0	2	0	0
+R2007	§20.4.25	DIMENSION_ALIGNED	user_text	1	0	2	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	actual_measurement	42	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	attachment	71	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_10.x	10	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_10.y	20	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_10.z	30	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_12.x	12	0	0	0	1
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_12.y	22	0	0	0	1
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_13.x	13	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_13.y	23	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_13.z	33	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_14.x	14	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_14.y	24	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_14.z	34	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_15.x	15	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_15.y	25	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	def_point_15.z	35	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	elevation (z of 11)	31	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	extrusion.x	210	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	extrusion.y	220	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	extrusion.z	230	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_1	74	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_2	75	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	horiz_dir	51	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	ins_rotation	54	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2007	§20.4.26	DIMENSION_ANG_3PT	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2007	§20.4.26	DIMENSION_ANG_3PT	ins_scale.z	43	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	line_spacing_factor	41	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	line_spacing_style	72	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.x	11	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.y	21	1	0	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	text_rotation	53	0	1	0	0
+R2007	§20.4.26	DIMENSION_ANG_3PT	user_text	1	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	actual_measurement	42	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	attachment	71	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_10.x	10	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_10.y	20	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_10.z	30	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_12.x	12	0	0	0	1
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_12.y	22	0	0	0	1
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_13.x	13	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_13.y	23	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_13.z	33	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_14.x	14	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_14.y	24	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_14.z	34	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_15.x	15	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_15.y	25	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_15.z	35	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_16.x	16	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	def_point_16.y	26	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 11)	31	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 16)	36	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	extrusion.x	210	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	extrusion.y	220	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	extrusion.z	230	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_1	74	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_2	75	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	horiz_dir	51	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	ins_rotation	54	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2007	§20.4.27	DIMENSION_ANG_2LN	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2007	§20.4.27	DIMENSION_ANG_2LN	ins_scale.z	43	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	line_spacing_factor	41	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	line_spacing_style	72	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.x	11	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.y	21	1	0	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	text_rotation	53	0	1	0	0
+R2007	§20.4.27	DIMENSION_ANG_2LN	user_text	1	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	actual_measurement	42	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	attachment	71	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_10.x	10	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_10.y	20	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_10.z	30	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_12.x	12	0	0	0	1
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_12.y	22	0	0	0	1
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_15.x	15	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_15.y	25	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	def_point_15.z	35	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	elevation (z of 11)	31	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	extrusion.x	210	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	extrusion.y	220	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	extrusion.z	230	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	flip_arrow_1	74	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	flip_arrow_2	75	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	horiz_dir	51	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	ins_rotation	54	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2007	§20.4.28	DIMENSION_RADIUS	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2007	§20.4.28	DIMENSION_RADIUS	ins_scale.z	43	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	leader_length	40	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	line_spacing_factor	41	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	line_spacing_style	72	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	text_midpoint.x	11	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	text_midpoint.y	21	1	0	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	text_rotation	53	0	1	0	0
+R2007	§20.4.28	DIMENSION_RADIUS	user_text	1	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	actual_measurement	42	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	attachment	71	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_10.x	10	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_10.y	20	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_10.z	30	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_12.x	12	0	0	0	1
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_12.y	22	0	0	0	1
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_15.x	15	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_15.y	25	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	def_point_15.z	35	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	elevation (z of 11)	31	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	extrusion.x	210	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	extrusion.y	220	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	extrusion.z	230	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	flip_arrow_1	74	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	flip_arrow_2	75	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	horiz_dir	51	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	ins_rotation	54	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2007	§20.4.29	DIMENSION_DIAMETER	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2007	§20.4.29	DIMENSION_DIAMETER	ins_scale.z	43	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	leader_length	40	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	line_spacing_factor	41	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	line_spacing_style	72	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	text_midpoint.x	11	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	text_midpoint.y	21	1	0	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	text_rotation	53	0	1	0	0
+R2007	§20.4.29	DIMENSION_DIAMETER	user_text	1	0	1	0	0
 R2007	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
 R2007	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
 R2007	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
@@ -1845,6 +2948,56 @@ R2007	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
 R2007	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
 R2007	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
 R2007	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2007	§20.4.38	VIEWPORT	ambient_light_color (RGB, CMC word 0xC2 payload)	421	6	0	0	0
+R2007	§20.4.38	VIEWPORT	back_clip_z	44	6	0	0	0
+R2007	§20.4.38	VIEWPORT	brightness	141	6	0	0	0
+R2007	§20.4.38	VIEWPORT	center.x	10	6	0	0	0
+R2007	§20.4.38	VIEWPORT	center.y	20	6	0	0	0
+R2007	§20.4.38	VIEWPORT	center.z	30	6	0	0	0
+R2007	§20.4.38	VIEWPORT	circle_zoom	72	6	0	0	0
+R2007	§20.4.38	VIEWPORT	contrast	142	6	0	0	0
+R2007	§20.4.38	VIEWPORT	default_lighting_type	282	6	0	0	0
+R2007	§20.4.38	VIEWPORT	front_clip_z	43	6	0	0	0
+R2007	§20.4.38	VIEWPORT	frozen_layer_count	-	0	0	0	6
+R2007	§20.4.38	VIEWPORT	grid_major	61	6	0	0	0
+R2007	§20.4.38	VIEWPORT	grid_spacing.x	15	6	0	0	0
+R2007	§20.4.38	VIEWPORT	grid_spacing.y	25	6	0	0	0
+R2007	§20.4.38	VIEWPORT	height	41	6	0	0	0
+R2007	§20.4.38	VIEWPORT	lens_length	42	6	0	0	0
+R2007	§20.4.38	VIEWPORT	render_mode	281	6	0	0	0
+R2007	§20.4.38	VIEWPORT	shade_plot_mode	170	6	0	0	0
+R2007	§20.4.38	VIEWPORT	snap_angle	50	6	0	0	0
+R2007	§20.4.38	VIEWPORT	snap_base.x	13	6	0	0	0
+R2007	§20.4.38	VIEWPORT	snap_base.y	23	6	0	0	0
+R2007	§20.4.38	VIEWPORT	snap_spacing.x	14	6	0	0	0
+R2007	§20.4.38	VIEWPORT	snap_spacing.y	24	6	0	0	0
+R2007	§20.4.38	VIEWPORT	status_flags	90	6	0	0	0
+R2007	§20.4.38	VIEWPORT	style_sheet	1	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_at_origin	74	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_elevation	146	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_origin.x	110	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_origin.y	120	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_origin.z	130	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_ortho_view_type	79	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_per_viewport	71	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_x_axis.x	111	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_x_axis.y	121	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_x_axis.z	131	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_y_axis.x	112	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_y_axis.y	122	6	0	0	0
+R2007	§20.4.38	VIEWPORT	ucs_y_axis.z	132	6	0	0	0
+R2007	§20.4.38	VIEWPORT	use_default_lights	292	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_center.x	12	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_center.y	22	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_direction.x	16	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_direction.y	26	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_direction.z	36	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_height	45	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_target.x	17	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_target.y	27	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_target.z	37	6	0	0	0
+R2007	§20.4.38	VIEWPORT	view_twist_angle	51	6	0	0	0
+R2007	§20.4.38	VIEWPORT	width	40	6	0	0	0
 R2007	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
 R2007	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
 R2007	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
@@ -1880,6 +3033,20 @@ R2007	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2007	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2007	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2007	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2007	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2007	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2007	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2007	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2007	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2007	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2007	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2007	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2007	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2007	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2007	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2007	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2007	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2007	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2007	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2007	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2007	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -2037,6 +3204,16 @@ R2007	§20.4.48	MULTILEADER	text_angle_type	174	15	0	0	0
 R2007	§20.4.48	MULTILEADER	text_color	92	15	0	0	0
 R2007	§20.4.48	MULTILEADER	text_frame_enabled	292	15	0	0	0
 R2007	§20.4.48	MULTILEADER	unknown_175	175	15	0	0	0
+R2007	§20.4.49	TOLERANCE	extrusion.x	210	0	3	0	0
+R2007	§20.4.49	TOLERANCE	extrusion.y	220	0	3	0	0
+R2007	§20.4.49	TOLERANCE	extrusion.z	230	0	3	0	0
+R2007	§20.4.49	TOLERANCE	insertion_point.x	10	3	0	0	0
+R2007	§20.4.49	TOLERANCE	insertion_point.y	20	3	0	0	0
+R2007	§20.4.49	TOLERANCE	insertion_point.z	30	3	0	0	0
+R2007	§20.4.49	TOLERANCE	text_string	1	3	0	0	0
+R2007	§20.4.49	TOLERANCE	x_axis_direction.x	11	0	0	0	3
+R2007	§20.4.49	TOLERANCE	x_axis_direction.y	21	0	0	0	3
+R2007	§20.4.49	TOLERANCE	x_axis_direction.z	31	0	0	0	3
 R2007	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
 R2007	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
 R2007	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
@@ -2061,6 +3238,29 @@ R2007	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2007	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2007	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2007	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2007	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2007	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2007	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2007	§20.4.50	MLINE	justification	70	3	0	0	0
+R2007	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2007	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2007	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2007	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2007	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2007	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2007	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2007	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2007	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2007	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2007	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2007	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2007	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2007	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -2237,6 +3437,84 @@ R2007	§20.4.73	MLINESTYLE	name	2	8	0	0	0
 R2007	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
 R2007	§20.4.74	DICTIONARYVAR	schema	280	46	0	0	0
 R2007	§20.4.74	DICTIONARYVAR	value	1	46	0	0	0
+R2007	§20.4.75	HATCH	associative	71	8	0	0	0
+R2007	§20.4.75	HATCH	elevation (z of 10)	30	8	0	0	0
+R2007	§20.4.75	HATCH	extrusion.x	210	8	0	0	0
+R2007	§20.4.75	HATCH	extrusion.y	220	8	0	0	0
+R2007	§20.4.75	HATCH	extrusion.z	230	8	0	0	0
+R2007	§20.4.75	HATCH	gradient flag	450	2	0	0	0
+R2007	§20.4.75	HATCH	gradient.angle	460	2	0	0	0
+R2007	§20.4.75	HATCH	gradient.color count	453	2	0	0	0
+R2007	§20.4.75	HATCH	gradient.colors.rgb (CMC word 0xC2, payload)	421	4	0	0	0
+R2007	§20.4.75	HATCH	gradient.colors.unknown_double	463	4	0	0	0
+R2007	§20.4.75	HATCH	gradient.colors.unknown_short	-	0	0	0	4
+R2007	§20.4.75	HATCH	gradient.is_single_color	452	2	0	0	0
+R2007	§20.4.75	HATCH	gradient.name	470	2	0	0	0
+R2007	§20.4.75	HATCH	gradient.shift	461	2	0	0	0
+R2007	§20.4.75	HATCH	gradient.tint	462	2	0	0	0
+R2007	§20.4.75	HATCH	path count	91	8	0	0	0
+R2007	§20.4.75	HATCH	paths.boundary handle count	97	8	0	0	0
+R2007	§20.4.75	HATCH	paths.edge count	93	5	0	0	0
+R2007	§20.4.75	HATCH	paths.edges.end.x	11	20	0	0	0
+R2007	§20.4.75	HATCH	paths.edges.end.y	21	20	0	0	0
+R2007	§20.4.75	HATCH	paths.edges.start.x	10	20	0	0	0
+R2007	§20.4.75	HATCH	paths.edges.start.y	20	20	0	0	0
+R2007	§20.4.75	HATCH	paths.edges.type	72	20	0	0	0
+R2007	§20.4.75	HATCH	paths.flags	92	8	0	0	0
+R2007	§20.4.75	HATCH	paths.has_bulge	72	3	0	0	0
+R2007	§20.4.75	HATCH	paths.is_closed	73	3	0	0	0
+R2007	§20.4.75	HATCH	paths.vertex count	93	3	0	0	0
+R2007	§20.4.75	HATCH	paths.vertices.x	10	12	0	0	0
+R2007	§20.4.75	HATCH	paths.vertices.y	20	12	0	0	0
+R2007	§20.4.75	HATCH	pattern line count	78	6	0	0	0
+R2007	§20.4.75	HATCH	pattern_angle	52	6	0	0	0
+R2007	§20.4.75	HATCH	pattern_double	77	6	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.angle	53	449	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.dash count	79	449	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.dashes	49	896	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.offset.x	45	449	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.offset.y	46	449	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.origin.x	43	449	0	0	0
+R2007	§20.4.75	HATCH	pattern_lines.origin.y	44	449	0	0	0
+R2007	§20.4.75	HATCH	pattern_name	2	8	0	0	0
+R2007	§20.4.75	HATCH	pattern_scale	41	6	0	0	0
+R2007	§20.4.75	HATCH	pattern_style	75	8	0	0	0
+R2007	§20.4.75	HATCH	pattern_type	76	8	0	0	0
+R2007	§20.4.75	HATCH	pixel_size	47	3	0	0	0
+R2007	§20.4.75	HATCH	seed point count	98	8	0	0	0
+R2007	§20.4.75	HATCH	seed_points.x	10	8	0	0	0
+R2007	§20.4.75	HATCH	seed_points.y	20	8	0	0	0
+R2007	§20.4.75	HATCH	solid_fill	70	8	0	0	0
+R2007	§20.4.80	IMAGE	brightness	281	1	0	0	0
+R2007	§20.4.80	IMAGE	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2007	§20.4.80	IMAGE	clip_boundary[0].x	14	1	0	0	0
+R2007	§20.4.80	IMAGE	clip_boundary[0].y	24	1	0	0	0
+R2007	§20.4.80	IMAGE	clip_boundary[1].x	14	1	0	0	0
+R2007	§20.4.80	IMAGE	clip_boundary[1].y	24	1	0	0	0
+R2007	§20.4.80	IMAGE	clip_boundary_type	71	1	0	0	0
+R2007	§20.4.80	IMAGE	clipping	280	1	0	0	0
+R2007	§20.4.80	IMAGE	contrast	282	1	0	0	0
+R2007	§20.4.80	IMAGE	display_flags	70	1	0	0	0
+R2007	§20.4.80	IMAGE	fade	283	1	0	0	0
+R2007	§20.4.80	IMAGE	image_size.x	13	1	0	0	0
+R2007	§20.4.80	IMAGE	image_size.y	23	1	0	0	0
+R2007	§20.4.80	IMAGE	insertion_point.x	10	1	0	0	0
+R2007	§20.4.80	IMAGE	insertion_point.y	20	1	0	0	0
+R2007	§20.4.80	IMAGE	insertion_point.z	30	1	0	0	0
+R2007	§20.4.80	IMAGE	u_vector.x	11	1	0	0	0
+R2007	§20.4.80	IMAGE	u_vector.y	21	1	0	0	0
+R2007	§20.4.80	IMAGE	u_vector.z	31	1	0	0	0
+R2007	§20.4.80	IMAGE	v_vector.x	12	1	0	0	0
+R2007	§20.4.80	IMAGE	v_vector.y	22	1	0	0	0
+R2007	§20.4.80	IMAGE	v_vector.z	32	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	class_version	90	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	file_path	1	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	image_size_pixels.x	10	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	image_size_pixels.y	20	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	is_loaded	280	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	pixel_height_size	21	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	pixel_size_units	281	1	0	0	0
+R2007	§20.4.81	IMAGEDEF	pixel_width_size	11	1	0	0	0
 R2007	§20.4.82	IMAGEDEF_REACTOR	class_version	90	1	0	0	0
 R2007	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
 R2007	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
@@ -2419,6 +3697,21 @@ R2010	-	ACDBPERSSUBENTMANAGER	arrays[2][0]	90	1	0	0	0
 R2010	-	ACDBPERSSUBENTMANAGER	arrays[2][1]	90	1	0	0	0
 R2010	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2010	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2010	-	MESH	blend_crease	72	2	0	0	0
+R2010	-	MESH	crease count	95	2	0	0	0
+R2010	-	MESH	creases	140	260	0	0	0
+R2010	-	MESH	edge count	94	2	0	0	0
+R2010	-	MESH	edges.end	90	260	0	0	0
+R2010	-	MESH	edges.start	90	260	0	0	0
+R2010	-	MESH	face list entries	93	2	0	0	0
+R2010	-	MESH	faces.indices	90	520	0	0	0
+R2010	-	MESH	faces.vertex count	90	136	0	0	0
+R2010	-	MESH	subdivision_level	91	2	0	0	0
+R2010	-	MESH	version	71	2	0	0	0
+R2010	-	MESH	vertex count	92	2	0	0	0
+R2010	-	MESH	vertices.x	10	126	0	0	0
+R2010	-	MESH	vertices.y	20	126	0	0	0
+R2010	-	MESH	vertices.z	30	126	0	0	0
 R2010	-	VISUALSTYLE	description	2	192	0	0	0
 R2010	-	VISUALSTYLE	display_brightness	44	192	0	0	0
 R2010	-	VISUALSTYLE	display_brightness flag	176	192	0	0	0
@@ -2482,6 +3775,35 @@ R2010	-	VISUALSTYLE	face_specular flag	176	192	0	0	0
 R2010	-	VISUALSTYLE	format_version	177	192	0	0	0
 R2010	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
 R2010	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
+R2010	-	WIPEOUT	brightness	281	1	0	0	0
+R2010	-	WIPEOUT	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary closing vertex (the first again).x	14	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary closing vertex (the first again).y	24	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[0].x	14	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[0].y	24	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[1].x	14	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[1].y	24	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[2].x	14	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[2].y	24	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[3].x	14	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary[3].y	24	1	0	0	0
+R2010	-	WIPEOUT	clip_boundary_type	71	1	0	0	0
+R2010	-	WIPEOUT	clip_mode	290	1	0	0	0
+R2010	-	WIPEOUT	clipping	280	1	0	0	0
+R2010	-	WIPEOUT	contrast	282	1	0	0	0
+R2010	-	WIPEOUT	display_flags	70	1	0	0	0
+R2010	-	WIPEOUT	fade	283	1	0	0	0
+R2010	-	WIPEOUT	image_size.x	13	1	0	0	0
+R2010	-	WIPEOUT	image_size.y	23	1	0	0	0
+R2010	-	WIPEOUT	insertion_point.x	10	1	0	0	0
+R2010	-	WIPEOUT	insertion_point.y	20	1	0	0	0
+R2010	-	WIPEOUT	insertion_point.z	30	1	0	0	0
+R2010	-	WIPEOUT	u_vector.x	11	1	0	0	0
+R2010	-	WIPEOUT	u_vector.y	21	1	0	0	0
+R2010	-	WIPEOUT	u_vector.z	31	1	0	0	0
+R2010	-	WIPEOUT	v_vector.x	12	1	0	0	0
+R2010	-	WIPEOUT	v_vector.y	22	1	0	0	0
+R2010	-	WIPEOUT	v_vector.z	32	1	0	0	0
 R2010	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2010	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2010	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -2530,6 +3852,238 @@ R2010	§20.4.21	LINE	start.x	10	99	0	0	0
 R2010	§20.4.21	LINE	start.y	20	99	0	0	0
 R2010	§20.4.21	LINE	start.z	30	99	0	0	0
 R2010	§20.4.21	LINE	thickness	39	0	99	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	actual_measurement	42	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	attachment	71	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	def_point_10.x	10	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	def_point_10.y	20	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	def_point_10.z	30	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	def_point_12.x	12	0	0	0	2
+R2010	§20.4.23	DIMENSION_ORDINATE	def_point_12.y	22	0	0	0	2
+R2010	§20.4.23	DIMENSION_ORDINATE	elevation (z of 11)	31	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	extrusion.x	210	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	extrusion.y	220	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	extrusion.z	230	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	feature_location_13.x	13	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	feature_location_13.y	23	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	feature_location_13.z	33	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	flip_arrow_1	74	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	flip_arrow_2	75	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	horiz_dir	51	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	ins_rotation	54	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2010	§20.4.23	DIMENSION_ORDINATE	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2010	§20.4.23	DIMENSION_ORDINATE	ins_scale.z	43	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.x	14	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.y	24	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.z	34	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	line_spacing_factor	41	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	line_spacing_style	72	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	text_midpoint.x	11	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	text_midpoint.y	21	2	0	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	text_rotation	53	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	user_text	1	0	2	0	0
+R2010	§20.4.23	DIMENSION_ORDINATE	version_flag	280	2	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	actual_measurement	42	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	attachment	71	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_10.x	10	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_10.y	20	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_10.z	30	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_12.x	12	0	0	0	3
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_12.y	22	0	0	0	3
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_13.x	13	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_13.y	23	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_13.z	33	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_14.x	14	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_14.y	24	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	def_point_14.z	34	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	dim_rotation	50	1	2	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	elevation (z of 11)	31	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	extension_line_rotation	52	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	extrusion.x	210	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	extrusion.y	220	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	extrusion.z	230	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	flags (the subtype and flag bits, as group 70)	70	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	flip_arrow_1	74	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	flip_arrow_2	75	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	horiz_dir	51	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	ins_rotation	54	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	ins_scale.x (41 is the line spacing factor)	-	0	0	0	3
+R2010	§20.4.24	DIMENSION_LINEAR	ins_scale.y (42 is the measurement)	-	0	0	0	3
+R2010	§20.4.24	DIMENSION_LINEAR	ins_scale.z	43	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	line_spacing_factor	41	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	line_spacing_style	72	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	text_midpoint.x	11	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	text_midpoint.y	21	3	0	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	text_rotation	53	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	user_text	1	0	3	0	0
+R2010	§20.4.24	DIMENSION_LINEAR	version_flag	280	3	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	actual_measurement	42	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	attachment	71	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_10.x	10	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_10.y	20	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_10.z	30	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_12.x	12	0	0	0	2
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_12.y	22	0	0	0	2
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_13.x	13	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_13.y	23	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_13.z	33	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_14.x	14	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_14.y	24	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	def_point_14.z	34	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	elevation (z of 11)	31	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	extension_line_rotation	52	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	extrusion.x	210	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	extrusion.y	220	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	extrusion.z	230	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	flip_arrow_1	74	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	flip_arrow_2	75	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	horiz_dir	51	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	ins_rotation	54	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2010	§20.4.25	DIMENSION_ALIGNED	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2010	§20.4.25	DIMENSION_ALIGNED	ins_scale.z	43	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	line_spacing_factor	41	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	line_spacing_style	72	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	text_midpoint.x	11	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	text_midpoint.y	21	2	0	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	text_rotation	53	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	user_text	1	0	2	0	0
+R2010	§20.4.25	DIMENSION_ALIGNED	version_flag	280	2	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	actual_measurement	42	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	attachment	71	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_10.x	10	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_10.y	20	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_10.z	30	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_12.x	12	0	0	0	1
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_12.y	22	0	0	0	1
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_13.x	13	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_13.y	23	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_13.z	33	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_14.x	14	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_14.y	24	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_14.z	34	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_15.x	15	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_15.y	25	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	def_point_15.z	35	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	elevation (z of 11)	31	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	extrusion.x	210	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	extrusion.y	220	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	extrusion.z	230	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_1	74	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_2	75	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	horiz_dir	51	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	ins_rotation	54	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2010	§20.4.26	DIMENSION_ANG_3PT	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2010	§20.4.26	DIMENSION_ANG_3PT	ins_scale.z	43	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	line_spacing_factor	41	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	line_spacing_style	72	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.x	11	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.y	21	1	0	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	text_rotation	53	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	user_text	1	0	1	0	0
+R2010	§20.4.26	DIMENSION_ANG_3PT	version_flag	280	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	actual_measurement	42	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	attachment	71	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_10.x	10	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_10.y	20	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_10.z	30	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_12.x	12	0	0	0	1
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_12.y	22	0	0	0	1
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_13.x	13	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_13.y	23	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_13.z	33	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_14.x	14	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_14.y	24	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_14.z	34	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_15.x	15	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_15.y	25	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_15.z	35	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_16.x	16	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	def_point_16.y	26	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 11)	31	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 16)	36	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	extrusion.x	210	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	extrusion.y	220	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	extrusion.z	230	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_1	74	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_2	75	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	horiz_dir	51	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	ins_rotation	54	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2010	§20.4.27	DIMENSION_ANG_2LN	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2010	§20.4.27	DIMENSION_ANG_2LN	ins_scale.z	43	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	line_spacing_factor	41	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	line_spacing_style	72	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.x	11	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.y	21	1	0	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	text_rotation	53	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	user_text	1	0	1	0	0
+R2010	§20.4.27	DIMENSION_ANG_2LN	version_flag	280	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	actual_measurement	42	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	attachment	71	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_10.x	10	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_10.y	20	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_10.z	30	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_12.x	12	0	0	0	1
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_12.y	22	0	0	0	1
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_15.x	15	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_15.y	25	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	def_point_15.z	35	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	elevation (z of 11)	31	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	extrusion.x	210	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	extrusion.y	220	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	extrusion.z	230	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	flip_arrow_1	74	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	flip_arrow_2	75	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	horiz_dir	51	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	ins_rotation	54	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2010	§20.4.28	DIMENSION_RADIUS	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2010	§20.4.28	DIMENSION_RADIUS	ins_scale.z	43	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	leader_length	40	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	line_spacing_factor	41	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	line_spacing_style	72	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	text_midpoint.x	11	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	text_midpoint.y	21	1	0	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	text_rotation	53	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	user_text	1	0	1	0	0
+R2010	§20.4.28	DIMENSION_RADIUS	version_flag	280	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	actual_measurement	42	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	attachment	71	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_10.x	10	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_10.y	20	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_10.z	30	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_12.x	12	0	0	0	1
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_12.y	22	0	0	0	1
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_15.x	15	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_15.y	25	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	def_point_15.z	35	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	elevation (z of 11)	31	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	extrusion.x	210	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	extrusion.y	220	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	extrusion.z	230	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	flip_arrow_1	74	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	flip_arrow_2	75	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	horiz_dir	51	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	ins_rotation	54	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2010	§20.4.29	DIMENSION_DIAMETER	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2010	§20.4.29	DIMENSION_DIAMETER	ins_scale.z	43	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	leader_length	40	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	line_spacing_factor	41	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	line_spacing_style	72	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	text_midpoint.x	11	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	text_midpoint.y	21	1	0	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	text_rotation	53	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	user_text	1	0	1	0	0
+R2010	§20.4.29	DIMENSION_DIAMETER	version_flag	280	1	0	0	0
 R2010	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
 R2010	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
 R2010	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
@@ -2586,6 +4140,56 @@ R2010	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
 R2010	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
 R2010	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
 R2010	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2010	§20.4.38	VIEWPORT	ambient_light_color (RGB, CMC word 0xC2 payload)	421	6	0	0	0
+R2010	§20.4.38	VIEWPORT	back_clip_z	44	6	0	0	0
+R2010	§20.4.38	VIEWPORT	brightness	141	6	0	0	0
+R2010	§20.4.38	VIEWPORT	center.x	10	6	0	0	0
+R2010	§20.4.38	VIEWPORT	center.y	20	6	0	0	0
+R2010	§20.4.38	VIEWPORT	center.z	30	6	0	0	0
+R2010	§20.4.38	VIEWPORT	circle_zoom	72	6	0	0	0
+R2010	§20.4.38	VIEWPORT	contrast	142	6	0	0	0
+R2010	§20.4.38	VIEWPORT	default_lighting_type	282	6	0	0	0
+R2010	§20.4.38	VIEWPORT	front_clip_z	43	6	0	0	0
+R2010	§20.4.38	VIEWPORT	frozen_layer_count	-	0	0	0	6
+R2010	§20.4.38	VIEWPORT	grid_major	61	6	0	0	0
+R2010	§20.4.38	VIEWPORT	grid_spacing.x	15	6	0	0	0
+R2010	§20.4.38	VIEWPORT	grid_spacing.y	25	6	0	0	0
+R2010	§20.4.38	VIEWPORT	height	41	6	0	0	0
+R2010	§20.4.38	VIEWPORT	lens_length	42	6	0	0	0
+R2010	§20.4.38	VIEWPORT	render_mode	281	6	0	0	0
+R2010	§20.4.38	VIEWPORT	shade_plot_mode	170	6	0	0	0
+R2010	§20.4.38	VIEWPORT	snap_angle	50	6	0	0	0
+R2010	§20.4.38	VIEWPORT	snap_base.x	13	6	0	0	0
+R2010	§20.4.38	VIEWPORT	snap_base.y	23	6	0	0	0
+R2010	§20.4.38	VIEWPORT	snap_spacing.x	14	6	0	0	0
+R2010	§20.4.38	VIEWPORT	snap_spacing.y	24	6	0	0	0
+R2010	§20.4.38	VIEWPORT	status_flags	90	6	0	0	0
+R2010	§20.4.38	VIEWPORT	style_sheet	1	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_at_origin	74	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_elevation	146	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_origin.x	110	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_origin.y	120	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_origin.z	130	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_ortho_view_type	79	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_per_viewport	71	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_x_axis.x	111	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_x_axis.y	121	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_x_axis.z	131	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_y_axis.x	112	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_y_axis.y	122	6	0	0	0
+R2010	§20.4.38	VIEWPORT	ucs_y_axis.z	132	6	0	0	0
+R2010	§20.4.38	VIEWPORT	use_default_lights	292	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_center.x	12	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_center.y	22	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_direction.x	16	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_direction.y	26	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_direction.z	36	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_height	45	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_target.x	17	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_target.y	27	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_target.z	37	6	0	0	0
+R2010	§20.4.38	VIEWPORT	view_twist_angle	51	6	0	0	0
+R2010	§20.4.38	VIEWPORT	width	40	6	0	0	0
 R2010	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
 R2010	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
 R2010	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
@@ -2621,6 +4225,20 @@ R2010	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2010	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2010	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2010	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2010	§20.4.40	SPLINE	closed	70&1	2	0	0	0
+R2010	§20.4.40	SPLINE	control point count	73	2	0	0	0
+R2010	§20.4.40	SPLINE	control_points.x	10	8	0	0	0
+R2010	§20.4.40	SPLINE	control_points.y	20	8	0	0	0
+R2010	§20.4.40	SPLINE	control_points.z	30	8	0	0	0
+R2010	§20.4.40	SPLINE	control_tolerance	43	2	0	0	0
+R2010	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2010	§20.4.40	SPLINE	fit point count	74	2	0	0	0
+R2010	§20.4.40	SPLINE	knot count	72	2	0	0	0
+R2010	§20.4.40	SPLINE	knot_tolerance	42	2	0	0	0
+R2010	§20.4.40	SPLINE	knots	40	16	0	0	0
+R2010	§20.4.40	SPLINE	periodic	70&2	2	0	0	0
+R2010	§20.4.40	SPLINE	rational	70&4	2	0	0	0
+R2010	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2010	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2010	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2010	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -2784,6 +4402,16 @@ R2010	§20.4.48	MULTILEADER	top_attachment	273	15	0	0	0
 R2010	§20.4.48	MULTILEADER	undocumented_flag	-	0	0	0	15
 R2010	§20.4.48	MULTILEADER	undocumented_mc	-	0	0	0	15
 R2010	§20.4.48	MULTILEADER	unknown_175	175	15	0	0	0
+R2010	§20.4.49	TOLERANCE	extrusion.x	210	0	3	0	0
+R2010	§20.4.49	TOLERANCE	extrusion.y	220	0	3	0	0
+R2010	§20.4.49	TOLERANCE	extrusion.z	230	0	3	0	0
+R2010	§20.4.49	TOLERANCE	insertion_point.x	10	3	0	0	0
+R2010	§20.4.49	TOLERANCE	insertion_point.y	20	3	0	0	0
+R2010	§20.4.49	TOLERANCE	insertion_point.z	30	3	0	0	0
+R2010	§20.4.49	TOLERANCE	text_string	1	3	0	0	0
+R2010	§20.4.49	TOLERANCE	x_axis_direction.x	11	0	0	0	3
+R2010	§20.4.49	TOLERANCE	x_axis_direction.y	21	0	0	0	3
+R2010	§20.4.49	TOLERANCE	x_axis_direction.z	31	0	0	0	3
 R2010	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
 R2010	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
 R2010	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
@@ -2808,6 +4436,29 @@ R2010	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2010	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2010	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2010	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2010	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2010	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2010	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2010	§20.4.50	MLINE	justification	70	3	0	0	0
+R2010	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2010	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2010	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2010	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2010	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2010	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2010	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2010	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2010	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2010	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2010	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2010	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2010	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2010	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -2983,6 +4634,85 @@ R2010	§20.4.73	MLINESTYLE	name	2	8	0	0	0
 R2010	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
 R2010	§20.4.74	DICTIONARYVAR	schema	280	46	0	0	0
 R2010	§20.4.74	DICTIONARYVAR	value	1	46	0	0	0
+R2010	§20.4.75	HATCH	associative	71	8	0	0	0
+R2010	§20.4.75	HATCH	elevation (z of 10)	30	8	0	0	0
+R2010	§20.4.75	HATCH	extrusion.x	210	8	0	0	0
+R2010	§20.4.75	HATCH	extrusion.y	220	8	0	0	0
+R2010	§20.4.75	HATCH	extrusion.z	230	8	0	0	0
+R2010	§20.4.75	HATCH	gradient flag	450	2	0	0	0
+R2010	§20.4.75	HATCH	gradient.angle	460	2	0	0	0
+R2010	§20.4.75	HATCH	gradient.color count	453	2	0	0	0
+R2010	§20.4.75	HATCH	gradient.colors.rgb (CMC word 0xC2, payload)	421	4	0	0	0
+R2010	§20.4.75	HATCH	gradient.colors.unknown_double	463	4	0	0	0
+R2010	§20.4.75	HATCH	gradient.colors.unknown_short	-	0	0	0	4
+R2010	§20.4.75	HATCH	gradient.is_single_color	452	2	0	0	0
+R2010	§20.4.75	HATCH	gradient.name	470	2	0	0	0
+R2010	§20.4.75	HATCH	gradient.shift	461	2	0	0	0
+R2010	§20.4.75	HATCH	gradient.tint	462	2	0	0	0
+R2010	§20.4.75	HATCH	path count	91	8	0	0	0
+R2010	§20.4.75	HATCH	paths.boundary handle count	97	8	0	0	0
+R2010	§20.4.75	HATCH	paths.edge count	93	5	0	0	0
+R2010	§20.4.75	HATCH	paths.edges.end.x	11	20	0	0	0
+R2010	§20.4.75	HATCH	paths.edges.end.y	21	20	0	0	0
+R2010	§20.4.75	HATCH	paths.edges.start.x	10	20	0	0	0
+R2010	§20.4.75	HATCH	paths.edges.start.y	20	20	0	0	0
+R2010	§20.4.75	HATCH	paths.edges.type	72	20	0	0	0
+R2010	§20.4.75	HATCH	paths.flags	92	8	0	0	0
+R2010	§20.4.75	HATCH	paths.has_bulge	72	3	0	0	0
+R2010	§20.4.75	HATCH	paths.is_closed	73	3	0	0	0
+R2010	§20.4.75	HATCH	paths.vertex count	93	3	0	0	0
+R2010	§20.4.75	HATCH	paths.vertices.x	10	12	0	0	0
+R2010	§20.4.75	HATCH	paths.vertices.y	20	12	0	0	0
+R2010	§20.4.75	HATCH	pattern line count	78	6	0	0	0
+R2010	§20.4.75	HATCH	pattern_angle	52	6	0	0	0
+R2010	§20.4.75	HATCH	pattern_double	77	6	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.angle	53	449	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.dash count	79	449	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.dashes	49	896	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.offset.x	45	449	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.offset.y	46	449	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.origin.x	43	449	0	0	0
+R2010	§20.4.75	HATCH	pattern_lines.origin.y	44	449	0	0	0
+R2010	§20.4.75	HATCH	pattern_name	2	8	0	0	0
+R2010	§20.4.75	HATCH	pattern_scale	41	6	0	0	0
+R2010	§20.4.75	HATCH	pattern_style	75	8	0	0	0
+R2010	§20.4.75	HATCH	pattern_type	76	8	0	0	0
+R2010	§20.4.75	HATCH	pixel_size	47	3	0	0	0
+R2010	§20.4.75	HATCH	seed point count	98	8	0	0	0
+R2010	§20.4.75	HATCH	seed_points.x	10	8	0	0	0
+R2010	§20.4.75	HATCH	seed_points.y	20	8	0	0	0
+R2010	§20.4.75	HATCH	solid_fill	70	8	0	0	0
+R2010	§20.4.80	IMAGE	brightness	281	1	0	0	0
+R2010	§20.4.80	IMAGE	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2010	§20.4.80	IMAGE	clip_boundary[0].x	14	1	0	0	0
+R2010	§20.4.80	IMAGE	clip_boundary[0].y	24	1	0	0	0
+R2010	§20.4.80	IMAGE	clip_boundary[1].x	14	1	0	0	0
+R2010	§20.4.80	IMAGE	clip_boundary[1].y	24	1	0	0	0
+R2010	§20.4.80	IMAGE	clip_boundary_type	71	1	0	0	0
+R2010	§20.4.80	IMAGE	clip_mode	290	1	0	0	0
+R2010	§20.4.80	IMAGE	clipping	280	1	0	0	0
+R2010	§20.4.80	IMAGE	contrast	282	1	0	0	0
+R2010	§20.4.80	IMAGE	display_flags	70	1	0	0	0
+R2010	§20.4.80	IMAGE	fade	283	1	0	0	0
+R2010	§20.4.80	IMAGE	image_size.x	13	1	0	0	0
+R2010	§20.4.80	IMAGE	image_size.y	23	1	0	0	0
+R2010	§20.4.80	IMAGE	insertion_point.x	10	1	0	0	0
+R2010	§20.4.80	IMAGE	insertion_point.y	20	1	0	0	0
+R2010	§20.4.80	IMAGE	insertion_point.z	30	1	0	0	0
+R2010	§20.4.80	IMAGE	u_vector.x	11	1	0	0	0
+R2010	§20.4.80	IMAGE	u_vector.y	21	1	0	0	0
+R2010	§20.4.80	IMAGE	u_vector.z	31	1	0	0	0
+R2010	§20.4.80	IMAGE	v_vector.x	12	1	0	0	0
+R2010	§20.4.80	IMAGE	v_vector.y	22	1	0	0	0
+R2010	§20.4.80	IMAGE	v_vector.z	32	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	class_version	90	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	file_path	1	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	image_size_pixels.x	10	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	image_size_pixels.y	20	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	is_loaded	280	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	pixel_height_size	21	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	pixel_size_units	281	1	0	0	0
+R2010	§20.4.81	IMAGEDEF	pixel_width_size	11	1	0	0	0
 R2010	§20.4.82	IMAGEDEF_REACTOR	class_version	90	1	0	0	0
 R2010	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
 R2010	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
@@ -3168,6 +4898,21 @@ R2013	-	ACDBPERSSUBENTMANAGER	arrays[1][1]	90	1	0	0	0
 R2013	-	ACDBPERSSUBENTMANAGER	arrays[2].count	90	1	0	0	0
 R2013	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2013	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	8	0	0	0
+R2013	-	MESH	blend_crease	72	2	0	0	0
+R2013	-	MESH	crease count	95	2	0	0	0
+R2013	-	MESH	creases	140	260	0	0	0
+R2013	-	MESH	edge count	94	2	0	0	0
+R2013	-	MESH	edges.end	90	260	0	0	0
+R2013	-	MESH	edges.start	90	260	0	0	0
+R2013	-	MESH	face list entries	93	2	0	0	0
+R2013	-	MESH	faces.indices	90	520	0	0	0
+R2013	-	MESH	faces.vertex count	90	136	0	0	0
+R2013	-	MESH	subdivision_level	91	2	0	0	0
+R2013	-	MESH	version	71	2	0	0	0
+R2013	-	MESH	vertex count	92	2	0	0	0
+R2013	-	MESH	vertices.x	10	126	0	0	0
+R2013	-	MESH	vertices.y	20	126	0	0	0
+R2013	-	MESH	vertices.z	30	126	0	0	0
 R2013	-	VISUALSTYLE	description	2	192	0	0	0
 R2013	-	VISUALSTYLE	display_brightness	40	192	0	0	0
 R2013	-	VISUALSTYLE	display_brightness flag	176	192	0	0	0
@@ -3289,6 +5034,35 @@ R2013	-	VISUALSTYLE	format_version	177	0	0	192	0
 R2013	-	VISUALSTYLE	internal_style_type	70	192	0	0	0
 R2013	-	VISUALSTYLE	is_internal_use_only	291	192	0	0	0
 R2013	-	VISUALSTYLE	property count	70	192	0	0	0
+R2013	-	WIPEOUT	brightness	281	1	0	0	0
+R2013	-	WIPEOUT	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary closing vertex (the first again).x	14	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary closing vertex (the first again).y	24	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[0].x	14	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[0].y	24	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[1].x	14	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[1].y	24	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[2].x	14	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[2].y	24	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[3].x	14	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary[3].y	24	1	0	0	0
+R2013	-	WIPEOUT	clip_boundary_type	71	1	0	0	0
+R2013	-	WIPEOUT	clip_mode	290	1	0	0	0
+R2013	-	WIPEOUT	clipping	280	1	0	0	0
+R2013	-	WIPEOUT	contrast	282	1	0	0	0
+R2013	-	WIPEOUT	display_flags	70	1	0	0	0
+R2013	-	WIPEOUT	fade	283	1	0	0	0
+R2013	-	WIPEOUT	image_size.x	13	1	0	0	0
+R2013	-	WIPEOUT	image_size.y	23	1	0	0	0
+R2013	-	WIPEOUT	insertion_point.x	10	1	0	0	0
+R2013	-	WIPEOUT	insertion_point.y	20	1	0	0	0
+R2013	-	WIPEOUT	insertion_point.z	30	1	0	0	0
+R2013	-	WIPEOUT	u_vector.x	11	1	0	0	0
+R2013	-	WIPEOUT	u_vector.y	21	1	0	0	0
+R2013	-	WIPEOUT	u_vector.z	31	1	0	0	0
+R2013	-	WIPEOUT	v_vector.x	12	1	0	0	0
+R2013	-	WIPEOUT	v_vector.y	22	1	0	0	0
+R2013	-	WIPEOUT	v_vector.z	32	1	0	0	0
 R2013	§20.4.104	XRECORD	cloning_flags	280	227	0	0	0
 R2013	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	227
 R2013	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -3337,6 +5111,238 @@ R2013	§20.4.21	LINE	start.x	10	99	0	0	0
 R2013	§20.4.21	LINE	start.y	20	99	0	0	0
 R2013	§20.4.21	LINE	start.z	30	99	0	0	0
 R2013	§20.4.21	LINE	thickness	39	0	99	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	actual_measurement	42	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	attachment	71	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	def_point_10.x	10	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	def_point_10.y	20	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	def_point_10.z	30	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	def_point_12.x	12	0	0	0	2
+R2013	§20.4.23	DIMENSION_ORDINATE	def_point_12.y	22	0	0	0	2
+R2013	§20.4.23	DIMENSION_ORDINATE	elevation (z of 11)	31	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	extrusion.x	210	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	extrusion.y	220	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	extrusion.z	230	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	feature_location_13.x	13	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	feature_location_13.y	23	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	feature_location_13.z	33	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	flip_arrow_1	74	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	flip_arrow_2	75	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	horiz_dir	51	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	ins_rotation	54	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2013	§20.4.23	DIMENSION_ORDINATE	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2013	§20.4.23	DIMENSION_ORDINATE	ins_scale.z	43	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.x	14	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.y	24	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.z	34	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	line_spacing_factor	41	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	line_spacing_style	72	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	text_midpoint.x	11	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	text_midpoint.y	21	2	0	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	text_rotation	53	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	user_text	1	0	2	0	0
+R2013	§20.4.23	DIMENSION_ORDINATE	version_flag	280	2	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	actual_measurement	42	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	attachment	71	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_10.x	10	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_10.y	20	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_10.z	30	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_12.x	12	0	0	0	3
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_12.y	22	0	0	0	3
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_13.x	13	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_13.y	23	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_13.z	33	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_14.x	14	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_14.y	24	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	def_point_14.z	34	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	dim_rotation	50	1	2	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	elevation (z of 11)	31	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	extension_line_rotation	52	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	extrusion.x	210	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	extrusion.y	220	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	extrusion.z	230	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	flags (the subtype and flag bits, as group 70)	70	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	flip_arrow_1	74	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	flip_arrow_2	75	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	horiz_dir	51	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	ins_rotation	54	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	ins_scale.x (41 is the line spacing factor)	-	0	0	0	3
+R2013	§20.4.24	DIMENSION_LINEAR	ins_scale.y (42 is the measurement)	-	0	0	0	3
+R2013	§20.4.24	DIMENSION_LINEAR	ins_scale.z	43	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	line_spacing_factor	41	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	line_spacing_style	72	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	text_midpoint.x	11	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	text_midpoint.y	21	3	0	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	text_rotation	53	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	user_text	1	0	3	0	0
+R2013	§20.4.24	DIMENSION_LINEAR	version_flag	280	3	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	actual_measurement	42	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	attachment	71	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_10.x	10	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_10.y	20	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_10.z	30	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_12.x	12	0	0	0	2
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_12.y	22	0	0	0	2
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_13.x	13	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_13.y	23	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_13.z	33	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_14.x	14	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_14.y	24	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	def_point_14.z	34	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	elevation (z of 11)	31	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	extension_line_rotation	52	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	extrusion.x	210	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	extrusion.y	220	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	extrusion.z	230	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	flip_arrow_1	74	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	flip_arrow_2	75	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	horiz_dir	51	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	ins_rotation	54	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2013	§20.4.25	DIMENSION_ALIGNED	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2013	§20.4.25	DIMENSION_ALIGNED	ins_scale.z	43	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	line_spacing_factor	41	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	line_spacing_style	72	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	text_midpoint.x	11	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	text_midpoint.y	21	2	0	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	text_rotation	53	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	user_text	1	0	2	0	0
+R2013	§20.4.25	DIMENSION_ALIGNED	version_flag	280	2	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	actual_measurement	42	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	attachment	71	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_10.x	10	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_10.y	20	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_10.z	30	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_12.x	12	0	0	0	1
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_12.y	22	0	0	0	1
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_13.x	13	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_13.y	23	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_13.z	33	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_14.x	14	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_14.y	24	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_14.z	34	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_15.x	15	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_15.y	25	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	def_point_15.z	35	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	elevation (z of 11)	31	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	extrusion.x	210	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	extrusion.y	220	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	extrusion.z	230	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_1	74	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_2	75	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	horiz_dir	51	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	ins_rotation	54	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2013	§20.4.26	DIMENSION_ANG_3PT	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2013	§20.4.26	DIMENSION_ANG_3PT	ins_scale.z	43	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	line_spacing_factor	41	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	line_spacing_style	72	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.x	11	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.y	21	1	0	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	text_rotation	53	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	user_text	1	0	1	0	0
+R2013	§20.4.26	DIMENSION_ANG_3PT	version_flag	280	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	actual_measurement	42	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	attachment	71	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_10.x	10	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_10.y	20	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_10.z	30	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_12.x	12	0	0	0	1
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_12.y	22	0	0	0	1
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_13.x	13	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_13.y	23	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_13.z	33	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_14.x	14	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_14.y	24	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_14.z	34	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_15.x	15	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_15.y	25	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_15.z	35	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_16.x	16	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	def_point_16.y	26	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 11)	31	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 16)	36	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	extrusion.x	210	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	extrusion.y	220	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	extrusion.z	230	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_1	74	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_2	75	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	horiz_dir	51	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	ins_rotation	54	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2013	§20.4.27	DIMENSION_ANG_2LN	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2013	§20.4.27	DIMENSION_ANG_2LN	ins_scale.z	43	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	line_spacing_factor	41	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	line_spacing_style	72	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.x	11	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.y	21	1	0	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	text_rotation	53	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	user_text	1	0	1	0	0
+R2013	§20.4.27	DIMENSION_ANG_2LN	version_flag	280	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	actual_measurement	42	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	attachment	71	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_10.x	10	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_10.y	20	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_10.z	30	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_12.x	12	0	0	0	1
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_12.y	22	0	0	0	1
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_15.x	15	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_15.y	25	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	def_point_15.z	35	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	elevation (z of 11)	31	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	extrusion.x	210	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	extrusion.y	220	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	extrusion.z	230	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	flip_arrow_1	74	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	flip_arrow_2	75	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	horiz_dir	51	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	ins_rotation	54	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2013	§20.4.28	DIMENSION_RADIUS	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2013	§20.4.28	DIMENSION_RADIUS	ins_scale.z	43	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	leader_length	40	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	line_spacing_factor	41	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	line_spacing_style	72	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	text_midpoint.x	11	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	text_midpoint.y	21	1	0	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	text_rotation	53	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	user_text	1	0	1	0	0
+R2013	§20.4.28	DIMENSION_RADIUS	version_flag	280	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	actual_measurement	42	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	attachment	71	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_10.x	10	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_10.y	20	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_10.z	30	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_12.x	12	0	0	0	1
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_12.y	22	0	0	0	1
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_15.x	15	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_15.y	25	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	def_point_15.z	35	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	elevation (z of 11)	31	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	extrusion.x	210	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	extrusion.y	220	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	extrusion.z	230	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	flip_arrow_1	74	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	flip_arrow_2	75	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	horiz_dir	51	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	ins_rotation	54	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2013	§20.4.29	DIMENSION_DIAMETER	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2013	§20.4.29	DIMENSION_DIAMETER	ins_scale.z	43	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	leader_length	40	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	line_spacing_factor	41	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	line_spacing_style	72	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	text_midpoint.x	11	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	text_midpoint.y	21	1	0	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	text_rotation	53	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	user_text	1	0	1	0	0
+R2013	§20.4.29	DIMENSION_DIAMETER	version_flag	280	1	0	0	0
 R2013	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
 R2013	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
 R2013	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
@@ -3393,6 +5399,56 @@ R2013	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
 R2013	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
 R2013	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
 R2013	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2013	§20.4.38	VIEWPORT	ambient_light_color (RGB, CMC word 0xC2 payload)	421	6	0	0	0
+R2013	§20.4.38	VIEWPORT	back_clip_z	44	6	0	0	0
+R2013	§20.4.38	VIEWPORT	brightness	141	6	0	0	0
+R2013	§20.4.38	VIEWPORT	center.x	10	6	0	0	0
+R2013	§20.4.38	VIEWPORT	center.y	20	6	0	0	0
+R2013	§20.4.38	VIEWPORT	center.z	30	6	0	0	0
+R2013	§20.4.38	VIEWPORT	circle_zoom	72	6	0	0	0
+R2013	§20.4.38	VIEWPORT	contrast	142	6	0	0	0
+R2013	§20.4.38	VIEWPORT	default_lighting_type	282	6	0	0	0
+R2013	§20.4.38	VIEWPORT	front_clip_z	43	6	0	0	0
+R2013	§20.4.38	VIEWPORT	frozen_layer_count	-	0	0	0	6
+R2013	§20.4.38	VIEWPORT	grid_major	61	6	0	0	0
+R2013	§20.4.38	VIEWPORT	grid_spacing.x	15	6	0	0	0
+R2013	§20.4.38	VIEWPORT	grid_spacing.y	25	6	0	0	0
+R2013	§20.4.38	VIEWPORT	height	41	6	0	0	0
+R2013	§20.4.38	VIEWPORT	lens_length	42	6	0	0	0
+R2013	§20.4.38	VIEWPORT	render_mode	281	6	0	0	0
+R2013	§20.4.38	VIEWPORT	shade_plot_mode	170	6	0	0	0
+R2013	§20.4.38	VIEWPORT	snap_angle	50	6	0	0	0
+R2013	§20.4.38	VIEWPORT	snap_base.x	13	6	0	0	0
+R2013	§20.4.38	VIEWPORT	snap_base.y	23	6	0	0	0
+R2013	§20.4.38	VIEWPORT	snap_spacing.x	14	6	0	0	0
+R2013	§20.4.38	VIEWPORT	snap_spacing.y	24	6	0	0	0
+R2013	§20.4.38	VIEWPORT	status_flags	90	6	0	0	0
+R2013	§20.4.38	VIEWPORT	style_sheet	1	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_at_origin	74	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_elevation	146	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_origin.x	110	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_origin.y	120	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_origin.z	130	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_ortho_view_type	79	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_per_viewport	71	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_x_axis.x	111	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_x_axis.y	121	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_x_axis.z	131	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_y_axis.x	112	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_y_axis.y	122	6	0	0	0
+R2013	§20.4.38	VIEWPORT	ucs_y_axis.z	132	6	0	0	0
+R2013	§20.4.38	VIEWPORT	use_default_lights	292	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_center.x	12	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_center.y	22	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_direction.x	16	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_direction.y	26	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_direction.z	36	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_height	45	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_target.x	17	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_target.y	27	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_target.z	37	6	0	0	0
+R2013	§20.4.38	VIEWPORT	view_twist_angle	51	6	0	0	0
+R2013	§20.4.38	VIEWPORT	width	40	6	0	0	0
 R2013	§20.4.39	ELLIPSE	axis_ratio	40	2	0	0	0
 R2013	§20.4.39	ELLIPSE	center.x	10	2	0	0	0
 R2013	§20.4.39	ELLIPSE	center.y	20	2	0	0	0
@@ -3428,6 +5484,32 @@ R2013	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2013	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2013	§20.4.4	ATTRIB	v_align	74	1	3	0	0
 R2013	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2013	§20.4.40	SPLINE	begin_tangent.x	12	0	0	0	1
+R2013	§20.4.40	SPLINE	begin_tangent.y	22	0	0	0	1
+R2013	§20.4.40	SPLINE	begin_tangent.z	32	0	0	0	1
+R2013	§20.4.40	SPLINE	closed	70&1	1	0	0	0
+R2013	§20.4.40	SPLINE	control point count	73	1	0	0	0
+R2013	§20.4.40	SPLINE	control_points.x	10	4	0	0	0
+R2013	§20.4.40	SPLINE	control_points.y	20	4	0	0	0
+R2013	§20.4.40	SPLINE	control_points.z	30	4	0	0	0
+R2013	§20.4.40	SPLINE	control_tolerance	43	1	0	0	0
+R2013	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2013	§20.4.40	SPLINE	end_tangent.x	13	0	0	0	1
+R2013	§20.4.40	SPLINE	end_tangent.y	23	0	0	0	1
+R2013	§20.4.40	SPLINE	end_tangent.z	33	0	0	0	1
+R2013	§20.4.40	SPLINE	fit point count	74	1	0	1	0
+R2013	§20.4.40	SPLINE	fit tolerance	44	0	0	0	1
+R2013	§20.4.40	SPLINE	fit_points.x	11	0	0	0	2
+R2013	§20.4.40	SPLINE	fit_points.y	21	0	0	0	2
+R2013	§20.4.40	SPLINE	fit_points.z	31	0	0	0	2
+R2013	§20.4.40	SPLINE	flag1 (R2013+)	-	0	0	0	2
+R2013	§20.4.40	SPLINE	knot count	72	1	0	0	0
+R2013	§20.4.40	SPLINE	knot_param (R2013+)	-	0	0	0	2
+R2013	§20.4.40	SPLINE	knot_tolerance	42	1	0	0	0
+R2013	§20.4.40	SPLINE	knots	40	8	0	0	0
+R2013	§20.4.40	SPLINE	periodic	70&2	1	0	0	0
+R2013	§20.4.40	SPLINE	rational	70&4	1	0	0	0
+R2013	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2013	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2013	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2013	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -3591,6 +5673,16 @@ R2013	§20.4.48	MULTILEADER	top_attachment	273	15	0	0	0
 R2013	§20.4.48	MULTILEADER	undocumented_flag	-	0	0	0	15
 R2013	§20.4.48	MULTILEADER	undocumented_mc	-	0	0	0	15
 R2013	§20.4.48	MULTILEADER	unknown_175	175	15	0	0	0
+R2013	§20.4.49	TOLERANCE	extrusion.x	210	0	3	0	0
+R2013	§20.4.49	TOLERANCE	extrusion.y	220	0	3	0	0
+R2013	§20.4.49	TOLERANCE	extrusion.z	230	0	3	0	0
+R2013	§20.4.49	TOLERANCE	insertion_point.x	10	3	0	0	0
+R2013	§20.4.49	TOLERANCE	insertion_point.y	20	3	0	0	0
+R2013	§20.4.49	TOLERANCE	insertion_point.z	30	3	0	0	0
+R2013	§20.4.49	TOLERANCE	text_string	1	3	0	0	0
+R2013	§20.4.49	TOLERANCE	x_axis_direction.x	11	0	0	0	3
+R2013	§20.4.49	TOLERANCE	x_axis_direction.y	21	0	0	0	3
+R2013	§20.4.49	TOLERANCE	x_axis_direction.z	31	0	0	0	3
 R2013	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
 R2013	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
 R2013	§20.4.5	ATTDEF	attribute_type	-	0	0	0	5
@@ -3615,6 +5707,29 @@ R2013	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2013	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2013	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2013	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2013	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2013	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2013	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2013	§20.4.50	MLINE	justification	70	3	0	0	0
+R2013	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2013	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2013	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2013	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2013	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2013	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2013	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2013	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2013	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2013	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2013	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2013	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2013	§20.4.51	BLOCK_CONTROL	num_entries	70	8	0	0	0
 R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	47	0	0	0
 R2013	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	47	0	0	0
@@ -3790,6 +5905,85 @@ R2013	§20.4.73	MLINESTYLE	name	2	8	0	0	0
 R2013	§20.4.73	MLINESTYLE	start_angle	51	8	0	0	0
 R2013	§20.4.74	DICTIONARYVAR	schema	280	11	0	0	0
 R2013	§20.4.74	DICTIONARYVAR	value	1	11	0	0	0
+R2013	§20.4.75	HATCH	associative	71	8	0	0	0
+R2013	§20.4.75	HATCH	elevation (z of 10)	30	8	0	0	0
+R2013	§20.4.75	HATCH	extrusion.x	210	8	0	0	0
+R2013	§20.4.75	HATCH	extrusion.y	220	8	0	0	0
+R2013	§20.4.75	HATCH	extrusion.z	230	8	0	0	0
+R2013	§20.4.75	HATCH	gradient flag	450	2	0	0	0
+R2013	§20.4.75	HATCH	gradient.angle	460	2	0	0	0
+R2013	§20.4.75	HATCH	gradient.color count	453	2	0	0	0
+R2013	§20.4.75	HATCH	gradient.colors.rgb (CMC word 0xC2, payload)	421	4	0	0	0
+R2013	§20.4.75	HATCH	gradient.colors.unknown_double	463	4	0	0	0
+R2013	§20.4.75	HATCH	gradient.colors.unknown_short	-	0	0	0	4
+R2013	§20.4.75	HATCH	gradient.is_single_color	452	2	0	0	0
+R2013	§20.4.75	HATCH	gradient.name	470	2	0	0	0
+R2013	§20.4.75	HATCH	gradient.shift	461	2	0	0	0
+R2013	§20.4.75	HATCH	gradient.tint	462	2	0	0	0
+R2013	§20.4.75	HATCH	path count	91	8	0	0	0
+R2013	§20.4.75	HATCH	paths.boundary handle count	97	8	0	0	0
+R2013	§20.4.75	HATCH	paths.edge count	93	5	0	0	0
+R2013	§20.4.75	HATCH	paths.edges.end.x	11	20	0	0	0
+R2013	§20.4.75	HATCH	paths.edges.end.y	21	20	0	0	0
+R2013	§20.4.75	HATCH	paths.edges.start.x	10	20	0	0	0
+R2013	§20.4.75	HATCH	paths.edges.start.y	20	20	0	0	0
+R2013	§20.4.75	HATCH	paths.edges.type	72	20	0	0	0
+R2013	§20.4.75	HATCH	paths.flags	92	8	0	0	0
+R2013	§20.4.75	HATCH	paths.has_bulge	72	3	0	0	0
+R2013	§20.4.75	HATCH	paths.is_closed	73	3	0	0	0
+R2013	§20.4.75	HATCH	paths.vertex count	93	3	0	0	0
+R2013	§20.4.75	HATCH	paths.vertices.x	10	12	0	0	0
+R2013	§20.4.75	HATCH	paths.vertices.y	20	12	0	0	0
+R2013	§20.4.75	HATCH	pattern line count	78	6	0	0	0
+R2013	§20.4.75	HATCH	pattern_angle	52	6	0	0	0
+R2013	§20.4.75	HATCH	pattern_double	77	6	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.angle	53	449	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.dash count	79	449	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.dashes	49	896	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.offset.x	45	449	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.offset.y	46	449	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.origin.x	43	449	0	0	0
+R2013	§20.4.75	HATCH	pattern_lines.origin.y	44	449	0	0	0
+R2013	§20.4.75	HATCH	pattern_name	2	8	0	0	0
+R2013	§20.4.75	HATCH	pattern_scale	41	6	0	0	0
+R2013	§20.4.75	HATCH	pattern_style	75	8	0	0	0
+R2013	§20.4.75	HATCH	pattern_type	76	8	0	0	0
+R2013	§20.4.75	HATCH	pixel_size	47	3	0	0	0
+R2013	§20.4.75	HATCH	seed point count	98	8	0	0	0
+R2013	§20.4.75	HATCH	seed_points.x	10	8	0	0	0
+R2013	§20.4.75	HATCH	seed_points.y	20	8	0	0	0
+R2013	§20.4.75	HATCH	solid_fill	70	8	0	0	0
+R2013	§20.4.80	IMAGE	brightness	281	1	0	0	0
+R2013	§20.4.80	IMAGE	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2013	§20.4.80	IMAGE	clip_boundary[0].x	14	1	0	0	0
+R2013	§20.4.80	IMAGE	clip_boundary[0].y	24	1	0	0	0
+R2013	§20.4.80	IMAGE	clip_boundary[1].x	14	1	0	0	0
+R2013	§20.4.80	IMAGE	clip_boundary[1].y	24	1	0	0	0
+R2013	§20.4.80	IMAGE	clip_boundary_type	71	1	0	0	0
+R2013	§20.4.80	IMAGE	clip_mode	290	1	0	0	0
+R2013	§20.4.80	IMAGE	clipping	280	1	0	0	0
+R2013	§20.4.80	IMAGE	contrast	282	1	0	0	0
+R2013	§20.4.80	IMAGE	display_flags	70	1	0	0	0
+R2013	§20.4.80	IMAGE	fade	283	1	0	0	0
+R2013	§20.4.80	IMAGE	image_size.x	13	1	0	0	0
+R2013	§20.4.80	IMAGE	image_size.y	23	1	0	0	0
+R2013	§20.4.80	IMAGE	insertion_point.x	10	1	0	0	0
+R2013	§20.4.80	IMAGE	insertion_point.y	20	1	0	0	0
+R2013	§20.4.80	IMAGE	insertion_point.z	30	1	0	0	0
+R2013	§20.4.80	IMAGE	u_vector.x	11	1	0	0	0
+R2013	§20.4.80	IMAGE	u_vector.y	21	1	0	0	0
+R2013	§20.4.80	IMAGE	u_vector.z	31	1	0	0	0
+R2013	§20.4.80	IMAGE	v_vector.x	12	1	0	0	0
+R2013	§20.4.80	IMAGE	v_vector.y	22	1	0	0	0
+R2013	§20.4.80	IMAGE	v_vector.z	32	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	class_version	90	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	file_path	1	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	image_size_pixels.x	10	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	image_size_pixels.y	20	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	is_loaded	280	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	pixel_height_size	21	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	pixel_size_units	281	1	0	0	0
+R2013	§20.4.81	IMAGEDEF	pixel_width_size	11	1	0	0	0
 R2013	§20.4.82	IMAGEDEF_REACTOR	class_version	90	1	0	0	0
 R2013	§20.4.84	LAYOUT	current_style_sheet	7	25	0	0	0
 R2013	§20.4.84	LAYOUT	drawing_units	143	25	0	0	0
@@ -3975,6 +6169,21 @@ R2018	-	ACDBPERSSUBENTMANAGER	arrays[1][1]	90	1	0	0	0
 R2018	-	ACDBPERSSUBENTMANAGER	arrays[2].count	90	1	0	0	0
 R2018	-	ACDBPERSSUBENTMANAGER	version	90	1	0	0	0
 R2018	-	ACDB_PLACEHOLDER	num_reactors	102{ACAD_REACTORS	2	0	0	0
+R2018	-	MESH	blend_crease	72	2	0	0	0
+R2018	-	MESH	crease count	95	2	0	0	0
+R2018	-	MESH	creases	140	260	0	0	0
+R2018	-	MESH	edge count	94	2	0	0	0
+R2018	-	MESH	edges.end	90	260	0	0	0
+R2018	-	MESH	edges.start	90	260	0	0	0
+R2018	-	MESH	face list entries	93	2	0	0	0
+R2018	-	MESH	faces.indices	90	520	0	0	0
+R2018	-	MESH	faces.vertex count	90	136	0	0	0
+R2018	-	MESH	subdivision_level	91	2	0	0	0
+R2018	-	MESH	version	71	2	0	0	0
+R2018	-	MESH	vertex count	92	2	0	0	0
+R2018	-	MESH	vertices.x	10	126	0	0	0
+R2018	-	MESH	vertices.y	20	126	0	0	0
+R2018	-	MESH	vertices.z	30	126	0	0	0
 R2018	-	VISUALSTYLE	description	2	48	0	0	0
 R2018	-	VISUALSTYLE	display_brightness	40	48	0	0	0
 R2018	-	VISUALSTYLE	display_brightness flag	176	48	0	0	0
@@ -4096,6 +6305,35 @@ R2018	-	VISUALSTYLE	format_version	177	0	0	48	0
 R2018	-	VISUALSTYLE	internal_style_type	70	48	0	0	0
 R2018	-	VISUALSTYLE	is_internal_use_only	291	48	0	0	0
 R2018	-	VISUALSTYLE	property count	70	48	0	0	0
+R2018	-	WIPEOUT	brightness	281	1	0	0	0
+R2018	-	WIPEOUT	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary closing vertex (the first again).x	14	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary closing vertex (the first again).y	24	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[0].x	14	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[0].y	24	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[1].x	14	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[1].y	24	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[2].x	14	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[2].y	24	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[3].x	14	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary[3].y	24	1	0	0	0
+R2018	-	WIPEOUT	clip_boundary_type	71	1	0	0	0
+R2018	-	WIPEOUT	clip_mode	290	1	0	0	0
+R2018	-	WIPEOUT	clipping	280	1	0	0	0
+R2018	-	WIPEOUT	contrast	282	1	0	0	0
+R2018	-	WIPEOUT	display_flags	70	1	0	0	0
+R2018	-	WIPEOUT	fade	283	1	0	0	0
+R2018	-	WIPEOUT	image_size.x	13	1	0	0	0
+R2018	-	WIPEOUT	image_size.y	23	1	0	0	0
+R2018	-	WIPEOUT	insertion_point.x	10	1	0	0	0
+R2018	-	WIPEOUT	insertion_point.y	20	1	0	0	0
+R2018	-	WIPEOUT	insertion_point.z	30	1	0	0	0
+R2018	-	WIPEOUT	u_vector.x	11	1	0	0	0
+R2018	-	WIPEOUT	u_vector.y	21	1	0	0	0
+R2018	-	WIPEOUT	u_vector.z	31	1	0	0	0
+R2018	-	WIPEOUT	v_vector.x	12	1	0	0	0
+R2018	-	WIPEOUT	v_vector.y	22	1	0	0	0
+R2018	-	WIPEOUT	v_vector.z	32	1	0	0	0
 R2018	§20.4.104	XRECORD	cloning_flags	280	102	0	0	0
 R2018	§20.4.104	XRECORD	data (raw bytes)	-	0	0	0	102
 R2018	§20.4.12	VERTEX_3D	flag	70	5	0	0	0
@@ -4144,6 +6382,238 @@ R2018	§20.4.21	LINE	start.x	10	98	0	0	0
 R2018	§20.4.21	LINE	start.y	20	98	0	0	0
 R2018	§20.4.21	LINE	start.z	30	98	0	0	0
 R2018	§20.4.21	LINE	thickness	39	0	98	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	actual_measurement	42	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	attachment	71	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	def_point_10.x	10	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	def_point_10.y	20	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	def_point_10.z	30	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	def_point_12.x	12	0	0	0	2
+R2018	§20.4.23	DIMENSION_ORDINATE	def_point_12.y	22	0	0	0	2
+R2018	§20.4.23	DIMENSION_ORDINATE	elevation (z of 11)	31	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	extrusion.x	210	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	extrusion.y	220	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	extrusion.z	230	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	feature_location_13.x	13	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	feature_location_13.y	23	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	feature_location_13.z	33	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	flip_arrow_1	74	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	flip_arrow_2	75	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	horiz_dir	51	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	ins_rotation	54	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2018	§20.4.23	DIMENSION_ORDINATE	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2018	§20.4.23	DIMENSION_ORDINATE	ins_scale.z	43	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.x	14	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.y	24	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	leader_endpoint_14.z	34	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	line_spacing_factor	41	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	line_spacing_style	72	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	text_midpoint.x	11	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	text_midpoint.y	21	2	0	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	text_rotation	53	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	user_text	1	0	2	0	0
+R2018	§20.4.23	DIMENSION_ORDINATE	version_flag	280	2	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	actual_measurement	42	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	attachment	71	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_10.x	10	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_10.y	20	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_10.z	30	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_12.x	12	0	0	0	3
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_12.y	22	0	0	0	3
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_13.x	13	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_13.y	23	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_13.z	33	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_14.x	14	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_14.y	24	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	def_point_14.z	34	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	dim_rotation	50	1	2	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	elevation (z of 11)	31	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	extension_line_rotation	52	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	extrusion.x	210	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	extrusion.y	220	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	extrusion.z	230	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	flags (the subtype and flag bits, as group 70)	70	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	flip_arrow_1	74	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	flip_arrow_2	75	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	horiz_dir	51	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	ins_rotation	54	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	ins_scale.x (41 is the line spacing factor)	-	0	0	0	3
+R2018	§20.4.24	DIMENSION_LINEAR	ins_scale.y (42 is the measurement)	-	0	0	0	3
+R2018	§20.4.24	DIMENSION_LINEAR	ins_scale.z	43	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	line_spacing_factor	41	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	line_spacing_style	72	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	text_midpoint.x	11	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	text_midpoint.y	21	3	0	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	text_rotation	53	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	user_text	1	0	3	0	0
+R2018	§20.4.24	DIMENSION_LINEAR	version_flag	280	3	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	actual_measurement	42	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	attachment	71	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_10.x	10	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_10.y	20	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_10.z	30	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_12.x	12	0	0	0	2
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_12.y	22	0	0	0	2
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_13.x	13	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_13.y	23	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_13.z	33	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_14.x	14	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_14.y	24	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	def_point_14.z	34	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	elevation (z of 11)	31	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	extension_line_rotation	52	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	extrusion.x	210	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	extrusion.y	220	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	extrusion.z	230	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	flags (the subtype and flag bits, as group 70)	70	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	flip_arrow_1	74	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	flip_arrow_2	75	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	horiz_dir	51	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	ins_rotation	54	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	ins_scale.x (41 is the line spacing factor)	-	0	0	0	2
+R2018	§20.4.25	DIMENSION_ALIGNED	ins_scale.y (42 is the measurement)	-	0	0	0	2
+R2018	§20.4.25	DIMENSION_ALIGNED	ins_scale.z	43	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	line_spacing_factor	41	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	line_spacing_style	72	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	text_midpoint.x	11	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	text_midpoint.y	21	2	0	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	text_rotation	53	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	user_text	1	0	2	0	0
+R2018	§20.4.25	DIMENSION_ALIGNED	version_flag	280	2	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	actual_measurement	42	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	attachment	71	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_10.x	10	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_10.y	20	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_10.z	30	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_12.x	12	0	0	0	1
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_12.y	22	0	0	0	1
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_13.x	13	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_13.y	23	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_13.z	33	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_14.x	14	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_14.y	24	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_14.z	34	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_15.x	15	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_15.y	25	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	def_point_15.z	35	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	elevation (z of 11)	31	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	extrusion.x	210	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	extrusion.y	220	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	extrusion.z	230	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_1	74	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	flip_arrow_2	75	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	horiz_dir	51	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	ins_rotation	54	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2018	§20.4.26	DIMENSION_ANG_3PT	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2018	§20.4.26	DIMENSION_ANG_3PT	ins_scale.z	43	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	line_spacing_factor	41	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	line_spacing_style	72	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.x	11	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	text_midpoint.y	21	1	0	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	text_rotation	53	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	user_text	1	0	1	0	0
+R2018	§20.4.26	DIMENSION_ANG_3PT	version_flag	280	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	actual_measurement	42	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	attachment	71	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_10.x	10	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_10.y	20	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_10.z	30	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_12.x	12	0	0	0	1
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_12.y	22	0	0	0	1
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_13.x	13	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_13.y	23	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_13.z	33	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_14.x	14	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_14.y	24	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_14.z	34	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_15.x	15	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_15.y	25	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_15.z	35	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_16.x	16	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	def_point_16.y	26	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 11)	31	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	elevation (z of 16)	36	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	extrusion.x	210	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	extrusion.y	220	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	extrusion.z	230	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_1	74	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	flip_arrow_2	75	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	horiz_dir	51	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	ins_rotation	54	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2018	§20.4.27	DIMENSION_ANG_2LN	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2018	§20.4.27	DIMENSION_ANG_2LN	ins_scale.z	43	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	line_spacing_factor	41	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	line_spacing_style	72	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.x	11	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	text_midpoint.y	21	1	0	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	text_rotation	53	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	user_text	1	0	1	0	0
+R2018	§20.4.27	DIMENSION_ANG_2LN	version_flag	280	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	actual_measurement	42	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	attachment	71	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_10.x	10	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_10.y	20	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_10.z	30	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_12.x	12	0	0	0	1
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_12.y	22	0	0	0	1
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_15.x	15	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_15.y	25	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	def_point_15.z	35	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	elevation (z of 11)	31	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	extrusion.x	210	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	extrusion.y	220	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	extrusion.z	230	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	flip_arrow_1	74	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	flip_arrow_2	75	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	horiz_dir	51	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	ins_rotation	54	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2018	§20.4.28	DIMENSION_RADIUS	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2018	§20.4.28	DIMENSION_RADIUS	ins_scale.z	43	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	leader_length	40	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	line_spacing_factor	41	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	line_spacing_style	72	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	text_midpoint.x	11	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	text_midpoint.y	21	1	0	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	text_rotation	53	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	user_text	1	0	1	0	0
+R2018	§20.4.28	DIMENSION_RADIUS	version_flag	280	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	actual_measurement	42	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	attachment	71	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_10.x	10	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_10.y	20	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_10.z	30	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_12.x	12	0	0	0	1
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_12.y	22	0	0	0	1
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_15.x	15	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_15.y	25	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	def_point_15.z	35	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	elevation (z of 11)	31	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	extrusion.x	210	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	extrusion.y	220	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	extrusion.z	230	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	flags (the subtype and flag bits, as group 70)	70	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	flip_arrow_1	74	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	flip_arrow_2	75	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	horiz_dir	51	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	ins_rotation	54	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	ins_scale.x (41 is the line spacing factor)	-	0	0	0	1
+R2018	§20.4.29	DIMENSION_DIAMETER	ins_scale.y (42 is the measurement)	-	0	0	0	1
+R2018	§20.4.29	DIMENSION_DIAMETER	ins_scale.z	43	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	leader_length	40	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	line_spacing_factor	41	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	line_spacing_style	72	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	text_midpoint.x	11	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	text_midpoint.y	21	1	0	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	text_rotation	53	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	user_text	1	0	1	0	0
+R2018	§20.4.29	DIMENSION_DIAMETER	version_flag	280	1	0	0	0
 R2018	§20.4.3	TEXT	elevation (30)	30	29	0	0	0
 R2018	§20.4.3	TEXT	extrusion.x	210	0	29	0	0
 R2018	§20.4.3	TEXT	extrusion.y	220	0	29	0	0
@@ -4200,6 +6670,56 @@ R2018	§20.4.35	SOLID	extrusion.x	210	0	14	0	0
 R2018	§20.4.35	SOLID	extrusion.y	220	0	14	0	0
 R2018	§20.4.35	SOLID	extrusion.z	230	0	14	0	0
 R2018	§20.4.35	SOLID	thickness	39	0	14	0	0
+R2018	§20.4.38	VIEWPORT	ambient_light_color (RGB, CMC word 0xC2 payload)	421	6	0	0	0
+R2018	§20.4.38	VIEWPORT	back_clip_z	44	6	0	0	0
+R2018	§20.4.38	VIEWPORT	brightness	141	6	0	0	0
+R2018	§20.4.38	VIEWPORT	center.x	10	6	0	0	0
+R2018	§20.4.38	VIEWPORT	center.y	20	6	0	0	0
+R2018	§20.4.38	VIEWPORT	center.z	30	6	0	0	0
+R2018	§20.4.38	VIEWPORT	circle_zoom	72	6	0	0	0
+R2018	§20.4.38	VIEWPORT	contrast	142	6	0	0	0
+R2018	§20.4.38	VIEWPORT	default_lighting_type	282	6	0	0	0
+R2018	§20.4.38	VIEWPORT	front_clip_z	43	6	0	0	0
+R2018	§20.4.38	VIEWPORT	frozen_layer_count	-	0	0	0	6
+R2018	§20.4.38	VIEWPORT	grid_major	61	6	0	0	0
+R2018	§20.4.38	VIEWPORT	grid_spacing.x	15	6	0	0	0
+R2018	§20.4.38	VIEWPORT	grid_spacing.y	25	6	0	0	0
+R2018	§20.4.38	VIEWPORT	height	41	6	0	0	0
+R2018	§20.4.38	VIEWPORT	lens_length	42	6	0	0	0
+R2018	§20.4.38	VIEWPORT	render_mode	281	6	0	0	0
+R2018	§20.4.38	VIEWPORT	shade_plot_mode	170	6	0	0	0
+R2018	§20.4.38	VIEWPORT	snap_angle	50	6	0	0	0
+R2018	§20.4.38	VIEWPORT	snap_base.x	13	6	0	0	0
+R2018	§20.4.38	VIEWPORT	snap_base.y	23	6	0	0	0
+R2018	§20.4.38	VIEWPORT	snap_spacing.x	14	6	0	0	0
+R2018	§20.4.38	VIEWPORT	snap_spacing.y	24	6	0	0	0
+R2018	§20.4.38	VIEWPORT	status_flags	90	6	0	0	0
+R2018	§20.4.38	VIEWPORT	style_sheet	1	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_at_origin	74	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_elevation	146	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_origin.x	110	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_origin.y	120	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_origin.z	130	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_ortho_view_type	79	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_per_viewport	71	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_x_axis.x	111	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_x_axis.y	121	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_x_axis.z	131	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_y_axis.x	112	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_y_axis.y	122	6	0	0	0
+R2018	§20.4.38	VIEWPORT	ucs_y_axis.z	132	6	0	0	0
+R2018	§20.4.38	VIEWPORT	use_default_lights	292	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_center.x	12	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_center.y	22	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_direction.x	16	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_direction.y	26	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_direction.z	36	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_height	45	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_target.x	17	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_target.y	27	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_target.z	37	6	0	0	0
+R2018	§20.4.38	VIEWPORT	view_twist_angle	51	6	0	0	0
+R2018	§20.4.38	VIEWPORT	width	40	6	0	0	0
 R2018	§20.4.39	ELLIPSE	axis_ratio	40	1	0	0	0
 R2018	§20.4.39	ELLIPSE	center.x	10	1	0	0	0
 R2018	§20.4.39	ELLIPSE	center.y	20	1	0	0	0
@@ -4236,6 +6756,32 @@ R2018	§20.4.4	ATTRIB	text	1	4	0	0	0
 R2018	§20.4.4	ATTRIB	thickness	39	0	4	0	0
 R2018	§20.4.4	ATTRIB	v_align	74	2	2	0	0
 R2018	§20.4.4	ATTRIB	width_factor	41	0	4	0	0
+R2018	§20.4.40	SPLINE	begin_tangent.x	12	0	0	0	1
+R2018	§20.4.40	SPLINE	begin_tangent.y	22	0	0	0	1
+R2018	§20.4.40	SPLINE	begin_tangent.z	32	0	0	0	1
+R2018	§20.4.40	SPLINE	closed	70&1	1	0	0	0
+R2018	§20.4.40	SPLINE	control point count	73	1	0	0	0
+R2018	§20.4.40	SPLINE	control_points.x	10	4	0	0	0
+R2018	§20.4.40	SPLINE	control_points.y	20	4	0	0	0
+R2018	§20.4.40	SPLINE	control_points.z	30	4	0	0	0
+R2018	§20.4.40	SPLINE	control_tolerance	43	1	0	0	0
+R2018	§20.4.40	SPLINE	degree	71	2	0	0	0
+R2018	§20.4.40	SPLINE	end_tangent.x	13	0	0	0	1
+R2018	§20.4.40	SPLINE	end_tangent.y	23	0	0	0	1
+R2018	§20.4.40	SPLINE	end_tangent.z	33	0	0	0	1
+R2018	§20.4.40	SPLINE	fit point count	74	1	0	1	0
+R2018	§20.4.40	SPLINE	fit tolerance	44	0	0	0	1
+R2018	§20.4.40	SPLINE	fit_points.x	11	0	0	0	2
+R2018	§20.4.40	SPLINE	fit_points.y	21	0	0	0	2
+R2018	§20.4.40	SPLINE	fit_points.z	31	0	0	0	2
+R2018	§20.4.40	SPLINE	flag1 (R2013+)	-	0	0	0	2
+R2018	§20.4.40	SPLINE	knot count	72	1	0	0	0
+R2018	§20.4.40	SPLINE	knot_param (R2013+)	-	0	0	0	2
+R2018	§20.4.40	SPLINE	knot_tolerance	42	1	0	0	0
+R2018	§20.4.40	SPLINE	knots	40	8	0	0	0
+R2018	§20.4.40	SPLINE	periodic	70&2	1	0	0	0
+R2018	§20.4.40	SPLINE	rational	70&4	1	0	0	0
+R2018	§20.4.40	SPLINE	scenario	-	0	0	0	2
 R2018	§20.4.42	RAY	direction.x	11	1	0	0	0
 R2018	§20.4.42	RAY	direction.y	21	1	0	0	0
 R2018	§20.4.42	RAY	direction.z	31	1	0	0	0
@@ -4399,6 +6945,16 @@ R2018	§20.4.48	MULTILEADER	top_attachment	273	15	0	0	0
 R2018	§20.4.48	MULTILEADER	undocumented_flag	-	0	0	0	15
 R2018	§20.4.48	MULTILEADER	undocumented_mc	-	0	0	0	15
 R2018	§20.4.48	MULTILEADER	unknown_175	175	15	0	0	0
+R2018	§20.4.49	TOLERANCE	extrusion.x	210	0	3	0	0
+R2018	§20.4.49	TOLERANCE	extrusion.y	220	0	3	0	0
+R2018	§20.4.49	TOLERANCE	extrusion.z	230	0	3	0	0
+R2018	§20.4.49	TOLERANCE	insertion_point.x	10	3	0	0	0
+R2018	§20.4.49	TOLERANCE	insertion_point.y	20	3	0	0	0
+R2018	§20.4.49	TOLERANCE	insertion_point.z	30	3	0	0	0
+R2018	§20.4.49	TOLERANCE	text_string	1	3	0	0	0
+R2018	§20.4.49	TOLERANCE	x_axis_direction.x	11	0	0	0	3
+R2018	§20.4.49	TOLERANCE	x_axis_direction.y	21	0	0	0	3
+R2018	§20.4.49	TOLERANCE	x_axis_direction.z	31	0	0	0	3
 R2018	§20.4.5	ATTDEF	alignment_point.x	11	2	0	0	0
 R2018	§20.4.5	ATTDEF	alignment_point.y	21	2	0	0	0
 R2018	§20.4.5	ATTDEF	attribute_type	-	0	0	0	4
@@ -4424,6 +6980,29 @@ R2018	§20.4.5	ATTDEF	text	1	5	0	0	0
 R2018	§20.4.5	ATTDEF	thickness	39	0	5	0	0
 R2018	§20.4.5	ATTDEF	v_align	74	2	3	0	0
 R2018	§20.4.5	ATTDEF	width_factor	41	0	5	0	0
+R2018	§20.4.50	MLINE	extrusion.x	210	3	0	0	0
+R2018	§20.4.50	MLINE	extrusion.y	220	3	0	0	0
+R2018	§20.4.50	MLINE	extrusion.z	230	3	0	0	0
+R2018	§20.4.50	MLINE	justification	70	3	0	0	0
+R2018	§20.4.50	MLINE	num_lines	73	3	0	0	0
+R2018	§20.4.50	MLINE	open_closed_flags	71	3	0	0	0
+R2018	§20.4.50	MLINE	scale_factor	40	3	0	0	0
+R2018	§20.4.50	MLINE	scale_point.x	10	3	0	0	0
+R2018	§20.4.50	MLINE	scale_point.y	20	3	0	0	0
+R2018	§20.4.50	MLINE	scale_point.z	30	3	0	0	0
+R2018	§20.4.50	MLINE	vertex count	72	3	0	0	0
+R2018	§20.4.50	MLINE	vertices.elements.area fill count	75	24	0	0	0
+R2018	§20.4.50	MLINE	vertices.elements.segment parameter count	74	24	0	0	0
+R2018	§20.4.50	MLINE	vertices.elements.segment_parameters	41	50	0	0	0
+R2018	§20.4.50	MLINE	vertices.miter_direction.x	13	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.miter_direction.y	23	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.miter_direction.z	33	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.segment_direction.x	12	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.segment_direction.y	22	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.segment_direction.z	32	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.vertex_point.x	11	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.vertex_point.y	21	12	0	0	0
+R2018	§20.4.50	MLINE	vertices.vertex_point.z	31	12	0	0	0
 R2018	§20.4.51	BLOCK_CONTROL	num_entries	70	2	0	0	0
 R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.x	BLOCK.10	29	0	0	0
 R2018	§20.4.52	BLOCK_HEADER	BLOCK.base_point.y	BLOCK.20	29	0	0	0
@@ -4599,6 +7178,85 @@ R2018	§20.4.73	MLINESTYLE	name	2	2	0	0	0
 R2018	§20.4.73	MLINESTYLE	start_angle	51	2	0	0	0
 R2018	§20.4.74	DICTIONARYVAR	schema	280	21	0	0	0
 R2018	§20.4.74	DICTIONARYVAR	value	1	21	0	0	0
+R2018	§20.4.75	HATCH	associative	71	8	0	0	0
+R2018	§20.4.75	HATCH	elevation (z of 10)	30	8	0	0	0
+R2018	§20.4.75	HATCH	extrusion.x	210	8	0	0	0
+R2018	§20.4.75	HATCH	extrusion.y	220	8	0	0	0
+R2018	§20.4.75	HATCH	extrusion.z	230	8	0	0	0
+R2018	§20.4.75	HATCH	gradient flag	450	2	0	0	0
+R2018	§20.4.75	HATCH	gradient.angle	460	2	0	0	0
+R2018	§20.4.75	HATCH	gradient.color count	453	2	0	0	0
+R2018	§20.4.75	HATCH	gradient.colors.rgb (CMC word 0xC2, payload)	421	4	0	0	0
+R2018	§20.4.75	HATCH	gradient.colors.unknown_double	463	4	0	0	0
+R2018	§20.4.75	HATCH	gradient.colors.unknown_short	-	0	0	0	4
+R2018	§20.4.75	HATCH	gradient.is_single_color	452	2	0	0	0
+R2018	§20.4.75	HATCH	gradient.name	470	2	0	0	0
+R2018	§20.4.75	HATCH	gradient.shift	461	2	0	0	0
+R2018	§20.4.75	HATCH	gradient.tint	462	2	0	0	0
+R2018	§20.4.75	HATCH	path count	91	8	0	0	0
+R2018	§20.4.75	HATCH	paths.boundary handle count	97	8	0	0	0
+R2018	§20.4.75	HATCH	paths.edge count	93	5	0	0	0
+R2018	§20.4.75	HATCH	paths.edges.end.x	11	20	0	0	0
+R2018	§20.4.75	HATCH	paths.edges.end.y	21	20	0	0	0
+R2018	§20.4.75	HATCH	paths.edges.start.x	10	20	0	0	0
+R2018	§20.4.75	HATCH	paths.edges.start.y	20	20	0	0	0
+R2018	§20.4.75	HATCH	paths.edges.type	72	20	0	0	0
+R2018	§20.4.75	HATCH	paths.flags	92	8	0	0	0
+R2018	§20.4.75	HATCH	paths.has_bulge	72	3	0	0	0
+R2018	§20.4.75	HATCH	paths.is_closed	73	3	0	0	0
+R2018	§20.4.75	HATCH	paths.vertex count	93	3	0	0	0
+R2018	§20.4.75	HATCH	paths.vertices.x	10	12	0	0	0
+R2018	§20.4.75	HATCH	paths.vertices.y	20	12	0	0	0
+R2018	§20.4.75	HATCH	pattern line count	78	6	0	0	0
+R2018	§20.4.75	HATCH	pattern_angle	52	6	0	0	0
+R2018	§20.4.75	HATCH	pattern_double	77	6	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.angle	53	449	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.dash count	79	449	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.dashes	49	896	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.offset.x	45	449	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.offset.y	46	449	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.origin.x	43	449	0	0	0
+R2018	§20.4.75	HATCH	pattern_lines.origin.y	44	449	0	0	0
+R2018	§20.4.75	HATCH	pattern_name	2	8	0	0	0
+R2018	§20.4.75	HATCH	pattern_scale	41	6	0	0	0
+R2018	§20.4.75	HATCH	pattern_style	75	8	0	0	0
+R2018	§20.4.75	HATCH	pattern_type	76	8	0	0	0
+R2018	§20.4.75	HATCH	pixel_size	47	3	0	0	0
+R2018	§20.4.75	HATCH	seed point count	98	8	0	0	0
+R2018	§20.4.75	HATCH	seed_points.x	10	8	0	0	0
+R2018	§20.4.75	HATCH	seed_points.y	20	8	0	0	0
+R2018	§20.4.75	HATCH	solid_fill	70	8	0	0	0
+R2018	§20.4.80	IMAGE	brightness	281	1	0	0	0
+R2018	§20.4.80	IMAGE	clip vertex count (a polygon is closed by repeating its first)	91	1	0	0	0
+R2018	§20.4.80	IMAGE	clip_boundary[0].x	14	1	0	0	0
+R2018	§20.4.80	IMAGE	clip_boundary[0].y	24	1	0	0	0
+R2018	§20.4.80	IMAGE	clip_boundary[1].x	14	1	0	0	0
+R2018	§20.4.80	IMAGE	clip_boundary[1].y	24	1	0	0	0
+R2018	§20.4.80	IMAGE	clip_boundary_type	71	1	0	0	0
+R2018	§20.4.80	IMAGE	clip_mode	290	1	0	0	0
+R2018	§20.4.80	IMAGE	clipping	280	1	0	0	0
+R2018	§20.4.80	IMAGE	contrast	282	1	0	0	0
+R2018	§20.4.80	IMAGE	display_flags	70	1	0	0	0
+R2018	§20.4.80	IMAGE	fade	283	1	0	0	0
+R2018	§20.4.80	IMAGE	image_size.x	13	1	0	0	0
+R2018	§20.4.80	IMAGE	image_size.y	23	1	0	0	0
+R2018	§20.4.80	IMAGE	insertion_point.x	10	1	0	0	0
+R2018	§20.4.80	IMAGE	insertion_point.y	20	1	0	0	0
+R2018	§20.4.80	IMAGE	insertion_point.z	30	1	0	0	0
+R2018	§20.4.80	IMAGE	u_vector.x	11	1	0	0	0
+R2018	§20.4.80	IMAGE	u_vector.y	21	1	0	0	0
+R2018	§20.4.80	IMAGE	u_vector.z	31	1	0	0	0
+R2018	§20.4.80	IMAGE	v_vector.x	12	1	0	0	0
+R2018	§20.4.80	IMAGE	v_vector.y	22	1	0	0	0
+R2018	§20.4.80	IMAGE	v_vector.z	32	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	class_version	90	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	file_path	1	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	image_size_pixels.x	10	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	image_size_pixels.y	20	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	is_loaded	280	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	pixel_height_size	21	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	pixel_size_units	281	1	0	0	0
+R2018	§20.4.81	IMAGEDEF	pixel_width_size	11	1	0	0	0
 R2018	§20.4.82	IMAGEDEF_REACTOR	class_version	90	1	0	0	0
 R2018	§20.4.84	LAYOUT	current_style_sheet	7	7	0	0	0
 R2018	§20.4.84	LAYOUT	drawing_units	143	7	0	0	0
