@@ -146,6 +146,7 @@ pub enum DecodedEntity {
     TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
     CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
     TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
+    TableContent(Box<crate::objects::table_content::TableContent>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7bb).
@@ -288,7 +289,8 @@ impl DecodedEntity {
             | Self::TableStyle(_)
             | Self::TableStyleModern(_)
             | Self::CellStyleMap(_)
-            | Self::TableGeometry(_) => 0,
+            | Self::TableGeometry(_)
+            | Self::TableContent(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -802,6 +804,10 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
+        "TABLECONTENT" | "ACDBTABLECONTENT" => {
+            crate::objects::table_content::decode_object(payload, body_start, inline_end, version)
+                .map(|content| DecodedEntity::TableContent(Box::new(content)))
+        }
         "TABLEGEOMETRY" | "ACDBTABLEGEOMETRY" => {
             crate::objects::table_geometry::decode_object(payload, body_start, inline_end, version)
                 .map(|geometry| DecodedEntity::TableGeometry(Box::new(geometry)))
