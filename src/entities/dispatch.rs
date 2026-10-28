@@ -143,9 +143,13 @@ pub enum DecodedEntity {
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
+    TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
+    CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
+    TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
+    TableContent(Box<crate::objects::table_content::TableContent>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
-    /// AutoCAD's own output (ARCHITECTURE.md §7au).
+    /// AutoCAD's own output (ARCHITECTURE.md §7bb).
     Material(Box<crate::objects::acad_material::Material>),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
@@ -154,19 +158,19 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
-    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7av).
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bf).
     WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
-    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7av).
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bf).
     DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
-    /// ACDB_BLOCKREPRESENTATION_DATA (§7av).
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7bf).
     BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
-    /// PDFDEFINITION (§7av).
+    /// PDFDEFINITION (§7bf).
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
-    /// DBCOLOR (§7av).
+    /// DBCOLOR (§7bf).
     DbColor(crate::objects::small_classes::DbColor),
-    /// A dynamic-block evaluation object (§7aw).
+    /// A dynamic-block evaluation object (§7bg).
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
-    /// DIMASSOC (§7ax).
+    /// DIMASSOC (§7bh).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -303,7 +307,11 @@ impl DecodedEntity {
             | Self::MLeaderStyle(_)
             | Self::DetailViewStyle(_)
             | Self::SectionViewStyle(_)
-            | Self::TableStyle(_) => 0,
+            | Self::TableStyle(_)
+            | Self::TableStyleModern(_)
+            | Self::CellStyleMap(_)
+            | Self::TableGeometry(_)
+            | Self::TableContent(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -803,10 +811,28 @@ fn dispatch_object_class(
             )
             .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
         }
+        "TABLESTYLE" | "ACDBTABLESTYLE" if version.is_r2010_plus() => {
+            crate::objects::acad_table_style::decode_object_modern(
+                payload, body_start, inline_end, version,
+            )
+            .map(|style| DecodedEntity::TableStyleModern(Box::new(style)))
+        }
         "TABLESTYLE" | "ACDBTABLESTYLE" => crate::objects::acad_table_style::decode_object(
             payload, body_start, inline_end, version,
         )
         .map(|style| DecodedEntity::TableStyle(Box::new(style))),
+        "CELLSTYLEMAP" | "ACDBCELLSTYLEMAP" => crate::objects::acad_cell_style_map::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
+        "TABLECONTENT" | "ACDBTABLECONTENT" => {
+            crate::objects::table_content::decode_object(payload, body_start, inline_end, version)
+                .map(|content| DecodedEntity::TableContent(Box::new(content)))
+        }
+        "TABLEGEOMETRY" | "ACDBTABLEGEOMETRY" => {
+            crate::objects::table_geometry::decode_object(payload, body_start, inline_end, version)
+                .map(|geometry| DecodedEntity::TableGeometry(Box::new(geometry)))
+        }
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
