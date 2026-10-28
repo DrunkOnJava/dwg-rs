@@ -4396,7 +4396,7 @@ cargo run --release --example probe_tablegeometry -- ../dwg-corpus
 
 
 
-## 7be. Five small classes, derived from AutoCAD's own output (2026-10-26)
+## 7bf. Five small classes, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for WIPEOUTVARIABLES,
 ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA,

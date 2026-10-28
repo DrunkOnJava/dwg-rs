@@ -3,7 +3,7 @@
 //!
 //! ODA spec v5.4.1 prints no layout for DBCOLOR; `src/objects/small_classes.rs`
 //! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7be). For every DBCOLOR of every drawing under the corpus directory this
+//! §7bf). For every DBCOLOR of every drawing under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary (from R2007 with the string stream consumed) and compares the true colour (group 420, the low 24 bits of the colour word), the colour word (xdata 1071, signed) and the book and name (group 430, `book$name`) from R2004; R14 and R2000 write none of them, so their record is checked against its boundary alone. The leading `BS` is not compared: group 62 says 42 where it reads 0
 //! with the `DBCOLOR` whose handle (group 5) matches in the DXF twin. A group the
