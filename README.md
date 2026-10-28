@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40655020787](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40655020787) on 2026-10-28<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40661080985](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40661080985) on 2026-10-28<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on the public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -79,11 +79,17 @@ object-data size on R2000 to R2007, the size inside the common entity data
 on R13/R14), or it returns an error instead of plausible-looking geometry.
 An *errored* record is a field list that does not add up; there are none left
 on the pinned corpus. A *skipped* record is a type with no decoder on `main`
-yet. Every skipped type has a decoder in review: the open pull requests
-labelled `type:feature` under the "every object prescription" epic (#138), which the
-merge train lands one at a time, each landing moving the tables above. The
-Corpus job's `corpus-measurement` artifact lists the skipped records of each
-drawing by type (`corpus-logs/`).
+yet. Two of the skipped types have a decoder in review, SHAPE (#310) and the
+VIEWPORT entity header (#311). The rest are custom classes in the four
+drawings pinned from kurema/BookViewerApp3: the render settings
+(RAPIDRTRENDERENVIRONMENT, RAPIDRTRENDERSETTINGS, MENTALRAYRENDERSETTINGS and
+RENDERGLOBAL), five associative-network classes (ACDBASSOCNETWORK,
+ACDBASSOCACTION, ACDBASSOCDEPENDENCY, ACDBASSOCVERTEXACTIONPARAM and
+ACDBASSOCARRAYACTIONBODY), ACSH_CYLINDER_CLASS, ACSH_REVOLVE_CLASS, and LIGHT
+declared as a custom class. Those drawings have no DXF
+export to derive or score them against yet (#152). The Corpus job's
+`corpus-measurement` artifact lists the skipped records of each drawing by
+type (`corpus-logs/`).
 
 Most of the classes in that list are not printed in the spec at all; their
 field lists are learned from AutoCAD's own DWG and DXF output under the
@@ -94,7 +100,7 @@ provisional until a controlled AutoCAD drawing confirms it (#348).
 add up, not that the values are right. The DXF value oracle
 ([`examples/dxf_oracle/`](./examples/dxf_oracle/main.rs)) pairs every decoded
 record with the same handle in AutoCAD's DXF export and scores each field. On
-`main` it scores <!-- oracle-summary:begin -->158,534 field comparisons on 64 types: 138,903 equal, 11,844 equal to the DXF default, 286 different and 7,501 present only in the DWG<!-- oracle-summary:end -->
+`main` it scores <!-- oracle-summary:begin -->160,256 field comparisons on 65 types: 140,589 equal, 11,844 equal to the DXF default, 286 different and 7,537 present only in the DWG<!-- oracle-summary:end -->
 ([`tools/oracle/baseline.tsv`](./tools/oracle/baseline.tsv) pins the result,
 and CI fails when it moves). Decoded types with no scorer yet are listed as
 unscored in the oracle summary the Corpus job uploads.
@@ -129,7 +135,7 @@ passed.
 | Handle map and class map | Shipped | |
 | Header variables | Shipped | Table-driven by release range (#126) |
 | Object-stream walker | Shipped | Every release from R14 to R2018; every handle-map entry resolves to a record |
-| Entity and object decoders | Alpha | 0 errored records on the pinned corpus; every skipped type has a decoder in review (above) |
+| Entity and object decoders | Alpha | 0 errored records on the pinned corpus; the skipped types are listed above, two with a decoder in review |
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
@@ -205,6 +211,9 @@ every later disclosure.
   short outside the ten proven pages still decodes as lossy UTF-8 (#375).
 - Decode password-protected R2007 files: a section whose descriptor declares
   encryption is refused, not decoded.
+- Decode the render-settings classes, five associative-network classes and
+  ACSH_CYLINDER_CLASS and ACSH_REVOLVE_CLASS (listed above); the pinned corpus
+  holds a few such records and no DXF export of them yet (#152).
 - Write R13, R14 or R2007 files; the writer covers the R2004 family only.
 - Byte-identical DWG round trips, or output checked by any CAD application.
 - Python bindings, a non-technical end-user application, an installer or a

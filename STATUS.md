@@ -19,7 +19,7 @@ the current capability matrix.
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
 - **Current real-file decode coverage, measured in CI** (the
-  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40655020787](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40655020787) on 2026-10-28<!-- corpus-run:end -->, on the public drawings
+  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40661080985](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40661080985) on 2026-10-28<!-- corpus-run:end -->, on the public drawings
   pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->122,318 decoded / 44 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 97.9 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.3 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
   The 308 errors of the 2026-10-26 measurement were closed by #226,
   #227, #228 and #71; `sample_AC1032.dwg` comes from ACadSharp's MIT
@@ -278,7 +278,9 @@ the current capability matrix.
 
 ## Pending — non-trivial work remaining
 
-These have genuine open scope requiring focused work, not stubs.
+These have genuine open scope requiring focused work, not stubs. Their counts
+are the 2026-08-30 snapshot of the 19-file subset; the corpus table at the top
+of this page is current, and README.md lists the types still skipped.
 
 - **Current real-file decode baseline:** the 2026-08-30
   `examples/coverage_report.rs ../../samples` run reports 2273 decoded,
