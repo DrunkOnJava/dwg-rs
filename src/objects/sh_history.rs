@@ -84,7 +84,7 @@ pub struct ShBox {
     pub size: [f64; 3],
 }
 
-fn read_color(
+pub(crate) fn read_color(
     c: &mut BitCursor<'_>,
     strings: &mut Option<StringReader<'_>>,
     version: Version,

@@ -255,7 +255,6 @@ impl DecodedEntity {
             Self::MLeader(_) => 0,
             Self::Viewport(_) => OBJECT_TYPE_VIEWPORT,
             Self::Camera(_) => OBJECT_TYPE_CAMERA,
-            Self::Sun(_) => OBJECT_TYPE_SUN,
             Self::Light(_) => OBJECT_TYPE_LIGHT,
             Self::GeoData(_) => OBJECT_TYPE_GEODATA,
             // SURFACE family + HELIX are custom classes — their type
@@ -313,6 +312,7 @@ impl DecodedEntity {
             | Self::DimAssoc(_)
             | Self::ShHistory(_)
             | Self::ShBox(_)
+            | Self::Sun(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -393,12 +393,14 @@ const OBJECT_TYPE_TOLERANCE: u16 = 0x2E; // 46
 const OBJECT_TYPE_OLE2FRAME: u16 = 0x4A; // 74
 const OBJECT_TYPE_LWPOLYLINE: u16 = 0x4D; // 77
 const OBJECT_TYPE_HATCH: u16 = 0x4E; // 78
-// CAMERA / SUN / LIGHT are visual/scene entities introduced in R2007+,
-// and GEODATA (§20.4.78) is a non-entity object. Per the spec all four
+// CAMERA / LIGHT are visual/scene entities introduced in R2007+, and
+// GEODATA (§20.4.78) is a non-entity object. Per the spec all three
 // take a class number from AcDb:Classes per file (geoloc.dwg's GEODATA
 // does), and such a record is routed by its DXF class name through
 // decode_from_raw_with_class_map. The fixed codes below are kept for
-// records that carry them; GEODATA's goes to the object path.
+// records that carry them; GEODATA's goes to the object path. SUN is
+// not among them: it is a non-entity object that the corpus carries as
+// a custom class (`objects` path below).
 /// `AcDb:Classes` item class id that marks a class as a non-entity
 /// object (§5.7). `0x1F2` is its entity counterpart.
 const PROXY_OBJECT_ITEM_CLASS_ID: u16 = 0x1F3;
@@ -413,7 +415,6 @@ const OBJECT_TYPE_LAYOUT: u16 = 0x52; // 82
 const OBJECT_TYPE_MLINESTYLE: u16 = 0x49; // 73
 
 const OBJECT_TYPE_CAMERA: u16 = 0x4F8; // 1272
-const OBJECT_TYPE_SUN: u16 = 0x4F9; // 1273
 const OBJECT_TYPE_LIGHT: u16 = 0x4FA; // 1274
 const OBJECT_TYPE_GEODATA: u16 = 0x4FB; // 1275
 
@@ -942,6 +943,8 @@ fn dispatch_object_class(
             crate::objects::sh_history::decode_history(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ShHistory)
         }
+        "SUN" => crate::entities::sun::decode_object(payload, body_start, inline_end, version)
+            .map(DecodedEntity::Sun),
         "ACSH_BOX_CLASS" => {
             crate::objects::sh_history::decode_box(payload, body_start, inline_end, version)
                 .map(|b| DecodedEntity::ShBox(Box::new(b)))
@@ -1438,7 +1441,6 @@ fn fixed_entity_label(type_code: u16) -> Option<&'static str> {
         OBJECT_TYPE_HATCH => "HATCH",
         OBJECT_TYPE_VIEWPORT => "VIEWPORT",
         OBJECT_TYPE_CAMERA => "CAMERA",
-        OBJECT_TYPE_SUN => "SUN",
         OBJECT_TYPE_LIGHT => "LIGHT",
         OBJECT_TYPE_GEODATA => "GEODATA",
         // DIMENSION family per ODA §5 Table 4:
@@ -1530,7 +1532,6 @@ fn decode_fixed_entity_body(
         OBJECT_TYPE_HATCH => DecodedEntity::Hatch(hatch::decode(c, version)?),
         OBJECT_TYPE_VIEWPORT => DecodedEntity::Viewport(viewport::decode(c, version, strings)?),
         OBJECT_TYPE_CAMERA => DecodedEntity::Camera(camera::decode(c, version)?),
-        OBJECT_TYPE_SUN => DecodedEntity::Sun(sun::decode(c, version)?),
         OBJECT_TYPE_LIGHT => DecodedEntity::Light(light::decode(c, version)?),
         OBJECT_TYPE_DIMENSION_MIN..=OBJECT_TYPE_DIMENSION_MAX => {
             let kind =
@@ -1912,7 +1913,6 @@ mod tests {
             OBJECT_TYPE_LWPOLYLINE,
             OBJECT_TYPE_HATCH,
             OBJECT_TYPE_CAMERA,
-            OBJECT_TYPE_SUN,
             OBJECT_TYPE_LIGHT,
             OBJECT_TYPE_GEODATA,
         ]
