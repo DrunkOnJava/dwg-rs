@@ -98,14 +98,14 @@ pub(crate) fn decode_object(
             let rows = c.read_bl_u()?;
             let dxf_1 = modern::read_tv(c, strings, version)?;
             let column_count = capped(column_count, "column count", 4, c)?;
-            let mut columns = Vec::with_capacity(column_count);
+            let mut columns = Vec::with_capacity(column_count.min(1024));
             for _ in 0..column_count {
                 let dxf_92 = c.read_bs()?;
                 let dxf_2 = modern::read_tv(c, strings, version)?;
                 let cells = match dxf_92 {
                     1 => {
                         let n = capped(rows, "row count", 2, c)?;
-                        let mut v = Vec::with_capacity(n);
+                        let mut v = Vec::with_capacity(n.min(1024));
                         for _ in 0..n {
                             v.push(c.read_bl()?);
                         }
@@ -113,7 +113,7 @@ pub(crate) fn decode_object(
                     }
                     2 => {
                         let n = capped(rows, "row count", 2, c)?;
-                        let mut v = Vec::with_capacity(n);
+                        let mut v = Vec::with_capacity(n.min(1024));
                         for _ in 0..n {
                             v.push(c.read_bd()?);
                         }
