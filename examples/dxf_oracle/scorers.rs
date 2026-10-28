@@ -792,6 +792,8 @@ pub fn section_of(label: &str) -> &'static str {
         "TABLESTYLE" => "§20.4.101",
         "IMAGEDEF_REACTOR" => "§20.4.82",
         "RASTERVARIABLES" => "§20.4.91",
+        "IMAGE" => "§20.4.80",
+        "IMAGEDEF" => "§20.4.81",
         "XRECORD" => "§20.4.104",
         _ => "-",
     }
@@ -1121,6 +1123,9 @@ pub fn score(
             c.int("flag", 290, i64::from(m.flag), None);
         }
         D::VisualStyle(v) => score_visualstyle(&mut c, v),
+        D::Image(i) => score_image(&mut c, i, "AcDbRasterImage"),
+        D::Wipeout(i) => score_image(&mut c, i, "AcDbWipeout"),
+        D::ImageDef(d) => score_imagedef(&mut c, d),
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
@@ -3163,6 +3168,84 @@ fn score_property_list(c: &mut Ctx<'_>, all: &[(String, VisualStyleValue, Option
             }
         }
     }
+}
+
+// §20.4.80 IMAGE, and WIPEOUT, which shares its record, against the DXF
+// Reference's AcDbRasterImage and AcDbWipeout groups: 90 the class version
+// (not decoded), 10 the insertion point, 11 and 12 the u and v vectors, 13
+// the image size in pixels, 70 the display flags, 280 the clipping state,
+// 281 to 283 brightness, contrast and fade, 290 the clip mode (R2010+), 71
+// the clip boundary type and 91 the clip vertex count with the vertices in
+// 14. The export closes a polygon boundary by repeating its first vertex,
+// so the count is the decoded vertices plus one and the extra vertex is
+// compared with the first; a rectangle's two corners are written as they
+// are. The image definition (340) and its reactor (360) are handles.
+fn score_image(c: &mut Ctx<'_>, i: &dwg::entities::image::Image, subclass: &str) {
+    use dwg::entities::image::ClipBoundary;
+    if !c.subclass(subclass) {
+        c.dwg_only(&format!("(the export has no {subclass} subclass)"), ());
+        return;
+    }
+    c.point3("insertion_point", 10, i.insertion_point, None);
+    c.point3("u_vector", 11, i.u_vector, None);
+    c.point3("v_vector", 12, i.v_vector, None);
+    c.point2("image_size", 13, i.image_size);
+    c.int("display_flags", 70, i64::from(i.display_flags), None);
+    c.int("clipping", 280, i64::from(i.clipping), None);
+    c.int("brightness", 281, i64::from(i.brightness), None);
+    c.int("contrast", 282, i64::from(i.contrast), None);
+    c.int("fade", 283, i64::from(i.fade), None);
+    if c.peek(290).is_some() {
+        c.int("clip_mode", 290, i64::from(i.clip_mode), None);
+    }
+    let (kind, verts) = match &i.clip_boundary {
+        ClipBoundary::Rectangle {
+            lower_left,
+            upper_right,
+        } => (1, vec![*lower_left, *upper_right]),
+        ClipBoundary::Polygon(p) => (2, p.clone()),
+    };
+    c.int("clip_boundary_type", 71, kind, None);
+    let closing = usize::from(kind == 2 && !verts.is_empty());
+    let want = (verts.len() + closing) as i64;
+    match c.take(91).and_then(DxfValue::as_i64) {
+        Some(n) => c.derived(
+            "clip vertex count (a polygon is closed by repeating its first)",
+            "91",
+            n == want,
+            want.to_string(),
+            n.to_string(),
+        ),
+        None => c.dwg_only("clip vertex count", want),
+    }
+    for (k, v) in verts.iter().enumerate() {
+        c.point2(&format!("clip_boundary[{k}]"), 14, *v);
+    }
+    if closing == 1 {
+        c.point2(
+            "clip_boundary closing vertex (the first again)",
+            14,
+            verts[0],
+        );
+    }
+}
+
+// §20.4.81 against the DXF Reference's AcDbRasterImageDef: 90 the class
+// version, 1 the file path, 10 the image size in pixels, 11 the default
+// pixel size, 280 the loaded flag and 281 the resolution units.
+fn score_imagedef(c: &mut Ctx<'_>, d: &dwg::entities::imagedef::ImageDef) {
+    if !c.subclass("AcDbRasterImageDef") {
+        c.dwg_only("(the export has no AcDbRasterImageDef subclass)", ());
+        return;
+    }
+    c.int("class_version", 90, i64::from(d.class_version), None);
+    c.text("file_path", 1, &d.file_path, None);
+    c.real("image_size_pixels.x", 10, d.image_size_pixels.0, None);
+    c.real("image_size_pixels.y", 20, d.image_size_pixels.1, None);
+    c.real("pixel_width_size", 11, d.pixel_width_size, None);
+    c.real("pixel_height_size", 21, d.pixel_height_size, None);
+    c.int("is_loaded", 280, i64::from(d.is_loaded), None);
+    c.int("pixel_size_units", 281, i64::from(d.pixel_size_units), None);
 }
 
 /// A colour as MLEADERSTYLE writes it: the CMC's 32-bit true-colour word as
