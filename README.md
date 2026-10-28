@@ -79,19 +79,11 @@ object-data size on R2000 to R2007, the size inside the common entity data
 on R13/R14), or it returns an error instead of plausible-looking geometry.
 An *errored* record is a field list that does not add up; there are none left
 on the pinned corpus. A *skipped* record is a type with no decoder on `main`
-yet. Every skipped type has a decoder in review, and the merge train lands
-them one at a time (each landing moves the tables above):
-
-- the TABLE family: TABLESTYLE on R2010+ and CELLSTYLEMAP (#313),
-  TABLEGEOMETRY (#316), TABLECONTENT (#317) and ACAD_TABLE (#319);
-- the dynamic-block evaluation objects (#326, #328, #339);
-- DIMASSOC (#329), the ACSH solid-history classes (#330), SHAPE (#310), the
-  viewport entity header (#311), PDFUNDERLAY (#331), SUN (#332), DATATABLE
-  (#335), ACDB_TEXTOBJECTCONTEXTDATA_CLASS (#337), WIPEOUTVARIABLES, DBCOLOR
-  and PDFDEFINITION (#326).
-
-The Corpus job's `corpus-measurement` artifact lists the skipped records of
-each drawing by type (`corpus-logs/`). MATERIAL, the largest, landed in #325.
+yet. Every skipped type has a decoder in review: the open pull requests
+labelled `type:feature` under the "every object prescription" epic (#138), which the
+merge train lands one at a time, each landing moving the tables above. The
+Corpus job's `corpus-measurement` artifact lists the skipped records of each
+drawing by type (`corpus-logs/`).
 
 Most of the classes in that list are not printed in the spec at all; their
 field lists are learned from AutoCAD's own DWG and DXF output under the
