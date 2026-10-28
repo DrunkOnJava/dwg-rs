@@ -107,9 +107,9 @@ R13/R14 preamble and the §20.4.21 `3BD` LINE body, which the
 `ElementEncoder` implementations do not write; R2007's §5.1-§5.4
 container is implemented read-only, and writing one would need a
 Reed-Solomon encoder and a §5.10 compressor this crate does not have.
-Both releases are covered on the read side by the real corpus and by
-`tests/integration_legacy_container.rs`, whose R14 fixtures are built
-byte-by-byte in the test itself.
+Both releases are covered on the read side by the real corpus; the byte-built
+R14 fixtures of `tests/integration_legacy_container.rs` are unit tests, which no
+job runs.
 
 ## What CI does with this
 
@@ -123,14 +123,14 @@ corpus)**:
   threshold stated in the workflow.
 
 The tight companion gate is [`tests/canonical_corpus.rs`](../../canonical_corpus.rs),
-which runs under `cargo test` and pins the exact per-file record counts
+which CI's Test job runs (class `real` in `tools/ci/test-targets.txt`) and which pins the exact per-file record counts
 *and* decoded field values — so a bit-alignment regression that still
 "decodes" into garbage coordinates fails there even when the ratio
 would stay at 100 %.
 
 [`tests/block_names.rs`](../../block_names.rs) runs the block-name gate
-(#70) on these five files, in `cargo test` on every platform (`ci.yml`, job
-**Test**, step `cargo test --release`, as `canonical_fixtures_block_names_agree_with_their_sentinels`):
+(#70) on these five files, in CI's Test job on every platform (`ci.yml`, job
+**Test**, step *Real-file, contract and hardening targets*, as `canonical_fixtures_block_names_agree_with_their_sentinels`):
 each BLOCK_HEADER's
 resolved name must equal the name its BLOCK sentinel carries, the resolved
 names must be unique, and the header's stored string must be that name
