@@ -34,6 +34,7 @@
 //! | ACAD_EVALUATION_GRAPH   | [`eval_graph`]            | none — derived from AutoCAD output |
 //! | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | [`text_context_data`] | none — derived from AutoCAD output |
 //! | ACSH_HISTORY_CLASS, ACSH_BOX_CLASS | [`sh_history`]  | none — derived from AutoCAD output |
+//! | RAPIDRTRENDERENVIRONMENT | [`render_environment`]  | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -118,6 +119,7 @@ pub mod pers_subent;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod render_environment;
 pub mod sh_history;
 pub mod small_classes;
 pub mod table_cell_style;

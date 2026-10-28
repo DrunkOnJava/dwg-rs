@@ -176,9 +176,11 @@ bit granularity. Key methods:
 | `read_ms`       | Two-byte modular stream                          | `u64` (unsigned)         |
 | `read_handle`   | 4-bit code + 4-bit counter + payload             | `Handle { code, value }` |
 
-The `BitWriter` methods mirror each `read_*` method exactly. Property
-tests in `tests/proptest_roundtrip.rs` lock the invariant that
-every primitive round-trips bit-exactly.
+The `BitWriter` methods mirror each `read_*` method exactly. Every
+primitive round-trips bit-exactly; CI exercises that end to end, because
+the committed canonical fixtures are written with `BitWriter` and read back
+by the reader, and `tests/proptest_roundtrip.rs` (class `unit`, not run)
+states it as a property.
 
 ## 5. LZ77 decompression (spec §4.7)
 
@@ -5148,6 +5150,49 @@ B cast_shadows (1), BL shadow_type (0), BS shadow_map_size (256), RC shadow_map_
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_light -- ../dwg-corpus
 ```
+
+## 7bs. RAPIDRTRENDERENVIRONMENT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+
+ODA spec v5.4.1 prints no layout for the object AutoCAD writes for the RapidRT renderer's
+environment (its C++ class in `AcDb:Classes` is `AcDbIBLBackground`, an image-based lighting
+backdrop). `src/objects/render_environment.rs` reads it from a layout derived from the
+records' own bits and held to the record boundary alone, by the entry CLEANROOM.md records
+for 2026-10-28: the two drawings that hold the class, `3d.dwg` and `Draw2.dwg` of the pinned
+`kurema/BookViewerApp3` drawings (AC1014), have no DXF export in the corpus. **Its state is
+`decoder`, not `closes`.**
+
+| Drawing | Records | Close | Values compared |
+|---|---:|---:|---:|
+| `3d.dwg` (R14) | 2 | 2 | 0 (no DXF twin) |
+| `Draw2.dwg` (R14) | 6 | 6 | 0 (no DXF twin) |
+| Total | 8 | 8 | 0 |
+
+```text
+BL version (2), B enabled, TV image (an HDR path), BD rotation (0.0), B display_image
+```
+
+- **Why the list is the right width.** Every record is 11 bits, a `TV` and 3 bits, and the
+  `TV` is a path of 74 to 93 characters (`C:\Program Files\Autodesk\AutoCAD 2019\Environments\half_hdr\...`):
+  the length is the one thing that varies, and the record closes on its boundary on all eight
+  whatever it is. The 11 bits before the text are a `BL` of 10 bits and one flag; the 3 after it
+  a `BD` in its 2-bit zero form and one flag. The path also shows that AutoCAD 2019 wrote the
+  drawings.
+- **What the values show.** The version is 2 in every record and the rotation 0.0. The first
+  flag is 1 in six records and 0 in two (both in `Draw2.dwg`), the last flag 0 in three and 1
+  in five, so neither is a constant.
+- **Unverified by value.** The roles of the version, of the two flags and of the rotation
+  (named by the groups of the IBL background in Autodesk's public DXF Reference, recalled, for
+  names only), and whether the `BL` is not a `BS`: the two read the same on every record. The
+  hard handle of a secondary background, if the object has one, is in the handle stream and
+  is not read. A DXF export of the two drawings, which AutoCAD's trial tooling can make, would
+  score all of it and let the state move to `closes`.
+- **Other releases.** The same list is attempted on every release, and a record it does not
+  close on is an error, not a guess. Only R14 has records in the corpus.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_render_environment -- ../dwg-corpus
+```
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
@@ -5189,9 +5234,13 @@ input to a full `DwgFile::to_bytes()` once Stages 2-5 are completed.
 
 ## 10. Test strategy
 
-Evidence comes from real executables run on real files. New work is
-shown on the corpus, not with new unit tests; the suites already in
-the tree stay and must keep passing.
+Evidence comes from real executables run on real files. Unit tests
+are banned: none are added, and none run in CI. `tools/ci/test-targets.txt`
+classes every file under `tests/` as `real`, `cli`, `contract`,
+`hardening` or `unit`; the Test job runs all but `unit`
+(`tools/ci/run_test_targets.sh`), and fails on a file the manifest
+does not class. The inline `#[cfg(test)]` suites in `src/` are being
+deleted area by area, and git history is the archive.
 
 1. **Self-validating decoders.** Every entity and object decoder must
    end exactly on its record's data-stream boundary (§7i), so a wrong
@@ -5209,15 +5258,21 @@ the tree stay and must keep passing.
    generator, the coverage report must stay above its floor, and the
    class-census and reference-closure probes must pass. CI does not
    read the real corpus yet (#95).
-4. **Property, golden and fuzz checks.** `tests/proptest_roundtrip.rs`
-   round-trips the bit-level primitives, `tests/integration_svg_goldens.rs`
-   pins SVG output, and `fuzz/` runs nightly against every byte-level
-   attack surface.
+4. **Fuzz and contract checks.** `tests/integration_fuzz_corpus_regression.rs`
+   replays every fuzz seed through its entry point (class `hardening`),
+   `tests/code_table_agreement.rs` checks the object-type tables against
+   the specification's Table 4 (class `contract`),
+   `tools/ci/dispatch_arms.py` keeps the fixed-code dispatcher's label list
+   and body arms in step, and `fuzz/` runs nightly against every byte-level
+   attack surface. `tests/proptest_roundtrip.rs` and
+   `tests/integration_svg_goldens.rs` are classed `unit`: kept as source,
+   not run.
 5. **Streaming E2E.** `tools/streaming/verify.py` drives the built
    `stream_header` example in separate processes under generated chunk
    schedules (docs/streaming/README.md).
 
-`cargo test --release --all-features` must pass before a PR merges.
+`tools/ci/run_test_targets.sh --release --all-features` must pass before
+a PR merges.
 
 ## 11. Legal posture
 

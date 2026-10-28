@@ -73,10 +73,23 @@ jobs:
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           key: ${{ matrix.os }}-${{ matrix.toolchain }}
+      - name: Every tests/*.rs target is classified
+        shell: bash
+        run: tools/ci/run_test_targets.sh --check-only
       - name: cargo build --release
         run: cargo +${{ matrix.toolchain }} build --release --all-features --all-targets
-      - name: cargo test --release
-        run: cargo +${{ matrix.toolchain }} test --release --all-features
+      # Unit tests are banned: tools/ci/test-targets.txt classes every
+      # tests/*.rs target as real, contract, hardening, cli or unit, and the
+      # script runs all but unit, then the documentation examples. It fails
+      # on a target the manifest does not class, so a new one cannot run or
+      # skip unnoticed. The inline #[cfg(test)] suites in src/ are not run.
+      # Corpus-reading targets skip here (no ../../samples) and run in the
+      # Corpus (public DWG) job.
+      - name: Real-file, contract and hardening targets, and the documentation examples
+        shell: bash
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
+        run: tools/ci/run_test_targets.sh --release --all-features
       - name: The specification's worked examples (#107)
         run: cargo +${{ matrix.toolchain }} run --release --all-features --example spec_examples
 
@@ -291,24 +304,41 @@ jobs:
         with:
           path: ~/dwg-corpus
           key: dwg-corpus-${{ hashFiles('tools/corpus/pins.tsv') }}
-      # tests/samples.rs, class_census.rs, block_names.rs, corpus_roundtrip.rs
-      # and r2013_entity_values.rs read ../../samples and skip silently when a
-      # file is absent, so a skip here would be a vacuous pass.
+      # Every tests/ target of tools/ci/test-targets.txt that reads ../../samples
+      # (class real): samples, class_census, block_names, corpus_roundtrip,
+      # r2013_entity_values, integration_dxf_roundtrip, integration_gltf and
+      # integration_legacy_container, without the seven byte-built tests its
+      # skip= list in the manifest leaves out (the names are unique across the
+      # eight binaries, and libtest's --skip applies to all of them). They skip
+      # silently when a file is absent,
+      # so a skip here would be a vacuous pass; integration_dxf_roundtrip also
+      # returns early, printing "convert failed", when the converter errors on
+      # the drawing, which passes just as vacuously. Both fail the step below.
       - name: Real-file tests on the 19-file corpus
         if: steps.fetch.outputs.measured == 'true'
         run: |
           set +e
           cargo +stable test --release --all-features --test samples --test class_census \
             --test block_names --test corpus_roundtrip --test r2013_entity_values \
-            -- --nocapture > corpus-tests.log 2>&1
+            --test integration_dxf_roundtrip --test integration_gltf \
+            --test integration_legacy_container \
+            -- --nocapture \
+            --skip r14_flat_file_walks_its_object_map_and_decodes_a_line \
+            --skip r2000_flat_file_walks_its_object_map_and_decodes_a_line \
+            --skip r13_r15_object_stream_is_the_whole_file \
+            --skip r13_r15_locators_carry_the_canonical_section_names \
+            --skip r2007_locates_its_string_stream_from_the_object_prologue \
+            --skip r2007_system_page_size_matches_the_spec_pseudo_code \
+            --skip r2007_page_map_pairs_accumulate_into_offsets \
+            > corpus-tests.log 2>&1
           status=$?
           set -e
           cat corpus-tests.log
           if [ "$status" -ne 0 ]; then
             exit "$status"
           fi
-          if grep -n -i 'skipping' corpus-tests.log; then
-            echo "::error::a corpus test skipped although the corpus is present"
+          if grep -n -i -e 'skipping' -e 'convert failed' corpus-tests.log; then
+            echo "::error::a corpus test skipped or returned early although the corpus is present"
             exit 1
           fi
       - name: Measure every pinned drawing and check the ratchet
@@ -603,6 +633,12 @@ jobs:
       # up-to-date off, so two PRs can each add the same `## 7x.`.
       - name: ARCHITECTURE.md's numbered sections run in order
         run: python3 tools/maintainer/train/arch.py check
+      # The inline test that pinned fixed_entity_label to
+      # decode_fixed_entity_body was a unit test and no longer runs; this
+      # reads both lists from src/entities/dispatch.rs, so a new decoder that
+      # adds its arm to one and not the other fails here.
+      - name: The fixed-code dispatcher's label list and body arms agree
+        run: python3 tools/ci/dispatch_arms.py --check
 
   pii-guard:
     name: PII guard
