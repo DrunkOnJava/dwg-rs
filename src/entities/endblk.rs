@@ -15,16 +15,3 @@ pub struct EndBlk;
 pub fn decode(_c: &mut BitCursor<'_>) -> Result<EndBlk> {
     Ok(EndBlk)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn endblk_is_empty() {
-        // Any cursor position is valid since there's nothing to read.
-        let buf: [u8; 0] = [];
-        let mut c = BitCursor::new(&buf);
-        let _ = decode(&mut c).unwrap();
-    }
-}

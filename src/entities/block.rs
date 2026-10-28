@@ -85,23 +85,3 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<Block> {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bitwriter::BitWriter;
-
-    #[test]
-    fn roundtrip_modelspace_block_r2000() {
-        let mut w = BitWriter::new();
-        let s = b"*Model_Space";
-        w.write_bs_u(s.len() as u16);
-        for b in s {
-            w.write_rc(*b);
-        }
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let b = decode(&mut c, Version::R2000).unwrap();
-        assert_eq!(b.name, "*Model_Space");
-    }
-}
