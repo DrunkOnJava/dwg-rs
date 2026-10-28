@@ -143,6 +143,8 @@ pub enum DecodedEntity {
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
+    TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
+    CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7bb).
@@ -154,15 +156,15 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
-    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bc).
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bd).
     WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
-    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bc).
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bd).
     DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
-    /// ACDB_BLOCKREPRESENTATION_DATA (§7bc).
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7bd).
     BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
-    /// PDFDEFINITION (§7bc).
+    /// PDFDEFINITION (§7bd).
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
-    /// DBCOLOR (§7bc).
+    /// DBCOLOR (§7bd).
     DbColor(crate::objects::small_classes::DbColor),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -297,7 +299,9 @@ impl DecodedEntity {
             | Self::MLeaderStyle(_)
             | Self::DetailViewStyle(_)
             | Self::SectionViewStyle(_)
-            | Self::TableStyle(_) => 0,
+            | Self::TableStyle(_)
+            | Self::TableStyleModern(_)
+            | Self::CellStyleMap(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -797,10 +801,20 @@ fn dispatch_object_class(
             )
             .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
         }
+        "TABLESTYLE" | "ACDBTABLESTYLE" if version.is_r2010_plus() => {
+            crate::objects::acad_table_style::decode_object_modern(
+                payload, body_start, inline_end, version,
+            )
+            .map(|style| DecodedEntity::TableStyleModern(Box::new(style)))
+        }
         "TABLESTYLE" | "ACDBTABLESTYLE" => crate::objects::acad_table_style::decode_object(
             payload, body_start, inline_end, version,
         )
         .map(|style| DecodedEntity::TableStyle(Box::new(style))),
+        "CELLSTYLEMAP" | "ACDBCELLSTYLEMAP" => crate::objects::acad_cell_style_map::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)

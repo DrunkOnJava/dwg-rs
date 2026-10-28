@@ -4303,7 +4303,60 @@ The R2018 DXF writer in `dxf_sections.rs` still emits a MATERIAL as its name
 only; surfacing these fields there, and a MATERIAL scorer in the DXF value
 oracle, are separate changes.
 
-## 7bc. Five small classes, derived from AutoCAD's own output (2026-10-26)
+## 7bc. TABLESTYLE from R2010, and CELLSTYLEMAP (2026-10-26, #151)
+
+§20.4.101.2 prints TABLESTYLE's R2010 layout and §20.4.102 CELLSTYLEMAP,
+both as sequences of cell styles (§20.4.101.4, with the content format of
+§20.4.101.3 inside them). One reader serves both
+(`src/objects/table_cell_style.rs`): a `BL` type, a `BS` data flag, and when
+the flag is 1 the override and merge flags, a background colour, the layout
+flags, the content format, the margins and the borders, each border an edge
+flag and, when that is not 0, its overrides, type, colour, line weight,
+invisibility and double-line spacing. §7d's note on TABLESTYLE called its
+R2010 record a 6,844-bit envelope whose token sequence
+no record could pin; with the spec's field list the record closes on all 20
+R2010 to R2018 records, and so does CELLSTYLEMAP on all 32 of R14 to R2007.
+
+Three readings are not in the spec's table and come from the bits:
+
+| Where | What the spec prints | What the bytes say |
+|---|---|---|
+| §20.4.101.2, p234 | the cell styles "(for data, title, header in this order)" | title, header, data: the names read `_TITLE`, `_HEADER`, `_DATA` with ids 1, 2, 3, in `arc_2010.dwg` handle `0x65` and every other record |
+| §20.4.101.2, p234 | each repeated cell style is the §20.4.101.4 fields, then `BL` id, `BL` class and `TV` name | one more `BL` before each, equal to the id after it on every record (1, 2, 3); without it the first named style lands 10 bits early |
+| §20.4.101.2, p234 | `RC`, `TV`, `BL`, `BL`, `H`, then the "Table" cell style | the two `BL`s are 0 and 101 on every record, 101 being the first custom cell style id (§20.4.101.3) |
+
+The `TC` of R2000 follows the until-R2007 TABLESTYLE section: every colour of a cell style
+is the 44-bit `BS`, `BL`, `RC` form on every release. A cell style's border
+count is 0 to 6: `sample_AC1032.dwg`'s "Table" style has none, which is why
+that record is 5820 bits against R2013's 6844.
+
+The DXF holds the cell styles in the drawing's one CELLSTYLEMAP object, group
+by group in the order the spec prints the fields, bracketed by marker strings
+(`TABLEFORMAT_BEGIN`, `CONTENTFORMAT_BEGIN`, `GRIDFORMAT_BEGIN`, ...).
+AutoCAD writes that object afresh on every save, so the DWG's CELLSTYLEMAP
+and the DXF's never share a handle (the oracle lists it among its save-time
+objects, `examples/dxf_oracle/main.rs`); each DWG record is paired with the
+only CELLSTYLEMAP in its twin. From R2010 the DWG holds no
+CELLSTYLEMAP, and the same twin object is compared with the cell styles of the
+TABLESTYLE record, whose "Table" style (id 4) the DXF holds nowhere.
+
+```sh
+cargo run --release --example probe_tablestyle -- ../dwg-corpus
+cargo run --release --example probe_cellstylemap -- ../dwg-corpus
+```
+
+| Release | TABLESTYLE close | Values compared | CELLSTYLEMAP close | Values compared | Differ |
+|---|---|---|---|---|---|
+| R14 | 8 / 8 | no twin | 8 / 8 | no twin | |
+| R2000 | 8 / 8 | 608 | 8 / 8 | 2360 | 0 |
+| R2004 | 8 / 8 | 608 | 8 / 8 | 2360 | 0 |
+| R2007 | 8 / 8 | 680 | 8 / 8 | 2360 | 0 |
+| R2010 | 8 / 8 | 2368 | none in the DWG | | 0 |
+| R2013 | 8 / 8 | 2368 | none in the DWG | | 0 |
+| R2018 | 4 / 4 | 592 | none in the DWG | | 0 |
+
+
+## 7bd. Five small classes, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for WIPEOUTVARIABLES,
 ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA,
@@ -4360,7 +4413,6 @@ for p in wipeout_variables purge_preventer block_representation pdf_definition d
   cargo run --release --example probe_$p -- ../dwg-corpus
 done
 ```
-
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
