@@ -1,7 +1,7 @@
 //! LIGHT entity: the point, spot and distant lights of AutoCAD's rendering.
 //!
 //! ODA spec v5.4.1 prints no layout for LIGHT. The field list is derived from AutoCAD's own
-//! output under the method in `CLEANROOM.md` (2026-10-28, ARCHITECTURE.md §7bq): the one
+//! output under the method in `CLEANROOM.md` (2026-10-28, ARCHITECTURE.md §7br): the one
 //! LIGHT record of the pinned corpus, a point light in `3d.dwg` (AC1014), closes exactly
 //! on its data-stream boundary with it. The corpus holds no DXF export of that drawing, so no
 //! value is scored and the state is `decoder`.

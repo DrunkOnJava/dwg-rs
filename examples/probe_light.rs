@@ -1,7 +1,7 @@
 //! Does the derived LIGHT field list close on every corpus record?
 //!
 //! ODA spec v5.4.1 prints no layout for the entity; `src/entities/light.rs` was derived from
-//! the bits of the one record of `3d.dwg` (CLEANROOM.md, 2026-10-28; ARCHITECTURE.md §7bq).
+//! the bits of the one record of `3d.dwg` (CLEANROOM.md, 2026-10-28; ARCHITECTURE.md §7br).
 //! For every LIGHT of every drawing under the corpus directory this reports whether the
 //! decoder closed exactly on the record's data-stream boundary. No value is scored: the
 //! corpus holds no DXF export of the drawing, so the values are printed, not compared.

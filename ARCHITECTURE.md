@@ -5043,7 +5043,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sh_extrusion -- ../dwg-corpus
 ```
 
-## 7bq. LIGHT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+## 7br. LIGHT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
 
 ODA spec v5.4.1 prints no layout for the LIGHT entity. `src/entities/light.rs` reads it from
 a layout derived from the one LIGHT record of the pinned corpus and held to that record's
