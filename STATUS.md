@@ -9,15 +9,11 @@ the current capability matrix.
 
 ## Summary
 
-- **Tests:** `cargo test --release --all-features` ran 921 tests, all
-  passing, on 2026-10-27; clippy and fmt clean. (The 2026-08-30
-  snapshot had 774 lib tests.)
-- **WASM tests:** 40 passing in `wasm/` sub-crate.
-- **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
-  goldens (3), fuzz-corpus regression (6), write-path (5),
-  entity-regression (18), real-DWG value regression (8),
-  legacy-container (11: R14 / R2000 byte-built flat files, the R2007
-  string-stream boundary, and four corpus-gated pins).
+- **Tests:** unit tests are banned, and no test count is quoted: a pass
+  count is not evidence. CI's Test job runs the real-file, contract and
+  hardening targets of `tools/ci/test-targets.txt` and the documentation
+  examples (`tools/ci/run_test_targets.sh`), and the Corpus job runs the
+  corpus-reading targets on the 19 pinned drawings; clippy and fmt clean.
 - **Current real-file decode coverage, measured in CI** (the
   `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40676458194](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40676458194) on 2026-10-28<!-- corpus-run:end -->, on the public drawings
   pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->122,330 decoded / 32 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 98.7 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.5 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->

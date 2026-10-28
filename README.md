@@ -171,8 +171,9 @@ MEASURED**; no claim of superiority to another reader is made.
 
 ## What works today
 
-The container layer is the most mature part of the crate. `cargo test --release --all-features`
-ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
+The container layer is the most mature part of the crate. It is measured on real
+drawings, not by a test count: the `Corpus (public DWG)` job opens every pinned
+drawing and fails on any change from the committed baselines.
 
 - Version identification from AC1014 (R14, 1997) to AC1032 (2018 and later)
 - R13 to R15 file header and the R2004-family XOR-encrypted header
@@ -346,7 +347,7 @@ mechanism.
 ## Verification
 
 ```text
-$ cargo test --release --all-features                             # 921 tests on 2026-10-27
+$ tools/ci/run_test_targets.sh --release --all-features          # the real-file, contract and hardening targets, then the doc tests
 $ cargo clippy --all-targets --all-features -- -D warnings       # clean
 $ cargo fmt --all -- --check                                      # clean
 $ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features   # clean
@@ -360,7 +361,7 @@ fetches the 52 pinned drawings, measures them, runs the probes and the value
 oracle, and fails on any change from the committed baselines. The older
 real-file suites (`samples`, `block_names`, `corpus_roundtrip`,
 `r2013_entity_values`) read a 19-file subset and skip silently when it is
-absent, so a green local `cargo test` says nothing about real drawings unless
+absent, so a green run of them says nothing about real drawings unless
 `python3 -I tools/corpus/fetch.py --legacy-samples ../../samples` has run.
 
 ## Safety
@@ -422,7 +423,7 @@ The project needs help, in rough order of impact:
 
 Before submitting a PR:
 
-- Run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings` and `cargo test --release --all-features`.
+- Run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings` and `tools/ci/run_test_targets.sh --release --all-features`. Unit tests are banned: do not add one ([`CONTRIBUTING.md`](./CONTRIBUTING.md)).
 - Cite the ODA spec section for any new decoder behavior, numbered as in v5.4.1 ([`docs/spec-coverage.md`](./docs/spec-coverage.md) lists them).
 - **Source-provenance declaration**: confirm in the PR body that your contribution does not incorporate executable code (not just comments, not just API shapes) from any source whose license is incompatible with Apache-2.0: no Autodesk SDK source, no ODA SDK / Teigha source, and no GPL-licensed DWG implementation source (LibreDWG). Reading algorithm-description comments in permissively licensed projects (MIT / Apache / BSD) to resolve a spec ambiguity is allowed and must be disclosed in the PR body so it can be recorded in [`CLEANROOM.md`](./CLEANROOM.md). The PR template has a checkbox for this.
 - Follow the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) code of conduct.
