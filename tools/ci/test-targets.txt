@@ -1,0 +1,76 @@
+# Which tests/*.rs targets CI's Test job runs, and why.
+#
+# Unit tests are banned in this repository (the maintainer's standing
+# directive, 2026-09-23): none are added, and none run in CI. What runs is
+# verification against real drawings, checks that keep the published claims
+# honest, and replays of the inputs that crashed a parser. Every tests/*.rs
+# target must appear here exactly once, so a new target cannot silently run
+# or silently skip; tools/ci/run_test_targets.sh fails when one is missing.
+# The inline #[cfg(test)] suites in src/ are unit tests too: no job runs them,
+# and they are deleted area by area (git history is the archive).
+#
+# Format: <class> <target> [skip=<test name>,...]
+#   real       reads real drawings (the public corpus at ../../samples, or the
+#              committed canonical fixtures) through the public API and checks
+#              what the reader or an exporter gives against the file
+#   cli        drives the built binaries end to end (no target is classed so
+#              yet)
+#   contract   checks a published claim or invariant (a table against the
+#              specification's table) against the code
+#   hardening  replays inputs that crashed or overran a parser of untrusted
+#              files (fuzz findings) through the public API: run, as a parser
+#              of hostile input must keep surviving them (the same class
+#              rvt-rs keeps for its fuzz regressions)
+#   unit       synthetic-only or property tests: kept as source, not run
+#
+# A target that reads ../../samples skips cleanly when the directory is absent,
+# which is every Test leg; the Corpus (public DWG) job places the 19 pinned
+# drawings there (tools/corpus/fetch.py --legacy-samples) and runs the
+# corpus-reading targets it lists (ci.yml).
+# `skip=` leaves out the synthetic-fixture tests inside a real-file target.
+
+# The BLOCK_HEADER and BLOCK sentinel names of the 19 corpus drawings, and of
+# the committed canonical fixtures.
+real      block_names
+# Per-file entity counts, decoded values, handle maps and class census of the
+# committed canonical fixtures, read through the public API.
+real      canonical_corpus
+# AcDb:Classes declared counts against the instances the walk reaches, on the
+# 19 corpus drawings (a ratchet: a closed or a new gap both fail).
+real      class_census
+# Open, section list, decompression and handle map of every corpus drawing.
+real      corpus_roundtrip
+# dwg-to-dxf's converter on a corpus drawing, release by release.
+real      integration_dxf_roundtrip
+# dwg-to-gltf's converter on a corpus drawing: GLB container, JSON and meshes.
+real      integration_gltf
+# The R14, R2000 and R2007 object walks on the corpus drawings. The seven
+# tests it skips build their flat files and page maps byte by byte.
+real      integration_legacy_container skip=r14_flat_file_walks_its_object_map_and_decodes_a_line,r2000_flat_file_walks_its_object_map_and_decodes_a_line,r13_r15_object_stream_is_the_whole_file,r13_r15_locators_carry_the_canonical_section_names,r2007_locates_its_string_stream_from_the_object_prologue,r2007_system_page_size_matches_the_spec_pseudo_code,r2007_page_map_pairs_accumulate_into_offsets
+# Decoded LINE, CIRCLE, ARC and AC1032 records against the values AutoCAD wrote.
+real      r2013_entity_values
+# Version, locators, sections, handle map, class map and visual styles of the
+# 19 corpus drawings.
+real      samples
+
+# ObjectType::from_code, the DIMENSION subtype table and the dispatcher's
+# fixed code table against the specification's Table 4 (§5).
+contract  code_table_agreement
+
+# Every seed under fuzz/corpus/ through the entry point it exercises: none may
+# panic or hang.
+hardening integration_fuzz_corpus_regression
+
+# Synthetic RawObjects with zeroed payloads and proptest, through decode_from_raw.
+unit      dispatch_roundtrip
+# Synthetic bit streams per release for nine decoders.
+unit      integration_entity_regression
+# SvgDoc text against committed goldens: synthetic documents, and a hard-coded
+# SVG tagged with a corpus drawing's version.
+unit      integration_svg_goldens
+# BitWriter, section_writer and file_writer round trips through the reader, in memory.
+unit      integration_write_roundtrip
+# Hand-built malformed LZ77 streams and bit cursors.
+unit      mutation_failure_modes
+# proptest round trips of the bit primitives and LZ77.
+unit      proptest_roundtrip
