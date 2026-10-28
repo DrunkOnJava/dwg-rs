@@ -161,11 +161,17 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     // the default "0" layer every DXF reader requires. The header is written
     // first but names only records these tables define.
     let layers = [LayerEntry::default()];
-    let object_handles = written_object_handles(file);
     let header = match file.header_vars() {
         Some(Ok(h)) if h.closed => Some(h),
         _ => None,
     };
+    // The objects OBJECTS writes are planned first: a table record or entity
+    // names an object by handle only when the output defines it.
+    let mut objects_plan = header.as_ref().map(|h| crate::dxf_objects::plan(file, h));
+    let mut object_handles = objects_plan
+        .as_ref()
+        .map(crate::dxf_objects::Plan::handles)
+        .unwrap_or_default();
     // The tables are built twice when entities are written: once for the layer,
     // linetype, style and block names the entities refer to, and again knowing
     // the handles of the entities and block markers that are written, which the
@@ -174,7 +180,7 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
         Some(h) => crate::dxf_tables::build(file, version, h, &object_handles, None),
         None => Vec::new(),
     };
-    let decoded_entities = match &header {
+    let mut decoded_entities = match &header {
         Some(h)
             if !first_tables.is_empty() && crate::dxf_entities::writes(file.version(), version) =>
         {
@@ -188,6 +194,21 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
         }
         _ => None,
     };
+    // Ownership is closed over what the entities and tables write before any
+    // handle is told to a table record: an object owned by something left out
+    // (an unsupported entity's extension dictionary and what it owns) is dropped.
+    if let (Some(plan), Some(e)) = (objects_plan.as_mut(), decoded_entities.as_mut()) {
+        let mut emitted = e.handles();
+        for t in &first_tables {
+            emitted.insert(t.handle);
+            emitted.extend(t.records.iter().map(|r| r.handle));
+        }
+        let gone = plan.close(&emitted);
+        if !gone.is_empty() {
+            e.forget(&gone);
+            object_handles = plan.handles();
+        }
+    }
     let tables = match (&header, &decoded_entities) {
         (Some(h), Some(e)) => {
             let mut known = object_handles.clone();
@@ -246,8 +267,16 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
     // primitives below.
     if let Some(entities) = &decoded_entities {
         crate::dxf_entities::write(&mut writer, entities);
-        let decoded_objects = collect_decoded_objects(file);
-        write_objects_section(&mut writer, decoded_objects);
+        if let (Some(h), Some(plan)) = (&header, objects_plan) {
+            let mut defined = entities.handles();
+            defined.extend(&object_handles);
+            for t in &tables {
+                defined.insert(t.handle);
+                defined.extend(t.records.iter().map(|r| r.handle));
+            }
+            let objects = crate::dxf_objects::build(version, h, plan, &defined, &tables);
+            crate::dxf_objects::write(&mut writer, &objects);
+        }
         writer.finish();
         return Ok(writer.take_output());
     }
@@ -305,22 +334,6 @@ fn convert(file: &DwgFile, version: DxfVersion) -> crate::Result<String> {
 
     writer.finish();
     Ok(writer.take_output())
-}
-
-/// The handles of the objects [`collect_decoded_objects`] writes to OBJECTS under
-/// their own type. A class-numbered or unknown object is written as an untyped
-/// record (a MATERIAL or VISUALSTYLE among them), so a reference to one is not a
-/// reference to the typed object the DXF names and is left out here.
-fn written_object_handles(file: &DwgFile) -> std::collections::HashSet<u64> {
-    match file.all_objects() {
-        Some(Ok(raws)) => raws
-            .iter()
-            .filter(|r| raw_to_decoded_object(r).is_some())
-            .filter(|r| !matches!(r.kind, ObjectType::Custom(_) | ObjectType::Unknown(_)))
-            .map(|r| r.handle.value)
-            .collect(),
-        _ => Default::default(),
-    }
 }
 
 /// Walk `file`'s object stream and synthesize a list of
