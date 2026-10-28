@@ -18,9 +18,9 @@ exclude = [
     "fuzz/",
     # Developer-experience scaffolding. `templates/` contains a
     # cargo-generate template for entity decoders (handlebars
-    # placeholders, not valid Rust); `tools/` contains auxiliary
-    # binaries like the synthetic-DWG fixture generator. Neither
-    # belongs in the published library crate.
+    # placeholders, not valid Rust); `tools/` contains the corpus,
+    # oracle, streaming and maintainer scripts. Neither belongs in the
+    # published library crate.
     "templates/",
     "tools/",
     # Note: CHANGELOG.md, README.md, SECURITY.md, ARCHITECTURE.md, and
@@ -124,6 +124,10 @@ required-features = ["dxf-reader"]
 
 [[example]]
 name = "probe_dxf_classes"
+required-features = ["dxf-reader"]
+
+[[example]]
+name = "probe_dxf_objects"
 required-features = ["dxf-reader"]
 
 [[example]]
