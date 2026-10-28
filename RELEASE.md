@@ -85,7 +85,7 @@ Before tagging, confirm:
 ```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --release --all-features
+tools/ci/run_test_targets.sh --release --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo deny check advisories bans licenses sources
 cargo package --allow-dirty  # dry-run the publish tarball
