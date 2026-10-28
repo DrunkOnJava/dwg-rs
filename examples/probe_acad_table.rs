@@ -37,6 +37,12 @@
 //! DXF leaves out is counted as omitted, not compared against an assumed
 //! default. R14 has no twin in the corpus.
 //!
+//! The insertion rotation is stored in radians and the DXF writes group 50, an
+//! angle group, in degrees, so it is compared as `to_degrees()`. A cell's
+//! rotation (145) is a scalar double group, not an angle group, and is compared
+//! as stored. No corpus table is rotated (every group 145 reads 0.0 and no
+//! group 50 appears), so neither rotation is measured on a non-zero value.
+//!
 //! ```sh
 //! python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 //! cargo run --release --example probe_acad_table -- ../dwg-corpus
@@ -400,7 +406,7 @@ fn compare(
         ("scale x", ins.scale.x, 41),
         ("scale y", ins.scale.y, 42),
         ("scale z", ins.scale.z, 43),
-        ("rotation", ins.rotation, 50),
+        ("rotation", ins.rotation.to_degrees(), 50),
     ] {
         t.real(what, v, breal(code));
     }
