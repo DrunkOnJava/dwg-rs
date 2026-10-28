@@ -29,6 +29,7 @@
 //! | TABLEGEOMETRY            | [`table_geometry`]        | §20.4.103        |
 //! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
 //! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
+//! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
@@ -102,6 +103,7 @@ pub mod control;
 pub mod custom_dict_entry;
 pub mod dictionary;
 pub mod dictionary_var;
+pub mod dim_assoc;
 pub mod dynamic_block;
 pub mod image_def_reactor;
 pub mod image_raster_variables;

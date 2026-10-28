@@ -172,6 +172,8 @@ pub enum DecodedEntity {
     DbColor(crate::objects::small_classes::DbColor),
     /// A dynamic-block evaluation object (§7bg).
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
+    /// DIMASSOC (§7bi).
+    DimAssoc(crate::objects::dim_assoc::DimAssoc),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -304,6 +306,7 @@ impl DecodedEntity {
             | Self::PdfDefinition(_)
             | Self::DbColor(_)
             | Self::DynamicBlock(_)
+            | Self::DimAssoc(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
@@ -912,6 +915,10 @@ fn dispatch_object_class(
             version,
         )
         .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
+        "DIMASSOC" => {
+            crate::objects::dim_assoc::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DimAssoc)
+        }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ImageDef)
