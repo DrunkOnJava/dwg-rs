@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40638703166](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40638703166) on 2026-10-28<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40644378023](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40644378023) on 2026-10-28<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on the public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -25,14 +25,14 @@ drawings fetched by pinned sha256
 <!-- corpus-table:begin -->
 | Version | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |---------|--------------|---------|---------|---------|--------------|----------------|
-| R14 (AC1014) | 12 | 4705 | 51 | 0 | **98.9 %** | 100.0 % |
-| R2000 (AC1015) | 9 | 2775 | 10 | 0 | **99.6 %** | 100.0 % |
-| R2004 (AC1018) | 12 | 106987 | 7 | 0 | **> 99.9 %** | 100.0 % |
+| R14 (AC1014) | 12 | 4707 | 49 | 0 | **99.0 %** | 100.0 % |
+| R2000 (AC1015) | 9 | 2777 | 8 | 0 | **99.7 %** | 100.0 % |
+| R2004 (AC1018) | 12 | 106989 | 5 | 0 | **> 99.9 %** | 100.0 % |
 | R2007 (AC1021) | 8 | 2232 | 5 | 0 | **99.8 %** | 100.0 % |
 | R2010 (AC1024) | 8 | 2181 | 7 | 0 | **99.7 %** | 100.0 % |
 | R2013 (AC1027) | 8 | 1780 | 7 | 0 | **99.6 %** | 100.0 % |
 | R2018 (AC1032) | 4 | 1607 | 8 | 0 | **99.5 %** | 99.9 % |
-| **Aggregate** | **61** | **122267** | **95** | **0** | **99.9 %** | **100.0 %** |
+| **Aggregate** | **61** | **122273** | **89** | **0** | **99.9 %** | **100.0 %** |
 <!-- corpus-table:end -->
 
 A success rate counts records, and the sources differ in size by orders of
@@ -46,14 +46,14 @@ a change came from decoding or from the corpus:
 | Source | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |--------|--------------|---------|---------|---------|--------------|----------------|
 | nextgis | 42 | 8443 | 0 | 0 | **100.0 %** | 100.0 % |
-| acadsharp | 10 | 7577 | 54 | 0 | **99.3 %** | 99.3 % |
+| acadsharp | 10 | 7583 | 48 | 0 | **99.4 %** | 99.4 % |
 | bookviewerapp3 | 4 | 1418 | 41 | 0 | **97.2 %** | 98.5 % |
 | oshw-jetson | 4 | 104577 | 0 | 0 | **100.0 %** | 100.0 % |
 | planar-algorithm | 1 | 252 | 0 | 0 | **100.0 %** | 100.0 % |
-| **All sources** | **61** | **122267** | **95** | **0** | **99.9 %** | **100.0 %** |
+| **All sources** | **61** | **122273** | **89** | **0** | **99.9 %** | **100.0 %** |
 <!-- corpus-sources:end -->
 
-Totals: <!-- corpus-summary:begin -->122,267 decoded / 95 skipped / **0 errored** / 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.3 % (10), bookviewerapp3 97.2 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 98.9 %, R2000 99.6 %, R2004 > 99.9 %, R2007 99.8 %, R2010 99.7 %, R2013 99.6 %, R2018 99.5 %.<!-- corpus-summary:end -->
+Totals: <!-- corpus-summary:begin -->122,273 decoded / 89 skipped / **0 errored** / 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.4 % (10), bookviewerapp3 97.2 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.0 %, R2000 99.7 %, R2004 > 99.9 %, R2007 99.8 %, R2010 99.7 %, R2013 99.6 %, R2018 99.5 %.<!-- corpus-summary:end -->
 
 [`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
 drawing's decoded, skipped and errored counts, its class-census shortfalls
@@ -94,7 +94,7 @@ provisional until a controlled AutoCAD drawing confirms it (#348).
 add up, not that the values are right. The DXF value oracle
 ([`examples/dxf_oracle/`](./examples/dxf_oracle/main.rs)) pairs every decoded
 record with the same handle in AutoCAD's DXF export and scores each field. On
-`main` it scores <!-- oracle-summary:begin -->133,041 field comparisons on 56 types: 114,396 equal, 11,142 equal to the DXF default, 286 different and 7,217 present only in the DWG<!-- oracle-summary:end -->
+`main` it scores <!-- oracle-summary:begin -->135,154 field comparisons on 63 types: 115,543 equal, 11,844 equal to the DXF default, 286 different and 7,481 present only in the DWG<!-- oracle-summary:end -->
 ([`tools/oracle/baseline.tsv`](./tools/oracle/baseline.tsv) pins the result,
 and CI fails when it moves). Decoded types with no scorer yet are listed as
 unscored in the oracle summary the Corpus job uploads.
