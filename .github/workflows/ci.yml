@@ -73,10 +73,23 @@ jobs:
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           key: ${{ matrix.os }}-${{ matrix.toolchain }}
+      - name: Every tests/*.rs target is classified
+        shell: bash
+        run: tools/ci/run_test_targets.sh --check-only
       - name: cargo build --release
         run: cargo +${{ matrix.toolchain }} build --release --all-features --all-targets
-      - name: cargo test --release
-        run: cargo +${{ matrix.toolchain }} test --release --all-features
+      # Unit tests are banned: tools/ci/test-targets.txt classes every
+      # tests/*.rs target as real, contract, hardening, cli or unit, and the
+      # script runs all but unit, then the documentation examples. It fails
+      # on a target the manifest does not class, so a new one cannot run or
+      # skip unnoticed. The inline #[cfg(test)] suites in src/ are not run.
+      # Corpus-reading targets skip here (no ../../samples) and run in the
+      # Corpus (public DWG) job.
+      - name: Real-file, contract and hardening targets, and the documentation examples
+        shell: bash
+        env:
+          RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
+        run: tools/ci/run_test_targets.sh --release --all-features
       - name: The specification's worked examples (#107)
         run: cargo +${{ matrix.toolchain }} run --release --all-features --example spec_examples
 
@@ -620,6 +633,12 @@ jobs:
       # up-to-date off, so two PRs can each add the same `## 7x.`.
       - name: ARCHITECTURE.md's numbered sections run in order
         run: python3 tools/maintainer/train/arch.py check
+      # The inline test that pinned fixed_entity_label to
+      # decode_fixed_entity_body was a unit test and no longer runs; this
+      # reads both lists from src/entities/dispatch.rs, so a new decoder that
+      # adds its arm to one and not the other fails here.
+      - name: The fixed-code dispatcher's label list and body arms agree
+        run: python3 tools/ci/dispatch_arms.py --check
 
   pii-guard:
     name: PII guard

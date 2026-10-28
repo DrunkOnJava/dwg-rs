@@ -287,7 +287,7 @@ pub(crate) fn decode_object(
 
 /// The strings and data-field budget of an ACAD_MATERIAL record, as
 /// [`read_strings`] measured them before the field list was derived.
-/// [`Material`] supersedes it; it is kept with its tests.
+/// [`Material`] supersedes it; it stays as public API.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcadMaterial {
     /// Material name — `ByLayer`, `ByBlock` and `Global` in every
@@ -335,51 +335,4 @@ pub fn read_strings(
         extra_strings,
         data_field_bits,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bitwriter::BitWriter;
-
-    #[test]
-    fn r2018_split_stream_material_reads_its_names_from_the_string_stream() {
-        let mut body = modern::tests::r2018_object_prefix(1);
-        // Stand-in for the undecoded data fields.
-        for _ in 0..40 {
-            body.write_b(false);
-        }
-        let bits = crate::string_stream::tests::bits_of(&body);
-        let payload =
-            crate::string_stream::tests::build_payload(&bits, &["Global", "", "", "", "", "", ""]);
-        let material = read_strings(&payload, 8, None, Version::R2018).unwrap();
-        assert_eq!(material.name, "Global");
-        assert_eq!(material.description, "");
-        assert_eq!(material.extra_strings.len(), 5);
-        assert_eq!(material.data_field_bits, Some(40));
-    }
-
-    #[test]
-    fn inline_layout_reads_its_names_from_the_data_cursor() {
-        let mut w = BitWriter::new();
-        w.write_bs_u(0); // EED terminator
-        w.write_bl(1); // num_reactors
-        w.write_b(true); // no xdictionary (R2004+)
-        w.write_bs_u(8);
-        for b in b"ByLayer\0" {
-            w.write_rc(*b);
-        }
-        w.write_bs_u(0); // empty description
-        let after_names = w.position_bits();
-        for _ in 0..24 {
-            w.write_b(false);
-        }
-        let end = w.position_bits();
-        let bytes = w.into_bytes();
-        let material = read_strings(&bytes, 0, Some(end), Version::R2004).unwrap();
-        assert_eq!(material.name, "ByLayer");
-        assert_eq!(material.description, "");
-        assert!(material.extra_strings.is_empty());
-        assert_eq!(material.data_field_bits, Some(end - after_names));
-    }
 }
