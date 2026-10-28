@@ -142,8 +142,8 @@ Other kinds of record take other routes in the same file:
 ## Step 4 — Prove it on real files
 
 The proof that a decoder is right is the corpus, not a synthetic
-payload you built to match your own reading of the spec. Do not add
-unit tests (the pull-request template asks for none).
+payload you built to match your own reading of the spec. Unit tests are
+banned (see `CONTRIBUTING.md`): do not add one, inline or under `tests/`.
 
 1. Measure before and after with the coverage report on real
    drawings:
@@ -209,11 +209,12 @@ count-driven decoder.
 ```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --release --all-features
+tools/ci/run_test_targets.sh --release --all-features
+python3 tools/ci/dispatch_arms.py --check
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 ```
 
-The real-file integration tests (`tests/samples.rs` and its
+The real-file targets (`tests/samples.rs` and its
 neighbours) look for the corpus at `../../samples` relative to the
 crate and skip silently when it is absent, so a passing run only
 covers real drawings if that directory exists.

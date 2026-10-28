@@ -270,26 +270,3 @@ impl R2004Header {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn common_header_truncated() {
-        let bytes = b"AC1015"; // just the magic, nothing else
-        assert!(matches!(
-            CommonHeader::parse(bytes),
-            Err(Error::Truncated { .. })
-        ));
-    }
-
-    #[test]
-    fn locator_record_round_trip() {
-        let raw = [0x01u8, 0x78, 0x56, 0x34, 0x12, 0x34, 0x12, 0x00, 0x00];
-        let r = LocatorRecord::parse(&raw).unwrap();
-        assert_eq!(r.number, 1);
-        assert_eq!(r.seeker, 0x1234_5678);
-        assert_eq!(r.size, 0x0000_1234);
-    }
-}

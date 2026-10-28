@@ -19,10 +19,13 @@
 //! The emitter writes spec-compliant DXF group-code pairs per the
 //! AutoCAD DXF reference. **Actual acceptance against AutoCAD /
 //! BricsCAD / LibreCAD is untested** — there is no Autodesk product
-//! in CI. The only automated validation is `cargo test`, which
-//! exercises group-code emission patterns against synthesized inputs.
-//! Real round-trip-via-AutoCAD validation remains a manual step
-//! documented in `tests/integration_dxf_roundtrip.rs`.
+//! in CI. What CI measures is the output against AutoCAD's own DXF
+//! export of the same drawing: the `probe_dxf_header`,
+//! `probe_dxf_tables` and `probe_dxf_entities` examples pair every
+//! record written with the export's, group for group, on the pinned
+//! public corpus. Real round-trip-via-AutoCAD
+//! validation remains a manual step documented in
+//! `tests/integration_dxf_roundtrip.rs`.
 
 use crate::curve::{Curve, Path};
 use crate::dxf::{DxfVersion, DxfWriter};
@@ -564,19 +567,4 @@ fn decoded_label(e: &DecodedEntity) -> String {
     let lbl = format!("{e:?}");
     let end = lbl.find(['(', '{', ' ']).unwrap_or(lbl.len());
     lbl[..end].to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn label_is_short_kind_name() {
-        let e = DecodedEntity::Unhandled {
-            type_code: 42,
-            kind: crate::ObjectType::Unknown(42),
-        };
-        let s = decoded_label(&e);
-        assert_eq!(s, "Unhandled");
-    }
 }
