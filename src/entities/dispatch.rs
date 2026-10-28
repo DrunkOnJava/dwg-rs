@@ -153,6 +153,8 @@ pub enum DecodedEntity {
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7bb).
     Material(Box<crate::objects::acad_material::Material>),
+    /// RAPIDRTRENDERENVIRONMENT (ARCHITECTURE.md §7bs).
+    RenderEnvironment(crate::objects::render_environment::RenderEnvironment),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
     /// ACDBPERSSUBENTMANAGER, a custom class with no spec section: derived
@@ -311,6 +313,7 @@ impl DecodedEntity {
             | Self::Scale(_)
             | Self::ImageDef(_)
             | Self::Material(_)
+            | Self::RenderEnvironment(_)
             | Self::ImageDefReactor(_)
             | Self::RasterVariables(_)
             | Self::PersSubentManager(_)
@@ -604,6 +607,12 @@ fn decode_with_class_map_in_page(
                 mleader::decode(c, v).map(|m| DecodedEntity::MLeader(Box::new(m)))
             })
         }
+        // LIGHT is an entity class from AutoCAD's rendering, saved by name on every release
+        // that declares it, with its `TV`s inline before R2007 and in the string stream
+        // after it (ARCHITECTURE.md §7br).
+        "LIGHT" => checked_inline(raw, body_start, version, "LIGHT", |c, v, _, s| {
+            light::read_body(c, s, v).map(DecodedEntity::Light)
+        }),
         // MESH (subdivision surface) — R2010+ custom class §19.4.66.
         // Class name varies slightly across AutoCAD versions; all three
         // observed names dispatch to the same decoder.
@@ -911,6 +920,10 @@ fn dispatch_object_class(
             crate::objects::acad_material::decode_object(payload, body_start, inline_end, version)
                 .map(|material| DecodedEntity::Material(Box::new(material)))
         }
+        "RAPIDRTRENDERENVIRONMENT" => crate::objects::render_environment::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::RenderEnvironment),
         // §20.4.78: a non-entity object with a class number.
         "GEODATA" | "ACDBGEODATA" => {
             geodata::decode_object(payload, body_start, inline_end, version)

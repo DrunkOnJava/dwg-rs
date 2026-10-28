@@ -5102,6 +5102,97 @@ for p in sh_cylinder sh_revolve; do
 done
 ```
 
+## 7br. LIGHT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+
+ODA spec v5.4.1 prints no layout for the LIGHT entity. `src/entities/light.rs` reads it from
+a layout derived from the one LIGHT record of the pinned corpus and held to that record's
+data-stream boundary alone, by the entry CLEANROOM.md records for 2026-10-28 (the record has no
+DXF twin to score a value against). **Its state is `decoder`, not `closes`.**
+
+The record is handle 0x34F of `3d.dwg` (the `kurema/BookViewerApp3` drawing, AC1014). Its
+class, number 529, is declared as an entity (item class id 0x1F2) under the DXF name LIGHT. The
+dispatcher had no class-name route for it, and the decoder it would have reached was the one
+that read a LIGHT only from R2007 and with another field list; that list does not close this
+record (read against it with the text inline, it ends 395 bits before the boundary). The
+route and the list are both new. The three unit tests that pinned the old list are removed
+with it.
+
+| Record | Release | Preview | Data bits (459 to 1243) | Close |
+|---|---|---|---:|---:|
+| `3d.dwg` 0x34F | R14 | 8 bytes | 784 | yes |
+
+```text
+BL version (1), TV name, BL light_type (2), B is_on, BS colour (7), B plot_glyph (0),
+BD x7 (5, 20, -50, 50, 20, -50, 40),
+BL attenuation_type (0), B use_attenuation_limits (0),
+BD x4 (1.0, 10.0, 0.7853981633974483, 0.8726646259971648),
+B cast_shadows (1), BL shadow_type (0), BS shadow_map_size (256), RC shadow_map_softness (1)
+```
+
+- **What the bytes settle.** The record closes on its boundary to the bit, and the values
+  read as plain numbers: the two angles are 45 and 50 degrees in radians, the attenuation
+  limits 1 and 10, the shadow map 256. The name is Shift-JIS (the drawing's header code page
+  is 38, which the 2026-10-27 CLEANROOM.md entry reads as 932): the bytes 93 5F 8C F5 8C B9 31
+  read "点光源1", Japanese for point light 1, which fits light type 2 being the point light.
+- **What they do not settle.** How the seven `BD` after the plot glyph split. They close the
+  record equally as an intensity then a position and a target (5; 20, -50, 50; 20, -50, 40),
+  the order Autodesk's public DXF Reference lists the groups in (recalled; it contributes
+  names and this order only), and as a position, a target and an intensity (5, 20, -50;
+  50, 20, -50; 40). The decoder takes the first; it is unverified. A point light also carries a
+  target in the data, so the old rule that only spot and web lights have one is wrong for it.
+- **Unverified by value.** The roles of the colour, the two shadow fields and the softness,
+  the light types 1, 3 and 4, and the colour form from R2004, which is read as the ACSH nodes
+  and DBCOLOR have it by analogy: the corpus holds no LIGHT of that release. One record in
+  one drawing is not a measured range; a DXF export of the drawing, which AutoCAD's trial
+  tooling can make, would score all of it.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_light -- ../dwg-corpus
+```
+
+## 7bs. RAPIDRTRENDERENVIRONMENT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+
+ODA spec v5.4.1 prints no layout for the object AutoCAD writes for the RapidRT renderer's
+environment (its C++ class in `AcDb:Classes` is `AcDbIBLBackground`, an image-based lighting
+backdrop). `src/objects/render_environment.rs` reads it from a layout derived from the
+records' own bits and held to the record boundary alone, by the entry CLEANROOM.md records
+for 2026-10-28: the two drawings that hold the class, `3d.dwg` and `Draw2.dwg` of the pinned
+`kurema/BookViewerApp3` drawings (AC1014), have no DXF export in the corpus. **Its state is
+`decoder`, not `closes`.**
+
+| Drawing | Records | Close | Values compared |
+|---|---:|---:|---:|
+| `3d.dwg` (R14) | 2 | 2 | 0 (no DXF twin) |
+| `Draw2.dwg` (R14) | 6 | 6 | 0 (no DXF twin) |
+| Total | 8 | 8 | 0 |
+
+```text
+BL version (2), B enabled, TV image (an HDR path), BD rotation (0.0), B display_image
+```
+
+- **Why the list is the right width.** Every record is 11 bits, a `TV` and 3 bits, and the
+  `TV` is a path of 74 to 93 characters (`C:\Program Files\Autodesk\AutoCAD 2019\Environments\half_hdr\...`):
+  the length is the one thing that varies, and the record closes on its boundary on all eight
+  whatever it is. The 11 bits before the text are a `BL` of 10 bits and one flag; the 3 after it
+  a `BD` in its 2-bit zero form and one flag. The path also shows that AutoCAD 2019 wrote the
+  drawings.
+- **What the values show.** The version is 2 in every record and the rotation 0.0. The first
+  flag is 1 in six records and 0 in two (both in `Draw2.dwg`), the last flag 0 in three and 1
+  in five, so neither is a constant.
+- **Unverified by value.** The roles of the version, of the two flags and of the rotation
+  (named by the groups of the IBL background in Autodesk's public DXF Reference, recalled, for
+  names only), and whether the `BL` is not a `BS`: the two read the same on every record. The
+  hard handle of a secondary background, if the object has one, is in the handle stream and
+  is not read. A DXF export of the two drawings, which AutoCAD's trial tooling can make, would
+  score all of it and let the state move to `closes`.
+- **Other releases.** The same list is attempted on every release, and a record it does not
+  close on is an error, not a guess. Only R14 has records in the corpus.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_render_environment -- ../dwg-corpus
+```
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

@@ -959,3 +959,56 @@ values unscored (no DXF twin)". Nothing in this entry or in the decoders asserts
 - **Never used.** Any third-party implementation of DWG or DXF: not LibreDWG, the ODA or
   Teigha SDK, an Autodesk SDK, ACadSharp's or ezdxf's code, comments or data.
 
+## 2026-10-28 — LIGHT: bits of an AutoCAD-written drawing with no DXF twin
+
+The 2026-10-26 entry on classes the specification never prints accepts a value only
+when AutoCAD's DXF export of the same drawing carries it. LIGHT, which ODA spec v5.4.1 does
+not print, occurs once in the corpus, in `3d.dwg` of the pinned `kurema/BookViewerApp3`
+drawings (MIT, AC1014; the 2026-10-27 entry on code pages lists the pin), and no DXF export
+of that drawing is in the corpus. By the integrator's direction of 2026-10-28, a field list
+for such a class may be kept at state `decoder` when it closes every record of the class
+exactly on the record's data-stream boundary, and the ARCHITECTURE.md section and the
+spec-coverage row say "boundary closes, values unscored (no DXF twin)". Nothing in this
+entry or in the decoder asserts a value.
+
+- **What is read.** The data bits of the one record (handle 0x34F), as data, from the file
+  named above. The drawing's own bytes show that AutoCAD wrote it: its
+  RAPIDRTRENDERENVIRONMENT records name an AutoCAD 2019 install path, and R14 carries no
+  `AcDb:AppInfo` to say more.
+- **What decides the layout.** The record's own bits and its boundary: the list, taken field
+  by field with the common entity data of R14 before it, ends on the `RL` data size to the
+  bit, and the values read as plain numbers (two angles of 45 and 50 degrees in radians).
+  The name's bytes read, in the drawing's Shift-JIS code page, as the Japanese for point
+  light 1, which fits light type 2.
+- **What stays unverified.** How the seven `BD` after the plot glyph split (they close the
+  record as an intensity, a position and a target, and as a position, a target and an
+  intensity); the roles of the colour and the shadow fields; the light types other than 2;
+  and the colour form from R2004. The names are Autodesk's public *DXF Reference* group
+  names as recalled, contributing names and the first of the two orders only.
+- **Never used.** Any third-party implementation of DWG or DXF: not LibreDWG, the ODA or
+  Teigha SDK, an Autodesk SDK, ACadSharp's or ezdxf's code, comments or data.
+
+## 2026-10-28 — RAPIDRTRENDERENVIRONMENT: bits of an AutoCAD-written drawing with no DXF twin
+
+The 2026-10-26 entry on classes the specification never prints accepts a value only
+when AutoCAD's DXF export of the same drawing carries it. RAPIDRTRENDERENVIRONMENT, which ODA
+spec v5.4.1 does not print, occurs in `3d.dwg` (2 records) and `Draw2.dwg` (6) of the pinned
+`kurema/BookViewerApp3` drawings (MIT, AC1014; the 2026-10-27 entry on code pages lists the
+pin), and no DXF export of either drawing is in the corpus. By the integrator's direction of
+2026-10-28, a field list for such a class may be kept at state `decoder` when it closes every
+record of the class exactly on the record's data-stream boundary, and the ARCHITECTURE.md
+section and the spec-coverage row say "boundary closes, values unscored (no DXF twin)".
+Nothing in this entry or in the decoder asserts a value.
+
+- **What is read.** The data bits of the eight records, as data, from the two files named
+  above. The records' own text shows that AutoCAD wrote the drawings: each holds the path
+  of an HDR file under an AutoCAD 2019 install, and R14 carries no `AcDb:AppInfo` to say more.
+- **What decides the layout.** The record's own bits and its boundary: each record is 11
+  bits, a `TV` and 3 bits, and `BL`, `B`, `TV`, `BD`, `B` ends on the `RL` data size to the
+  bit on all eight, whatever the length of the path.
+- **What stays unverified.** The role of every value, whether the leading `BL` is a `BS`
+  (the two read the same on every record), and the handle stream. The field names follow the
+  groups of the IBL background in Autodesk's public *DXF Reference* as recalled,
+  contributing names only.
+- **Never used.** Any third-party implementation of DWG or DXF: not LibreDWG, the ODA or
+  Teigha SDK, an Autodesk SDK, ACadSharp's or ezdxf's code, comments or data.
