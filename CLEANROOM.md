@@ -864,6 +864,7 @@ by value: the former are refused as unsupported, the latter are read as `TV`. No
 vocabulary beyond the DXF group codes and subclass marker in the twin was used, and
 no third-party DWG or DXF implementation was consulted.
 
+
 ## 2026-10-26 — ACDB_TEXTOBJECTCONTEXTDATA_CLASS: derived from AutoCAD's own output
 
 By the method of the 2026-10-26 entry on classes the specification never prints.
@@ -881,3 +882,25 @@ of the rotation (group 50 is 0.0 in both twins; the record without a twin stores
 the annotation scale (group 340) is not decoded. No vocabulary beyond the DXF group
 codes and subclass markers in the twins was used, and no third-party DWG or DXF
 implementation was consulted.
+
+## 2026-10-26 — ACAD_EVALUATION_GRAPH: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/eval_graph.rs` was derived from the data bits of the 21
+ACAD_EVALUATION_GRAPH records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013 and R2018; three per release: one graph of 12 nodes
+and 10 edges and two of one node) against AutoCAD's DXF export of the same handles
+(R2000 to R2018; the R2000 and R2004 exports keep the large graph and omit the two
+small ones). Accepted: all 21 close on the data-stream boundary on every release, and
+1,342 values (groups 96, 97, and per node 91, 93, 95 and four 92, per edge 92, 93, 94,
+two 91 and five 92) equal the decoded fields with 0 differences, and the decoded node
+and edge counts (two `BL` that no DXF group shows) equal the number of nodes and edges
+the DXF holds, by the group count after group 97 (`examples/probe_eval_graph.rs`). Four
+of the 21 records, the two small graphs on R2000 and R2004, have no DXF object and are
+held to their boundary, as are the three on R14, which has no twin. Unverified by value: what the four link
+values of a node and the five of an edge mean (each is tied to its DXF group by
+position and value only), the two counts' meaning beyond equalling the DXF's, and any
+graph larger than the one 12-node, 10-edge graph the corpus holds. The node handles
+(group 360) are not decoded. No vocabulary beyond the DXF group codes and the subclass
+marker in the twins was used, and no third-party DWG or DXF implementation was
+consulted.

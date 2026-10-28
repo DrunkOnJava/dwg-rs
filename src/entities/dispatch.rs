@@ -174,6 +174,8 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7bi).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
+    /// ACAD_EVALUATION_GRAPH (§7bo).
+    EvalGraph(Box<crate::objects::eval_graph::EvalGraph>),
     /// DATATABLE (§7bm).
     DataTable(Box<crate::objects::data_table::DataTable>),
     /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bn).
@@ -315,6 +317,7 @@ impl DecodedEntity {
             | Self::DynamicBlock(_)
             | Self::DimAssoc(_)
             | Self::DataTable(_)
+            | Self::EvalGraph(_)
             | Self::TextObjectContextData(_)
             | Self::ShHistory(_)
             | Self::ShBox(_)
@@ -945,6 +948,10 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(DecodedEntity::TextObjectContextData),
+        "ACAD_EVALUATION_GRAPH" => {
+            crate::objects::eval_graph::decode_object(payload, body_start, inline_end, version)
+                .map(|g| DecodedEntity::EvalGraph(Box::new(g)))
+        }
         "DATATABLE" => {
             crate::objects::data_table::decode_object(payload, body_start, inline_end, version)
                 .map(|t| DecodedEntity::DataTable(Box::new(t)))

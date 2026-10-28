@@ -4936,6 +4936,56 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_text_context_data -- ../dwg-corpus
 ```
 
+## 7bo. ACAD_EVALUATION_GRAPH, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the dependency graph AutoCAD keeps for the
+evaluation of a dynamic block. `src/objects/eval_graph.rs` reads it from the layout
+below, derived by the CLEANROOM.md method of 2026-10-26: the data bits of the 21 records
+in `sample_base` (three per release, R14 to R2018) against the object of the same
+handle in the DXF export. All 21 close, and 1,342 values equal the DXF with 0 differences.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 3 | 3 | 0 (no twin) | 0 |
+| R2000 | 3 | 3 | 209 (the export keeps one graph) | 0 |
+| R2004 | 3 | 3 | 209 (the export keeps one graph) | 0 |
+| R2007 | 3 | 3 | 231 | 0 |
+| R2010 | 3 | 3 | 231 | 0 |
+| R2013 | 3 | 3 | 231 | 0 |
+| R2018 | 3 | 3 | 231 | 0 |
+| Total | 21 | 21 | 1,342 | 0 |
+
+```text
+BL 96, BL 97, BL node count,
+  per node: BL 91, BL 93, BL 95, BL 92 x4            (handle, group 360, in the handle stream)
+BL edge count,
+  per edge: BL 92, BL 93, BL 94, BL 91 x2, BL 92 x5
+```
+
+- **Every field is a signed `BL`.** Group 92 holds -1 as often as an index, and -1 is the
+  four-byte form `00` plus 32 one-bits, so a signed `BL` is the width the DXF values
+  need. The records close on the boundary with no field of another type.
+- **The two counts.** The DXF shows no group for the number of nodes or the number of
+  edges, so the probe checks both by structure: the groups after group 97 must number 8 per
+  node and 10 per edge, and each must open with the group codes the layout names (node:
+  91, 93, 95, 360; edge: 92, 93, 94, 91, 91). The 12-node, 10-edge graph and the two
+  1-node graphs (0 edges) all agree, on the six releases that have a twin.
+- **The large graph.** The nodes' own indices (group 91) run 0 to 11 and the edges' (group
+  92) 0 to 9; node ids (group 95) are 1 to 7, 10 and 23 to 26. Groups 96 and 97 read 26
+  and 26 for it, 1 and 1 for the small graphs. What the four link values of a node and the
+  five of an edge name is not read from the corpus: each equals its DXF group by position
+  and value, and the corpus holds no second large graph to vary them against.
+- **R2000 and R2004 exports.** AutoCAD's DXF export of those two releases keeps the large
+  graph and drops the two small ones, so their four records are held to their boundary
+  alone (the probe's `Pairing::HandleOrAbsent`, added to the shared `twin.rs` for this
+  case: a record the export omits while holding others of its kind is boundary-only, and the
+  line says so).
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_eval_graph -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
