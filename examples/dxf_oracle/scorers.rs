@@ -1110,6 +1110,8 @@ pub fn score(
             c.int("flag", 290, i64::from(m.flag), None);
         }
         D::VisualStyle(v) => score_visualstyle(&mut c, v),
+        D::DetailViewStyle(d) => score_detail_view_style(&mut c, d),
+        D::SectionViewStyle(d) => score_section_view_style(&mut c, d),
         D::MLeaderStyle(m) => score_mleaderstyle(&mut c, m),
         D::TableStyle(t) => score_tablestyle(&mut c, t),
         D::Layout(l) => score_layout(&mut c, l),
@@ -1433,6 +1435,330 @@ fn flags_64_xdep(c: &mut Ctx<'_>, h: &dwg::tables::TableEntryHeader) {
     c.dwg_only("flag_64 (the export never writes bit 64)", h.flag_64);
     c.bit("is_xref_dependent (Xdep)", 70, 16, h.is_xref_dependent);
     c.dwg_only("xref_index_plus_1", h.xref_index_plus_1);
+}
+
+/// Scores the groups of one subclass in the order the export writes them:
+/// each step scopes the lookups to the next `n` groups and moves on past
+/// what the scorers took, so a group the export omits (a colour it leaves
+/// out, say) does not shift the ones after it.
+fn view_step(c: &mut Ctx<'_>, pos: &mut usize, end: usize, n: usize, f: impl FnOnce(&mut Ctx<'_>)) {
+    let to = (*pos + n).min(end);
+    c.scope = (*pos, to);
+    f(c);
+    *pos += (*pos..to).filter(|&i| c.used[i]).count();
+}
+
+/// The DXF colour number of a model-documentation style colour: 257 for the
+/// "no colour" method the hatch background uses, else as [`aci_of`].
+fn view_aci(c: &ObjectColor) -> i64 {
+    if c.rgb >> 24 == 0xC8 { 257 } else { aci_of(c) }
+}
+
+/// The part both view styles share, AcDbModelDocViewStyle: the name in 3
+/// and, from R2018, its alias in 300. The other groups (70, 290, 90) have
+/// no field the decoder names.
+fn score_view_style_head(c: &mut Ctx<'_>, name: &str, alias: &str) -> bool {
+    if !c.subclass("AcDbModelDocViewStyle") {
+        c.dwg_only("(the export has no AcDbModelDocViewStyle subclass)", ());
+        return false;
+    }
+    c.text("name", 3, name, None);
+    if c.peek(300).is_some() {
+        c.text("name_alias", 300, alias, None);
+    }
+    true
+}
+
+// ACDBDETAILVIEWSTYLE, which v5.4.1 does not prescribe, against the groups
+// AutoCAD's export writes under AcDbDetailViewStyle: after 70, 71 and 90,
+// four blocks introduced by 71 = 1 to 4 (the identifier and arrow, the
+// boundary, the view label, the connection line and model edges), each
+// with the handle of its style, then its colour (62), sizes (40), weights
+// and positions (90), texts (300) and the placement (280). The names are
+// the decoder's, given by wire order and the values they decode. The
+// unknown and flag slots have no group the export names, and the export
+// omits every colour (62) on R2000.
+fn score_detail_view_style(
+    c: &mut Ctx<'_>,
+    d: &dwg::objects::acad_detail_view_style::AcadDetailViewStyle,
+) {
+    if !score_view_style_head(c, &d.name, &d.name_alias) {
+        return;
+    }
+    if !c.subclass("AcDbDetailViewStyle") {
+        c.dwg_only("(the export has no AcDbDetailViewStyle subclass)", ());
+        return;
+    }
+    let (mut p, end) = c.scope;
+    p = (p + 5).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("identifier_color", 62, aci_of(&d.identifier_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("identifier_height", 40, d.identifier_height, None);
+    });
+    p = (p + 1).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "arrow_symbol_color",
+            62,
+            aci_of(&d.arrow_symbol_color),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("arrow_symbol_size", 40, d.arrow_symbol_size, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.text("identifier_symbol", 300, &d.identifier_symbol, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("identifier_offset", 40, d.identifier_offset, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "identifier_placement",
+            280,
+            i64::from(d.identifier_placement),
+            None,
+        );
+    });
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "boundary_line_weight",
+            90,
+            i64::from(d.boundary_line_weight),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "boundary_line_color",
+            62,
+            aci_of(&d.boundary_line_color),
+            None,
+        );
+    });
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("view_label_color", 62, aci_of(&d.view_label_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("view_label_text_height", 40, d.view_label_text_height, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "view_label_position",
+            90,
+            i64::from(d.view_label_position),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("view_label_offset", 40, d.view_label_offset, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "view_label_attachment",
+            90,
+            i64::from(d.view_label_attachment),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.text("view_label_pattern", 300, &d.view_label_pattern, None);
+    });
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "connection_line_weight",
+            90,
+            i64::from(d.connection_line_weight),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "connection_line_color",
+            62,
+            aci_of(&d.connection_line_color),
+            None,
+        );
+    });
+    p = (p + 1).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "model_edge_line_weight",
+            90,
+            i64::from(d.model_edge_line_weight),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("model_edge_color", 62, aci_of(&d.model_edge_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("trailing_flags", 280, i64::from(d.trailing_flags), None);
+    });
+    c.dwg_only("unknown_head", d.unknown_head);
+    c.dwg_only("flags", d.flags);
+}
+
+// ACDBSECTIONVIEWSTYLE against AcDbSectionViewStyle, written like the
+// detail style: after 70, 71 and 90, the blocks 71 = 1 to 4 (identifier and
+// arrow, cutting plane and end lines, view label, hatch). The three groups
+// the export writes after the identifier offset (90, 40, 90) and its middle
+// end-line size have no decoded field. The hatch block is scored by what
+// its groups are: the pattern name (300), scale (40), transparency (90),
+// the two flag bits (290, not decoded), the angle count (90) and the angles
+// (40, in radians in both).
+fn score_section_view_style(
+    c: &mut Ctx<'_>,
+    d: &dwg::objects::acad_section_view_style::AcadSectionViewStyle,
+) {
+    if !score_view_style_head(c, &d.name, &d.name_alias) {
+        return;
+    }
+    if !c.subclass("AcDbSectionViewStyle") {
+        c.dwg_only("(the export has no AcDbSectionViewStyle subclass)", ());
+        return;
+    }
+    let (mut p, end) = c.scope;
+    p = (p + 5).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("identifier_color", 62, aci_of(&d.identifier_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("identifier_height", 40, d.identifier_height, None);
+    });
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "arrow_symbol_color",
+            62,
+            aci_of(&d.arrow_symbol_color),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("arrow_symbol_size", 40, d.arrow_symbol_size, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.text(
+            "identifier_exclude_characters",
+            300,
+            &d.identifier_exclude_characters,
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("identifier_offset", 40, d.identifier_offset, None);
+    });
+    p = (p + 3).min(end);
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "cutting_plane_line_weight",
+            90,
+            i64::from(d.cutting_plane_line_weight),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "cutting_plane_line_color",
+            62,
+            aci_of(&d.cutting_plane_line_color),
+            None,
+        );
+    });
+    p = (p + 1).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("end_line_weight", 90, i64::from(d.end_line_weight), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("end_line_color", 62, aci_of(&d.end_line_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("end_line_length", 40, d.end_line_length, None);
+    });
+    p = (p + 1).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("end_line_overshoot", 40, d.end_line_overshoot, None);
+    });
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("view_label_color", 62, aci_of(&d.view_label_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("view_label_text_height", 40, d.view_label_text_height, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "view_label_position",
+            90,
+            i64::from(d.view_label_position),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("view_label_offset", 40, d.view_label_offset, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "view_label_attachment",
+            90,
+            i64::from(d.view_label_attachment),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.text("view_label_pattern", 300, &d.view_label_pattern, None);
+    });
+    p = (p + 1).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int("hatch_color", 62, aci_of(&d.hatch_color), None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "hatch_background_color",
+            62,
+            view_aci(&d.hatch_background_color),
+            None,
+        );
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.text("hatch_pattern_name", 300, &d.hatch_pattern_name, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.real("hatch_scale", 40, d.hatch_scale, None);
+    });
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "hatch_transparency",
+            90,
+            i64::from(d.hatch_transparency),
+            None,
+        );
+    });
+    p = (p + 2).min(end);
+    view_step(c, &mut p, end, 1, |c| {
+        c.int(
+            "hatch_angle_count",
+            90,
+            i64::from(d.hatch_angle_count),
+            None,
+        );
+    });
+    for a in &d.hatch_angles {
+        view_step(c, &mut p, end, 1, |c| c.real("hatch_angles", 40, *a, None));
+    }
+    c.dwg_only("unknown_head", d.unknown_head);
+    c.dwg_only("flags", d.flags);
+    c.dwg_only("hatch_flags", d.hatch_flags);
+    c.dwg_only("hatch_spacing", d.hatch_spacing);
+    c.dwg_only("unknown_tail", d.unknown_tail);
 }
 
 // §20.4.54: 70 (frozen 1, frozen-in-new 2, locked 4), 62 (negative when off),
