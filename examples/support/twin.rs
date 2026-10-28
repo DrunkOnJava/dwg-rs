@@ -111,6 +111,12 @@ impl Twin {
         Twin { records, by_handle }
     }
 
+    /// Every record, in file order.
+    #[allow(dead_code)]
+    pub fn records(&self) -> &[Record] {
+        &self.records
+    }
+
     /// The record whose handle is `handle`.
     pub fn record(&self, handle: u64) -> Option<&Record> {
         self.by_handle.get(&handle).map(|&i| &self.records[i])
