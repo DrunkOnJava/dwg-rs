@@ -42,8 +42,8 @@
 //! - A standard arrowhead block `_BoxBlank` is `$DIMBLK` `BoxBlank`; a block with any
 //!   other name keeps its name verbatim.
 //! - A handle variable that names an object (`$CMATERIAL`, `$INTERFEREOBJVS`,
-//!   `$INTERFEREVPVS`, `$CPSNID`) is omitted: the converter exports those objects
-//!   as untyped placeholders, so the reference would point at the wrong thing.
+//!   `$INTERFEREVPVS`, `$CPSNID`) is omitted: OBJECTS does not write those objects
+//!   yet, so the reference would point at nothing.
 //!   `$HANDSEED`, the next free handle, is written. (A null handle there is
 //!   where AutoCAD's export names the default visual style, which the DWG does
 //!   not hold.)

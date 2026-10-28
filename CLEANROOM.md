@@ -561,6 +561,64 @@ page write text in the drawing's code page. What decides how:
   anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
   ezdxf's code, comments or data.
 
+## 2026-10-27 — Code page rows 28 to 41: AutoCAD's output, known texts, three more public pins (#375)
+
+The 2026-10-27 entry above names a code page number only when AutoCAD's own
+output does. This entry adds eight rows by the same rule, with one more kind of
+evidence the rule already allowed in spirit: a text whose bytes are known. The
+header short is AutoCAD's own enumeration, not a Windows code page number (29
+and 30 are 1251 and 1252, but 38 is 932 and 39 is 936), so no row is derived
+from a number printed anywhere; each is read off a drawing:
+
+- **A twin names it.** The `$DWGCODEPAGE` of AutoCAD's DXF export of the same
+  drawing, with the DXF's `$FINGERPRINTGUID` or `$VERSIONGUID` found in the DWG
+  to show it is the same drawing (rows 28, 33, 36 and 41; 30 on an R14 drawing,
+  whose export carries no GUID, is the same stem only).
+- **A known text decodes.** The localized name AutoCAD gives the first layout
+  (`レイアウト1`, `布局1`, `배치1`) and Greek words found in the drawing's bytes,
+  each a constant of the language, so the page that decodes them is the page the
+  short names (rows 32, 38, 39 and 40). The strings are read through
+  `CodePage::decode` and compared with the constant, never the reverse.
+
+Three repositories' drawings are added to `tools/corpus/pins.tsv`, fetched by
+sha256 for a run and never committed, data files only (no source code of any of
+the three was consulted):
+
+- **`kurema/BookViewerApp3`** at `b8e1dcbf26183e96d199499e491c368c935fb0b0`:
+  **MIT** (the repository's `LICENSE`). Four AC1014 drawings
+  (`res/Explorer/history/2d.dwg`, `3d.dwg`, `res/Explorer/bookmark/Draw.dwg`,
+  `Draw2.dwg`), header short 38, with Japanese layout names. Three more
+  `icon.dwg` of the repository share a file name with each other and are left
+  out (the corpus keys files by name).
+- **`Seeed-Studio/OSHW-Jetson-Series`** at
+  `0f0797e4bb6cc5787f800af63908b23544050072`: **Apache-2.0** (`LICENSE`).
+  Four AC1018 drawings under `reComputer Jetson carrier board/` (A205 and A206,
+  each top and bottom), header short 39. Each drawing's `AcDb:AppInfo` names
+  AutoCAD build `I.18.0.0`, registry version `19.1`, locale 2052.
+- **`huifer/planar_algorithm`** at `884760e4768dc6d426c99bded29a6da45c172a0c`:
+  **Apache-2.0** (`LICENSE`). One AC1015 drawing,
+  `src/main/resources/polygon_select/原始数据.dwg`, header short 39.
+
+`Xinyuan-LilyGO/T-Dongle-S3` (MIT) has a drawing of the same kind
+(`case/USB3.0.dwg`, short 39) and is not pinned: its `AcDb:AppInfo` names
+Teigha 19.7 of the Open Design Alliance as the writer, not AutoCAD, and this
+project learns the numbers from AutoCAD's own output.
+
+**Local evidence, never pinned or committed.** Drawings from repositories that
+state no licence or a custom one were downloaded to this machine and read for
+two facts only: the header short with the DXF twin's `$DWGCODEPAGE`, and
+whether known strings decode from the bytes; their sha256 and the result are
+recorded in ARCHITECTURE.md. None is redistributed, none is a fixture, no text
+or geometry of them is quoted, and no file of a GPL-licensed repository is the
+evidence for any row. The Greek drawings are Greek municipal open data whose
+licence the publisher's own record leaves unstated (the harvested catalogue
+record says CC BY 4.0): they stay local until that is settled.
+
+What is never used is unchanged: the numbering of any third-party DWG
+implementation (LibreDWG, the ODA or Autodesk SDKs, ACadSharp, ezdxf), recalled
+or read. Teigha is named above only because a drawing's own `AcDb:AppInfo` names
+it as the writer.
+
 
 ## 2026-10-27 — ACDBASSOCPERSSUBENTMANAGER and ACDBPERSSUBENTMANAGER: derived from AutoCAD's own output
 
@@ -608,3 +666,43 @@ values. How each part was settled:
   anything else: not LibreDWG, the ODA or Teigha SDK, an Autodesk SDK, ACadSharp's or
   ezdxf's code, comments or data.
 
+
+## 2026-10-26 — MATERIAL (`AcDbMaterial`): derived from AutoCAD's own output (#49, #152)
+
+The PR that decodes MATERIAL is the first to use the method of the entry
+above. ODA spec v5.4.1 prints no layout for it. The field list in
+`src/objects/acad_material.rs` was derived from the data bits of the 212
+MATERIAL records of the pinned corpus (32 on each of R14, R2000, R2004,
+R2007, R2010 and R2013, 20 on R2018) and from the `AcDbMaterial` objects
+AutoCAD exported to DXF for the same handles: the 21 default materials per
+release of the seven `nextgis/dwg_samples` drawings (AutoCAD 2016, R14 to
+R2013); the 11 materials per release of ACadSharp's `sample_base` saves
+(AutoCAD 2025, R14 to R2018), whose DXF twins cover R2000 to R2018; and the
+three defaults each of `empty.dwg`, `export_sample.dwg` and `geoloc.dwg`
+(R2018, with a twin for `geoloc.dwg` only). R14 has no twin in either
+source, so its records are held to their data-stream boundary alone.
+
+Accepted: every record closes on the data-stream boundary on every release,
+and, from R2007, on a string stream the field list consumes entirely; the
+DXF groups 1, 2, 3, 8, 70, 71, 76, 90, 91, 92, 72, 77, 171, 175, 179, 43,
+47, 49, 142, 144, 147, 44, 140, 143, 145, 148, 468, 93 and 94 equal the
+decoded fields in 13,058 comparisons with 0 differences
+(`examples/probe_material.rs`). Left unverified by value, because no DXF
+group in the corpus shows them or shows them with distinct values: the three
+colour factors, the blends of five of the six maps, the three bytes after
+every blend, the two 2-bit tail slots, the refraction map's source, every
+map's file name but the diffuse and the bump, which of ambient, diffuse and
+specular owns which colour group, and which of four maps owns which of
+groups 47, 49, 142 and 147 where their matrices coincide. Colour methods and
+map sources other than 0 and 1, and a non-zero tail slot, are refused as
+unsupported.
+
+The group codes are observed in the twins. The names of the fields (ambient,
+diffuse, specular, gloss, opacity, reflection, bump, refraction, blend,
+source) follow the `AcDbMaterial` vocabulary of Autodesk's public *DXF
+Reference* as recalled, which is published documentation and not SDK or
+product source; it contributed names only, and the roles it suggests for
+groups 72, 77, 171, 175 and 179 (map sources) and 94 (a bit per map with a
+file) were checked against the records by the probe, not taken from it. No
+other source was consulted: no third-party DWG or DXF implementation, and
+none of the ObjectARX or Teigha documentation.
