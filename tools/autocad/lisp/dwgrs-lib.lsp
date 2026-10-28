@@ -82,9 +82,14 @@
     (list '(0 . "MTEXT") '(100 . "AcDbEntity") (cons 8 layer) '(100 . "AcDbMText")
           (cons 10 pt) (cons 40 h) (cons 41 w) '(71 . 1) '(72 . 5) (cons 1 str) (cons 7 style))))
 
+;; CMDACTIVE bit 1 is an ordinary command and bit 2 a transparent one; bit 4 (a script) stays set for
+;; the whole session, so only the low two bits say a command still waits for input.
+(defun dwgrs:command-p ()
+  (> (logand (getvar "CMDACTIVE") 3) 0))
+
 (defun dwgrs:finish (/ n)
   (setq n 0)
-  (while (and (> (getvar "CMDACTIVE") 0) (< n 3))
+  (while (and (dwgrs:command-p) (< n 3))
     (command "")
     (setq n (1+ n))))
 
@@ -121,7 +126,7 @@
 
 (defun dwgrs:cancel-all (/ n)
   (setq n 0)
-  (while (and (> (getvar "CMDACTIVE") 0) (< n 10))
+  (while (and (dwgrs:command-p) (< n 10))
     (command)
     (setq n (1+ n))))
 
