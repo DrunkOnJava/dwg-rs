@@ -746,3 +746,18 @@ meaning of the value type -9999, and the implied length of the linear
 parameter's property list; handles are not decoded. No vocabulary beyond the DXF
 group codes and subclass markers in the twins was used, and no third-party DWG
 or DXF implementation was consulted.
+
+## 2026-10-26 — DIMASSOC: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/dim_assoc.rs` was derived from the data bits of
+the 21 DIMASSOC records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013, R2018; three per release) and AutoCAD's DXF
+export of the same handles (R2000 to R2018). Accepted: all 21 close on the
+data-stream boundary, from R2007 on a fully consumed string stream, and 264
+values (groups 90, 70, 71, 1, 72, 73, 91, 40, 10, 20, 75 and the reference count)
+equal the decoded fields with 0 differences (`examples/probe_dim_assoc.rs`).
+Unverified by value: the `BS` between groups 72 and 73, the first `BD`, the
+trailing `B`, the order of groups 70 and 71 and of 10 and 20; the handles (330,
+331) are not decoded. No vocabulary beyond the DXF group codes and class names in
+the twins was used, and no third-party DWG or DXF implementation was consulted.
