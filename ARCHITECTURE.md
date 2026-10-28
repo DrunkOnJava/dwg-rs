@@ -4760,8 +4760,8 @@ Unverified by value: the `BL -1` that opens the evaluation base, the leading `BS
 of the R2004+ colour, and every value beyond the one box and one history pair the
 corpus holds (saved on seven releases). The handles (groups 360 and 347) are in the
 handle stream and are not decoded. ACSH_EXTRUSION_CLASS (one record per release)
-follows the same base and node but adds a sweep base with a 672-byte binary blob and
-two more 16-value matrices, and is not decoded.
+follows the same base and node and adds a sweep base with 672 bits of profile data and
+two more 16-value matrices; §7bp decodes it.
 
 ```sh
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
@@ -4984,6 +4984,63 @@ BL edge count,
 ```sh
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_eval_graph -- ../dwg-corpus
+```
+
+## 7bp. ACSH_EXTRUSION_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the solid-history record AutoCAD writes for an
+extrusion. `src/objects/sh_history.rs` reads it from the layout below, derived by the
+CLEANROOM.md method of 2026-10-26: the data bits of the seven records in `sample_base`
+(one per release, R14 to R2018) against the object of the same handle in the DXF
+export. All seven close, from R2007 on a string stream the list consumes entirely, and
+328 values equal the DXF with 0 differences. It completes the family of ARCHITECTURE.md
+§7bj: the same evaluation base and history node as the box, then a sweep base.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 1 | 1 | 0 (no twin) | 0 |
+| R2000 | 1 | 1 | 0 (the export holds none) | 0 |
+| R2004 | 1 | 1 | 0 (the export holds none) | 0 |
+| R2007 | 1 | 1 | 82 | 0 |
+| R2010 | 1 | 1 | 82 | 0 |
+| R2013 | 1 | 1 | 82 | 0 |
+| R2018 | 1 | 1 | 82 | 0 |
+| Total | 7 | 7 | 328 | 0 |
+
+```text
+evaluation base, history node (BL 90, BL 91, BD x16, colour, BL 92)      as ACSH_BOX_CLASS
+sweep base:  BL 90 (33), BL 91 (329), 3BD (10, 20, 30),
+             BD x6 (42, 43, 44, 45, 48, 49), B 290, BS 70, BS 71, B x5 (292 to 296),
+             BD x3 (11, 21, 31), BD x16 (46), BD x16 (47),
+             BL 92 (77), BL 90 (672, a bit count) and that many bits (group 310), BL 93 (0)
+```
+
+- **The data stream is not in the DXF's order.** The DXF lists the sweep base as 90,
+  91, 10, 20, 30, 92, 90, 310, 93, then the scalars, the matrices and the flags. The data
+  holds the scalars and the flags before the matrices, and the 92, the bit count and the
+  profile data after them, with 93 last. The two orders were told apart by locating the
+  matrix values (31.749488451440747 and -220.12521867977878 are distinct) and the profile
+  bytes inside the record's bits; the probe pairs every value by group code and ordinal,
+  not by position.
+- **The profile data.** Group 90 is 672 and the group 310 bytes are 84 of the 85 the DXF
+  writes (a measured convention: one byte more than the bit count holds, 0xCC in the one
+  object). In the data stream they are 672 bits at no particular byte alignment, read here
+  as 84 unaligned bytes. The same 672 bits are in all seven records. What they encode (the
+  profile the solid was extruded from) is not read; a count that is not a multiple of 8 is
+  refused as unsupported, because the corpus does not show how it would be stored.
+- **What the values show.** Of the two matrices, group 47 is the identity and group 46 is
+  the identity but for 31.74948845144075 and -220.1252186797788 at its fourth and eighth
+  values. The six scalars read 0, 0, 0, 0, 1.0 and 0, and the flags 1, 0, 0, 1, 0, with
+  groups 70 and 71 reading 0 and 2.
+- **Unverified by value.** The roles of the equal zeros among groups 42 to 45 and 49, of the
+  zero flags (293, 294, 296) and of groups 11, 21 and 31 (each is 0 in the one object the
+  corpus holds), and the meaning of group 92 = 77. Seven records are one object saved on
+  seven releases, so a second extrusion of another profile, height and taper would
+  settle them.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_sh_extrusion -- ../dwg-corpus
 ```
 
 ## 8. Write pipeline (current scope)

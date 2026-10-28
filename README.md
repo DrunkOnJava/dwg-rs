@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40651400278](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40651400278) on 2026-10-28<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40655020787](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40655020787) on 2026-10-28<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on the public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -25,14 +25,14 @@ drawings fetched by pinned sha256
 <!-- corpus-table:begin -->
 | Version | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |---------|--------------|---------|---------|---------|--------------|----------------|
-| R14 (AC1014) | 12 | 4717 | 39 | 0 | **99.2 %** | 100.0 % |
-| R2000 (AC1015) | 9 | 2780 | 5 | 0 | **99.8 %** | 100.0 % |
-| R2004 (AC1018) | 12 | 106992 | 2 | 0 | **> 99.9 %** | 100.0 % |
-| R2007 (AC1021) | 8 | 2235 | 2 | 0 | **99.9 %** | 100.0 % |
-| R2010 (AC1024) | 8 | 2186 | 2 | 0 | **99.9 %** | 100.0 % |
-| R2013 (AC1027) | 8 | 1785 | 2 | 0 | **99.9 %** | 100.0 % |
-| R2018 (AC1032) | 4 | 1613 | 2 | 0 | **99.9 %** | 100.0 % |
-| **Aggregate** | **61** | **122308** | **54** | **0** | **> 99.9 %** | **100.0 %** |
+| R14 (AC1014) | 12 | 4721 | 35 | 0 | **99.3 %** | 100.0 % |
+| R2000 (AC1015) | 9 | 2781 | 4 | 0 | **99.9 %** | 100.0 % |
+| R2004 (AC1018) | 12 | 106993 | 1 | 0 | **> 99.9 %** | 100.0 % |
+| R2007 (AC1021) | 8 | 2236 | 1 | 0 | **> 99.9 %** | 100.0 % |
+| R2010 (AC1024) | 8 | 2187 | 1 | 0 | **> 99.9 %** | 100.0 % |
+| R2013 (AC1027) | 8 | 1786 | 1 | 0 | **99.9 %** | 100.0 % |
+| R2018 (AC1032) | 4 | 1614 | 1 | 0 | **99.9 %** | 100.0 % |
+| **Aggregate** | **61** | **122318** | **44** | **0** | **> 99.9 %** | **100.0 %** |
 <!-- corpus-table:end -->
 
 A success rate counts records, and the sources differ in size by orders of
@@ -46,14 +46,14 @@ a change came from decoding or from the corpus:
 | Source | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |--------|--------------|---------|---------|---------|--------------|----------------|
 | nextgis | 42 | 8443 | 0 | 0 | **100.0 %** | 100.0 % |
-| acadsharp | 10 | 7611 | 20 | 0 | **99.7 %** | 99.8 % |
-| bookviewerapp3 | 4 | 1425 | 34 | 0 | **97.7 %** | 98.5 % |
+| acadsharp | 10 | 7618 | 13 | 0 | **99.8 %** | 99.9 % |
+| bookviewerapp3 | 4 | 1428 | 31 | 0 | **97.9 %** | 98.5 % |
 | oshw-jetson | 4 | 104577 | 0 | 0 | **100.0 %** | 100.0 % |
 | planar-algorithm | 1 | 252 | 0 | 0 | **100.0 %** | 100.0 % |
-| **All sources** | **61** | **122308** | **54** | **0** | **> 99.9 %** | **100.0 %** |
+| **All sources** | **61** | **122318** | **44** | **0** | **> 99.9 %** | **100.0 %** |
 <!-- corpus-sources:end -->
 
-Totals: <!-- corpus-summary:begin -->122,308 decoded / 54 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.7 % (10), bookviewerapp3 97.7 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.2 %, R2000 99.8 %, R2004 > 99.9 %, R2007 99.9 %, R2010 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
+Totals: <!-- corpus-summary:begin -->122,318 decoded / 44 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 97.9 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.3 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
 
 [`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
 drawing's decoded, skipped and errored counts, its class-census shortfalls

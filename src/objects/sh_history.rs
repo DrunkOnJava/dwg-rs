@@ -1,5 +1,5 @@
-//! ACSH_HISTORY_CLASS and ACSH_BOX_CLASS: the solid-history records AutoCAD
-//! writes for a primitive solid.
+//! ACSH_HISTORY_CLASS, ACSH_BOX_CLASS and ACSH_EXTRUSION_CLASS: the solid-history
+//! records AutoCAD writes for a primitive solid and for an extrusion.
 //!
 //! ODA spec v5.4.1 prints no layout for either. The field lists are derived from
 //! AutoCAD's own output under the method in `CLEANROOM.md` (2026-10-26): the data
@@ -16,17 +16,23 @@
 //!                      they name; before: one BS, 256 = ByLayer, group 62),
 //!                      BL group 92,
 //!                      BL group 90, BL group 91 of the box, BD x3 (40, 41, 42)
+//! ACSH_EXTRUSION_CLASS the same evaluation base and node (BL 92 included), then the
+//!                      sweep base: BL 90, BL 91, 3BD (10, 20, 30), BD x6 (42 to 45,
+//!                      48, 49), B 290, BS 70, BS 71, B x5 (292 to 296), BD x3 (11, 21,
+//!                      31), BD x16 (46), BD x16 (47), BL 92, BL 90 (a bit count) with
+//!                      that many bits (group 310), BL 93
 //! ```
 //!
 //! The DXF writes the last six of the 16 transform values (groups 50 to 55) in
 //! degrees; the decoded values are as stored, so the probe converts. Handles
 //! (groups 360 and 347) live in the handle stream and are not decoded. A colour
 //! flag above 3, and an integer wider than the short forms the corpus holds, are
-//! refused with [`crate::error::Error::Unsupported`]. ACSH_EXTRUSION_CLASS, which
-//! carries a binary blob and two more matrices, is not decoded.
+//! refused with [`crate::error::Error::Unsupported`]. ACSH_EXTRUSION_CLASS follows the
+//! same evaluation base and node, then the sweep base with its profile data and two
+//! more matrices (ARCHITECTURE.md §7bp).
 
 use crate::bitcursor::BitCursor;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::objects::dynamic_block::{EvalExpr, read_eval};
 use crate::objects::modern;
 use crate::objects::small_classes::{open_and_finish, unsupported};
@@ -186,6 +192,143 @@ pub(crate) fn decode_box(
                 box_90,
                 box_91,
                 size,
+            })
+        },
+    )
+}
+
+/// ACSH_EXTRUSION_CLASS: a solid made by extruding a profile.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ShExtrusion {
+    pub eval: EvalExpr,
+    /// `BL`, DXF group 90 of the history node (33).
+    pub node_90: u32,
+    /// `BL`, DXF group 91 of the history node (329).
+    pub node_91: u32,
+    /// `BD` x16, DXF groups 40 to 55 (the last six in degrees in the DXF).
+    pub transform: [f64; 16],
+    pub color: ShColor,
+    /// `BL`, DXF group 92 of the history node (4).
+    pub node_92: u32,
+    /// `BL`, DXF group 90 of the sweep base (33).
+    pub sweep_90: u32,
+    /// `BL`, DXF group 91 of the sweep base (329).
+    pub sweep_91: u32,
+    /// `3BD`, DXF groups 10, 20 and 30.
+    pub point: [f64; 3],
+    /// `BD` x6, in the order of DXF groups 42, 43, 44, 45, 48 and 49: 0, 0, 0, 0, 1.0 and
+    /// 0. Only the 1.0 (group 48) is told apart by value from the zeros.
+    pub scalars: [f64; 6],
+    /// `B`, DXF group 290.
+    pub dxf_290: bool,
+    /// `BS`, DXF group 70.
+    pub dxf_70: i16,
+    /// `BS`, DXF group 71.
+    pub dxf_71: i16,
+    /// `B` x5, in the order of DXF groups 292 to 296: 1, 0, 0, 1, 0.
+    pub flags: [bool; 5],
+    /// `BD` x3, DXF groups 11, 21 and 31 (0.0 in every record).
+    pub vector: [f64; 3],
+    /// `BD` x16, DXF groups 46.
+    pub matrix_46: [f64; 16],
+    /// `BD` x16, DXF groups 47.
+    pub matrix_47: [f64; 16],
+    /// `BL`, DXF group 92 of the sweep base (77).
+    pub dxf_92: u32,
+    /// The profile data, DXF groups 90 and 310: a `BL` bit count (672) and that many bits,
+    /// read as bytes. A count that is not a multiple of 8 is refused.
+    pub profile: Vec<u8>,
+    /// `BL`, DXF group 93 (0).
+    pub dxf_93: u32,
+}
+
+fn read_array<const N: usize>(c: &mut BitCursor<'_>) -> Result<[f64; N]> {
+    let mut out = [0.0; N];
+    for v in &mut out {
+        *v = c.read_bd()?;
+    }
+    Ok(out)
+}
+
+/// Decode an ACSH_EXTRUSION_CLASS record from the layout of the module docs (derived
+/// from AutoCAD's output, ARCHITECTURE.md §7bp), ending exactly on the data-stream
+/// boundary and, from R2007, with the string stream consumed.
+pub(crate) fn decode_extrusion(
+    payload: &[u8],
+    body_start: usize,
+    inline_data_end: Option<usize>,
+    version: Version,
+) -> Result<ShExtrusion> {
+    open_and_finish(
+        "ACSH_EXTRUSION_CLASS",
+        payload,
+        body_start,
+        inline_data_end,
+        version,
+        |c, strings| {
+            let eval = read_eval(c)?;
+            let node_90 = c.read_bl_u()?;
+            let node_91 = c.read_bl_u()?;
+            let transform = read_array::<16>(c)?;
+            let color = read_color(c, strings, version)?;
+            let node_92 = c.read_bl_u()?;
+            let sweep_90 = c.read_bl_u()?;
+            let sweep_91 = c.read_bl_u()?;
+            let point = read_array::<3>(c)?;
+            let scalars = read_array::<6>(c)?;
+            let dxf_290 = c.read_b()?;
+            let dxf_70 = c.read_bs()?;
+            let dxf_71 = c.read_bs()?;
+            let flags = [
+                c.read_b()?,
+                c.read_b()?,
+                c.read_b()?,
+                c.read_b()?,
+                c.read_b()?,
+            ];
+            let vector = read_array::<3>(c)?;
+            let matrix_46 = read_array::<16>(c)?;
+            let matrix_47 = read_array::<16>(c)?;
+            let dxf_92 = c.read_bl_u()?;
+            let bits = c.read_bl_u()? as usize;
+            if bits % 8 != 0 {
+                return Err(Error::Unsupported {
+                    feature: "ACSH_EXTRUSION_CLASS profile bit count that is not a multiple of 8"
+                        .into(),
+                });
+            }
+            if bits > c.remaining_bits() {
+                return Err(Error::SectionMap(format!(
+                    "ACSH_EXTRUSION_CLASS profile of {bits} bits exceeds the {} bits left in the record",
+                    c.remaining_bits()
+                )));
+            }
+            let mut profile = Vec::with_capacity(bits / 8);
+            for _ in 0..bits / 8 {
+                profile.push(c.read_rc()?);
+            }
+            let dxf_93 = c.read_bl_u()?;
+            Ok(ShExtrusion {
+                eval,
+                node_90,
+                node_91,
+                transform,
+                color,
+                node_92,
+                sweep_90,
+                sweep_91,
+                point,
+                scalars,
+                dxf_290,
+                dxf_70,
+                dxf_71,
+                flags,
+                vector,
+                matrix_46,
+                matrix_47,
+                dxf_92,
+                profile,
+                dxf_93,
             })
         },
     )
