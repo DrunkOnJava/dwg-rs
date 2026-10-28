@@ -278,7 +278,9 @@ the current capability matrix.
 
 ## Pending — non-trivial work remaining
 
-These have genuine open scope requiring focused work, not stubs.
+These have genuine open scope requiring focused work, not stubs. Their counts
+are the 2026-08-30 snapshot of the 19-file subset; the corpus table at the top
+of this page is current, and README.md lists the types still skipped.
 
 - **Current real-file decode baseline:** the 2026-08-30
   `examples/coverage_report.rs ../../samples` run reports 2273 decoded,

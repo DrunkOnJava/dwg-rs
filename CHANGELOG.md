@@ -8,6 +8,40 @@ once the public API stabilizes at 0.1.0.
 
 ## [Unreleased]
 
+### Added — the table objects decode: TABLESTYLE from R2010, CELLSTYLEMAP, TABLEGEOMETRY, TABLECONTENT and ACAD_TABLE (2026-10-27 and 28, #313, #316, #317, #319, #151)
+
+TABLESTYLE (§20.4.101.2) and CELLSTYLEMAP (§20.4.102) share one cell-style reader (§20.4.101.3 and §20.4.101.4). TABLEGEOMETRY (§20.4.103), TABLECONTENT (§20.4.97) and the ACAD_TABLE entity (§20.4.96) follow, each paired with AutoCAD's DXF export by its probe. 103 skipped records of the pinned corpus now decode. An ACAD_TABLE's insertion rotation is compared in degrees against group 50; no pinned table is rotated, so that comparison is not yet measured on a nonzero angle.
+
+### Added — nineteen classes the spec does not print decode from AutoCAD's own DWG and DXF output (2026-10-28, #326 to #341, #152)
+
+Derived under the `CLEANROOM.md` method of 2026-10-26, on every release from R14 to R2018:
+- WIPEOUTVARIABLES, ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION, ACDB_BLOCKREPRESENTATION_DATA, PDFDEFINITION and DBCOLOR (#326).
+- The dynamic-block evaluation objects BLOCKGRIPLOCATIONCOMPONENT, BLOCKLINEARGRIP, BLOCKVISIBILITYGRIP, BLOCKLINEARPARAMETER, BLOCKVISIBILITYPARAMETER and BLOCKSCALEACTION (#328).
+- DIMASSOC (#329).
+- ACSH_HISTORY_CLASS and ACSH_BOX_CLASS (#330), and ACSH_EXTRUSION_CLASS (#341).
+- SUN (#332).
+- DATATABLE (#335). Its column and cell lists start at no more than 1,024 entries and grow as entries decode, so a malformed count cannot reserve memory (#185).
+- ACDB_TEXTOBJECTCONTEXTDATA_CLASS (#337).
+- ACAD_EVALUATION_GRAPH (#339).
+
+PDFUNDERLAY now decodes on every release and is checked against AutoCAD's DXF (#331). With the table objects above, the corpus job's skipped records fell from 379 to 44, with none errored.
+
+### Added — the value oracle scores the DIMENSION family (2026-10-28, #387)
+
+§20.4.22 to §20.4.29, each dimension type's groups scored against AutoCAD's DXF export by handle.
+
+### Added — the canonical fixtures carry BLOCK_HEADER and BLOCK pairs (2026-10-28, #407, closes #78)
+
+`build_fixtures` writes a block header and its block for each synthetic drawing, so the block-name gate runs in CI on every release the writer covers.
+
+### Added — maintainer tools: a Jev review of stale prose and issues, and the AutoCAD trial session (2026-10-28, #406, #383)
+
+`tools/maintainer/jev_review.py` ranks the README, STATUS and ROADMAP statements, and the open issues, that a merged pull request may have overtaken (housekeeping item 10 in `docs/maintaining.md`). `tools/autocad/` writes the scripts, staged inputs and manifest for an AutoCAD session that re-saves the pinned R13 drawings and builds controlled drawings, and checks what the session produced.
+
+### Changed — the merge train lands stacked pull requests on its own (2026-10-28, #421, #422, #423)
+
+A PR stacked on one that has landed merges main against the newest commit of that PR it holds. Sections main renumbered are followed in its own lines. A PR that holds commits of an older open PR waits until that PR lands. A Codex thread that asks to commit the measured baseline is settled once the Corpus job passes.
+
 ### Changed — the merge train builds and tests nothing locally (2026-10-27, #408)
 
 Every build, test and corpus measurement is a GitHub Actions run on the pull request. The train merges main in and pushes, then commits the corpus and oracle baselines and README coverage that the PR's own CI run measured, refusing anything worse than main. A PR stacked on another waits until GitHub retargets it to main.
