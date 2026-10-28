@@ -46,6 +46,7 @@
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
 //! | IMAGEDEF_REACTOR         | [`image_def_reactor`]     | §20.4.82         |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
+//! | VP_ENT_HDR               | [`control_vp_ent_hdr`]            | §20.4.70         |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
 //! | SPATIAL_FILTER           | [`clip_spatial_filter`]        | §20.4.94         |
@@ -105,6 +106,7 @@ pub mod class_map_extension;
 pub mod clip_spatial_filter;
 pub mod color;
 pub mod control;
+pub mod control_vp_ent_hdr;
 pub mod custom_dict_entry;
 pub mod data_table;
 pub mod dictionary;

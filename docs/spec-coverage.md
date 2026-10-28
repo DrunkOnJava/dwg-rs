@@ -18,8 +18,8 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 
 ## Summary
 
-- All sections: 0 `complete`, 106 `closes`, 6 `decoder`, 6 `partial`, 20 `missing`.
-- The 104 object prescriptions of §20.4: 0 `complete`, 86 `closes`, 6 `decoder`, 2 `partial`, 10 `missing`.
+- All sections: 0 `complete`, 107 `closes`, 6 `decoder`, 6 `partial`, 19 `missing`.
+- The 104 object prescriptions of §20.4: 0 `complete`, 87 `closes`, 6 `decoder`, 2 `partial`, 9 `missing`.
 
 ## Sections
 
@@ -120,7 +120,7 @@ One row for every section of the *Open Design Specification for .dwg files* v5.4
 | §20.4.67 | DIMSTYLE CONTROL (68) | 177 | `closes` | src/objects/control.rs | #148 | DXF oracle (examples/dxf_oracle): 42 records R2000-R2018, every decoded value equals AutoCAD's (84 equal, 0 by the DXF default, 0 with no DXF group); 135 DXF groups not decoded. The spec's own example (§20.4.67.1) closes on the record's boundary (#107). |
 | §20.4.68 | DIMSTYLE (69) | 178 | `closes` | src/tables/dimstyle.rs | #148 | R13/R14 block measured on all 20 R14 records of the public corpus (#74, ARCHITECTURE §7z); The 3 records each on ACadSharp's R2007 and R2010 saves that errored close since #293 (the BL reactor count of the R2007+ entry prefix); no record of any kind errors on the 52 drawings (run 40532346172 on main e7c53e1, corpus-results.json: errored 0, `errors` empty). DXF oracle (examples/dxf_oracle): 108 records R2000-R2018, every decoded value equals AutoCAD's (699 equal, 1137 by the DXF default, 216 with no DXF group); 1159 DXF groups not decoded. The spec's own example (§20.4.68.1) closes on the record's boundary (#107). |
 | §20.4.69 | VIEWPORT ENTITY CONTROL (70) | 182 | `decoder` | src/objects/control.rs | #146 | The spec's own example (§20.4.69.1) closes on the record's boundary (#107). |
-| §20.4.70 | VIEWPORT ENTITY HEADER (71) | 183 | `missing` |  | #146 | The spec's own example (§20.4.70.1) has no decoder to run (#107). |
+| §20.4.70 | VIEWPORT ENTITY HEADER (71) | 183 | `closes` | src/objects/control_vp_ent_hdr.rs | #146 | Closes on all 6 VIEWPORT ENTITY HEADER records of the corpus (3 on R14, 3 on R2000; later releases hold none), and on the spec's own example (§20.4.70.1, an R14 record), which closed here for the first time (#107). Boundary evidence only: AutoCAD's DXF exports of the corpus hold no record for the header, so no value is compared (examples/probe_vp_ent_hdr). No R13 file is in the corpus. |
 | §20.4.71 | AcDbAnnotScaleObjectContextData | 184 | `missing` |  | #149 |  |
 | §20.4.72 | GROUP (72) | 184 | `closes` | src/objects/acad_group.rs | #149 | The spec's own example (§20.4.72.1) closes on the record's boundary (#107). |
 | §20.4.73 | MLINESTYLE (73) | 185 | `closes` | src/objects/acad_mlinestyle.rs | #147 | All 10 corpus records, four release bands (ARCHITECTURE §7d.3). DXF oracle (examples/dxf_oracle): 42 records R2000-R2018, every decoded value equals AutoCAD's (462 equal, 0 by the DXF default, 84 with no DXF group); 168 DXF groups not decoded. The spec's own example (§20.4.73.1) closes on the record's boundary (#107). |

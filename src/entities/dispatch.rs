@@ -135,6 +135,7 @@ pub enum DecodedEntity {
     XRecord(crate::objects::xrecord::XRecord),
     Placeholder(crate::objects::placeholder::Placeholder),
     Group(crate::objects::acad_group::AcadGroup),
+    VpEntHdr(crate::objects::control_vp_ent_hdr::VpEntHdr),
     Scale(crate::objects::acad_scale::AcadScale),
     VisualStyle(crate::objects::acad_visual_style::AcadVisualStyle),
     Layout(Box<crate::objects::acad_layout::AcadLayout>),
@@ -300,6 +301,7 @@ impl DecodedEntity {
             Self::XRecord(_) => OBJECT_TYPE_XRECORD,
             Self::Placeholder(_) => OBJECT_TYPE_ACDB_PLACEHOLDER,
             Self::Group(_) => OBJECT_TYPE_GROUP,
+            Self::VpEntHdr(_) => OBJECT_TYPE_VP_ENT_HDR,
             Self::Layout(_) => OBJECT_TYPE_LAYOUT,
             // SORTENTSTABLE is a custom class — its code varies per file via
             // AcDb:Classes.
@@ -432,6 +434,7 @@ const PROXY_OBJECT_ITEM_CLASS_ID: u16 = 0x1F3;
 // through `dispatch_object`, not through the entity path.
 const OBJECT_TYPE_DICTIONARY: u16 = 0x2A; // 42
 const OBJECT_TYPE_GROUP: u16 = 0x48; // 72
+const OBJECT_TYPE_VP_ENT_HDR: u16 = 0x47; // 71
 const OBJECT_TYPE_XRECORD: u16 = 0x4F; // 79
 const OBJECT_TYPE_ACDB_PLACEHOLDER: u16 = 0x50; // 80
 const OBJECT_TYPE_LAYOUT: u16 = 0x52; // 82
@@ -740,6 +743,7 @@ fn dispatch_object(
             | ObjectType::XRecord
             | ObjectType::AcDbPlaceholder
             | ObjectType::Group
+            | ObjectType::VpEntHdr
             | ObjectType::Layout
             | ObjectType::MLineStyle
             | ObjectType::GeoData
@@ -779,6 +783,11 @@ fn dispatch_object(
                 .map(DecodedEntity::Group)
                 .map_err(|e| e.to_string())
         }
+        ObjectType::VpEntHdr => crate::objects::control_vp_ent_hdr::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::VpEntHdr)
+        .map_err(|e| e.to_string()),
         ObjectType::Layout => {
             match crate::objects::acad_layout::decode_object(
                 payload, body_start, inline_end, version,
