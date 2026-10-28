@@ -145,6 +145,7 @@ pub enum DecodedEntity {
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
     TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
     CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
+    TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
     /// AutoCAD's own output (ARCHITECTURE.md §7bb).
@@ -156,15 +157,15 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
-    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bd).
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7be).
     WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
-    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bd).
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7be).
     DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
-    /// ACDB_BLOCKREPRESENTATION_DATA (§7bd).
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7be).
     BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
-    /// PDFDEFINITION (§7bd).
+    /// PDFDEFINITION (§7be).
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
-    /// DBCOLOR (§7bd).
+    /// DBCOLOR (§7be).
     DbColor(crate::objects::small_classes::DbColor),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -301,7 +302,8 @@ impl DecodedEntity {
             | Self::SectionViewStyle(_)
             | Self::TableStyle(_)
             | Self::TableStyleModern(_)
-            | Self::CellStyleMap(_) => 0,
+            | Self::CellStyleMap(_)
+            | Self::TableGeometry(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -815,6 +817,10 @@ fn dispatch_object_class(
             payload, body_start, inline_end, version,
         )
         .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
+        "TABLEGEOMETRY" | "ACDBTABLEGEOMETRY" => {
+            crate::objects::table_geometry::decode_object(payload, body_start, inline_end, version)
+                .map(|geometry| DecodedEntity::TableGeometry(Box::new(geometry)))
+        }
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)

@@ -3,7 +3,7 @@
 //!
 //! ODA spec v5.4.1 prints no layout for ACDB_BLOCKREPRESENTATION_DATA; `src/objects/small_classes.rs`
 //! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
-//! §7bd). For every ACDB_BLOCKREPRESENTATION_DATA of every drawing under the corpus directory this
+//! §7be). For every ACDB_BLOCKREPRESENTATION_DATA of every drawing under the corpus directory this
 //! reports whether the decoder closed exactly on the record's data-stream
 //! boundary (from R2007 with the string stream consumed) and compares the flag (group 70); the hard handle (group 340) is in the handle stream and is not read
 //! with the `ACDB_BLOCKREPRESENTATION_DATA` whose handle (group 5) matches in the DXF twin. A group the
