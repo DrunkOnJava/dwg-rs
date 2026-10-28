@@ -2294,7 +2294,7 @@ cargo run --release --example probe_entity_field_list -- $D 0xAA8 BL,BS,BS,BD,BD
 cargo run --release --example probe_entity_field_list -- $D 0xAA8 2RD,2RD,BL --at=2374                                 # BL = 298029779
 ```
 
-## 7z. The class table is not a census; AutoCAD's export agrees with the walk (2026-10-26, #230)
+## 7bv. The class table is not a census; AutoCAD's export agrees with the walk (2026-10-26, #230)
 
 `AcDb:Classes` gives every class an instance count (DXF group 91), and
 `examples/probe_class_census` compares it with the walk. #56 and #76
