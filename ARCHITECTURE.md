@@ -5100,6 +5100,49 @@ for p in sh_cylinder sh_revolve; do
 done
 ```
 
+## 7br. RAPIDRTRENDERENVIRONMENT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+
+ODA spec v5.4.1 prints no layout for the object AutoCAD writes for the RapidRT renderer's
+environment (its C++ class in `AcDb:Classes` is `AcDbIBLBackground`, an image-based lighting
+backdrop). `src/objects/render_environment.rs` reads it from a layout derived from the
+records' own bits and held to the record boundary alone, by the entry CLEANROOM.md records
+for 2026-10-28: the two drawings that hold the class, `3d.dwg` and `Draw2.dwg` of the pinned
+`kurema/BookViewerApp3` drawings (AC1014), have no DXF export in the corpus. **Its state is
+`decoder`, not `closes`.**
+
+| Drawing | Records | Close | Values compared |
+|---|---:|---:|---:|
+| `3d.dwg` (R14) | 2 | 2 | 0 (no DXF twin) |
+| `Draw2.dwg` (R14) | 6 | 6 | 0 (no DXF twin) |
+| Total | 8 | 8 | 0 |
+
+```text
+BL version (2), B enabled, TV image (an HDR path), BD rotation (0.0), B display_image
+```
+
+- **Why the list is the right width.** Every record is 11 bits, a `TV` and 3 bits, and the
+  `TV` is a path of 74 to 93 characters (`C:\Program Files\Autodesk\AutoCAD 2019\Environments\half_hdr\...`):
+  the length is the one thing that varies, and the record closes on its boundary on all eight
+  whatever it is. The 11 bits before the text are a `BL` of 10 bits and one flag; the 3 after it
+  a `BD` in its 2-bit zero form and one flag. The path also shows that AutoCAD 2019 wrote the
+  drawings.
+- **What the values show.** The version is 2 in every record and the rotation 0.0. The first
+  flag is 1 in six records and 0 in two (both in `Draw2.dwg`), the last flag 0 in three and 1
+  in five, so neither is a constant.
+- **Unverified by value.** The roles of the version, of the two flags and of the rotation
+  (named by the groups of the IBL background in Autodesk's public DXF Reference, recalled, for
+  names only), and whether the `BL` is not a `BS`: the two read the same on every record. The
+  hard handle of a secondary background, if the object has one, is in the handle stream and
+  is not read. A DXF export of the two drawings, which AutoCAD's trial tooling can make, would
+  score all of it and let the state move to `closes`.
+- **Other releases.** The same list is attempted on every release, and a record it does not
+  close on is an error, not a guess. Only R14 has records in the corpus.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_render_environment -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
