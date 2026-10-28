@@ -786,6 +786,7 @@ pub fn section_of(label: &str) -> &'static str {
         "MLINESTYLE" => "§20.4.73",
         "MLINE" => "§20.4.50",
         "MLEADERSTYLE" => "§20.4.87",
+        "GEODATA" => "§20.4.78",
         "DICTIONARYVAR" => "§20.4.74",
         "LAYOUT" => "§20.4.84",
         "LWPOLYLINE" => "§20.4.85",
@@ -1043,6 +1044,7 @@ pub fn score(
         D::Leader(l) => score_leader(&mut c, l),
         D::VPort(v) => score_vport(&mut c, v),
         D::View(v) => score_view(&mut c, v),
+        D::GeoData(g) => score_geodata(&mut c, g),
         D::BlockRecord(b) => score_block_record(&mut c, b, rec.handle, dwg),
         // §20.4.51 and the other controls: BL num_entries; the TABLE's 70 is
         // the DXF Reference's "maximum number of entries".
@@ -2085,6 +2087,117 @@ fn score_tablestyle(c: &mut Ctx<'_>, t: &dwg::objects::acad_table_style::AcadTab
                 None,
             );
         }
+    }
+}
+
+// §20.4.78 against the DXF Reference's AcDbGeoData groups, as the decoder's
+// probe maps them: the object version 90, the design coordinate type 70,
+// the design point 10, the reference point 11, the unit scales and units
+// 40, 91, 41 and 92, the up direction 210, the north direction 12 and 22,
+// the scale estimation 95 and 141, the sea level 294 and 142, the
+// projection radius 143, the coordinate system definition (303 chunks,
+// then 301), the GeoRSS tag 302, the observation tags 305 to 307, the mesh
+// points (93, then 13/14 source and destination) and the mesh faces (96,
+// then 97, 98 and 99). The definition is written in chunks of 303 and a
+// last 301, which are joined before comparing. Version 1 records (the
+// R2009 layout) do not occur in the corpus and are not scored.
+fn score_geodata(c: &mut Ctx<'_>, g: &dwg::entities::geodata::GeoData) {
+    if g.object_version < 2 {
+        c.dwg_only("(object version 1 is not scored)", g.object_version);
+        return;
+    }
+    if !c.subclass("AcDbGeoData") {
+        c.dwg_only("(the export has no AcDbGeoData subclass)", ());
+        return;
+    }
+    c.int("object_version", 90, i64::from(g.object_version), None);
+    c.int(
+        "design_coordinate_type",
+        70,
+        i64::from(g.design_coordinate_type),
+        None,
+    );
+    c.point3("design_point", 10, g.design_point, None);
+    c.point3("reference_point", 11, g.reference_point, None);
+    c.real("horizontal_unit_scale", 40, g.horizontal_unit_scale, None);
+    c.int("horizontal_units", 91, i64::from(g.horizontal_units), None);
+    c.real("vertical_unit_scale", 41, g.vertical_unit_scale, None);
+    c.int("vertical_units", 92, i64::from(g.vertical_units), None);
+    c.point3("up_direction", 210, g.up_direction, None);
+    c.point2("north_direction", 12, g.north_direction);
+    c.int(
+        "scale_estimation_method",
+        95,
+        i64::from(g.scale_estimation_method),
+        None,
+    );
+    c.real("user_scale_factor", 141, g.user_scale_factor, None);
+    c.int(
+        "sea_level_correction",
+        294,
+        i64::from(g.sea_level_correction),
+        None,
+    );
+    c.real("sea_level_elevation", 142, g.sea_level_elevation, None);
+    c.real(
+        "coordinate_projection_radius",
+        143,
+        g.coordinate_projection_radius,
+        None,
+    );
+    let mut chunks = String::new();
+    let mut code_page = false;
+    loop {
+        match c.take_text(303) {
+            Ok(Some(t)) => chunks.push_str(t),
+            Ok(None) => break,
+            Err(CodePage) => {
+                code_page = true;
+                break;
+            }
+        }
+    }
+    let last = if code_page {
+        Err(CodePage)
+    } else {
+        c.take_text(301)
+    };
+    match last {
+        Ok(Some(last)) => {
+            chunks.push_str(last);
+            let chunks = caret_decode(&chunks);
+            c.derived(
+                "coordinate_system_definition (303 chunks + 301)",
+                "303+301",
+                g.coordinate_system_definition == chunks,
+                format!("{} chars", g.coordinate_system_definition.chars().count()),
+                format!("{} chars", chunks.chars().count()),
+            );
+        }
+        Ok(None) | Err(CodePage) => c.dwg_only(
+            "coordinate_system_definition",
+            g.coordinate_system_definition.chars().count(),
+        ),
+    }
+    c.text("geo_rss_tag", 302, &g.geo_rss_tag, None);
+    c.text("observation_from_tag", 305, &g.observation_from_tag, None);
+    c.text("observation_to_tag", 306, &g.observation_to_tag, None);
+    c.text(
+        "observation_coverage_tag",
+        307,
+        &g.observation_coverage_tag,
+        None,
+    );
+    c.int("mesh point count", 93, g.mesh_points.len() as i64, None);
+    for (s, d) in &g.mesh_points {
+        c.point2("mesh_points.source", 13, *s);
+        c.point2("mesh_points.destination", 14, *d);
+    }
+    c.int("mesh face count", 96, g.mesh_faces.len() as i64, None);
+    for f in &g.mesh_faces {
+        c.int("mesh_faces.0", 97, i64::from(f[0]), None);
+        c.int("mesh_faces.1", 98, i64::from(f[1]), None);
+        c.int("mesh_faces.2", 99, i64::from(f[2]), None);
     }
 }
 
