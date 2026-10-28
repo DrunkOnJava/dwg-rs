@@ -19,8 +19,8 @@ the current capability matrix.
   legacy-container (11: R14 / R2000 byte-built flat files, the R2007
   string-stream boundary, and four corpus-gated pins).
 - **Current real-file decode coverage, measured in CI** (the
-  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40503137263](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40503137263) on 2026-10-27<!-- corpus-run:end -->, on the public drawings
-  pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->15,541 decoded / 533 skipped / **0 errored** / 96.7 % of all records on 52 drawings; the median drawing decodes 97.8 %. Per source (drawings): nextgis 98.0 % (42), acadsharp 95.2 % (10). Per version: R14 97.5 %, R2000 96.8 %, R2004 96.8 %, R2007 96.6 %, R2010 96.5 %, R2013 95.7 %, R2018 96.1 %.<!-- corpus-summary:end -->
+  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40618524658](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40618524658) on 2026-10-28<!-- corpus-run:end -->, on the public drawings
+  pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->122,114 decoded / 248 skipped / **0 errored** / 99.8 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 97.4 % (10), bookviewerapp3 96.6 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 98.3 %, R2000 98.9 %, R2004 > 99.9 %, R2007 98.8 %, R2010 98.8 %, R2013 98.5 %, R2018 98.2 %.<!-- corpus-summary:end -->
   The 308 errors of the 2026-10-26 measurement were closed by #226,
   #227, #228 and #71; `sample_AC1032.dwg` comes from ACadSharp's MIT
   `samples/`, saved by AutoCAD 2025 (#96, CLEANROOM.md).
