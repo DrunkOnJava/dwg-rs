@@ -3669,7 +3669,7 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7au. SHAPE (2026-10-26, #140)
+## 7bt. SHAPE (2026-10-26, #140)
 
 The dispatcher's note on SHAPE said the one record in the corpus "has a
 160-bit budget and nothing to spend it on". §20.4.37 spends it: `3BD`
