@@ -315,3 +315,141 @@ pub fn decode_object(
         extended_flag,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bitwriter::BitWriter;
+
+    fn cmc(w: &mut BitWriter, rgb: u32) {
+        w.write_bs_u(0);
+        w.write_bl_u(rgb);
+        w.write_rc(0);
+    }
+
+    /// The `Standard` multileader style, with the values every corpus
+    /// record decodes.
+    fn build(version: Version) -> Vec<u8> {
+        // R2010 predates the R2013+ AcDs binary-data bit of the common
+        // object prefix, so it takes the shorter prefix.
+        let mut w = if matches!(version, Version::R2013 | Version::R2018) {
+            modern::tests::r2018_object_prefix(1)
+        } else {
+            modern::tests::r2004_object_prefix(1)
+        };
+        write_common_body(&mut w, version, false);
+        let bits = crate::string_stream::tests::bits_of(&w);
+        crate::string_stream::tests::build_payload(&bits, &["Standard", ""])
+    }
+
+    /// Write the field list itself. `inline_strings` selects the
+    /// pre-R2007 layout, where the two `TV` slots consume data bits.
+    fn write_common_body(w: &mut BitWriter, version: Version, inline_strings: bool) {
+        if version.is_r2010_plus() {
+            w.write_bs(2); // version
+        }
+        w.write_bs(2); // content_type
+        w.write_bs(1); // draw_mleader_order_type
+        w.write_bs(0); // draw_leader_order_type
+        w.write_bl(2); // max_leader_segment_points
+        w.write_bd(0.0);
+        w.write_bd(0.0);
+        w.write_bs(1); // leader_line_type
+        cmc(w, 0xC100_0000);
+        w.write_bl(-2); // leader_lineweight
+        w.write_b(true); // enable_landing
+        w.write_bd(0.09);
+        w.write_b(true); // enable_dogleg
+        w.write_bd(0.36);
+        if inline_strings {
+            modern::tests::write_inline_tv(w, "Standard");
+        }
+        w.write_bd(0.18); // arrowhead_size
+        if inline_strings {
+            modern::tests::write_inline_tv(w, "");
+        }
+        w.write_bs(1);
+        w.write_bs(6);
+        w.write_bs(1);
+        w.write_bs(0);
+        cmc(w, 0xC100_0000);
+        w.write_bd(0.18); // text_height
+        w.write_b(false);
+        w.write_b(false);
+        w.write_bd(0.18); // align_space
+        cmc(w, 0xC100_0000);
+        w.write_bd(1.0);
+        w.write_bd(1.0);
+        w.write_bd(1.0);
+        w.write_b(true);
+        w.write_bd(0.0);
+        w.write_b(true);
+        w.write_bs(0);
+        w.write_bd(1.0); // scale
+        w.write_b(false);
+        w.write_b(true);
+        w.write_bd(0.125); // break_gap_size
+        if version.is_r2010_plus() {
+            w.write_bs(0);
+            w.write_bs(9);
+            w.write_bs(9);
+        }
+        if matches!(version, Version::R2013 | Version::R2018) {
+            w.write_b(true);
+        }
+    }
+
+    #[test]
+    fn r2018_mleader_style_closes_on_its_string_stream() {
+        let payload = build(Version::R2018);
+        let s = decode_object(&payload, 8, None, Version::R2018).unwrap();
+        assert_eq!(s.version, 2);
+        assert_eq!(s.content_type, 2);
+        assert_eq!(s.max_leader_segment_points, 2);
+        assert_eq!(s.leader_line_color.method(), 0xC1);
+        assert_eq!(s.leader_lineweight, -2);
+        assert!(s.enable_landing && s.enable_dogleg);
+        assert!((s.landing_gap - 0.09).abs() < 1e-12);
+        assert!((s.dogleg_length - 0.36).abs() < 1e-12);
+        assert!((s.arrowhead_size - 0.18).abs() < 1e-12);
+        assert!((s.text_height - 0.18).abs() < 1e-12);
+        assert!((s.break_gap_size - 0.125).abs() < 1e-12);
+        assert_eq!(s.description, "Standard");
+        assert_eq!(s.default_mtext_contents, "");
+        assert_eq!(s.block_content_scale_x, 1.0);
+        assert_eq!(s.top_text_attachment_direction, 9);
+        assert!(s.extended_flag);
+    }
+
+    #[test]
+    fn r2010_mleader_style_has_no_r2013_tail_flag() {
+        let payload = build(Version::R2010);
+        let s = decode_object(&payload, 8, None, Version::R2010).unwrap();
+        assert_eq!(s.version, 2);
+        assert!(!s.extended_flag);
+        assert_eq!(s.bottom_text_attachment_direction, 9);
+    }
+
+    /// The R2004 layout: `TV` fields inline, no leading `version` word
+    /// and no attachment-direction tail, closing on the `RL`
+    /// object-data-size boundary.
+    #[test]
+    fn r2004_mleader_style_omits_the_r2010_fields() {
+        let mut w = modern::tests::r2004_object_prefix(1);
+        write_common_body(&mut w, Version::R2004, true);
+        let end = w.position_bits();
+        let bytes = w.into_bytes();
+        let s = decode_object(&bytes, 0, Some(end), Version::R2004).unwrap();
+        assert_eq!(s.version, 0);
+        assert_eq!(s.text_attachment_direction, 0);
+        assert_eq!(s.description, "Standard");
+        assert_eq!(s.leader_lineweight, -2);
+        assert!((s.break_gap_size - 0.125).abs() < 1e-12);
+    }
+
+    #[test]
+    fn r2013_body_rejected_by_the_r2010_field_list() {
+        let payload = build(Version::R2018);
+        assert!(decode_object(&payload, 8, None, Version::R2010).is_err());
+    }
+}

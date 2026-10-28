@@ -865,3 +865,429 @@ fn decode_paired(
         trailing_strings,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bitwriter::BitWriter;
+
+    /// Write one `(value, flag)` pair's flag.
+    fn flag(w: &mut BitWriter, v: i16) {
+        w.write_bs(v);
+    }
+
+    fn cmc(w: &mut BitWriter, index: u16, rgb: u32, color_byte: u8) {
+        w.write_bs_u(index);
+        w.write_bl_u(rgb);
+        w.write_rc(color_byte);
+    }
+
+    /// Build the 28-property R2010 body every release shares.
+    fn write_common_properties(w: &mut BitWriter) {
+        w.write_bs(2); // face_lighting_model
+        flag(w, 1);
+        w.write_bs(1); // face_lighting_quality
+        flag(w, 1);
+        w.write_bs(1); // face_color_mode
+        flag(w, 1);
+        w.write_bs(2); // face_modifier
+        flag(w, 1);
+        w.write_bd(0.6); // face_opacity
+        flag(w, 1);
+        w.write_bd(30.0); // face_specular
+        flag(w, 1);
+        cmc(w, 0, 0xC2FF_FFFF, 0); // face_mono_color
+        flag(w, 1);
+        w.write_bs(0); // edge_model
+        flag(w, 1);
+        w.write_bs(0); // edge_style
+        flag(w, 1);
+        cmc(w, 0, 0xC300_0007, 0); // edge_intersection_color
+        flag(w, 1);
+        cmc(w, 0, 0xC800_0000, 0); // edge_obscured_color
+        flag(w, 1);
+        w.write_bs(1); // edge_obscured_linetype
+        flag(w, 1);
+        w.write_bs(1); // edge_intersection_linetype
+        flag(w, 1);
+        w.write_bd(1.0); // edge_crease_angle
+        flag(w, 1);
+        w.write_bs(8); // edge_modifier
+        flag(w, 1);
+        cmc(w, 0, 0xC300_0007, 0); // edge_color
+        flag(w, 1);
+        w.write_bd(1.0); // edge_opacity
+        flag(w, 1);
+        w.write_bs(1); // edge_width
+        flag(w, 1);
+        w.write_bs(6); // edge_overhang
+        flag(w, 1);
+        w.write_bs(2); // edge_jitter
+        flag(w, 1);
+        cmc(w, 0, 0xC300_0007, 0); // edge_silhouette_color
+        flag(w, 1);
+        w.write_bs(5); // edge_silhouette_width
+        flag(w, 1);
+        w.write_bs(0); // edge_halo_gap
+        flag(w, 1);
+        w.write_bs(0); // edge_isoline_count
+        flag(w, 1);
+        w.write_b(false); // edge_hide_precision
+        flag(w, 1);
+        w.write_bs(13); // edge_style_apply
+        flag(w, 1);
+        w.write_bd(0.0); // display_brightness
+        flag(w, 1);
+        w.write_bs(0); // display_shadow_type
+        flag(w, 1);
+    }
+
+    fn write_r2013_tail(w: &mut BitWriter) {
+        for kind in R2013_TAIL {
+            match kind {
+                TailKind::Short => w.write_bs(50),
+                TailKind::Double => w.write_bd(1.0),
+                TailKind::Bool => w.write_b(true),
+                TailKind::Color => cmc(w, 0, 0xC200_0000, 0),
+                // A `TV`'s text is in the string stream; no data bits.
+                TailKind::Text => {}
+            }
+            flag(w, 1);
+        }
+    }
+
+    /// The common object data an R2010 non-entity object leads with:
+    /// empty EED chain, `BL` reactor count, no xdictionary. R2010
+    /// predates the R2013+ AcDs binary-data bit.
+    fn r2010_object_prefix(num_reactors: i32) -> BitWriter {
+        let mut w = BitWriter::new();
+        w.write_bs_u(0);
+        w.write_bl(num_reactors);
+        w.write_b(true);
+        w
+    }
+
+    fn build(version: Version) -> Vec<u8> {
+        let mut body = if matches!(version, Version::R2013 | Version::R2018) {
+            modern::tests::r2018_object_prefix(1)
+        } else {
+            r2010_object_prefix(1)
+        };
+        body.write_bs(0); // internal_style_type
+        body.write_bs(2); // format_version
+        body.write_b(true); // is_internal_use_only
+        write_common_properties(&mut body);
+        if matches!(version, Version::R2013 | Version::R2018) {
+            write_r2013_tail(&mut body);
+        }
+        let bits = crate::string_stream::tests::bits_of(&body);
+        crate::string_stream::tests::build_payload(&bits, &["Flat", "strokes_ogs.tif"])
+    }
+
+    /// Write one colour in the form `version` uses: the `CMC` triple
+    /// from R2004, the bare `BS` index before it (§2.11).
+    fn color(w: &mut BitWriter, version: Version, index: u16, rgb: u32, color_byte: u8) {
+        w.write_bs_u(index);
+        if version.is_r2004_plus() {
+            w.write_bl_u(rgb);
+            w.write_rc(color_byte);
+        }
+    }
+
+    /// The flag-less field list: 30 fields, no flags, R2007's extra
+    /// 2-bit slot, `is_internal_use_only` last. Mirrors the module's
+    /// measured table for every release from R14 to R2007.
+    ///
+    /// The colour arguments carry both encodings of the same colour, so
+    /// one table serves both bands: `ColorChange`'s grey is
+    /// `0xC2808080` from R2004 and ACI index `8` before it, and the
+    /// "none" method `0xC8000000` is index `257`.
+    fn write_legacy_properties(w: &mut BitWriter, version: Version) {
+        w.write_bs(0); // internal_style_type
+        w.write_bs(2); // face_lighting_model
+        w.write_bs(1); // face_lighting_quality
+        w.write_bs(1); // face_color_mode
+        w.write_bd(-0.6); // face_opacity — signed on the flag-less list
+        w.write_bd(30.0); // face_specular
+        color(w, version, 7, 0xC2FF_FFFF, 0); // face_mono_color
+        w.write_bs(2); // face_modifier
+        w.write_bs(0); // edge_model
+        w.write_bs(0); // edge_style
+        color(w, version, 7, 0xC300_0007, 0); // edge_intersection_color
+        color(w, version, 257, 0xC800_0000, 0); // edge_obscured_color
+        w.write_bs(1); // edge_obscured_linetype
+        w.write_bd(1.0); // edge_crease_angle
+        w.write_bs(8); // edge_modifier
+        color(w, version, 7, 0xC300_0007, 0); // edge_color
+        w.write_bd(1.0); // edge_opacity
+        w.write_bs(1); // edge_width
+        w.write_bs(6); // edge_overhang
+        w.write_bs(2); // edge_jitter
+        color(w, version, 7, 0xC300_0007, 0); // edge_silhouette_color
+        w.write_bs(5); // edge_silhouette_width
+        w.write_rc(0); // the constant run's leading byte
+        w.write_bs(0); // edge_halo_gap
+        w.write_b(false); // edge_hide_precision
+        w.write_bs(0); // edge_isoline_count
+        w.write_bs(1); // edge_intersection_linetype
+        w.write_bs(13); // edge_style_apply
+        w.write_bl(-50); // display_brightness — a BL on the flag-less list
+        w.write_bs(0); // display_shadow_type
+        if matches!(version, Version::R2007) {
+            w.write_bs(0); // display_unknown_short — R2007 only
+        }
+        w.write_b(true); // is_internal_use_only
+    }
+
+    /// An R2000 or R2004 record: inline `TV`, inline layout, and the
+    /// object prologue's `RL` object-data-size as the boundary. R2000
+    /// predates the xdictionary-missing flag R2004 added to the common
+    /// object data.
+    /// `fields` selects which release's field list the body carries, so
+    /// a test can hand one release's decoder another release's bytes.
+    fn build_inline_with(version: Version, fields: Version) -> (Vec<u8>, usize) {
+        let mut body = BitWriter::new();
+        body.write_bs_u(0); // EED terminator
+        body.write_bl(1); // num_reactors
+        if version.is_r2004_plus() {
+            body.write_b(true); // no xdictionary
+        }
+        modern::tests::write_inline_tv(&mut body, "Flat");
+        write_legacy_properties(&mut body, fields);
+        let end = body.position_bits();
+        (body.into_bytes(), end)
+    }
+
+    fn build_inline(version: Version) -> (Vec<u8>, usize) {
+        build_inline_with(version, version)
+    }
+
+    fn build_r2004() -> (Vec<u8>, usize) {
+        build_inline(Version::R2004)
+    }
+
+    /// An R14 record: the object-data size in bits lives *inside* the
+    /// common object data, between the EED chain and the reactor count,
+    /// so the record carries its own boundary and the caller passes
+    /// none. The body is written twice because the `RL` has to hold the
+    /// length of what follows it.
+    fn build_r14() -> Vec<u8> {
+        let write = |size: u32| {
+            let mut body = BitWriter::new();
+            body.write_bs_u(0); // EED terminator
+            body.write_rl(size); // R13/R14 object-data size in bits
+            body.write_bl(1); // num_reactors
+            modern::tests::write_inline_tv(&mut body, "Flat");
+            write_legacy_properties(&mut body, Version::R14);
+            body
+        };
+        let end = write(0).position_bits() as u32;
+        write(end).into_bytes()
+    }
+
+    /// An R2007 record: §19.1's object prologue writes a `BS` object
+    /// type then the `RL` end of the data + string area, the `TV`
+    /// fields live in the string stream, and the area closes with the
+    /// string-stream size and the *strings present* flag.
+    fn build_r2007(fields: Version, strings: &[&str]) -> (Vec<u8>, usize) {
+        let mut sw = BitWriter::new();
+        for s in strings {
+            sw.write_bs_u(s.encode_utf16().count() as u16);
+            for unit in s.encode_utf16() {
+                sw.write_rc((unit & 0xFF) as u8);
+                sw.write_rc((unit >> 8) as u8);
+            }
+        }
+        let string_bits = sw.position_bits();
+        let string_bytes = sw.into_bytes();
+
+        let mut body = BitWriter::new();
+        body.write_bs_u(0); // EED terminator
+        body.write_bl(1); // num_reactors
+        body.write_b(true); // no xdictionary
+        write_legacy_properties(&mut body, fields);
+        let body_bits = crate::string_stream::tests::bits_of(&body);
+
+        // `BS` object type (2 bits for the 0 form) + `RL` = 34 bits.
+        let body_start = 34;
+        let section_end = body_start + body_bits.len() + string_bits + 17;
+
+        let mut w = BitWriter::new();
+        w.write_bs_u(0); // object type
+        w.write_rl(section_end as u32);
+        for bit in &body_bits {
+            w.write_b(*bit);
+        }
+        for i in 0..string_bits {
+            let byte = string_bytes[i / 8];
+            w.write_b((byte >> (7 - (i % 8))) & 1 != 0);
+        }
+        w.write_rs(string_bits as i16);
+        w.write_b(true); // strings present
+        while w.position_bits() % 8 != 0 {
+            w.write_b(false);
+        }
+        (w.into_bytes(), body_start)
+    }
+
+    /// R14 carries its own boundary and reads colours as bare indices;
+    /// the same field list closes on it.
+    #[test]
+    fn r14_visual_style_closes_on_the_rl_in_its_common_object_data() {
+        let payload = build_r14();
+        let style = decode_object(&payload, 0, None, Version::R14).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        assert!(style.is_internal_use_only);
+        // Pre-R2004 colours are the bare index; no true-colour word.
+        assert_eq!(style.face_mono_color.index, 7);
+        assert_eq!(style.face_mono_color.rgb, 0);
+        assert_eq!(style.edge_obscured_color.index, 257);
+        assert!((style.display_brightness + 50.0).abs() < 1e-12);
+        assert_eq!(style.display_unknown_short, 0);
+        assert!(style.property_flags.is_empty());
+    }
+
+    /// R2000 uses the same field list as R14 but takes its boundary
+    /// from the object prologue, and has no xdictionary-missing flag.
+    #[test]
+    fn r2000_visual_style_closes_with_bare_index_colours() {
+        let (payload, end) = build_inline(Version::R2000);
+        let style = decode_object(&payload, 0, Some(end), Version::R2000).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.face_mono_color.index, 7);
+        assert_eq!(style.edge_obscured_color.index, 257);
+        assert_eq!(style.edge_silhouette_color.index, 7);
+        assert_eq!(style.edge_style_apply, 13);
+        assert!(style.is_internal_use_only);
+    }
+
+    /// The R2004 colour form is 34 bits wider per colour than the R14 /
+    /// R2000 one, so five colour slots put an R2000 body 170 bits short
+    /// of the R2004 reading and the boundary check has to reject it.
+    #[test]
+    fn r2000_body_rejected_by_the_r2004_colour_form() {
+        let (payload, end) = build_inline(Version::R2000);
+        assert!(decode_object(&payload, 0, Some(end), Version::R2004).is_err());
+    }
+
+    #[test]
+    fn r2004_inline_visual_style_closes_on_its_object_data_size() {
+        let (payload, end) = build_r2004();
+        let style = decode_object(&payload, 0, Some(end), Version::R2004).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        // R2004 has no format_version slot at all.
+        assert_eq!(style.format_version, 0);
+        assert!(style.is_internal_use_only);
+        assert_eq!(style.face_lighting_model, 2);
+        assert!((style.face_opacity + 0.6).abs() < 1e-12);
+        assert!((style.face_specular - 30.0).abs() < 1e-12);
+        assert_eq!(style.face_modifier, 2);
+        assert_eq!(style.face_mono_color.method(), 0xC2);
+        assert_eq!(style.edge_obscured_color.method(), 0xC8);
+        assert_eq!(style.edge_silhouette_width, 5);
+        assert_eq!(style.edge_unknown_byte, 0);
+        assert_eq!(style.edge_intersection_linetype, 1);
+        assert_eq!(style.edge_style_apply, 13);
+        assert!((style.display_brightness + 50.0).abs() < 1e-12);
+        // No per-property flags exist on this release.
+        assert!(style.property_flags.is_empty());
+        assert!(style.extended.is_empty());
+    }
+
+    /// The flag-less body is 28 `BS` flags shorter than the paired one,
+    /// so the boundary check has to reject it under the R2010 list.
+    #[test]
+    fn r2004_body_rejected_by_the_r2010_field_list() {
+        let (payload, end) = build_r2004();
+        assert!(decode_object(&payload, 0, Some(end), Version::R2010).is_err());
+    }
+
+    /// R2007 takes its `TV` from the string stream and writes one more
+    /// 2-bit slot than R2004 before the record's final `B`.
+    #[test]
+    fn r2007_split_stream_visual_style_closes_on_its_string_stream() {
+        let (payload, body_start) = build_r2007(Version::R2007, &["Flat"]);
+        let style = decode_object(&payload, body_start, None, Version::R2007).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        assert_eq!(style.face_mono_color.method(), 0xC2);
+        assert_eq!(style.edge_obscured_color.method(), 0xC8);
+        assert!((style.display_brightness + 50.0).abs() < 1e-12);
+        assert_eq!(style.display_shadow_type, 0);
+        assert_eq!(style.display_unknown_short, 0);
+        assert!(style.is_internal_use_only);
+        assert!(style.property_flags.is_empty());
+    }
+
+    /// The extra slot is not optional: an R2007-shaped record whose
+    /// body carries the R2004 field list ends two bits short of its
+    /// string stream, and the boundary check has to reject that rather
+    /// than return a plausible struct.
+    #[test]
+    fn r2007_body_without_the_extra_slot_is_rejected() {
+        let (payload, body_start) = build_r2007(Version::R2004, &["Flat"]);
+        assert!(decode_object(&payload, body_start, None, Version::R2007).is_err());
+    }
+
+    /// …and the converse: a body that *does* carry the extra slot must
+    /// not satisfy the R2004 field list, which is two bits shorter.
+    #[test]
+    fn r2004_body_rejected_when_it_carries_the_r2007_slot() {
+        let (payload, end) = build_inline_with(Version::R2004, Version::R2007);
+        assert!(decode_object(&payload, 0, Some(end), Version::R2004).is_err());
+    }
+
+    #[test]
+    fn r2018_split_stream_visual_style_closes_on_its_string_stream() {
+        let payload = build(Version::R2018);
+        let style = decode_object(&payload, 8, None, Version::R2018).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.internal_style_type, 0);
+        assert_eq!(style.format_version, 2);
+        assert!(style.is_internal_use_only);
+        assert_eq!(style.face_lighting_model, 2);
+        assert!((style.face_opacity - 0.6).abs() < 1e-12);
+        assert!((style.face_specular - 30.0).abs() < 1e-12);
+        assert_eq!(style.face_mono_color.method(), 0xC2);
+        assert_eq!(style.face_mono_color.payload(), 0x00FF_FFFF);
+        assert_eq!(style.edge_intersection_color.method(), 0xC3);
+        assert_eq!(style.edge_intersection_color.payload(), 7);
+        assert!(!style.edge_hide_precision);
+        assert_eq!(style.display_shadow_type, 0);
+        assert_eq!(style.property_flags.len(), 58);
+        assert_eq!(style.extended.len(), 30);
+        assert_eq!(
+            style.extended[26].value,
+            VisualStyleValue::Text("strokes_ogs.tif".to_string())
+        );
+        assert!(style.trailing_strings.is_empty());
+    }
+
+    #[test]
+    fn r2010_visual_style_has_no_r2013_tail() {
+        let payload = build(Version::R2010);
+        let style = decode_object(&payload, 8, None, Version::R2010).unwrap();
+        assert_eq!(style.description, "Flat");
+        assert_eq!(style.property_flags.len(), 28);
+        assert!(style.extended.is_empty());
+    }
+
+    /// The R2013 tail is not optional: reading an R2013 record with the
+    /// R2010 field list leaves 30 properties unread, and the boundary
+    /// check has to reject that rather than return a plausible struct.
+    #[test]
+    fn r2013_body_rejected_by_the_r2010_field_list() {
+        let payload = build(Version::R2018);
+        assert!(decode_object(&payload, 8, None, Version::R2010).is_err());
+    }
+
+    /// …and the converse: an R2010-length body must not satisfy the
+    /// R2013 field list.
+    #[test]
+    fn r2010_body_rejected_by_the_r2013_field_list() {
+        let payload = build(Version::R2010);
+        assert!(decode_object(&payload, 8, None, Version::R2018).is_err());
+    }
+}
