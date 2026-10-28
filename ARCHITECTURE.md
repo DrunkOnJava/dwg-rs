@@ -4717,6 +4717,57 @@ parameter.
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_dim_assoc -- ../dwg-corpus
 ```
+
+## 7bj. ACSH_HISTORY_CLASS and ACSH_BOX_CLASS, derived from AutoCAD's own output (2026-10-26)
+
+ODA spec v5.4.1 prints no layout for the solid-history records AutoCAD writes for a
+primitive solid. `src/objects/sh_history.rs` reads two of them from the layout
+below, derived by the CLEANROOM.md method of 2026-10-26: the data bits of the 21
+records in `sample_base` (ACadSharp, AutoCAD 2025, saved as R14, R2000, R2004,
+R2007, R2010, R2013 and R2018; two histories and one box per release) against the
+object of the same handle in the DXF export. All 21 close on every release, from
+R2007 on a string stream the list consumes entirely.
+
+| Class | Records | Close | Values compared (R2007 to R2018) | Differ |
+|---|---:|---:|---:|---:|
+| ACSH_HISTORY_CLASS | 14 | 14 | 40 | 0 |
+| ACSH_BOX_CLASS | 7 | 7 | 112 | 0 |
+
+```text
+ACSH_HISTORY_CLASS  BL 90 (33), BL 91 (329), BL 92 (1), B 280, B 281
+ACSH_BOX_CLASS      AcDbEvalExpr (ARCHITECTURE.md §7bg), BL 90, BL 91, BD x16 transform,
+                    colour, BL 92, BL 90, BL 91, BD x3 (40, 41, 42)
+```
+
+- **The box shares the evaluation base** of the dynamic-block objects (`BL -1`, group
+  98, group 99, value type -9999, node id), so the two families are one record
+  family.
+- **The transform** is 16 `BD` that the DXF writes as groups 40 to 55. The last six
+  (groups 50 to 55) are in degrees in the DXF where the DWG stores the value as is:
+  1.0 reads 57.29577951308232 and 2.5 reads 143.2394487827058, which is the
+  conversion, measured on the one box record.
+- **The colour** is the CMC form from R2004 (`BS`, `BL`, `RC` flags and the `TV`s they
+  name) and one `BS` before. The corpus holds 0, 0xC0000000 and 0 from R2004 and 256
+  before, and the DXF writes group 62 = 256 for both, so the leading `BS` of the
+  R2004+ colour is unverified by value.
+- **R2000 and R2004.** AutoCAD's DXF export of those two releases holds neither
+  object, so their records are held to their boundary alone, as R14's are; the probe
+  reports "the DXF has no ACSH_BOX_CLASS to pair it with" for them, which the shared
+  harness counts as a failure of its exit status, and compares all four R2007 to
+  R2018 releases clean.
+
+Unverified by value: the `BL -1` that opens the evaluation base, the leading `BS`
+of the R2004+ colour, and every value beyond the one box and one history pair the
+corpus holds (saved on seven releases). The handles (groups 360 and 347) are in the
+handle stream and are not decoded. ACSH_EXTRUSION_CLASS (one record per release)
+follows the same base and node but adds a sweep base with a 672-byte binary blob and
+two more 16-value matrices, and is not decoded.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_sh_history -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
