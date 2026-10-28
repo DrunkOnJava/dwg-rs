@@ -82,11 +82,10 @@ on the pinned corpus. A *skipped* record is a type with no decoder on `main`
 yet. Two of the skipped types have a decoder in review, SHAPE (#310) and the
 VIEWPORT entity header (#311). The rest are custom classes in the four
 drawings pinned from kurema/BookViewerApp3: the render settings
-(RAPIDRTRENDERENVIRONMENT, RAPIDRTRENDERSETTINGS, MENTALRAYRENDERSETTINGS and
-RENDERGLOBAL), five associative-network classes (ACDBASSOCNETWORK,
-ACDBASSOCACTION, ACDBASSOCDEPENDENCY, ACDBASSOCVERTEXACTIONPARAM and
-ACDBASSOCARRAYACTIONBODY), ACSH_CYLINDER_CLASS, ACSH_REVOLVE_CLASS, and LIGHT
-declared as a custom class. Those drawings have no DXF
+(RAPIDRTRENDERSETTINGS, MENTALRAYRENDERSETTINGS and RENDERGLOBAL) and five
+associative-network classes (ACDBASSOCNETWORK, ACDBASSOCACTION,
+ACDBASSOCDEPENDENCY, ACDBASSOCVERTEXACTIONPARAM and ACDBASSOCARRAYACTIONBODY).
+Their few records do not settle a field list, and those drawings have no DXF
 export to derive or score them against yet (#152). The Corpus job's
 `corpus-measurement` artifact lists the skipped records of each drawing by
 type (`corpus-logs/`).
@@ -211,9 +210,9 @@ every later disclosure.
   short outside the ten proven pages still decodes as lossy UTF-8 (#375).
 - Decode password-protected R2007 files: a section whose descriptor declares
   encryption is refused, not decoded.
-- Decode the render-settings classes, five associative-network classes and
-  ACSH_CYLINDER_CLASS and ACSH_REVOLVE_CLASS (listed above); the pinned corpus
-  holds a few such records and no DXF export of them yet (#152).
+- Decode the render-settings and five associative-network classes listed
+  above; the pinned corpus holds a few such records and no DXF export of them
+  yet (#152).
 - Write R13, R14 or R2007 files; the writer covers the R2004 family only.
 - Byte-identical DWG round trips, or output checked by any CAD application.
 - Python bindings, a non-technical end-user application, an installer or a
