@@ -842,3 +842,24 @@ and command names come from Autodesk's public AutoCAD product documentation,
 recalled; no ObjectARX, RealDWG or ODA SDK material was used. Every prompt
 sequence that could not be confirmed without AutoCAD running carries a
 `;; VERIFY:` comment.
+
+## 2026-10-26 — DATATABLE: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/data_table.rs` was derived from the data bits of the
+six DATATABLE records of ACadSharp's `sample_base` saves that hold the class (AutoCAD
+2025: R14, R2000 and R2004, two per release; the R2007 to R2018 saves declare the
+class and hold no object) and AutoCAD's DXF export of the R2004 pair (the R2000
+export holds no DATATABLE, and R14 has no twin). The twin's handles differ from the
+DWG's for these objects, so each record is paired with the DXF object that no DWG
+record shares a handle with, in file order; the row counts (21 and 20) agree.
+Accepted: all six close on the data-stream boundary on every release the class
+occurs in, and 155 values (groups 70, 90, 91, 1 and, per column, 92, 2 and the
+cells of groups 93 and 40) equal the decoded fields with 0 differences
+(`examples/probe_data_table.rs`). The cells of the handle column (group 360) are in
+the handle stream and are not decoded; the DXF writes 7 of them for the first table's
+21 rows and 20 for the second's 20. Column types other than 1, 2 and 6, and
+a table name or column name other than the empty one the corpus holds, are not shown
+by value: the former are refused as unsupported, the latter are read as `TV`. No
+vocabulary beyond the DXF group codes and subclass marker in the twin was used, and
+no third-party DWG or DXF implementation was consulted.
