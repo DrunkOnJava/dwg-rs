@@ -47,7 +47,7 @@
 //! definition handle inline, which lives in the handle stream; the
 //! record ran off its end.
 //!
-//! The dispatcher routes the class on every release (ARCHITECTURE.md §7bj). The
+//! The dispatcher routes the class on every release (ARCHITECTURE.md §7bk). The
 //! corpus holds one PDFUNDERLAY per release, R14 to R2018, and all seven
 //! close exactly on their data-stream boundary; the six with a DXF twin (R2000
 //! onward) equal it on the insertion point, flags, contrast and fade by handle.
