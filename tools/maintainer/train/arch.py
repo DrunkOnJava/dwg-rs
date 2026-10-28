@@ -2,8 +2,9 @@
 
 renumber MB MAIN   at the PR head: the `## 7X.` sections the PR adds (relative to merge-base MB,
                    compared by heading text) take the suffixes right after MAIN's last one, and every
-                   `§7X` in lines the PR added (any file) follows it. Edits files in place; prints
-                   the mapping, or nothing when no section moves.
+                   `§7X` in lines the PR added (any file) follows it, as it follows a section MB
+                   has that MAIN gives another suffix (matched by title). Edits files in place;
+                   prints the mapping, or nothing when no section moves.
 resolve PATH       during a merge: each conflict hunk whose base side is empty (both sides appended
                    at the same place) becomes theirs, a blank line, then ours, less every `## `
                    section of ours that main's file already holds word for word (a PR stacked on
@@ -72,13 +73,26 @@ def renumber(mb, main):
         new_heads = kept
     mine = sorted({suffix_ for suffix_, _ in new_heads}, key=ordinal)
     new_lines = {h for _, h in new_heads}
-    if not mine:
-        return
     last = max((ordinal(v) for v in on_main.values()), default=0)
-    mapping = {k: suffix(last + i + 1) for i, k in enumerate(mine) if k != suffix(last + i + 1)}
+    own = {k: suffix(last + i + 1) for i, k in enumerate(mine) if k != suffix(last + i + 1)}
+    # A PR stacked on one that has landed cites that PR's sections by the letters they had at the
+    # merge base; main gave them new ones when it landed. Those sections are matched by title, when
+    # the title is unique on both sides, and the PR's lines follow them too.
+    def by_title(text):
+        seen = {}
+        for m in heading.finditer(text):
+            seen.setdefault(title(m.group(0)), []).append(m.group(1))
+        return {t: s[0] for t, s in seen.items() if len(s) == 1}
+    then, now = by_title(git('show', f'{mb}:ARCHITECTURE.md')), by_title(git('show', f'{main}:ARCHITECTURE.md'))
+    moved = {s: now[t] for t, s in then.items() if t in now and now[t] != s and s not in own}
+    mapping = {**moved, **own}
     if not mapping:
         return
     pattern = re.compile(r'(§7|^## 7)(' + '|'.join(sorted(mapping, key=len, reverse=True)) + r')(?![a-z])')
+    used = set()
+    def swap(m):
+        used.add(m.group(2))
+        return m.group(1) + mapping[m.group(2)]
     for path, lines in added.items():
         # A heading line moves only if it is one of the PR's new sections; an edited heading keeps
         # its suffix even when it shares it with a new one.
@@ -87,10 +101,13 @@ def renumber(mb, main):
             continue
         with open(path, encoding='utf-8') as fh:
             text = fh.read().split('\n')
-        text = [pattern.sub(lambda m: m.group(1) + mapping[m.group(2)], l) if l in hits else l for l in text]
+        text = [pattern.sub(swap, l) if l in hits else l for l in text]
         with open(path, 'w', encoding='utf-8') as fh:
             fh.write('\n'.join(text))
-    print(' '.join(f'7{k}->7{v}' for k, v in mapping.items()))
+    # Only the moves that rewrote a line are reported: an empty report means nothing changed.
+    done = [f'7{k}->7{v}' for k, v in own.items() if k in used] + [f'§7{k}->§7{v}' for k, v in moved.items() if k in used]
+    if done:
+        print(' '.join(done))
 
 
 def sections(lines):
