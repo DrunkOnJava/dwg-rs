@@ -115,6 +115,7 @@ pub mod dxf_classes;
 pub mod dxf_convert;
 pub mod dxf_entities;
 pub mod dxf_header;
+pub mod dxf_objects;
 #[cfg(feature = "dxf-reader")]
 pub mod dxf_reader;
 pub mod dxf_sections;
@@ -124,6 +125,7 @@ pub mod entities;
 pub mod entity_geometry;
 pub mod entity_refs;
 pub mod error;
+pub mod extended_data;
 pub mod file_writer;
 pub mod geometry;
 pub mod gltf;

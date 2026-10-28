@@ -5,14 +5,22 @@
 #
 #   usage: criterion-gate.sh <base-baseline> <candidate-baseline> [tripped-file]
 #
-# Reads criterion's own `estimates.json` (nanoseconds) rather than
-# scraping `critcmp`'s formatted text, so the parse cannot drift with a
+# Reads criterion's own files (nanoseconds) rather than scraping
+# `critcmp`'s formatted text, so the parse cannot drift with a
 # column-layout change and the absolute delta is available exactly.
+#
+# The estimate is the minimum per-iteration time over criterion's raw
+# samples (`sample.json`), the sample that ran closest to uncontended:
+# the methodology note in `.github/workflows/perf.yml` measured it at
+# +4.9 % between two runs of the same binary where the mean moved +55 %,
+# and a real regression raises it as surely as the mean. ESTIMATOR=mean
+# reads `estimates.json`'s mean instead; a baseline without
+# `sample.json` falls back to the mean.
 #
 # A benchmark "trips" only when BOTH hold:
 #
-#   ratio = cand_mean / base_mean  >=  $RATIO_THRESHOLD   (default 1.20)
-#   delta = cand_mean - base_mean  >=  $ABS_FLOOR_NS      (default 5000)
+#   ratio = cand / base  >=  $RATIO_THRESHOLD   (default 1.20)
+#   delta = cand - base  >=  $ABS_FLOOR_NS      (default 5000)
 #
 # The absolute floor exists because a ratio alone cannot tell a real
 # regression from GitHub-runner noise on a microsecond-scale bench —
@@ -41,6 +49,15 @@ fi
 CRITERION_DIR="${CRITERION_DIR:-target/criterion}"
 RATIO_THRESHOLD="${RATIO_THRESHOLD:-1.20}"
 ABS_FLOOR_NS="${ABS_FLOOR_NS:-5000}"
+ESTIMATOR="${ESTIMATOR:-min}"
+
+estimate() {
+  if [ "$ESTIMATOR" = min ] && [ -f "$1/sample.json" ]; then
+    jq -r '[[.iters, .times] | transpose[] | .[1] / .[0]] | min' "$1/sample.json" 2>/dev/null
+  else
+    jq -r '.mean.point_estimate' "$1/estimates.json" 2>/dev/null
+  fi
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "::error::jq is required by criterion-gate.sh but was not found" >&2
@@ -69,8 +86,8 @@ while IFS= read -r cand_est; do
     name="${bench_dir#"$CRITERION_DIR"/}"
   fi
 
-  base_ns="$(jq -r '.mean.point_estimate' "$base_est" 2>/dev/null)"
-  cand_ns="$(jq -r '.mean.point_estimate' "$cand_est" 2>/dev/null)"
+  base_ns="$(estimate "$bench_dir/$BASE_NAME")"
+  cand_ns="$(estimate "$cand_dir")"
   case "$base_ns" in ''|null) continue ;; esac
   case "$cand_ns" in ''|null) continue ;; esac
 
@@ -107,7 +124,7 @@ if [ "$compared" -eq 0 ]; then
   exit 2
 fi
 
-echo "criterion-gate: compared $compared benchmark(s); \
+echo "criterion-gate: compared $compared benchmark(s) by their $ESTIMATOR time; \
 ratio threshold ${RATIO_THRESHOLD}x, absolute floor ${ABS_FLOOR_NS}ns"
 if [ "$tripped" -gt 0 ]; then
   echo "criterion-gate: $tripped benchmark(s) tripped both thresholds"
