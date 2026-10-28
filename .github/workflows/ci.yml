@@ -469,6 +469,39 @@ jobs:
             echo "::error::no pinned drawing reached the code page probe"
             exit 1
           fi
+      # AcDb:Classes of every pinned drawing, read as stored, parsed, written back
+      # by write_class_map under the drawing's own code page and compared byte
+      # for byte (#45). --strict fails on a difference, on a drawing that cannot
+      # be opened, read or parsed, and on a run in which nothing matched, so the
+      # probe cannot pass without having compared a drawing.
+      - name: Class table written back byte for byte on every pinned drawing
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --example probe_class_roundtrip -- --strict "$HOME/dwg-corpus" > class-roundtrip-probe.log 2>&1
+          status=$?
+          set -e
+          cat class-roundtrip-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+      # The insert-count run of every BLOCK_HEADER against the record's own handle
+      # stream: the run ends the same count of handles the stream holds.
+      - name: BLOCK_HEADER insert-count run against the handle stream
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --example probe_block_header_inserts -- "$HOME/dwg-corpus" > block-header-inserts-probe.log 2>&1
+          status=$?
+          set -e
+          cat block-header-inserts-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' block-header-inserts-probe.log; then
+            echo "::error::no pinned drawing reached the BLOCK_HEADER insert-count probe"
+            exit 1
+          fi
       # dwg-to-dxf's ENTITIES against AutoCAD's own export of the same drawing:
       # every entity written pairs with the export's, group for group.
       - name: DXF ENTITIES written by dwg-to-dxf against the DXF exports
@@ -503,6 +536,39 @@ jobs:
             echo "::error::no pinned drawing reached the DXF CLASSES probe"
             exit 1
           fi
+      # The same probe on BLOCKS: every block record's BLOCK, entities and ENDBLK.
+      - name: DXF BLOCKS written by dwg-to-dxf against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --features dxf-reader --example probe_dxf_entities -- --section=BLOCKS "$HOME/dwg-corpus" > dxf-blocks-probe.log 2>&1
+          status=$?
+          set -e
+          cat dxf-blocks-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' dxf-blocks-probe.log; then
+            echo "::error::no pinned drawing reached the DXF BLOCKS probe"
+            exit 1
+          fi
+      # dwg-to-dxf's OBJECTS against AutoCAD's own export of the same drawing:
+      # every record written pairs with the export's, group for group, in its order.
+      - name: DXF OBJECTS written by dwg-to-dxf against the DXF exports
+        if: steps.fetch.outputs.measured == 'true'
+        run: |
+          set +e
+          cargo +stable run --release --features dxf-reader --example probe_dxf_objects -- "$HOME/dwg-corpus" > dxf-objects-probe.log 2>&1
+          status=$?
+          set -e
+          cat dxf-objects-probe.log
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
+          if grep -q '^NOT MEASURED' dxf-objects-probe.log; then
+            echo "::error::no pinned drawing reached the DXF OBJECTS probe"
+            exit 1
+          fi
       # Measurements and the baseline a change would need; never a sample file.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.fetch.outputs.measured == 'true'
@@ -516,9 +582,11 @@ jobs:
             corpus-logs/
             corpus-tests.log
             header-probe.log
+            class-roundtrip-probe.log
             dxf-header-probe.log
             dxf-tables-probe.log
             dxf-entities-probe.log
+            dxf-blocks-probe.log
             baseline.tsv
           if-no-files-found: warn
 

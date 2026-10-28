@@ -21,8 +21,8 @@
 //!   layer's 62 and a viewport's 63, which the DWG stores no index for; a
 //!   handle group naming an object the OBJECTS section does not write (the layout, the
 //!   plot style, the material, the visual style) and the bracket of entities
-//!   that react to a record or insert a block (ENTITIES carries no handles
-//!   yet);
+//!   that react to a record or insert a block, when one of them is not written
+//!   (a DIMENSION, say);
 //! - a value that differs is a **relation** only when the way the export was
 //!   made explains it: the active viewport's view when the export is a later
 //!   save (its `$TDUUPDATE` is later than the DWG's), and a dynamic block
@@ -33,6 +33,9 @@
 //!   in the DWG). Any other is a failure,
 //!   as is a record written that the export does not have, or a table header
 //!   whose handle or owner differs.
+//!
+//! Records are compared in the order AutoCAD writes them, and the groups both write
+//! in the order AutoCAD writes them.
 //!
 //! The export's `70` count on a table header is not compared: AutoCAD's count
 //! does not always equal its record count. No corpus drawing holds a UCS record,
@@ -181,7 +184,9 @@ fn group_reason(table: &str, code: u16, theirs: &DxfRecord) -> Option<&'static s
         (_, 1000..=1071) => Some("extended data is not decoded for table records"),
         ("BLOCK_RECORD", 340) => Some("the layout object is not written to OBJECTS"),
         ("DIMSTYLE", 176..=178) => Some("a true colour has no index in the DWG"),
-        ("VPORT" | "VIEW", 348) => Some("the visual style object is written as an untyped record"),
+        ("VPORT" | "VIEW", 348) => {
+            Some("the visual style it names is not an object the output defines")
+        }
         ("VPORT", 332 | 361 | 345 | 346) => Some("the object it names is not written"),
         ("VPORT", 63) if !values(theirs, 421).is_empty() => {
             Some("a true colour has no index in the DWG")
@@ -189,9 +194,8 @@ fn group_reason(table: &str, code: u16, theirs: &DxfRecord) -> Option<&'static s
         ("LAYER", 430) => Some("the layer's R2007 colour name is not decoded"),
         ("LAYER", 390) => Some("the plot-style object is not written to OBJECTS"),
         ("LAYER", 347 | 348) => {
-            Some("the material and visual style objects are written as untyped records")
+            Some("the material or visual style it names is not an object the output defines")
         }
-        ("DIMSTYLE", 341..=344) => Some("the block's contents are not written to BLOCKS yet"),
         ("LAYER", 420) => Some("a true colour: the decoder surfaces no RGB"),
         ("LAYER", 62) if !values(theirs, 420).is_empty() => {
             Some("a true colour has no index in the DWG")
@@ -325,6 +329,7 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             .collect();
         let ours_handles: BTreeSet<u64> = ours_recs.iter().filter_map(|r| r.handle).collect();
         let mut paired: BTreeSet<u64> = BTreeSet::new();
+        let mut last_index = 0usize;
         for r in &ours_recs {
             t.ours += 1;
             let Some(h) = r.handle else { continue };
@@ -359,6 +364,16 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
             };
             paired.insert(want.handle.unwrap_or(h));
             t.paired += 1;
+            let at = their_recs
+                .iter()
+                .position(|w| std::ptr::eq(*w, want))
+                .unwrap_or(0);
+            if at < last_index {
+                o.failures.push(format!(
+                    "{name} {table} {h:X}: written before a record AutoCAD's {table} table has ahead of it"
+                ));
+            }
+            last_index = at;
             if same_handle && r.owner != want.owner {
                 o.failures.push(format!(
                     "{name} {table} {h:X}: owner {:?} but AutoCAD wrote {:?}",
@@ -390,13 +405,11 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                     None => {
                         t.omitted_groups += 1;
                         let why = match bname.as_str() {
-                            "ACAD_REACTORS" => {
-                                "the entities that react to the record are not written with their handles"
-                            }
+                            "ACAD_REACTORS" => "an entity that reacts to the record is not written",
                             "ACAD_XDICTIONARY" => {
                                 "the extension dictionary object is not written to OBJECTS"
                             }
-                            "BLKREFS" => "the INSERT entities are not written with their handles",
+                            "BLKREFS" => "an INSERT of the block is not written",
                             _ => "",
                         };
                         if why.is_empty() {
@@ -473,6 +486,26 @@ fn probe_file(path: &Path, twins: &BTreeMap<String, PathBuf>) -> Result<Option<O
                         "{name} {table} {h:X}: AutoCAD writes group {code} and the record omits it with no stated reason"
                     )),
                 }
+            }
+            // The groups both write come in the same order.
+            let count = |x: &DxfRecord, c: u16| x.top_level().filter(|g| g.code == c).count();
+            let shared: BTreeSet<u16> = codes
+                .intersection(&their_codes)
+                .copied()
+                .filter(|c| count(r, *c) == count(want, *c))
+                .collect();
+            let in_order = |x: &DxfRecord| -> Vec<u16> {
+                x.top_level()
+                    .map(|g| g.code)
+                    .filter(|c| shared.contains(c) && ![100, 330, 5, 105].contains(c))
+                    .collect()
+            };
+            if in_order(r) != in_order(want) {
+                o.failures.push(format!(
+                    "{name} {table} {h:X}: groups {:?} but AutoCAD wrote them {:?}",
+                    in_order(r),
+                    in_order(want)
+                ));
             }
         }
         for r in &their_recs {
