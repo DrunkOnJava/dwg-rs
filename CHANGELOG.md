@@ -24,6 +24,10 @@ The file header's short at 0x13 (§3.2.5) is AutoCAD's own enumeration, not a Wi
 
 `CodePage::encode` turns a character the page holds into its byte (two on a double-byte page) and any other into AutoCAD's `\U+XXXX`. `convert_dwg_to_dxf_bytes` writes R12 to R2004 in that page, `classes::write_tv` encodes through the page in force, and `DwgFile::to_bytes` writes the drawing's page into the header, which used to be 0.
 
+### Added — MATERIAL decodes on every release from R14 to R2018 (2026-10-27, #325, #49, #152)
+
+The spec prints no layout for MATERIAL; its field list is learned from AutoCAD's own DWG and DXF output under the 2026-10-26 `CLEANROOM.md` method. 212 skipped records of the pinned corpus now decode, and the Corpus job's baseline moved with it.
+
 ### Added — dwg-to-dxf writes VISUALSTYLE objects (2026-10-27, #413, #66)
 
 The 24 built-in visual styles of every pinned drawing are written in the three layouts AutoCAD's own exports use, and `probe_dxf_objects` pairs each with the export: in the Corpus job, 1,008 written and paired, 61,944 of 62,208 groups equal, 264 that differ only by a stated relation, and none that disagree.
