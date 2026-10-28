@@ -4686,7 +4686,7 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sh_history -- ../dwg-corpus
 ```
 
-## 7bj. PDFUNDERLAY on every release (2026-10-26, #152)
+## 7bk. PDFUNDERLAY on every release (2026-10-26, #152)
 
 `src/entities/underlay.rs` has read the underlay reference since before the
 CLEANROOM.md method of 2026-10-26, from one R2018 record. Held to the method's rule
