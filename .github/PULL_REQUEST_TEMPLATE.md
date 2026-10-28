@@ -20,9 +20,9 @@ from `cargo run --release --example coverage_report -- <path>`.
 <!--
 - [ ] `cargo fmt --all -- --check` passes
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings` passes
-- [ ] `cargo test --release` passes
+- [ ] `tools/ci/run_test_targets.sh --release --all-features` passes
 - [ ] `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` passes
-- [ ] Shown working on real files: the corpus records it was measured on, with the command that reproduces it (no new unit tests)
+- [ ] Shown working on real files: the corpus records it was measured on, with the command that reproduces it (unit tests are banned: no new ones, and no regression test for a fix)
 - [ ] For decoder changes: coverage-report numbers attached
 -->
 
