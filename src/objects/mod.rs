@@ -16,7 +16,7 @@
 //! | ACDBDETAILVIEWSTYLE      | [`acad_detail_view_style`]| none — measured  |
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
 //! | LAYOUT                   | [`acad_layout`]           | §20.4.84         |
-//! | ACAD_MATERIAL            | [`acad_material`]         | none — measured  |
+//! | ACAD_MATERIAL            | [`acad_material`]         | none — derived from AutoCAD output |
 //! | ACDB(ASSOC)PERSSUBENTMANAGER | [`pers_subent`]       | none — measured  |
 //! | MLEADERSTYLE             | [`acad_mleader_style`]    | none — measured  |
 //! | MLINESTYLE               | [`acad_mlinestyle`]       | §20.4.73         |
@@ -56,20 +56,18 @@
 //! from the object's string stream on R2007+ and each one checks that
 //! its data fields end exactly on the data-stream boundary.
 //!
-//! The remaining modules ([`acad_material`] and
-//! [`acad_property_set_data`]) decode a documented *prefix* of their
-//! record's fields, so they cannot satisfy that boundary check and are
-//! deliberately not dispatched — a partial decoder that cannot
+//! The remaining module ([`acad_property_set_data`]) decodes a
+//! documented *prefix* of its record's fields, so it cannot satisfy that
+//! boundary check and is deliberately not dispatched — a partial decoder that cannot
 //! self-validate would inflate the coverage ratio without proving
-//! anything. They remain callable directly.
+//! anything. It remains callable directly.
 //!
 //! Five of the table's "Spec" cells read *none — measured*: the ODA
 //! v5.4.1 object-prescription chapter §20.4 carries no entry for
 //! VISUALSTYLE, MATERIAL, MLEADERSTYLE, ACDBDETAILVIEWSTYLE or
-//! ACDBSECTIONVIEWSTYLE. Each module documents
-//! what its own byte measurements establish, and
-//! [`acad_material`] restricts itself to the strings and the budget
-//! precisely because its data-field layout is not among them.
+//! ACDBSECTIONVIEWSTYLE. Each module documents what its own byte
+//! measurements establish. MATERIAL's layout comes from AutoCAD's own
+//! DWG and DXF output under the method in `CLEANROOM.md` (2026-10-26).
 //!
 //! TABLESTYLE is decoded from §20.4.101.1 on R14 to R2007 and from
 //! §20.4.101.2 on R2010 and later ([`acad_table_style`]), CELLSTYLEMAP from
