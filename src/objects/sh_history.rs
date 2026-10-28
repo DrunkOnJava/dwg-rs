@@ -4,7 +4,7 @@
 //! ODA spec v5.4.1 prints no layout for either. The field lists are derived from
 //! AutoCAD's own output under the method in `CLEANROOM.md` (2026-10-26): the data
 //! bits of the 21 corpus records (`sample_base` saved as R14 to R2018) against
-//! the DXF object of the same handle. ARCHITECTURE.md §7bi holds the evidence.
+//! the DXF object of the same handle. ARCHITECTURE.md §7bj holds the evidence.
 //!
 //! ```text
 //! ACSH_HISTORY_CLASS   BL group 90 (33), BL group 91 (329), BL group 92 (1),
@@ -29,7 +29,7 @@
 //! flag above 3, and an integer wider than the short forms the corpus holds, are
 //! refused with [`crate::error::Error::Unsupported`]. ACSH_EXTRUSION_CLASS follows the
 //! same evaluation base and node, then the sweep base with its profile data and two
-//! more matrices (ARCHITECTURE.md §7bo).
+//! more matrices (ARCHITECTURE.md §7bp).
 
 use crate::bitcursor::BitCursor;
 use crate::error::{Error, Result};
@@ -128,7 +128,7 @@ pub(crate) fn read_color(
 }
 
 /// Decode an ACSH_HISTORY_CLASS record: three `BL` and two `B` (DXF groups 90, 91,
-/// 92, 280, 281), derived from AutoCAD's output (ARCHITECTURE.md §7bi), ending on
+/// 92, 280, 281), derived from AutoCAD's output (ARCHITECTURE.md §7bj), ending on
 /// the data-stream boundary.
 pub(crate) fn decode_history(
     payload: &[u8],
@@ -155,7 +155,7 @@ pub(crate) fn decode_history(
 }
 
 /// Decode an ACSH_BOX_CLASS record from the layout of the module docs (derived
-/// from AutoCAD's output, ARCHITECTURE.md §7bi), ending exactly on the
+/// from AutoCAD's output, ARCHITECTURE.md §7bj), ending exactly on the
 /// data-stream boundary and, from R2007, with the string stream consumed.
 pub(crate) fn decode_box(
     payload: &[u8],
@@ -251,7 +251,7 @@ fn read_array<const N: usize>(c: &mut BitCursor<'_>) -> Result<[f64; N]> {
 }
 
 /// Decode an ACSH_EXTRUSION_CLASS record from the layout of the module docs (derived
-/// from AutoCAD's output, ARCHITECTURE.md §7bo), ending exactly on the data-stream
+/// from AutoCAD's output, ARCHITECTURE.md §7bp), ending exactly on the data-stream
 /// boundary and, from R2007, with the string stream consumed.
 pub(crate) fn decode_extrusion(
     payload: &[u8],

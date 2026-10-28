@@ -47,7 +47,7 @@ fn compare(
         return false;
     };
     if let Some(rec) = rec {
-        cellstyles::compare_content(ours, rec, t);
+        cellstyles::compare_content(ours, rec, t, false);
     }
     true
 }

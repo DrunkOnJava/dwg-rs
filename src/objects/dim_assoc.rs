@@ -3,7 +3,7 @@
 //! ODA spec v5.4.1 prints no layout for it. The field list is derived from
 //! AutoCAD's own output under the method in `CLEANROOM.md` (2026-10-26): the
 //! data bits of the 21 corpus records (`sample_base` saved as R14 to R2018)
-//! against the DXF object of the same handle. ARCHITECTURE.md §7bh holds the
+//! against the DXF object of the same handle. ARCHITECTURE.md §7bi holds the
 //! evidence.
 //!
 //! ```text
@@ -76,7 +76,7 @@ pub struct DimAssoc {
 }
 
 /// Decode a DIMASSOC straight from its raw object payload, from the layout of
-/// the module docs (derived from AutoCAD's output, ARCHITECTURE.md §7bh), ending
+/// the module docs (derived from AutoCAD's output, ARCHITECTURE.md §7bi), ending
 /// exactly on the data-stream boundary and, from R2007, with the string stream
 /// consumed.
 pub(crate) fn decode_object(
