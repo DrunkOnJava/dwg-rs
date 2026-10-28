@@ -780,6 +780,50 @@ ACSH_EXTRUSION_CLASS is not decoded. No vocabulary beyond the DXF group codes an
 subclass markers in the twins was used, and no third-party DWG or DXF implementation
 was consulted.
 
+## 2026-10-26 — PDFUNDERLAY: the field list checked against AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/entities/underlay.rs` predates the method: it was read from
+the one R2018 record of `sample_AC1032.dwg` alone. This entry records its check
+against the method's acceptance rule, on the data bits of the seven PDFUNDERLAY
+records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14, R2000, R2004, R2007,
+R2010, R2013 and R2018; one per release, handle 0xD07) and AutoCAD's DXF export of
+the same handle (R2000 to R2018). The check found two faults, neither in the field
+order. The dispatcher routed the class on R2010 and later only, so the R14, R2000,
+R2004 and R2007 records were never decoded; and the decoder read the definition
+handle inline before R2007, which overshot the data-stream boundary on R14, R2000
+and R2004 by 8, 8 and 16 bits, because the handle is in the handle stream on every
+release. Accepted: all seven records close on the data-stream boundary on every
+release, and 36 values (groups 10, 20, 30, 280, 281 and 282) equal the decoded
+fields with 0 differences (`examples/probe_underlay.rs`). Unverified by value: the
+scale, the rotation and the normal (the DXF omits groups 41 to 43, 50 and 210 to
+230 at their defaults, so no twin shows them) and the encoding of a clip vertex (no
+record in the corpus has one). The definition handle (group 340) is not decoded. No
+vocabulary beyond the DXF group codes in the twins was used, and no third-party DWG
+or DXF implementation was consulted.
+
+## 2026-10-26 — SUN: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/entities/sun.rs` replaces an earlier one that was never
+reachable (it sat on the fixed type code 0x4F9, which no corpus record carries, and
+its layout rested on no record of AutoCAD's output). The new list was derived from the data bits
+of the one SUN record of the pinned corpus (`geoloc.dwg`, AutoCAD, R2018, handle
+0x23B) and AutoCAD's DXF export of the same handle. Accepted: the record closes on
+the data-stream boundary on a string stream the field list consumes entirely, and 11
+values (groups 90, 290, 421, 40, 291, 91, 92, 292, 70, 71 and 280) equal the decoded
+fields with 0 differences (`examples/probe_sun.rs`). The class closes on one record
+of one release: no other drawing of the corpus holds a SUN, so no other release is
+shown, and a release before R2007 is refused as unsupported. Unverified by value:
+group 63 (7 in the twin; it is not a field of the data bits, whose leading colour
+`BS` reads 0), the order of the two booleans that read 0 (status, group 290, and
+daylight savings, group 292, are told apart by their position among the other
+fields and by the order of the DXF groups only), and the colour flag bits above 0.
+The owner handle (group 330) is not decoded. No vocabulary beyond the DXF group codes
+and subclass marker in the twin was used, and no third-party DWG or DXF
+implementation was consulted.
+
+
 
 ## 2026-10-27 — AutoCAD trial scripts: AutoCAD's command prompts (ACadSharp's save script, MIT, and Autodesk's public documentation)
 

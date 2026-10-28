@@ -4768,6 +4768,84 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sh_history -- ../dwg-corpus
 ```
 
+## 7bk. PDFUNDERLAY on every release (2026-10-26, #152)
+
+`src/entities/underlay.rs` has read the underlay reference since before the
+CLEANROOM.md method of 2026-10-26, from one R2018 record. Held to the method's rule
+(a field list closes every record on every release, and every value the DXF shows
+equals it by handle) it needed two repairs and no change of field order.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 1 | 1 | 0 (no twin) | 0 |
+| R2000 | 1 | 1 | 6 | 0 |
+| R2004 | 1 | 1 | 6 | 0 |
+| R2007 | 1 | 1 | 6 | 0 |
+| R2010 | 1 | 1 | 6 | 0 |
+| R2013 | 1 | 1 | 6 | 0 |
+| R2018 | 1 | 1 | 6 | 0 |
+| Total | 7 | 7 | 36 | 0 |
+
+- **Routing.** The arm sat in `dispatch_split_stream_class`, which returns nothing
+  before R2010, so the four records of R14 to R2007 were skipped. The class has no `TV`
+  field and so no business in the split-stream path: it now sits beside IMAGE and
+  WIPEOUT in `decode_from_raw_with_class_map` and runs on every release.
+- **The handle.** With the routing repaired, the R14, R2000 and R2004 records ended 8,
+  8 and 16 bits past their data-stream boundary: the decoder read the definition
+  handle inline before R2007. The boundary is the end of the data fields and the
+  handles follow it, as IMAGE's and WIPEOUT's decoders already assume on every release,
+  so the read is gone and `Underlay` no longer carries `definition_handle`. Every
+  record then closes with a delta of 0.
+- **What the twin shows.** The DXF `PDFUNDERLAY` carries the definition handle (340),
+  the insertion point (10, 20, 30), the flags (280), the contrast (281) and the fade
+  (282). The scale (41 to 43), rotation (50), normal (210 to 230) and clip vertices (11,
+  21) are omitted at their defaults, so the corpus never shows them: they are
+  unverified by value, as is the encoding of a clip vertex (`2BD` as written, where
+  IMAGE's boundary uses `2RD`).
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_underlay -- ../dwg-corpus
+```
+
+## 7bl. SUN, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the sun of a drawing's lighting settings.
+`src/entities/sun.rs` reads it from the layout below, derived by the CLEANROOM.md
+method of 2026-10-26 from the data bits of the one SUN record in the corpus
+(`geoloc.dwg`, AutoCAD, R2018) against the `AcDbSun` object of the same handle in its
+DXF export. The record closes on a string stream the list consumes entirely, and 11
+values equal the DXF with 0 differences.
+
+```text
+BL 90 (1), B 290, colour (BS, BL word, RC flags, then the TVs the flags name),
+BD 40, B 291, BL 91, BL 92, B 292, BS 70, BS 71, RC 280
+```
+
+- **A non-entity object.** SUN carries the common object data and the owner
+  dictionary's handle, and the corpus gives it the class number 519, so it reaches the
+  dispatcher through the custom-class object path, not through the entity path. The
+  module that held the earlier SUN decoder (`entities::sun`, fixed code 0x4F9, an entity
+  layout of a `BS` colour and three flag bits) is replaced by this one: that layout
+  sat on a code no record carries and rested on no AutoCAD output, so the fixed-code
+  arm, its label and its type-code constant are gone.
+- **Colour.** The DXF writes the colour as group 63 (7) and group 421 (16777215). The
+  data bits hold a `BS` 0 and a `BL` word 0xC2FFFFFF, whose low 24 bits are group 421;
+  group 63 is not a field of the data bits and is unverified. The colour is the form the
+  ACSH records use (ARCHITECTURE.md §7bj).
+- **Integer widths.** Group 280 is a single byte (`RC`, one more bit-short would run
+  two bits past the boundary), where groups 70 and 71 are bit-shorts (0 and 256 are
+  the two-bit forms `10` and `11`). Group 92 (54000000) and group 91 (2460940) are
+  `BL`.
+- **One record, one release.** Nothing else in the corpus is a SUN, so the layout is
+  shown on R2018 alone; the boundary check refuses a record on any other release that
+  it does not close, and a release before R2007 is refused outright.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_sun -- ../dwg-corpus
+```
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
