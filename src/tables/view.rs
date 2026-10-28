@@ -19,7 +19,7 @@
 //! | 12    | lens_length        | BD (mm for 35mm equivalent) |
 //! | 13    | front_clip         | BD   |
 //! | 14    | back_clip          | BD   |
-//! | 15    | view_mode          | 4 bits (§20.4.60) |
+//! | 15    | view_mode          | 4 bits (§20.4.60), as DXF 71 |
 //! | 16    | render_mode        | RC (0..=6 visual style) |
 //! | 17    | is_paperspace      | B    |
 //! | 18    | is_associated_ucs  | B    |
@@ -33,6 +33,7 @@
 use crate::bitcursor::BitCursor;
 use crate::entities::{Point2D, Point3D, read_bd3};
 use crate::error::Result;
+use crate::tables::vport::viewmode_from_bits;
 use crate::tables::{TableEntryHeader, modern, read_table_entry_header};
 use crate::version::Version;
 
@@ -48,10 +49,18 @@ pub struct ViewEntry {
     pub lens_length: f64,
     pub front_clip: f64,
     pub back_clip: f64,
+    /// DXF group 71 (§20.4.60): of the four stored bits, the first three
+    /// are 71's bits 1, 2 and 4 and the fourth is the opposite of its bit
+    /// 16; bit 8 "can not be specified" on a VIEW and is never set.
     pub view_mode: i16,
     pub render_mode: u8,
     pub is_paperspace: bool,
     pub is_associated_ucs: bool,
+    /// The associated UCS, DXF groups 110 to 112, 79 and 146, present when
+    /// [`is_associated_ucs`](Self::is_associated_ucs) is set.
+    pub ucs: Option<crate::tables::vport::VportUcs>,
+    /// R2007+: whether the camera plots, DXF group 73.
+    pub camera_plottable: Option<bool>,
 }
 
 // Legacy alias retained so callers keep compiling while they migrate to
@@ -80,18 +89,22 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = modern::read_4bits(c)? as i16;
+    let view_mode = viewmode_from_bits(modern::read_4bits(c)?, false);
     let r2000_plus = !matches!(version, Version::R14);
     let render_mode = if r2000_plus { c.read_rc()? } else { 0 };
     let is_paperspace = c.read_b()?;
     let is_associated_ucs = if r2000_plus { c.read_b()? } else { false };
-    if is_associated_ucs {
-        let _origin = read_bd3(c)?;
-        let _x_direction = read_bd3(c)?;
-        let _y_direction = read_bd3(c)?;
-        let _elevation = c.read_bd()?;
-        let _ortho_view_type = c.read_bs()?;
-    }
+    let ucs = if is_associated_ucs {
+        Some(crate::tables::vport::VportUcs {
+            origin: read_bd3(c)?,
+            x_direction: read_bd3(c)?,
+            y_direction: read_bd3(c)?,
+            elevation: c.read_bd()?,
+            ortho_view_type: c.read_bs()?,
+        })
+    } else {
+        None
+    };
     Ok(ViewEntry {
         header,
         view_height,
@@ -107,6 +120,8 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<ViewEntry> {
         render_mode,
         is_paperspace,
         is_associated_ucs,
+        ucs,
+        camera_plottable: None,
     })
 }
 
@@ -171,7 +186,7 @@ pub(crate) fn decode_modern_split_stream(
     let lens_length = c.read_bd()?;
     let front_clip = c.read_bd()?;
     let back_clip = c.read_bd()?;
-    let view_mode = modern::read_4bits(c)? as i16;
+    let view_mode = viewmode_from_bits(modern::read_4bits(c)?, false);
     let render_mode = c.read_rc()?;
     let _use_default_lights = c.read_b()?;
     let _default_lighting_type = c.read_rc()?;
@@ -180,14 +195,18 @@ pub(crate) fn decode_modern_split_stream(
     let _ambient_color = modern::read_cmc_full(c)?;
     let is_paperspace = c.read_b()?;
     let is_associated_ucs = c.read_b()?;
-    if is_associated_ucs {
-        let _origin = read_bd3(c)?;
-        let _x_direction = read_bd3(c)?;
-        let _y_direction = read_bd3(c)?;
-        let _elevation = c.read_bd()?;
-        let _ortho_view_type = c.read_bs()?;
-    }
-    let _camera_plottable = c.read_b()?;
+    let ucs = if is_associated_ucs {
+        Some(crate::tables::vport::VportUcs {
+            origin: read_bd3(c)?,
+            x_direction: read_bd3(c)?,
+            y_direction: read_bd3(c)?,
+            elevation: c.read_bd()?,
+            ortho_view_type: c.read_bs()?,
+        })
+    } else {
+        None
+    };
+    let camera_plottable = c.read_b()?;
     split.finish("VIEW")?;
     let name = split.strings.read_tv()?;
     Ok(ViewEntry {
@@ -210,6 +229,8 @@ pub(crate) fn decode_modern_split_stream(
         render_mode,
         is_paperspace,
         is_associated_ucs,
+        ucs,
+        camera_plottable: Some(camera_plottable),
     })
 }
 
@@ -253,7 +274,7 @@ mod tests {
         body.write_bd(0.0); // front clip
         body.write_bd(0.0); // back clip
         for bit in [false, false, false, true] {
-            body.write_b(bit); // 4BITS view mode = 1
+            body.write_b(bit); // 4BITS view mode 0001: group 71 = 0
         }
         body.write_rc(0); // render mode
         body.write_b(true); // use default lights
@@ -285,7 +306,7 @@ mod tests {
         assert_eq!(v.view_width, 234.25);
         assert_eq!(v.view_center, Point2D { x: 65.5, y: 15.5 });
         assert_eq!(v.lens_length, 50.0);
-        assert_eq!(v.view_mode, 1);
+        assert_eq!(v.view_mode, 0);
         assert_eq!(v.render_mode, 0);
         assert!(!v.is_paperspace);
         assert!(v.is_associated_ucs);
@@ -318,7 +339,7 @@ mod tests {
         w.write_bd(0.0); // front
         w.write_bd(0.0); // back
         for bit in [false, false, false, true] {
-            w.write_b(bit); // 4BITS view mode = 1
+            w.write_b(bit); // 4BITS view mode 0001: group 71 = 0
         }
         w.write_rc(0x04); // render mode — gouraud
         w.write_b(false); // not paperspace
@@ -333,7 +354,7 @@ mod tests {
         assert_eq!(v.header.name, "SW-Iso");
         assert_eq!(v.view_width, 20.0);
         assert_eq!(v.lens_length, 50.0);
-        assert_eq!(v.view_mode, 1);
+        assert_eq!(v.view_mode, 0);
         assert_eq!(v.render_mode, 0x04);
         assert!(!v.is_paperspace);
         assert!(v.is_associated_ucs);

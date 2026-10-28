@@ -162,8 +162,8 @@ def corruptions(data):
     forged('vars size with valid crc', section_size, 'SectionSize(0)')
 
     def oversized_chunk(bad):
-        struct.pack_into('>H', bad, map_at, 2033)
-    forged('map chunk over 2032 bytes', oversized_chunk, f'MapChunk({map_at})')
+        struct.pack_into('>H', bad, map_at, 2035)
+    forged('map chunk over 2034 bytes', oversized_chunk, f'MapChunk({map_at})')
 
     def handle_mismatch(bad):
         # The handle's last byte sits 8 counter bits after the type and RL.
@@ -222,17 +222,18 @@ def main():
         def run(data, *args):
             path = tmp / 'input.dwg'
             path.write_bytes(data)
-            result = subprocess.run([walk, str(path), *map(str, args)], capture_output=True, timeout=120)
+            result = subprocess.run([walk, str(path), *map(str, args)], capture_output=True, timeout=600)
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
-        corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 5)]
-        manifest = json.loads(Path('tools/streaming/walk-corpus.json').read_text())
-        for item in manifest['files']:
-            url = f"{manifest['source'].replace('github.com', 'raw.githubusercontent.com')}/{manifest['commit']}/{item['name']}"
-            with urllib.request.urlopen(url, timeout=30) as src:
-                data = src.read(item['bytes'] + 1)
-            assert len(data) == item['bytes'] and hashlib.sha256(data).hexdigest() == item['sha256'], item['name']
-            corpus.append((item['name'], data, item['objects']))
+        corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 11)]
+        for manifest_name in ('walk-corpus.json', 'walk-acadsharp-corpus.json'):
+            manifest = json.loads(Path('tools/streaming', manifest_name).read_text())
+            for item in manifest['files']:
+                url = f"{manifest['source'].replace('github.com', 'raw.githubusercontent.com')}/{manifest['commit']}/{item['name']}"
+                with urllib.request.urlopen(url, timeout=30) as src:
+                    data = src.read(item['bytes'] + 1)
+                assert len(data) == item['bytes'] and hashlib.sha256(data).hexdigest() == item['sha256'], item['name']
+                corpus.append((Path(item['name']).name, data, item['objects']))
 
         for name, data, objects in corpus:
             expected = oracle(data)

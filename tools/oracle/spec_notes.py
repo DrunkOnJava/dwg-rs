@@ -36,9 +36,11 @@ for line in summary.splitlines():
     sec, ty = p[0], p[1]
     n = list(map(int, p[2:9]))
     rows.setdefault(sec, []).append((ty, n))
-issues = {'§20.4.58': '#242', '§20.4.59': '#241', '§20.4.65': '#241', '§20.4.6': '#243', '§20.4.64': '#244'}
+issues = {'§20.4.58': '#242', '§20.4.59': '#241', '§20.4.65': '#241', '§20.4.6': '#243', '§20.4.64': '#244',
+          '§20.4.60': '#256', '§20.4.48': '#381'}
 # Filed gaps that keep an otherwise agreeing section from `complete`.
 gaps = {'§20.4.54': 'the true colour is not surfaced (#245)'}
+issues['§20.4.40'] = '#393'
 notes = {}
 for sec, items in rows.items():
     parts = []

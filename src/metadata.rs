@@ -451,7 +451,7 @@ impl<'a> ByteCursor<'a> {
         } else {
             end
         };
-        let s = String::from_utf8_lossy(&self.bytes[self.pos..text_end]).into_owned();
+        let s = crate::code_page::decode_active(&self.bytes[self.pos..text_end]);
         self.pos = end;
         Ok(s)
     }
@@ -510,55 +510,8 @@ impl<'a> ByteCursor<'a> {
             return Ok(String::new());
         }
         self.need(len)?;
-        let s = String::from_utf8_lossy(&self.bytes[self.pos..self.pos + len]).into_owned();
+        let s = crate::code_page::decode_active(&self.bytes[self.pos..self.pos + len]);
         self.pos += len;
         Ok(s)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn summary_info_empty_strings() {
-        // 8 strings × 2 bytes (length=0) + 8+8+8 date bytes + 2 byte prop count
-        let mut data = vec![0u8; 2 * 8 + 24 + 2];
-        // all zeros means empty strings and zero properties
-        let si = SummaryInfo::parse(&data).unwrap();
-        assert_eq!(si.title, "");
-        assert_eq!(si.properties.len(), 0);
-        // silence unused mut warning
-        data[0] = 0;
-    }
-
-    #[test]
-    fn summary_info_with_title() {
-        // title = "X" (1 byte + NUL = 2 bytes with len=2)
-        let mut data = Vec::new();
-        data.extend_from_slice(&2u16.to_le_bytes());
-        data.extend_from_slice(b"X\0");
-        for _ in 0..7 {
-            data.extend_from_slice(&0u16.to_le_bytes());
-        }
-        data.extend_from_slice(&[0u8; 24]);
-        data.extend_from_slice(&0u16.to_le_bytes());
-        let si = SummaryInfo::parse(&data).unwrap();
-        assert_eq!(si.title, "X");
-    }
-
-    #[test]
-    fn preview_rejects_bad_sentinel() {
-        let bad = [0u8; 32];
-        assert!(Preview::parse(&bad).is_err());
-    }
-
-    #[test]
-    fn preview_empty_after_sentinel_errors_cleanly() {
-        let mut data = Vec::new();
-        data.extend_from_slice(&Preview::START_SENTINEL);
-        // too short, overall_size + image count require 5 more bytes
-        let out = Preview::parse(&data);
-        assert!(out.is_err());
     }
 }

@@ -1,6 +1,6 @@
 # Cargo build artifacts
 /target/
-# Nested target/ for out-of-workspace sub-crates (e.g. tools/synthetic-dwg).
+# Nested target/ for out-of-workspace sub-crates (wasm/, fuzz/).
 **/target/
 # Separate CARGO_TARGET_DIR used to verify the MSRV without evicting the
 # stable toolchain's incremental cache:
@@ -71,3 +71,9 @@ proptest-regressions/
 /wasm-evidence.json
 /file-evidence.json
 /file-schedules-*.jsonl
+/objects-evidence.json
+/objects-schedules-*.jsonl
+/wasm-objects-evidence.json
+/r2007-evidence.json
+/r2007-schedules-*.jsonl
+/wasm-r2007-evidence.json

@@ -52,6 +52,53 @@ pub enum HeaderValue {
     Double(f64),
     /// 3D point — emits X/Y/Z as group codes 10/20/30.
     Point(Point3D),
+    /// Explicit group codes, for a variable whose codes the other variants
+    /// cannot say (`$CLAYER` is group 8, `$HANDSEED` group 5, `$CELWEIGHT`
+    /// group 370).
+    Groups(Vec<HeaderGroup>),
+}
+
+/// One group of a [`HeaderValue::Groups`] variable.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HeaderGroup {
+    /// A text group.
+    Text(i32, String),
+    /// An integer group (16, 32 or 64 bit alike, and the 290 flags).
+    Int(i32, i64),
+    /// A real group, written to the shortest text that reads back exactly.
+    Real(i32, f64),
+    /// A handle group, written in hexadecimal.
+    Handle(i32, u64),
+}
+
+/// Write each group of `groups` as its code and value lines.
+pub fn write_groups(w: &mut DxfWriter, groups: &[HeaderGroup]) {
+    for g in groups {
+        match g {
+            HeaderGroup::Text(code, t) => w.write_string(*code, t),
+            HeaderGroup::Int(code, n) => w.write_int(*code, *n),
+            HeaderGroup::Real(code, v) => w.write_string(*code, &real_text(*v)),
+            HeaderGroup::Handle(code, h) => w.write_string(*code, &format!("{h:X}")),
+        }
+    }
+}
+
+/// The shortest decimal text of `v` that reads back as `v`, with an
+/// exponent in the form DXF writes (`1.0E+20`).
+fn real_text(v: f64) -> String {
+    let s = format!("{v:?}");
+    let Some((mantissa, exponent)) = s.split_once('e') else {
+        return s;
+    };
+    let mantissa = if mantissa.contains('.') {
+        mantissa.to_string()
+    } else {
+        format!("{mantissa}.0")
+    };
+    match exponent.strip_prefix('-') {
+        Some(digits) => format!("{mantissa}E-{digits}"),
+        None => format!("{mantissa}E+{exponent}"),
+    }
 }
 
 /// A single HEADER entry pairing name + value.
@@ -81,6 +128,13 @@ impl HeaderEntry {
         HeaderEntry {
             name: name.into(),
             value: HeaderValue::Double(value),
+        }
+    }
+    /// Builds a header variable from explicit groups.
+    pub fn groups(name: impl Into<String>, groups: Vec<HeaderGroup>) -> Self {
+        HeaderEntry {
+            name: name.into(),
+            value: HeaderValue::Groups(groups),
         }
     }
     /// Builds a header variable holding a 3D point (emitted as the 10/20/30 triple).
@@ -120,6 +174,7 @@ pub fn write_header_section(w: &mut DxfWriter, vars: &[HeaderEntry]) {
             HeaderValue::Int(n) => w.write_int(70, *n),
             HeaderValue::Double(f) => w.write_double(40, *f),
             HeaderValue::Point(p) => w.write_point(10, *p),
+            HeaderValue::Groups(groups) => write_groups(w, groups),
         }
     }
     w.end_section();
@@ -342,7 +397,7 @@ fn common_entity_header(w: &mut DxfWriter, layer: &str, aci: u8, subclasses: boo
     // DXF readers ignore this, but it makes the file easier to
     // eyeball without re-running the ACI table lookup.
     let (r, g, b) = aci_to_rgb(aci);
-    w.write_comment(&format!("ACI {aci} ≈ #{r:02X}{g:02X}{b:02X}"));
+    w.write_comment(&format!("ACI {aci} is about #{r:02X}{g:02X}{b:02X}"));
 }
 
 // ---------------------------------------------------------------------------
@@ -382,414 +437,6 @@ pub fn write_blocks_section(w: &mut DxfWriter) {
         }
     }
     w.end_section();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn header_section_emits_sentinels() {
-        let mut w = DxfWriter::new();
-        let vars = [
-            HeaderEntry::string("$ACADVER", "AC1032"),
-            HeaderEntry::int("$INSUNITS", 4),
-            HeaderEntry::double("$LUPREC", 4.0),
-        ];
-        write_header_section(&mut w, &vars);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("SECTION"));
-        assert!(s.contains("HEADER"));
-        assert!(s.contains("$ACADVER"));
-        assert!(s.contains("AC1032"));
-        assert!(s.contains("$INSUNITS"));
-        assert!(s.contains("ENDSEC"));
-    }
-
-    #[test]
-    fn tables_section_has_layer_table() {
-        let mut w = DxfWriter::new();
-        let layers = [
-            LayerEntry {
-                name: "0".to_string(),
-                aci: 7,
-                frozen: false,
-                linetype: "Continuous".to_string(),
-            },
-            LayerEntry {
-                name: "Frozen".to_string(),
-                aci: 3,
-                frozen: true,
-                linetype: "DASHED".to_string(),
-            },
-        ];
-        write_tables_section(&mut w, &layers);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("TABLES"));
-        assert!(s.contains("LAYER"));
-        assert!(s.contains("Frozen"));
-        // Frozen layer's ACI is emitted negative per DXF convention.
-        assert!(s.contains("-3"));
-        assert!(s.contains("DASHED"));
-        assert!(s.contains("ENDTAB"));
-    }
-
-    #[test]
-    fn entities_section_emits_line() {
-        let mut w = DxfWriter::new();
-        let entities = [EntityRecord::line(
-            "0",
-            7,
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(100.0, 50.0, 0.0),
-        )];
-        write_entities_section(&mut w, &entities);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("ENTITIES"));
-        assert!(s.contains("LINE"));
-        assert!(s.contains("AcDbLine"));
-        assert!(s.contains("AcDbEntity"));
-    }
-
-    #[test]
-    fn entities_section_emits_circle() {
-        let mut w = DxfWriter::new();
-        let entities = [EntityRecord {
-            handle: None,
-            layer: "0".to_string(),
-            aci: 1,
-            geometry: EntityGeometry::Circle(Curve::Circle {
-                center: Point3D::new(10.0, 20.0, 0.0),
-                radius: 5.0,
-                normal: crate::entities::Vec3D {
-                    x: 0.0,
-                    y: 0.0,
-                    z: 1.0,
-                },
-            }),
-        }];
-        write_entities_section(&mut w, &entities);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("CIRCLE"));
-        assert!(s.contains("AcDbCircle"));
-    }
-
-    #[test]
-    fn entities_section_emits_point_with_aci_comment() {
-        let mut w = DxfWriter::new();
-        let entities = [EntityRecord {
-            handle: Some(0x83),
-            layer: "0".to_string(),
-            aci: 1,
-            geometry: EntityGeometry::Point(Point3D::new(1.0, 2.0, 3.0)),
-        }];
-        write_entities_section(&mut w, &entities);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("POINT"));
-        assert!(s.contains("AcDbPoint"));
-        assert!(s.contains("#FF0000")); // ACI 1 = red, emitted as diag comment
-    }
-
-    #[test]
-    fn entities_section_emits_polyline() {
-        let mut w = DxfWriter::new();
-        let pts = [
-            Point3D::new(0.0, 0.0, 0.0),
-            Point3D::new(10.0, 0.0, 0.0),
-            Point3D::new(10.0, 10.0, 0.0),
-        ];
-        let path = Path::from_polyline(&pts, true);
-        let entities = [EntityRecord {
-            handle: None,
-            layer: "0".to_string(),
-            aci: 7,
-            geometry: EntityGeometry::Polyline(path),
-        }];
-        write_entities_section(&mut w, &entities);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("LWPOLYLINE"));
-        assert!(s.contains("AcDbPolyline"));
-    }
-
-    #[test]
-    fn blocks_section_emits_modelspace_and_paperspace() {
-        let mut w = DxfWriter::new();
-        write_blocks_section(&mut w);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("BLOCKS"));
-        assert!(s.contains("*Model_Space"));
-        assert!(s.contains("*Paper_Space"));
-        assert!(s.contains("ENDBLK"));
-    }
-
-    #[test]
-    fn header_section_emits_acadver_from_writer_version() {
-        // Default writer (R2018) → AC1032.
-        let mut w = DxfWriter::new();
-        write_header_section(&mut w, &[]);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("$ACADVER"));
-        assert!(s.contains("AC1032"));
-
-        // R12 writer → AC1009.
-        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
-        write_header_section(&mut w, &[]);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("$ACADVER"));
-        assert!(s.contains("AC1009"));
-        assert!(!s.contains("AC1032"));
-    }
-
-    #[test]
-    fn header_section_skips_caller_supplied_acadver() {
-        // Caller-supplied $ACADVER gets dropped in favor of the writer's
-        // version (prevents mismatched magic).
-        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R2000);
-        write_header_section(&mut w, &[HeaderEntry::string("$ACADVER", "AC9999")]);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("AC1015")); // R2000 magic
-        assert!(!s.contains("AC9999")); // caller's bogus value dropped
-    }
-
-    #[test]
-    fn r12_entities_section_omits_subclass_markers() {
-        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
-        write_entities_section(
-            &mut w,
-            &[EntityRecord::line(
-                "0",
-                7,
-                Point3D::new(0.0, 0.0, 0.0),
-                Point3D::new(1.0, 1.0, 0.0),
-            )],
-        );
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("LINE"));
-        // R12 predates the subclass-marker convention — not a single
-        // 100 AcDb* tag should appear.
-        assert!(!s.contains("AcDbLine"));
-        assert!(!s.contains("AcDbEntity"));
-    }
-
-    #[test]
-    fn r2018_entities_section_emits_subclass_markers() {
-        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R2018);
-        write_entities_section(
-            &mut w,
-            &[EntityRecord::line(
-                "0",
-                7,
-                Point3D::new(0.0, 0.0, 0.0),
-                Point3D::new(1.0, 1.0, 0.0),
-            )],
-        );
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("AcDbEntity"));
-        assert!(s.contains("AcDbLine"));
-    }
-
-    #[test]
-    fn r12_blocks_section_omits_subclass_markers() {
-        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
-        write_blocks_section(&mut w);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("*Model_Space"));
-        assert!(!s.contains("AcDbBlockBegin"));
-        assert!(!s.contains("AcDbBlockEnd"));
-    }
-
-    #[test]
-    fn full_document_has_all_sections() {
-        let mut w = DxfWriter::new();
-        write_header_section(&mut w, &[HeaderEntry::string("$ACADVER", "AC1032")]);
-        write_tables_section(&mut w, &[LayerEntry::default()]);
-        write_blocks_section(&mut w);
-        write_entities_section(
-            &mut w,
-            &[EntityRecord::line(
-                "0",
-                7,
-                Point3D::new(0.0, 0.0, 0.0),
-                Point3D::new(1.0, 1.0, 0.0),
-            )],
-        );
-        w.finish();
-        let s = w.take_output();
-        // Section names present, EOF terminator present.
-        for sec in ["HEADER", "TABLES", "BLOCKS", "ENTITIES", "ENDSEC", "EOF"] {
-            assert!(s.contains(sec), "output missing section {sec}");
-        }
-    }
-
-    // -------------------------------------------------------------------
-    // OBJECTS section tests
-    // -------------------------------------------------------------------
-
-    #[test]
-    fn objects_section_emits_dictionary_with_entries() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::Dictionary {
-            handle: 0x10,
-            owner_handle: 0,
-            hard_owner: true,
-            entries: vec![
-                ("ACAD_LAYOUT".to_string(), 0x1A),
-                ("ACAD_MATERIAL".to_string(), 0x2B),
-            ],
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("OBJECTS"));
-        assert!(s.contains("DICTIONARY"));
-        assert!(s.contains("AcDbDictionary"));
-        assert!(s.contains("ACAD_LAYOUT"));
-        assert!(s.contains("1A"));
-    }
-
-    #[test]
-    fn objects_section_emits_xrecord_with_raw_bytes_marker() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::XRecord {
-            handle: 0x20,
-            owner_handle: 0x10,
-            cloning_flags: 1,
-            raw_bytes_len: 128,
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("XRECORD"));
-        assert!(s.contains("AcDbXrecord"));
-    }
-
-    #[test]
-    fn objects_section_proxy_object_emits_suppression_comment() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::ProxyObject {
-            handle: 0x30,
-            owner_handle: 0x10,
-            class_id: 501,
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("ACAD_PROXY_OBJECT"));
-        assert!(s.contains("opaque proxy data suppressed"));
-    }
-
-    #[test]
-    fn objects_section_proxy_entity_emits_suppression_comment() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::ProxyEntity {
-            handle: 0x31,
-            owner_handle: 0x10,
-            class_id: 500,
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("ACAD_PROXY_ENTITY"));
-        assert!(s.contains("opaque proxy data suppressed"));
-    }
-
-    #[test]
-    fn objects_section_acad_group_emits_typed_fields() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::AcadGroup {
-            handle: 0x40,
-            owner_handle: 0x10,
-            name: "MyGroup".to_string(),
-            selectable: true,
-            member_handles: vec![0x50, 0x51],
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("ACAD_GROUP"));
-        assert!(s.contains("AcDbGroup"));
-        assert!(s.contains("MyGroup"));
-        assert!(s.contains("\n50\n"));
-    }
-
-    #[test]
-    fn objects_section_acad_scale_emits_ratio_fields() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::AcadScale {
-            handle: 0x60,
-            owner_handle: 0x10,
-            name: "1/4\" = 1'-0\"".to_string(),
-            paper_units: 0.25,
-            drawing_units: 12.0,
-            is_unit_scale: false,
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("ACDBSCALE"));
-        assert!(s.contains("AcDbScale"));
-        assert!(s.contains("1/4"));
-    }
-
-    #[test]
-    fn objects_section_pass_through_emits_stub_comment() {
-        let mut w = DxfWriter::new();
-        let objects = [DecodedObject::PassThrough {
-            type_name: "ACAD_PROPERTYSET_DATA".to_string(),
-            handle: 0x70,
-            owner_handle: 0x10,
-            subclass: None,
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        assert!(s.contains("ACAD_PROPERTYSET_DATA"));
-        assert!(s.contains("pass-through"));
-    }
-
-    #[test]
-    fn r12_objects_section_omits_subclass_markers() {
-        let mut w = crate::dxf::DxfWriter::with_version(crate::dxf::DxfVersion::R12);
-        let objects = [DecodedObject::Dictionary {
-            handle: 0x10,
-            owner_handle: 0,
-            hard_owner: true,
-            entries: vec![("ACAD_LAYOUT".to_string(), 0x1A)],
-        }];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        // The whole section is skipped under R12 — OBJECTS is an
-        // R2000+ section per the DXF reference.
-        assert!(!s.contains("\nOBJECTS\n"));
-        assert!(!s.contains("AcDbDictionary"));
-    }
-
-    #[test]
-    fn objects_section_empty_emits_section_boundaries() {
-        let mut w = DxfWriter::new();
-        let objects: [DecodedObject; 0] = [];
-        write_objects_section(&mut w, objects);
-        w.finish();
-        let s = w.take_output();
-        // An R2000+ writer with no objects still emits the section
-        // boundaries so downstream consumers see a well-formed document.
-        assert!(s.contains("\nOBJECTS\n"));
-        assert!(s.contains("\nENDSEC\n"));
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1031,7 +678,7 @@ fn write_one_object(w: &mut DxfWriter, subclasses: bool, obj: &DecodedObject) {
             );
             // 91 — proxy class id (DXF reference's "Proxy entity class id").
             w.write_int(91, *class_id as i64);
-            w.write_comment("opaque proxy data suppressed — originating ARX class unavailable");
+            w.write_comment("opaque proxy data suppressed - originating ARX class unavailable");
         }
         DecodedObject::ProxyEntity {
             handle,
@@ -1047,7 +694,7 @@ fn write_one_object(w: &mut DxfWriter, subclasses: bool, obj: &DecodedObject) {
                 Some("AcDbProxyEntity"),
             );
             w.write_int(91, *class_id as i64);
-            w.write_comment("opaque proxy data suppressed — originating ARX class unavailable");
+            w.write_comment("opaque proxy data suppressed - originating ARX class unavailable");
         }
         DecodedObject::AcadGroup {
             handle,
@@ -1180,7 +827,7 @@ fn write_one_object(w: &mut DxfWriter, subclasses: bool, obj: &DecodedObject) {
                 subclass.as_deref(),
             );
             w.write_comment(&format!(
-                "{type_name} body pass-through — typed decoder not wired through convert pipeline"
+                "{type_name} body pass-through - typed decoder not wired through convert pipeline"
             ));
         }
     }

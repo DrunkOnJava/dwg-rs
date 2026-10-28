@@ -89,7 +89,8 @@ jobs:
           set -euo pipefail
           PUBS=$(grep -rnE '^\s*pub fn ' src/ --include='*.rs' \
                   | grep -vE '^src/bin/' \
-                  | wc -l | tr -d ' ')
+                  | awk 'END { print NR }')
+          mapfile -t SOURCES < <(find src -name '*.rs' | grep -v '^src/bin/')
           # Count `pub fn` lines whose immediately-preceding non-attribute,
           # non-blank line is a `///` doc comment. We use awk to walk the
           # concatenated source looking backwards.
@@ -103,7 +104,7 @@ jobs:
             /^[[:space:]]*$/ { next }             # skip blank lines
             { prev_doc=0 }
             END { print docs+0 }
-          ' $(find src -name '*.rs' | grep -v '^src/bin/'))
+          ' "${SOURCES[@]}")
           echo "pub fn count:       ${PUBS}"
           echo "pub fn documented:  ${DOCS}"
           if [ "$PUBS" -eq 0 ]; then

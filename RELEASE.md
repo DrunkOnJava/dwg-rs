@@ -51,16 +51,19 @@ There is no fixed cadence. A release is cut when:
 
 ## Cutting a release
 
-The release pipeline is automated behind a manual-approval gate
-(Q-07 / #418). The human-driven portion is steps 1–4 below; steps
-5–7 are performed by `.github/workflows/release.yml` and surface
-in the Actions tab.
+The release pipeline is `.github/workflows/release.yml`, run by a
+pushed tag; publishing to crates.io waits for a maintainer's approval
+in the `crates-io` environment. Steps 1 to 3 below are done by hand,
+step 4 is the pipeline (watch it in the Actions tab), and step 5
+follows it. Publishing is tracked in
+[#109](https://github.com/DrunkOnJava/dwg-rs/issues/109).
 
 ### Pre-flight checklist
 
 Before tagging, confirm:
 
-- [ ] `main` is green on `ci.yml` (fmt / clippy / test matrix / doc / deny / msrv / coverage-smoke / pii-guard / gitleaks).
+- [ ] `main` is green on the twelve checks the `main-protection` ruleset requires: Rustfmt, Clippy, Test on Linux, macOS and Windows (stable), Verify MSRV (1.85), Documentation, cargo-deny, PII guard, Streaming E2E, Corpus (public DWG) and Spec coverage.
+- [ ] README.md shows `main`: `python3 tools/maintainer/readme_status.py --check` passes, and the capability matrix and "does not do" list name what this release ships.
 - [ ] `main` is green on `perf.yml` and the run recorded a fresh `main` baseline.
 - [ ] `docs-rs.yml` is green on the most recent PR merged into main.
 - [ ] `cargo deny check` is clean (also run as part of `ci.yml`, but worth re-running locally with the current Cargo.lock).
@@ -73,13 +76,16 @@ Before tagging, confirm:
 - `CHANGELOG.md` — move every entry in `[Unreleased]` into a new
   `[X.Y.Z] - YYYY-MM-DD` section, and re-create an empty `[Unreleased]`
   heading. Keep the Keep-a-Changelog structure.
+- `README.md` — `python3 tools/maintainer/readme_status.py --write`
+  re-renders the measured table from the baseline; update the version
+  in "Pre-alpha status" and the install section.
 
 ### 2. Local verification
 
 ```bash
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --release --all-features
+tools/ci/run_test_targets.sh --release --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo deny check advisories bans licenses sources
 cargo package --allow-dirty  # dry-run the publish tarball
@@ -88,7 +94,7 @@ cargo package --allow-dirty  # dry-run the publish tarball
 ### 3. Commit + tag
 
 ```bash
-git add Cargo.toml CITATION.cff CHANGELOG.md
+git add Cargo.toml CITATION.cff CHANGELOG.md README.md STATUS.md
 git commit -m "release: vX.Y.Z"
 git tag -s "vX.Y.Z" -m "vX.Y.Z"
 git push origin main --tags
@@ -103,9 +109,9 @@ The tag push triggers `release.yml` which runs, in order:
 
 1. `verify` — `cargo publish --dry-run --all-features`.
 2. `sbom` — CycloneDX JSON SBOM generation.
-3. `binaries` — release builds for the 5 CLI tools
+3. `binaries` — release builds for the seven CLI tools
    (`dwg-info`, `dwg-corpus`, `dwg-dump`, `dwg-convert`,
-   `dwg-to-dxf`) across 5 targets:
+   `dwg-to-dxf`, `dwg-to-gltf`, `dwg-write`) across 5 targets:
    - `x86_64-unknown-linux-gnu`
    - `aarch64-unknown-linux-gnu`
    - `x86_64-apple-darwin`
@@ -143,8 +149,12 @@ entirely and produce a draft GitHub release marked `prerelease`.
   contributors can run `git-cliff --tag vX.Y.Z --prepend CHANGELOG.md`
   as a starting point, but the final edit is hand-curated.
 - Python wheels are not shipped yet. The `publish-pypi` job in
-  `release.yml` is gated off with `if: false` until `python_stubs.rs`
-  graduates from its placeholder (tracked alongside Phase 13).
+  `release.yml` is gated off by a condition that is never true
+  (`github.event_name == 'disabled'`; no trigger of the workflow has
+  that name) until the PyO3 bindings planned in
+  [`docs/python.md`](docs/python.md) replace the `src/python_stubs.rs`
+  placeholder. The condition is not a literal `if: false` because
+  actionlint flags a constant condition (#269).
 
 ## Yanking a release
 
@@ -172,9 +182,9 @@ backports are out of scope.
 Each release produces:
 
 - crates.io package: `cargo add dwg@X.Y.Z`
-- GitHub release page with binary archives for the 4 CLI binaries
-  (dwg-info / dwg-corpus / dwg-dump / dwg-convert) on the 3
-  CI-supported platforms (macOS / Linux / Windows).
+- GitHub release page with binary archives for the seven CLI tools
+  on the five targets listed in step 4, and the CycloneDX SBOM
+  (`bom.json`).
 - Rustdoc published at `https://docs.rs/dwg/X.Y.Z`.
 
 ## Deprecation policy

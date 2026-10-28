@@ -1,294 +1,302 @@
-//! MATERIAL: the data-field budget of every record, and a joint-boundary
-//! test for a candidate field list (#49, #152).
+//! Does the derived MATERIAL field list close on every corpus record, and
+//! do its values equal AutoCAD's own DXF export?
 //!
-//! ODA spec v5.4.1 has no §20.4 prescription for MATERIAL (§20.3 lists
-//! the class name only), so its field list has to come from the bytes.
-//! The probe reads each record's common object data, then runs one
-//! candidate field spec against **every** MATERIAL record of every file
-//! named on the command line and prints, per record, the `budget` (bits
-//! between the end of the common object data and the data-stream
-//! boundary), the `delta` where the spec lands relative to that boundary,
-//! and the record's remaining string-stream entries. A field list is
-//! right only when every record of every file lands at delta 0.
+//! # What this proves
 //!
-//! # What it shows (measured 2026-10-26, the 19-file corpus)
+//! ODA spec v5.4.1 prints no MATERIAL layout, so `src/objects/acad_material.rs`
+//! was derived from AutoCAD's output (CLEANROOM.md, 2026-10-26; ARCHITECTURE.md
+//! §7bb). For every MATERIAL of every drawing under the corpus directory this
+//! reports whether the decoder closed exactly on the record's data-stream
+//! boundary, from R2007 with every string-stream entry consumed, on every
+//! release from R14 to R2018, and compares each decoded value with the
+//! `AcDbMaterial` whose handle (group 5) matches in AutoCAD's DXF export:
 //!
-//! It proves no field list. It pins the budgets a list must fill:
+//! - name (1), description (2), diffuse file (3), bump file (8);
+//! - colour methods (70, 71, 76) and colours (90, 91, 92, as signed 32-bit);
+//! - the five map sources (72, 77, 171, 175, 179);
+//! - the six 16-value matrices (43, 47, 49, 142, 144, 147);
+//! - gloss (44), opacity (140), bump blend (143), refraction index (145);
+//! - the R2007+ tail: 148, 468, 93, 94.
 //!
-//! | Band | Records per file | Budget, bits | After `TV,TV` |
-//! |---|---:|---|---|
-//! | R14, R2000, R2004 | 3 (`ByLayer`, `ByBlock`, `Global`) | 1340 / 1340 / 1332, the two `TV`s inline | 1264 on all three |
-//! | R2007, R2010, R2013 | 3 | 1284 on all three; name and an empty description in the string stream | 1284 |
-//! | R2018 (`sample_AC1032.dwg`) | 11 | the three defaults 516 / 516 / 1028 with 7 strings each; eight library materials 554 to 1130 with 2 to 4 strings (name, description, texture-map paths) | unchanged |
-//!
-//! 65 records in all. Once their names are read, the three default
-//! materials leave the same 1264 bits from R14 to R2004 and the same
-//! 1284 from R2007 to R2013. Only the R2018 file holds a material that is
-//! not a default, so the per-map layout `src/objects/acad_material.rs`
-//! describes cannot yet be separated from its values (#49).
-//!
-//! # How to verify
+//! A group the DXF leaves out is counted as omitted, not compared against an
+//! assumed default, with two measured conventions checked on every record
+//! instead: an omitted map source is 1 in the DWG, and an omitted matrix is
+//! the identity. Fields no DXF group ever shows are not compared and are
+//! listed at the end as unverified by value. R14 has no DXF twin in the
+//! corpus, so its records are checked against their boundary alone.
 //!
 //! ```sh
-//! cargo run --release --example probe_material -- ../../samples/*.dwg
-//! cargo run --release --example probe_material -- ../../samples/*.dwg 'TV,TV'
+//! python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+//! cargo run --release --example probe_material -- ../dwg-corpus
 //! ```
 //!
-//! A spec is a comma-separated list of `B`, `BB`, `3B`, `BS`, `BSU`,
-//! `BL`, `BLU`, `BLL`, `BD`, `RC`, `RS`, `RL`, `RD`, `CMC` and `TV`, with
-//! `n*T` for a run. `MAT_VERBOSE=1` prints every field of the spec with
-//! its offset, width and decoded value, `MAT_BITS=1` dumps the raw
-//! data-field bits, and `MAT_BD=1` lists every bit offset where a
-//! plausible `BD` starts.
+//! Exit status is non-zero when a record errors or is unhandled, a value
+//! differs, a twin lacks the record, or no value was compared at all.
 
-use dwg::bitcursor::BitCursor;
-use dwg::error::Result;
-use dwg::string_stream::{self, StringReader};
-use dwg::{DwgFile, ObjectType, Version};
+#[path = "support/twin.rs"]
+mod twin;
 
-fn expand(spec: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for token in spec.split(',').filter(|t| !t.trim().is_empty()) {
-        let token = token.trim();
-        match token.split_once('*') {
-            Some((n, t)) => {
-                let n: usize = n.parse().expect("repeat count must be a number");
-                for _ in 0..n {
-                    out.push(t.to_ascii_uppercase());
+use dwg::entities::DecodedEntity;
+use dwg::objects::acad_material::{Material, MaterialColor, MaterialMap};
+use std::collections::BTreeMap;
+use std::process::ExitCode;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use twin::{Group, Probe, Record, Tally};
+
+static FIELDS: Mutex<BTreeMap<String, [usize; 3]>> = Mutex::new(BTreeMap::new());
+
+/// Run `f`, then credit what it compared, what differed and what the DXF
+/// omitted to `field`.
+fn counted(t: &mut Tally, field: &str, f: impl FnOnce(&mut Tally)) {
+    let before = [t.compared, t.differ, t.omitted];
+    f(t);
+    if let Ok(mut fields) = FIELDS.lock() {
+        let row = fields.entry(field.to_string()).or_default();
+        row[0] += t.compared - before[0];
+        row[1] += t.differ - before[1];
+        row[2] += t.omitted - before[2];
+    }
+}
+
+static OMITTED_SOURCES: AtomicUsize = AtomicUsize::new(0);
+static OMITTED_SOURCES_ONE: AtomicUsize = AtomicUsize::new(0);
+static OMITTED_MATRICES: AtomicUsize = AtomicUsize::new(0);
+static OMITTED_MATRICES_IDENTITY: AtomicUsize = AtomicUsize::new(0);
+
+fn fail(t: &mut Tally, what: &str, detail: String) {
+    t.compared += 1;
+    t.differ += 1;
+    println!("    {what}: {detail}");
+}
+
+fn color(t: &mut Tally, rec: &Record, what: &str, ours: &MaterialColor, method: u16, word: u16) {
+    let int = |code: u16| rec.first(code).and_then(Group::int);
+    counted(t, &format!("{what} method (group {method})"), |t| {
+        t.int(
+            &format!("{what} method"),
+            i64::from(ours.method),
+            int(method),
+        );
+    });
+    counted(t, &format!("{what} colour (group {word})"), |t| {
+        match (ours.color, int(word)) {
+            (Some(c), theirs) => t.int(&format!("{what} colour"), i64::from(c as i32), theirs),
+            (None, Some(theirs)) => fail(
+                t,
+                &format!("{what} colour"),
+                format!("dwg has none, dxf {theirs}"),
+            ),
+            (None, None) => {}
+        }
+    });
+}
+
+fn identity(m: &[f64; 16]) -> bool {
+    m.iter()
+        .enumerate()
+        .all(|(i, v)| *v == if i % 5 == 0 { 1.0 } else { 0.0 })
+}
+
+fn map(
+    t: &mut Tally,
+    rec: &Record,
+    what: &str,
+    ours: &MaterialMap,
+    source: Option<u16>,
+    matrix: u16,
+) {
+    if let Some(code) = source {
+        counted(t, &format!("{what} source (group {code})"), |t| {
+            match rec.first(code).and_then(Group::int) {
+                Some(theirs) => t.int(
+                    &format!("{what} source"),
+                    i64::from(ours.source),
+                    Some(theirs),
+                ),
+                None => {
+                    t.omitted += 1;
+                    OMITTED_SOURCES.fetch_add(1, Ordering::Relaxed);
+                    if ours.source == 1 {
+                        OMITTED_SOURCES_ONE.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        fail(
+                            t,
+                            &format!("{what} source"),
+                            format!("dxf omits group {code}, dwg holds {}", ours.source),
+                        );
+                    }
                 }
             }
-            None => out.push(token.to_ascii_uppercase()),
+        });
+    }
+    let theirs: Vec<f64> = rec
+        .groups
+        .iter()
+        .filter(|g| g.code == matrix)
+        .filter_map(Group::real)
+        .collect();
+    counted(
+        t,
+        &format!("{what} matrix (group {matrix})"),
+        |t| match theirs.len() {
+            16 => {
+                for (i, (a, b)) in ours.matrix.iter().zip(&theirs).enumerate() {
+                    t.real(&format!("{what} matrix[{i}]"), *a, Some(*b));
+                }
+            }
+            0 => {
+                t.omitted += 1;
+                OMITTED_MATRICES.fetch_add(1, Ordering::Relaxed);
+                if identity(&ours.matrix) {
+                    OMITTED_MATRICES_IDENTITY.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    fail(
+                        t,
+                        &format!("{what} matrix"),
+                        format!("dxf omits group {matrix}, dwg holds {:?}", ours.matrix),
+                    );
+                }
+            }
+            n => fail(
+                t,
+                &format!("{what} matrix"),
+                format!("dxf has {n} values of group {matrix}"),
+            ),
+        },
+    );
+}
+
+fn file(t: &mut Tally, rec: &Record, what: &str, ours: &MaterialMap, code: u16) {
+    let theirs = rec.first(code).map(|g| g.value.as_str());
+    counted(t, &format!("{what} file (group {code})"), |t| {
+        match (ours.file.as_deref(), theirs) {
+            (Some(f), theirs) if !f.is_empty() || theirs.is_some() => {
+                t.text(&format!("{what} file"), f, theirs);
+            }
+            (None, Some(theirs)) => fail(
+                t,
+                &format!("{what} file"),
+                format!("dwg has none, dxf {theirs:?}"),
+            ),
+            _ => {}
         }
-    }
-    out
+    });
 }
 
-fn read_tv(
-    c: &mut BitCursor<'_>,
-    strings: &mut Option<StringReader<'_>>,
-    _version: Version,
-) -> Result<String> {
-    if let Some(reader) = strings.as_mut() {
-        return reader.read_tv();
-    }
-    let len = c.read_bs_u()? as usize;
-    let mut bytes = Vec::with_capacity(len);
-    for _ in 0..len {
-        bytes.push(c.read_rc()?);
-    }
-    if bytes.last() == Some(&0) {
-        bytes.pop();
-    }
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
-}
-
-fn main() -> Result<()> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let (paths, spec): (Vec<String>, String) = {
-        let mut paths = Vec::new();
-        let mut spec = String::new();
-        for a in args {
-            if a.ends_with(".dwg") {
-                paths.push(a);
-            } else {
-                spec = a;
+fn values(m: &Material, rec: &Record, t: &mut Tally) {
+    let real = |code: u16| rec.first(code).and_then(Group::real);
+    let int = |code: u16| rec.first(code).and_then(Group::int);
+    counted(t, "name (group 1)", |t| {
+        t.text("name", &m.name, rec.first(1).map(|g| g.value.as_str()));
+    });
+    counted(t, "description (group 2)", |t| {
+        t.text(
+            "description",
+            &m.description,
+            rec.first(2).map(|g| g.value.as_str()),
+        );
+    });
+    color(t, rec, "ambient", &m.ambient, 70, 90);
+    color(t, rec, "diffuse", &m.diffuse, 71, 91);
+    color(t, rec, "specular", &m.specular, 76, 92);
+    map(t, rec, "diffuse map", &m.diffuse_map, Some(72), 43);
+    map(t, rec, "specular map", &m.specular_map, Some(77), 47);
+    map(t, rec, "reflection map", &m.reflection_map, Some(171), 49);
+    map(t, rec, "opacity map", &m.opacity_map, Some(175), 142);
+    map(t, rec, "bump map", &m.bump_map, Some(179), 144);
+    map(t, rec, "refraction map", &m.refraction_map, None, 147);
+    file(t, rec, "diffuse", &m.diffuse_map, 3);
+    file(t, rec, "bump", &m.bump_map, 8);
+    counted(t, "gloss (group 44)", |t| {
+        t.real("gloss", m.gloss, real(44))
+    });
+    counted(t, "opacity (group 140)", |t| {
+        t.real("opacity", m.opacity, real(140));
+    });
+    counted(t, "bump blend (group 143)", |t| {
+        t.real("bump blend", m.bump_map.blend, real(143));
+    });
+    counted(t, "refraction index (group 145)", |t| {
+        t.real("refraction index", m.refraction_index, real(145));
+    });
+    match &m.tail {
+        Some(tail) => {
+            counted(t, "tail BD (group 148)", |t| {
+                t.real("group 148", tail.dxf_148, real(148));
+            });
+            counted(t, "tail BD (group 468)", |t| {
+                t.real("group 468", tail.dxf_468, real(468));
+            });
+            counted(t, "tail BS (group 93)", |t| {
+                t.int("group 93", i64::from(tail.dxf_93), int(93));
+            });
+            counted(t, "tail BS (group 94)", |t| {
+                t.int("group 94", i64::from(tail.dxf_94), int(94));
+            });
+        }
+        None => {
+            for code in [93, 94] {
+                if let Some(theirs) = int(code) {
+                    fail(
+                        t,
+                        &format!("group {code}"),
+                        format!("dwg has no tail, dxf {theirs}"),
+                    );
+                }
+            }
+            for code in [148, 468] {
+                if let Some(theirs) = real(code) {
+                    fail(
+                        t,
+                        &format!("group {code}"),
+                        format!("dwg has no tail, dxf {theirs}"),
+                    );
+                }
             }
         }
-        (paths, spec)
+    }
+}
+
+fn compare(decoded: &DecodedEntity, rec: Option<&Record>, t: &mut Tally) -> bool {
+    let DecodedEntity::Material(ours) = decoded else {
+        return false;
     };
-    let fields = expand(&spec);
-    let verbose = std::env::var("MAT_VERBOSE").is_ok();
+    if let Some(rec) = rec {
+        values(ours, rec, t);
+    }
+    true
+}
 
-    let mut closed = 0usize;
-    let mut total = 0usize;
-    for path in &paths {
-        let file = DwgFile::open(path)?;
-        let version = file.version();
-        let Some(objects) = file.all_objects() else {
-            continue;
-        };
-        let objects = objects?;
-        let class_map = file.class_map().and_then(std::result::Result::ok);
-        let name = std::path::Path::new(path)
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
-
-        for object in &objects {
-            let label = match object.kind {
-                ObjectType::Custom(code) => class_map
-                    .as_ref()
-                    .and_then(|m| m.by_type_code(code))
-                    .map(|d| d.dxf_class_name.clone())
-                    .unwrap_or_default(),
-                other => format!("{other}"),
-            };
-            if !label.eq_ignore_ascii_case("MATERIAL") {
-                continue;
-            }
-            total += 1;
-
-            let mut data_end = dwg::object::data_end_bit(object, version);
-            let mut strings = match string_stream::locate(&object.raw, version) {
-                Some(stream) => Some(StringReader::new(&object.raw, stream)?),
-                None if version.is_r2007_plus() => Some(StringReader::empty(&object.raw)),
-                None => None,
-            };
-            let mut c = dwg::object::body_cursor(object, version)?;
-            // Common object data (§20.1), as `objects::modern`
-            // reads it: EED chain, R14 `RL` size, `BL` reactor count,
-            // R2004+ xdictionary bit, R2013+ AcDs bit (no further bits).
-            let mut guard = 0;
-            loop {
-                guard += 1;
-                if guard > 256 {
-                    break;
-                }
-                let size = c.read_bs_u()? as usize;
-                if size == 0 {
-                    break;
-                }
-                let _ = c.read_handle()?;
-                for _ in 0..size {
-                    let _ = c.read_rc()?;
-                }
-            }
-            if matches!(version, Version::R14) {
-                data_end = Some(c.read_rl()? as usize);
-            }
-            let num_reactors = c.read_bl()?;
-            if version.is_r2004_plus() {
-                let _ = c.read_b()?;
-            }
-            let mut acds = false;
-            if matches!(version, Version::R2013 | Version::R2018) {
-                acds = c.read_b()?;
-            }
-            let body_start = c.position_bits();
-            let budget = data_end.map(|e| e as isize - body_start as isize);
-
-            let mut trace = String::new();
-            let mut failed = None;
-            for (index, token) in fields.iter().enumerate() {
-                let at = c.position_bits();
-                let value: Result<String> = (|| {
-                    Ok(match token.as_str() {
-                        "B" => format!("{}", c.read_b()?),
-                        "BB" => format!("{}", c.read_bb()?),
-                        "3B" => format!("{}", c.read_3b()?),
-                        "BS" => format!("{}", c.read_bs()?),
-                        "BSU" => format!("{}", c.read_bs_u()?),
-                        "BL" => format!("{}", c.read_bl()?),
-                        "BLU" => format!("{}", c.read_bl_u()?),
-                        "BLL" => format!("{}", c.read_bll()?),
-                        "BD" => format!("{}", c.read_bd()?),
-                        "RC" => format!("{}", c.read_rc()?),
-                        "RS" => format!("{}", c.read_rs()?),
-                        "RL" => format!("{}", c.read_rl()?),
-                        "RD" => format!("{}", c.read_rd()?),
-                        "CMC" => {
-                            let idx = c.read_bs()?;
-                            let mut extra = String::new();
-                            if version.is_r2004_plus() {
-                                let rgb = c.read_bl_u()?;
-                                let flag = c.read_rc()?;
-                                extra = format!(" rgb {rgb:#010X} flag {flag}");
-                                if flag & 1 != 0 {
-                                    let _ = read_tv(&mut c, &mut strings, version)?;
-                                }
-                                if flag & 2 != 0 {
-                                    let _ = read_tv(&mut c, &mut strings, version)?;
-                                }
-                            }
-                            format!("{idx}{extra}")
-                        }
-                        "TV" => format!("{:?}", read_tv(&mut c, &mut strings, version)?),
-                        other => panic!("unknown field token {other}"),
-                    })
-                })();
-                match value {
-                    Ok(v) => {
-                        if verbose {
-                            trace.push_str(&format!(
-                                "\n  [{index:>3}] {token:<4} @{at:<5} w{:<3} = {v}",
-                                c.position_bits() - at
-                            ));
-                        }
-                    }
-                    Err(e) => {
-                        failed = Some(format!("field {index} {token}: {e}"));
-                        break;
-                    }
-                }
-            }
-            let at = c.position_bits();
-            let delta = data_end.map(|e| at as isize - e as isize);
-            if delta == Some(0) && failed.is_none() {
-                closed += 1;
-            }
-
-            let mut rest = Vec::new();
-            if let Some(reader) = strings.as_mut() {
-                while !reader.is_exhausted() {
-                    match reader.read_tv() {
-                        Ok(s) => rest.push(s),
-                        Err(_) => break,
-                    }
-                }
-            }
-            println!(
-                "{name:<20} 0x{:<5X} react={num_reactors} acds={} budget={:<6} delta={:<7} rest={:?}{}{}",
-                object.handle.value,
-                u8::from(acds),
-                budget.map(|b| b.to_string()).unwrap_or("-".into()),
-                delta.map(|d| d.to_string()).unwrap_or("-".into()),
-                rest.iter().take(10).collect::<Vec<_>>(),
-                failed.map(|f| format!(" FAILED {f}")).unwrap_or_default(),
-                trace,
-            );
-
-            if std::env::var("MAT_BITS").is_ok() {
-                if let Some(end) = data_end {
-                    let mut line = String::new();
-                    for bit in body_start..end {
-                        let byte = object.raw.get(bit / 8).copied().unwrap_or(0);
-                        line.push(if (byte >> (7 - (bit % 8))) & 1 != 0 {
-                            '1'
-                        } else {
-                            '0'
-                        });
-                        if line.len() == 64 {
-                            println!("  @{:<6} {line}", bit + 1 - 64 - body_start);
-                            line.clear();
-                        }
-                    }
-                    if !line.is_empty() {
-                        println!("  @{:<6} {line}", end - line.len() - body_start);
-                    }
-                }
-            }
-            if std::env::var("MAT_BD").is_ok() {
-                if let Some(end) = data_end {
-                    let mut hits = Vec::new();
-                    for start in body_start..end.saturating_sub(2) {
-                        let mut p = BitCursor::new(&object.raw);
-                        for _ in 0..start {
-                            if p.read_b().is_err() {
-                                break;
-                            }
-                        }
-                        if let Ok(v) = p.read_bd() {
-                            if v != 0.0 && v != 1.0 && v.is_finite() && v.abs() > 1e-12 {
-                                hits.push(format!("@{}={v}", start - body_start));
-                            }
-                        }
-                    }
-                    println!("  BD hits: {}", hits.join(" "));
-                }
-            }
+fn main() -> ExitCode {
+    let code = twin::run(
+        &Probe {
+            tag: "MATERIAL",
+            class: Some("MATERIAL"),
+            kind: None,
+            dxf_kind: "MATERIAL",
+            decodes_on: |_| true,
+            note: "; unverified by value (no DXF group in any record): the three colour factors, \
+                   the blend of five maps, the three RC after each blend, the two zero tail slots, \
+                   the matrix and file of every map the DXF never gives a non-default value, \
+                   and which of ambient, diffuse and specular owns which of groups 70/71/76 and 90/91/92",
+        },
+        compare,
+    );
+    println!();
+    println!("field                          compared  differ  omitted");
+    if let Ok(fields) = FIELDS.lock() {
+        for (field, row) in fields.iter() {
+            println!("{field:<30} {:>8}  {:>6}  {:>7}", row[0], row[1], row[2]);
         }
     }
-    println!("{closed}/{total} MATERIAL records close at delta 0");
-    Ok(())
+    println!(
+        "measured conventions: {} of {} omitted map sources are 1 in the DWG; {} of {} omitted \
+         matrices are the identity",
+        OMITTED_SOURCES_ONE.load(Ordering::Relaxed),
+        OMITTED_SOURCES.load(Ordering::Relaxed),
+        OMITTED_MATRICES_IDENTITY.load(Ordering::Relaxed),
+        OMITTED_MATRICES.load(Ordering::Relaxed),
+    );
+    code
 }

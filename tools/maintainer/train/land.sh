@@ -1,15 +1,18 @@
 #!/bin/bash
 # Land one PR the merge train has refreshed: tools/maintainer/train/land.sh <pr>
 #
-# Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head, requires
-# zero unresolved review threads, and turns squash auto-merge on. If main moves in a path that can
-# change the generated files or the PR's ARCHITECTURE.md section suffix (src/ outside
-# src/streaming/, tools/corpus/, docs/data/, the spec example fixtures, ARCHITECTURE.md) between the refresh and the merge, it runs `DRY=1 refresh.sh` against the new
-# main: when every generated file comes out unchanged the PR keeps its CI results and lands;
-# otherwise auto-merge goes off and it exits 8 for a real refresh.
+# Waits until the PR shows the head refresh.sh pushed, then for its Corpus job on that head. Whether
+# that job passed or failed, ci_baseline.sh checks its measurement against main (corpus counts and
+# DXF oracle agreement), refuses anything worse, and commits the corpus and oracle baselines the job
+# measured when they differ from the committed ones; the wait then starts again on the new head, at
+# most four times. A failed job whose measurement needs no change failed in another step. Then it requires zero unresolved review threads
+# and turns squash auto-merge on. If main moves in a path that can change the measured counts or the
+# PR's ARCHITECTURE.md section suffix (src/ outside src/streaming/, tools/corpus/, docs/data/, the
+# spec example fixtures, ARCHITECTURE.md) before the merge, auto-merge goes off and it exits 8 for
+# a fresh refresh. Nothing is built or run locally.
 #
-# Exit: 0 merged, 1 failing check, 2 unresolved threads, 3 timeout, 4 someone else pushed,
-#       5 auto-merge refused, 6 closed, 7 went DIRTY, 8 main moved under it (refresh again).
+# Exit: 0 merged, 1 failing check, 2 unresolved threads (before or after auto-merge), 3 timeout, 4 someone else pushed,
+#       5 auto-merge refused, 6 closed, or a count worse than main's, 7 went DIRTY, 8 main moved under it (refresh again).
 {
 P=$1
 . "$(dirname "$0")/common.sh"
@@ -32,51 +35,93 @@ moved() {
   gh api "repos/$R/compare/$base...$now" --jq '.files[].filename' 2>/dev/null \
     | grep -v '^src/streaming/' | grep -qE '^(src/|tools/corpus/|docs/data/|tests/fixtures/spec-examples/|ARCHITECTURE\.md$)'
 }
-still_valid() {
-  [ -d "$OUT" ] || return 1
-  DRY=1 bash "$TRAIN_HERE/refresh.sh" "$P" > "$OUT/dry.log" 2>&1 || return 1
-  base=$(cat "$OUT/main.sha" 2>/dev/null)
-  echo "#$P main moved; a dry refresh on ${base:0:9} leaves every generated file unchanged" >&2
-  return 0
+note() { echo "$(date +%H:%M) TRAIN #$P $*" >> "$TRAIN_STATE/train.log"; }
+# Runs cancelled to free the runners for PRs ahead in the queue are re-run once the train reaches this PR.
+revive() {
+  for run in $(gh run list -R "$R" -c "$1" --json databaseId,conclusion --jq '.[]|select(.conclusion=="cancelled")|.databaseId' 2>/dev/null); do
+    gh run rerun "$run" -R "$R" --failed > /dev/null 2>&1 && note "re-ran cancelled run $run on ${1:0:9}"
+  done
 }
+revive "$head"
 deadline=$(( $(date +%s) + 5400 ))
+regen=0
 while :; do
   [ "$(date +%s)" -gt $deadline ] && { echo "#$P TIMEOUT waiting for Corpus"; exit 3; }
   cur=$(gh pr view "$P" -R "$R" --json headRefOid --jq .headRefOid 2>/dev/null)
   [ -n "$cur" ] && [ "$cur" != "$head" ] && { echo "#$P head moved to ${cur:0:9} (someone pushed); not landing"; exit 4; }
   c=$(gh pr checks "$P" -R "$R" --json name,state --jq '.[]|select(.name=="Corpus (public DWG)")|.state' 2>/dev/null | head -1)
   case $c in
-    SUCCESS) break ;;
-    FAILURE|CANCELLED|ERROR) echo "#$P Corpus=$c on ${head:0:9}"; exit 1 ;;
+    CANCELLED) revive "$head" ;;
+    SUCCESS|FAILURE|ERROR)
+      [ "$regen" -ge 4 ] && { echo "#$P Corpus=$c on ${head:0:9} after $regen regenerated baselines"; exit 1; }
+      msg=$(bash "$TRAIN_HERE/ci_baseline.sh" "$P" "$head" 2>&1); rc=$?
+      case $rc in
+        0) head=$(cat "$OUT/pushed.sha"); regen=$((regen + 1)); note "$msg"; deadline=$(( $(date +%s) + 5400 )) ;;
+        3) [ "$c" = SUCCESS ] && break; echo "#$P Corpus=$c on ${head:0:9}: $msg, so it failed in another step"; exit 1 ;;
+        6) echo "#$P $msg"; exit 6 ;;
+        *) echo "#$P Corpus=$c on ${head:0:9}: $msg"; exit 1 ;;
+      esac ;;
   esac
   sleep 60
 done
-u=$(gh api graphql -F owner="${R%/*}" -F name="${R#*/}" -F n="$P" \
-  -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' \
-  --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length')
+unresolved() {
+  gh api graphql -F owner="${R%/*}" -F name="${R#*/}" -F n="$P" \
+    -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length' 2>/dev/null
+}
+# The train's merge of main carries main's baselines until the PR's own CI run measures the merge,
+# and Codex reviews that commit and asks for the measured baseline. With the Corpus job green on the
+# current head, whose ratchet is exactly that check, such a thread is settled: say so and resolve it.
+# Only a Codex bot thread whose title asks to regenerate, re-measure, commit, update or refresh the
+# corpus baseline, whose text names tools/corpus/baseline.tsv and does not mention the oracle, is
+# touched: a finding about weakened or retired oracle comparisons is not settled by a green Corpus job
+# and still stops the train. ci_baseline.sh refuses any count worse than main's before committing, so
+# a green Corpus job on the train's head also rules out a baseline that hides a regression.
+settle_baseline_threads() {
+  gh api graphql -F owner="${R%/*}" -F name="${R#*/}" -F n="$P" \
+    -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:1){nodes{author{login} body}}}}}}}' \
+    --jq '.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved|not)|select(.comments.nodes[0].author.login=="chatgpt-codex-connector")|select(.comments.nodes[0].body as $b | ($b|test("tools/corpus/baseline\\.tsv")) and ($b|test("oracle";"i")|not) and ($b|gsub("<[^>]+>";"")|split("\n")|map(select(test("\\S")))[0]|test("(regenerat|re-?measure|commit|updat|refresh)[^\n]*corpus baseline|corpus baseline[^\n]*(regenerat|re-?measure|commit|updat|refresh)";"i")))|.id' 2>/dev/null |
+  while read -r id; do
+    gh api graphql -f query='mutation($id:ID!,$b:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$b}){comment{id}}}' -f id="$id" \
+      -f b="Settled by the merge train: its merge of main carries main's baselines until this PR's CI run measures the merge, and the baselines that run measured are committed. The Corpus job, whose ratchet checks exactly this, passes on ${head:0:9}." > /dev/null &&
+      gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id="$id" > /dev/null &&
+      note "settled baseline review thread $id (Corpus green on ${head:0:9})"
+  done
+}
+settle_baseline_threads
+u=$(unresolved)
 [ "$u" != 0 ] && { echo "#$P Corpus green but $u unresolved review thread(s)"; exit 2; }
-if moved && ! still_valid; then echo "#$P main moved under it since the refresh"; exit 8; fi
+if moved; then echo "#$P main moved under it since the refresh"; exit 8; fi
+# main's ruleset requires signed commits, so one unverified commit leaves the PR BLOCKED with every
+# check green and auto-merge never fires.
+unsigned=$(gh api --paginate "repos/$R/pulls/$P/commits?per_page=100" --jq '.[]|select(.commit.verification.verified|not)|.sha[0:9]' 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+[ -n "$unsigned" ] && { echo "#$P has unsigned commit(s) $unsigned; main requires signatures"; exit 5; }
 gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not enable auto-merge"; exit 5; }
 echo "#$P Corpus green, 0 threads, auto-merge on"
 while :; do
-  [ "$(date +%s)" -gt $((deadline + 3600)) ] && { echo "#$P TIMEOUT waiting for merge"; exit 3; }
+  [ "$(date +%s)" -gt $((deadline + 3600)) ] && { gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P TIMEOUT waiting for merge; auto-merge off"; exit 3; }
   s=$(gh pr view "$P" -R "$R" --json state,mergeStateStatus --jq '"\(.state) \(.mergeStateStatus)"' 2>/dev/null)
   case $s in
     MERGED*) echo "#$P MERGED as $(gh pr view "$P" -R "$R" --json mergeCommit --jq '.mergeCommit.oid[0:9]')"; exit 0 ;;
     CLOSED*) echo "#$P CLOSED without merge"; exit 6 ;;
     *DIRTY) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P went DIRTY before merging"; exit 7 ;;
+    # With strict up-to-date on, a branch behind main never merges; only a real refresh pushes main in.
+    *BEHIND) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P is behind main; auto-merge off"; exit 8 ;;
   esac
   if moved; then
     [ "$(gh pr view "$P" -R "$R" --json state --jq .state 2>/dev/null)" = MERGED ] && continue
     gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1
-    if still_valid; then
-      gh pr merge "$P" -R "$R" --squash --auto > /dev/null 2>&1 || { echo "#$P could not re-enable auto-merge"; exit 5; }
-      continue
-    fi
     echo "#$P main moved under it while waiting; auto-merge off"; exit 8
   fi
   f=$(gh pr checks "$P" -R "$R" --json name,state --jq '[.[]|select(.state=="FAILURE")|.name]|join(", ")' 2>/dev/null)
-  [ -n "$f" ] && { echo "#$P failing: $f"; exit 1; }
+  [ -n "$f" ] && { gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1; echo "#$P failing: $f; auto-merge off"; exit 1; }
+  # A reviewer can open a thread after auto-merge went on; the ruleset then holds the PR until
+  # the deadline, so hand it back instead of stalling the train.
+  case $(unresolved) in
+    ''|*[!0-9]*|0) ;;
+    *) gh pr merge "$P" -R "$R" --disable-auto > /dev/null 2>&1
+       echo "#$P review thread opened after auto-merge went on; auto-merge off"; exit 2 ;;
+  esac
   sleep 60
 done
 }

@@ -68,6 +68,72 @@ pub struct DimStyleEntry {
 // [`DimStyleEntry`].
 pub type DimStyle = DimStyleEntry;
 
+/// The value of one dimension variable.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DimValue {
+    /// A `BD`.
+    Real(f64),
+    /// A `BS` or `RC`.
+    Int(i64),
+    /// A `B`.
+    Flag(bool),
+    /// A `CMC`.
+    Color(crate::header_vars::Color),
+    /// A `TV`.
+    Text(String),
+}
+
+/// A dimension variable by its AutoCAD name (`DIMSCALE`), as the record stores it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DimVar {
+    /// The variable's name.
+    pub name: &'static str,
+    /// Its value.
+    pub value: DimValue,
+}
+
+#[derive(Default)]
+struct Vars(Vec<DimVar>);
+
+impl Vars {
+    fn push(&mut self, name: &'static str, value: DimValue) {
+        self.0.push(DimVar { name, value });
+    }
+
+    fn real(&mut self, name: &'static str, v: f64) -> f64 {
+        self.push(name, DimValue::Real(v));
+        v
+    }
+
+    fn int(&mut self, name: &'static str, v: i16) -> i16 {
+        self.push(name, DimValue::Int(i64::from(v)));
+        v
+    }
+
+    fn flag(&mut self, name: &'static str, v: bool) -> bool {
+        self.push(name, DimValue::Flag(v));
+        v
+    }
+
+    fn text(&mut self, name: &'static str, v: String) {
+        self.push(name, DimValue::Text(v));
+    }
+
+    fn color(&mut self, name: &'static str, v: crate::header_vars::Color) {
+        self.push(name, DimValue::Color(v));
+    }
+}
+
+fn full_color((index, rgb, flags): (u16, u32, u8)) -> crate::header_vars::Color {
+    crate::header_vars::Color {
+        index: index as i16,
+        rgb: Some(rgb),
+        flags,
+        name: None,
+        book: None,
+    }
+}
+
 /// Decodes a `DimStyleEntry` table entry that follows the common object header.
 ///
 /// This is a **partial** reader: it takes the first fifteen dimension
@@ -120,20 +186,133 @@ pub fn decode(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> 
 /// "R15 and earlier: BS color index"; from R2004 the same slot is `BS`
 /// index + `BL` true-colour word + `RC` colour byte, with an optional
 /// colour name and book name selected by the byte's low two bits.
-fn read_cmc_inline(c: &mut BitCursor<'_>, version: Version) -> Result<i16> {
+fn read_cmc_inline(c: &mut BitCursor<'_>, version: Version) -> Result<crate::header_vars::Color> {
     let index = c.read_bs()?;
     if !version.is_r2004_plus() {
-        return Ok(index);
+        return Ok(crate::header_vars::Color {
+            index,
+            rgb: None,
+            flags: 0,
+            name: None,
+            book: None,
+        });
     }
-    let _rgb = c.read_bl_u()?;
+    let rgb = c.read_bl_u()?;
     let color_byte = c.read_rc()?;
-    if color_byte & 0x01 != 0 {
-        let _name = crate::tables::read_tv(c, version)?;
-    }
-    if color_byte & 0x02 != 0 {
-        let _book = crate::tables::read_tv(c, version)?;
-    }
-    Ok(index)
+    let name = if color_byte & 0x01 != 0 {
+        Some(crate::tables::read_tv(c, version)?)
+    } else {
+        None
+    };
+    let book = if color_byte & 0x02 != 0 {
+        Some(crate::tables::read_tv(c, version)?)
+    } else {
+        None
+    };
+    Ok(crate::header_vars::Color {
+        index,
+        rgb: Some(rgb),
+        flags: color_byte,
+        name,
+        book,
+    })
+}
+
+/// Decode the §20.4.68 "R13 & R14 Only" DIMSTYLE body inline.
+///
+/// R13 and R14 lay the dimension variables out in their own order and
+/// widths: the flags first, several of them `RC` where R2000 has `BS`,
+/// then the reals, the five `T` strings (`DIMPOST`, `DIMAPOST` and the
+/// three arrow-block names, which R2000 moves to handles) and three `BS`
+/// colours. The common trailing `B` §20.4.68 lists after `DIMLWE`
+/// closes the record, as it does on R2000 and later.
+///
+/// # Measured (#74)
+///
+/// All 20 R14 DIMSTYLE records of the public corpus close on the `RL`
+/// data-stream boundary of their common object data with this list:
+/// six in ACadSharp's `sample_AC1014.dwg` and two in each of the seven
+/// nextgis R14 drawings. Without the trailing `B` they fail the check
+/// (`0x27` of `sample_AC1014.dwg` ends one bit short). The fifteen
+/// fields [`DimStyleEntry`] surfaces equal those [`decode_r2000_inline`]
+/// reads from the R2000 save of the same drawing, handle for handle. Only the names differ, because R14 stores them in
+/// capitals. The spec's own example (§20.4.68.1, `STANDARD`) closes too.
+/// `DIMALTRND` is not in the R13/R14 block, so it is reported as 0.
+pub fn decode_r13_r14(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
+    let header = read_table_entry_header(c, version)?;
+    let _dimtol = c.read_b()?;
+    let _dimlim = c.read_b()?;
+    let dimtih = c.read_b()?;
+    let dimtoh = c.read_b()?;
+    let _dimse1 = c.read_b()?;
+    let _dimse2 = c.read_b()?;
+    let _dimalt = c.read_b()?;
+    let _dimtofl = c.read_b()?;
+    let _dimsah = c.read_b()?;
+    let _dimtix = c.read_b()?;
+    let _dimsoxd = c.read_b()?;
+    let _dimaltd = c.read_rc()?;
+    let _dimzin = c.read_rc()?;
+    let _dimsd1 = c.read_b()?;
+    let _dimsd2 = c.read_b()?;
+    let dimtolj = c.read_rc()?;
+    let _dimjust = c.read_rc()?;
+    let _dimfit = c.read_rc()?;
+    let dimupt = c.read_b()?;
+    let _dimtzin = c.read_rc()?;
+    let _dimaltz = c.read_rc()?;
+    let _dimalttz = c.read_rc()?;
+    let dimtad = c.read_rc()?;
+    let _dimunit = c.read_bs()?;
+    let _dimaunit = c.read_bs()?;
+    let _dimdec = c.read_bs()?;
+    let _dimtdec = c.read_bs()?;
+    let _dimaltu = c.read_bs()?;
+    let _dimalttd = c.read_bs()?;
+    let dimscale = c.read_bd()?;
+    let dimasz = c.read_bd()?;
+    let dimexo = c.read_bd()?;
+    let _dimdli = c.read_bd()?;
+    let dimexe = c.read_bd()?;
+    let _dimrnd = c.read_bd()?;
+    let _dimdle = c.read_bd()?;
+    let _dimtp = c.read_bd()?;
+    let _dimtm = c.read_bd()?;
+    let dimtxt = c.read_bd()?;
+    let dimcen = c.read_bd()?;
+    let _dimtsz = c.read_bd()?;
+    let dimaltf = c.read_bd()?;
+    let dimlfac = c.read_bd()?;
+    let _dimtvp = c.read_bd()?;
+    let dimtfac = c.read_bd()?;
+    let _dimgap = c.read_bd()?;
+    let _dimpost = crate::tables::read_tv(c, version)?;
+    let _dimapost = crate::tables::read_tv(c, version)?;
+    let _dimblk = crate::tables::read_tv(c, version)?;
+    let _dimblk1 = crate::tables::read_tv(c, version)?;
+    let _dimblk2 = crate::tables::read_tv(c, version)?;
+    let _dimclrd = c.read_bs()?;
+    let _dimclre = c.read_bs()?;
+    let _dimclrt = c.read_bs()?;
+    let _unknown = c.read_b()?;
+    Ok(DimStyleEntry {
+        header,
+        dimscale,
+        dimasz,
+        dimexo,
+        dimexe,
+        dimtxt,
+        dimcen,
+        dimtfac,
+        dimlfac,
+        dimtih,
+        dimtoh,
+        dimtad,
+        dimtolj,
+        dimaltf,
+        dimaltrnd: 0.0,
+        dimupt,
+    })
 }
 
 /// Decode the whole §20.4.68 "R2000+" DIMSTYLE body inline — the
@@ -155,66 +334,74 @@ fn read_cmc_inline(c: &mut BitCursor<'_>, version: Version) -> Result<i16> {
 /// — dimscale 1.0, dimasz 2.5, dimexo 0.625, dimexe 1.25, dimtxt 2.5,
 /// dimcen 2.5.
 pub fn decode_r2000_inline(c: &mut BitCursor<'_>, version: Version) -> Result<DimStyleEntry> {
+    read_r2000_inline(c, version).map(|(e, _)| e)
+}
+
+fn read_r2000_inline(
+    c: &mut BitCursor<'_>,
+    version: Version,
+) -> Result<(DimStyleEntry, Vec<DimVar>)> {
+    let mut v = Vars::default();
     let header = read_table_entry_header(c, version)?;
-    let _dimpost = crate::tables::read_tv(c, version)?;
-    let _dimapost = crate::tables::read_tv(c, version)?;
-    let dimscale = c.read_bd()?;
-    let dimasz = c.read_bd()?;
-    let dimexo = c.read_bd()?;
-    let _dimdli = c.read_bd()?;
-    let dimexe = c.read_bd()?;
-    let _dimrnd = c.read_bd()?;
-    let _dimdle = c.read_bd()?;
-    let _dimtp = c.read_bd()?;
-    let _dimtm = c.read_bd()?;
-    let _dimtol = c.read_b()?;
-    let _dimlim = c.read_b()?;
-    let dimtih = c.read_b()?;
-    let dimtoh = c.read_b()?;
-    let _dimse1 = c.read_b()?;
-    let _dimse2 = c.read_b()?;
-    let dimtad = c.read_bs()?;
-    let _dimzin = c.read_bs()?;
-    let _dimazin = c.read_bs()?;
-    let dimtxt = c.read_bd()?;
-    let dimcen = c.read_bd()?;
-    let _dimtsz = c.read_bd()?;
-    let dimaltf = c.read_bd()?;
-    let dimlfac = c.read_bd()?;
-    let _dimtvp = c.read_bd()?;
-    let dimtfac = c.read_bd()?;
-    let _dimgap = c.read_bd()?;
-    let dimaltrnd = c.read_bd()?;
-    let _dimalt = c.read_b()?;
-    let _dimaltd = c.read_bs()?;
-    let _dimtofl = c.read_b()?;
-    let _dimsah = c.read_b()?;
-    let _dimtix = c.read_b()?;
-    let _dimsoxd = c.read_b()?;
-    let _dimclrd = read_cmc_inline(c, version)?;
-    let _dimclre = read_cmc_inline(c, version)?;
-    let _dimclrt = read_cmc_inline(c, version)?;
-    let _dimadec = c.read_bs()?;
-    let _dimdec = c.read_bs()?;
-    let _dimtdec = c.read_bs()?;
-    let _dimaltu = c.read_bs()?;
-    let _dimalttd = c.read_bs()?;
-    let _dimaunit = c.read_bs()?;
-    let _dimfrac = c.read_bs()?;
-    let _dimlunit = c.read_bs()?;
-    let _dimdsep = c.read_bs()?;
-    let _dimtmove = c.read_bs()?;
-    let _dimjust = c.read_bs()?;
-    let _dimsd1 = c.read_b()?;
-    let _dimsd2 = c.read_b()?;
-    let dimtolj = c.read_bs()?;
-    let _dimtzin = c.read_bs()?;
-    let _dimaltz = c.read_bs()?;
-    let _dimalttz = c.read_bs()?;
-    let dimupt = c.read_b()?;
-    let _dimfit = c.read_bs()?;
-    let _dimlwd = c.read_bs()?;
-    let _dimlwe = c.read_bs()?;
+    v.text("DIMPOST", crate::tables::read_tv(c, version)?);
+    v.text("DIMAPOST", crate::tables::read_tv(c, version)?);
+    let dimscale = v.real("DIMSCALE", c.read_bd()?);
+    let dimasz = v.real("DIMASZ", c.read_bd()?);
+    let dimexo = v.real("DIMEXO", c.read_bd()?);
+    let _dimdli = v.real("DIMDLI", c.read_bd()?);
+    let dimexe = v.real("DIMEXE", c.read_bd()?);
+    let _dimrnd = v.real("DIMRND", c.read_bd()?);
+    let _dimdle = v.real("DIMDLE", c.read_bd()?);
+    let _dimtp = v.real("DIMTP", c.read_bd()?);
+    let _dimtm = v.real("DIMTM", c.read_bd()?);
+    let _dimtol = v.flag("DIMTOL", c.read_b()?);
+    let _dimlim = v.flag("DIMLIM", c.read_b()?);
+    let dimtih = v.flag("DIMTIH", c.read_b()?);
+    let dimtoh = v.flag("DIMTOH", c.read_b()?);
+    let _dimse1 = v.flag("DIMSE1", c.read_b()?);
+    let _dimse2 = v.flag("DIMSE2", c.read_b()?);
+    let dimtad = v.int("DIMTAD", c.read_bs()?);
+    let _dimzin = v.int("DIMZIN", c.read_bs()?);
+    let _dimazin = v.int("DIMAZIN", c.read_bs()?);
+    let dimtxt = v.real("DIMTXT", c.read_bd()?);
+    let dimcen = v.real("DIMCEN", c.read_bd()?);
+    let _dimtsz = v.real("DIMTSZ", c.read_bd()?);
+    let dimaltf = v.real("DIMALTF", c.read_bd()?);
+    let dimlfac = v.real("DIMLFAC", c.read_bd()?);
+    let _dimtvp = v.real("DIMTVP", c.read_bd()?);
+    let dimtfac = v.real("DIMTFAC", c.read_bd()?);
+    let _dimgap = v.real("DIMGAP", c.read_bd()?);
+    let dimaltrnd = v.real("DIMALTRND", c.read_bd()?);
+    let _dimalt = v.flag("DIMALT", c.read_b()?);
+    let _dimaltd = v.int("DIMALTD", c.read_bs()?);
+    let _dimtofl = v.flag("DIMTOFL", c.read_b()?);
+    let _dimsah = v.flag("DIMSAH", c.read_b()?);
+    let _dimtix = v.flag("DIMTIX", c.read_b()?);
+    let _dimsoxd = v.flag("DIMSOXD", c.read_b()?);
+    v.color("DIMCLRD", read_cmc_inline(c, version)?);
+    v.color("DIMCLRE", read_cmc_inline(c, version)?);
+    v.color("DIMCLRT", read_cmc_inline(c, version)?);
+    let _dimadec = v.int("DIMADEC", c.read_bs()?);
+    let _dimdec = v.int("DIMDEC", c.read_bs()?);
+    let _dimtdec = v.int("DIMTDEC", c.read_bs()?);
+    let _dimaltu = v.int("DIMALTU", c.read_bs()?);
+    let _dimalttd = v.int("DIMALTTD", c.read_bs()?);
+    let _dimaunit = v.int("DIMAUNIT", c.read_bs()?);
+    let _dimfrac = v.int("DIMFRAC", c.read_bs()?);
+    let _dimlunit = v.int("DIMLUNIT", c.read_bs()?);
+    let _dimdsep = v.int("DIMDSEP", c.read_bs()?);
+    let _dimtmove = v.int("DIMTMOVE", c.read_bs()?);
+    let _dimjust = v.int("DIMJUST", c.read_bs()?);
+    let _dimsd1 = v.flag("DIMSD1", c.read_b()?);
+    let _dimsd2 = v.flag("DIMSD2", c.read_b()?);
+    let dimtolj = v.int("DIMTOLJ", c.read_bs()?);
+    let _dimtzin = v.int("DIMTZIN", c.read_bs()?);
+    let _dimaltz = v.int("DIMALTZ", c.read_bs()?);
+    let _dimalttz = v.int("DIMALTTZ", c.read_bs()?);
+    let dimupt = v.flag("DIMUPT", c.read_b()?);
+    let _dimfit = v.int("DIMATFIT", c.read_bs()?);
+    let _dimlwd = v.int("DIMLWD", c.read_bs()?);
+    let _dimlwe = v.int("DIMLWE", c.read_bs()?);
     // One further bit that §20.4.68 does not list. The R2007+ path in
     // this module reads the same bit after `DIMLWE`, measured on
     // R2013/R2018; without it all four R2000 and R2004 DIMSTYLE records
@@ -223,7 +410,7 @@ pub fn decode_r2000_inline(c: &mut BitCursor<'_>, version: Version) -> Result<Di
     // an undocumented trailing bit is the strongest statement available
     // about it, so it is consumed and not named.
     let _unknown = c.read_b()?;
-    Ok(DimStyleEntry {
+    let entry = DimStyleEntry {
         header,
         dimscale,
         dimasz,
@@ -240,7 +427,8 @@ pub fn decode_r2000_inline(c: &mut BitCursor<'_>, version: Version) -> Result<Di
         dimaltf,
         dimaltrnd,
         dimupt,
-    })
+    };
+    Ok((entry, v.0))
 }
 
 /// Decode an R2007+ DIMSTYLE whose `TV` fields live in the object's
@@ -271,70 +459,79 @@ pub(crate) fn decode_modern_split_stream(
     object_body_start: usize,
     version: Version,
 ) -> Result<DimStyleEntry> {
+    read_modern_split_stream(payload, object_body_start, version).map(|(e, _)| e)
+}
+
+fn read_modern_split_stream(
+    payload: &[u8],
+    object_body_start: usize,
+    version: Version,
+) -> Result<(DimStyleEntry, Vec<DimVar>)> {
+    let mut v = Vars::default();
     let mut split = modern::open_table_entry(payload, object_body_start, version)?;
     let (flag64, xref_index_plus_1, is_xref_dependent) = modern::read_entry_flags(&mut split.data)?;
     let c = &mut split.data;
-    let dimscale = c.read_bd()?;
-    let dimasz = c.read_bd()?;
-    let dimexo = c.read_bd()?;
-    let _dimdli = c.read_bd()?;
-    let dimexe = c.read_bd()?;
-    let _dimrnd = c.read_bd()?;
-    let _dimdle = c.read_bd()?;
-    let _dimtp = c.read_bd()?;
-    let _dimtm = c.read_bd()?;
-    let _dimfxl = c.read_bd()?;
-    let _dimjogang = c.read_bd()?;
-    let _dimtfill = c.read_bs()?;
-    let _dimtfillclr = modern::read_cmc_full(c)?;
-    let _dimtol = c.read_b()?;
-    let _dimlim = c.read_b()?;
-    let dimtih = c.read_b()?;
-    let dimtoh = c.read_b()?;
-    let _dimse1 = c.read_b()?;
-    let _dimse2 = c.read_b()?;
-    let dimtad = c.read_bs()?;
-    let _dimzin = c.read_bs()?;
-    let _dimazin = c.read_bs()?;
-    let _dimarcsym = c.read_bs()?;
-    let dimtxt = c.read_bd()?;
-    let dimcen = c.read_bd()?;
-    let _dimtsz = c.read_bd()?;
-    let dimaltf = c.read_bd()?;
-    let dimlfac = c.read_bd()?;
-    let _dimtvp = c.read_bd()?;
-    let dimtfac = c.read_bd()?;
-    let _dimgap = c.read_bd()?;
-    let dimaltrnd = c.read_bd()?;
-    let _dimalt = c.read_b()?;
-    let _dimaltd = c.read_bs()?;
-    let _dimtofl = c.read_b()?;
-    let _dimsah = c.read_b()?;
-    let _dimtix = c.read_b()?;
-    let _dimsoxd = c.read_b()?;
-    let _dimclrd = modern::read_cmc_full(c)?;
-    let _dimclre = modern::read_cmc_full(c)?;
-    let _dimclrt = modern::read_cmc_full(c)?;
-    let _dimadec = c.read_bs()?;
-    let _dimdec = c.read_bs()?;
-    let _dimtdec = c.read_bs()?;
-    let _dimaltu = c.read_bs()?;
-    let _dimalttd = c.read_bs()?;
-    let _dimaunit = c.read_bs()?;
-    let _dimfrac = c.read_bs()?;
-    let _dimlunit = c.read_bs()?;
-    let _dimdsep = c.read_bs()?;
-    let _dimtmove = c.read_bs()?;
-    let _dimjust = c.read_bs()?;
-    let _dimsd1 = c.read_b()?;
-    let _dimsd2 = c.read_b()?;
-    let dimtolj = c.read_bs()?;
-    let _dimtzin = c.read_bs()?;
-    let _dimaltz = c.read_bs()?;
-    let _dimalttz = c.read_bs()?;
-    let dimupt = c.read_b()?;
-    let _dimatfit = c.read_bs()?;
-    let _dimfxlon = c.read_b()?;
+    let dimscale = v.real("DIMSCALE", c.read_bd()?);
+    let dimasz = v.real("DIMASZ", c.read_bd()?);
+    let dimexo = v.real("DIMEXO", c.read_bd()?);
+    let _dimdli = v.real("DIMDLI", c.read_bd()?);
+    let dimexe = v.real("DIMEXE", c.read_bd()?);
+    let _dimrnd = v.real("DIMRND", c.read_bd()?);
+    let _dimdle = v.real("DIMDLE", c.read_bd()?);
+    let _dimtp = v.real("DIMTP", c.read_bd()?);
+    let _dimtm = v.real("DIMTM", c.read_bd()?);
+    let _dimfxl = v.real("DIMFXL", c.read_bd()?);
+    let _dimjogang = v.real("DIMJOGANG", c.read_bd()?);
+    let _dimtfill = v.int("DIMTFILL", c.read_bs()?);
+    v.color("DIMTFILLCLR", full_color(modern::read_cmc_full(c)?));
+    let _dimtol = v.flag("DIMTOL", c.read_b()?);
+    let _dimlim = v.flag("DIMLIM", c.read_b()?);
+    let dimtih = v.flag("DIMTIH", c.read_b()?);
+    let dimtoh = v.flag("DIMTOH", c.read_b()?);
+    let _dimse1 = v.flag("DIMSE1", c.read_b()?);
+    let _dimse2 = v.flag("DIMSE2", c.read_b()?);
+    let dimtad = v.int("DIMTAD", c.read_bs()?);
+    let _dimzin = v.int("DIMZIN", c.read_bs()?);
+    let _dimazin = v.int("DIMAZIN", c.read_bs()?);
+    let _dimarcsym = v.int("DIMARCSYM", c.read_bs()?);
+    let dimtxt = v.real("DIMTXT", c.read_bd()?);
+    let dimcen = v.real("DIMCEN", c.read_bd()?);
+    let _dimtsz = v.real("DIMTSZ", c.read_bd()?);
+    let dimaltf = v.real("DIMALTF", c.read_bd()?);
+    let dimlfac = v.real("DIMLFAC", c.read_bd()?);
+    let _dimtvp = v.real("DIMTVP", c.read_bd()?);
+    let dimtfac = v.real("DIMTFAC", c.read_bd()?);
+    let _dimgap = v.real("DIMGAP", c.read_bd()?);
+    let dimaltrnd = v.real("DIMALTRND", c.read_bd()?);
+    let _dimalt = v.flag("DIMALT", c.read_b()?);
+    let _dimaltd = v.int("DIMALTD", c.read_bs()?);
+    let _dimtofl = v.flag("DIMTOFL", c.read_b()?);
+    let _dimsah = v.flag("DIMSAH", c.read_b()?);
+    let _dimtix = v.flag("DIMTIX", c.read_b()?);
+    let _dimsoxd = v.flag("DIMSOXD", c.read_b()?);
+    v.color("DIMCLRD", full_color(modern::read_cmc_full(c)?));
+    v.color("DIMCLRE", full_color(modern::read_cmc_full(c)?));
+    v.color("DIMCLRT", full_color(modern::read_cmc_full(c)?));
+    let _dimadec = v.int("DIMADEC", c.read_bs()?);
+    let _dimdec = v.int("DIMDEC", c.read_bs()?);
+    let _dimtdec = v.int("DIMTDEC", c.read_bs()?);
+    let _dimaltu = v.int("DIMALTU", c.read_bs()?);
+    let _dimalttd = v.int("DIMALTTD", c.read_bs()?);
+    let _dimaunit = v.int("DIMAUNIT", c.read_bs()?);
+    let _dimfrac = v.int("DIMFRAC", c.read_bs()?);
+    let _dimlunit = v.int("DIMLUNIT", c.read_bs()?);
+    let _dimdsep = v.int("DIMDSEP", c.read_bs()?);
+    let _dimtmove = v.int("DIMTMOVE", c.read_bs()?);
+    let _dimjust = v.int("DIMJUST", c.read_bs()?);
+    let _dimsd1 = v.flag("DIMSD1", c.read_b()?);
+    let _dimsd2 = v.flag("DIMSD2", c.read_b()?);
+    let dimtolj = v.int("DIMTOLJ", c.read_bs()?);
+    let _dimtzin = v.int("DIMTZIN", c.read_bs()?);
+    let _dimaltz = v.int("DIMALTZ", c.read_bs()?);
+    let _dimalttz = v.int("DIMALTTZ", c.read_bs()?);
+    let dimupt = v.flag("DIMUPT", c.read_b()?);
+    let _dimatfit = v.int("DIMATFIT", c.read_bs()?);
+    let _dimfxlon = v.flag("DIMFXLON", c.read_b()?);
     // §20.4.68 gates the next block on R2010+: `DIMTXTDIRECTION B 295`,
     // `DIMALTMZF BD`, `DIMALTMZS T`, `DIMMZF BD`, `DIMMZS T`. R2007 stops
     // at `DIMFXLON` and goes straight to `DIMLWD`. Reading the R2010+
@@ -342,22 +539,22 @@ pub(crate) fn decode_modern_split_stream(
     // — the failure both DIMSTYLE records of every R2007 corpus file
     // reported.
     if version.is_r2010_plus() {
-        let _dimtxtdirection = c.read_b()?;
-        let _dimaltmzf = c.read_bd()?;
-        let _dimmzf = c.read_bd()?;
+        let _dimtxtdirection = v.flag("DIMTXTDIRECTION", c.read_b()?);
+        let _dimaltmzf = v.real("DIMALTMZF", c.read_bd()?);
+        let _dimmzf = v.real("DIMMZF", c.read_bd()?);
     }
-    let _dimlwd = c.read_bs()?;
-    let _dimlwe = c.read_bs()?;
+    let _dimlwd = v.int("DIMLWD", c.read_bs()?);
+    let _dimlwe = v.int("DIMLWE", c.read_bs()?);
     let _unknown = c.read_b()?;
     split.finish("DIMSTYLE")?;
     let name = split.strings.read_tv()?;
-    let _dimpost = split.strings.read_tv()?;
-    let _dimapost = split.strings.read_tv()?;
+    v.text("DIMPOST", split.strings.read_tv()?);
+    v.text("DIMAPOST", split.strings.read_tv()?);
     if version.is_r2010_plus() {
-        let _dimaltmzs = split.strings.read_tv()?;
-        let _dimmzs = split.strings.read_tv()?;
+        v.text("DIMALTMZS", split.strings.read_tv()?);
+        v.text("DIMMZS", split.strings.read_tv()?);
     }
-    Ok(DimStyleEntry {
+    let entry = DimStyleEntry {
         header: TableEntryHeader {
             name,
             flag_64: flag64,
@@ -379,6 +576,34 @@ pub(crate) fn decode_modern_split_stream(
         dimaltf,
         dimaltrnd,
         dimupt,
+    };
+    Ok((entry, v.0))
+}
+
+/// Decode the walked R2000 to R2018 DIMSTYLE record `raw` with every dimension
+/// variable it stores, in the order the record stores them (§20.4.68).
+///
+/// The entry is the same [`DimStyleEntry`] the dispatcher returns. The strings
+/// of R2007 and later come from the string stream, and those before it are read
+/// in [`RawObject::code_page`](crate::object::RawObject::code_page) (§3.2.5).
+/// R13 and R14 records are not read here: their list is a different one and has
+/// no DXF twin of its own in the corpus.
+pub fn decode_with_vars(
+    raw: &crate::object::RawObject,
+    version: Version,
+) -> Result<(DimStyleEntry, Vec<DimVar>)> {
+    if matches!(version, Version::R14) {
+        return Err(crate::error::Error::SectionMap(
+            "R13/R14 DIMSTYLE variables are not surfaced".into(),
+        ));
+    }
+    crate::code_page::with_code_page(raw.code_page, || {
+        let mut c = crate::object::body_cursor(raw, version)?;
+        if version.is_r2007_plus() {
+            return read_modern_split_stream(&raw.raw, c.position_bits(), version);
+        }
+        crate::common_entity::read_common_object_data_full(&mut c, version)?;
+        read_r2000_inline(&mut c, version)
     })
 }
 

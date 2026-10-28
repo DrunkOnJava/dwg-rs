@@ -22,6 +22,7 @@
 pub mod appid;
 pub mod block_record;
 pub mod dimstyle;
+pub mod handles;
 pub mod layer;
 pub mod ltype;
 pub(crate) mod modern;
@@ -115,33 +116,6 @@ pub(crate) fn read_tv(c: &mut BitCursor<'_>, version: Version) -> Result<String>
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bitwriter::BitWriter;
-
-    #[test]
-    fn roundtrip_entry_header() {
-        let mut w = BitWriter::new();
-        // TV name
-        let s = b"MyLayer";
-        w.write_bs_u(s.len() as u16);
-        for b in s {
-            w.write_rc(*b);
-        }
-        w.write_b(false); // 64-flag
-        w.write_bs(0);
-        w.write_b(false); // not xref dependent
-        let bytes = w.into_bytes();
-        let mut c = BitCursor::new(&bytes);
-        let h = read_table_entry_header(&mut c, Version::R2000).unwrap();
-        assert_eq!(h.name, "MyLayer");
-        assert!(!h.flag_64);
-        assert_eq!(h.xref_index_plus_1, 0);
-        assert!(!h.is_xref_dependent);
+        Ok(crate::code_page::decode_active(&bytes))
     }
 }

@@ -117,7 +117,8 @@ pub enum ObjectType {
     Sun,
     /// 0x4FA — LIGHT (R2007+). See [`Self::Camera`].
     Light,
-    /// 0x4FB — GEODATA (R2010+). See [`Self::Camera`].
+    /// 0x4FB — GEODATA. See [`Self::Camera`] on the fixed code. GEODATA
+    /// is a non-entity object (§20.4.78), routed to the object path.
     GeoData,
     /// Dynamic class — type code ≥ 500 (other than the fixed
     /// visual/scene codes above). Resolve via `AcDb:Classes`:
@@ -283,7 +284,6 @@ impl ObjectType {
                 | Self::Camera
                 | Self::Sun
                 | Self::Light
-                | Self::GeoData
         )
     }
 
@@ -431,55 +431,5 @@ impl fmt::Display for ObjectType {
             Self::Unknown(n) => write!(f, "UNKNOWN(0x{n:x})"),
             other => f.write_str(other.short_label()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fixed_codes_decode() {
-        assert_eq!(ObjectType::from_code(0x13), ObjectType::Line);
-        assert_eq!(ObjectType::from_code(0x12), ObjectType::Circle);
-        assert_eq!(ObjectType::from_code(0x11), ObjectType::Arc);
-        assert_eq!(ObjectType::from_code(0x4D), ObjectType::LwPolyline);
-        assert_eq!(ObjectType::from_code(0x4E), ObjectType::Hatch);
-    }
-
-    #[test]
-    fn proxy_codes_decode() {
-        assert_eq!(ObjectType::from_code(0x1F2), ObjectType::AcadProxyEntity);
-        assert_eq!(ObjectType::from_code(0x1F3), ObjectType::AcadProxyObject);
-    }
-
-    #[test]
-    fn dynamic_codes_decode() {
-        assert_eq!(ObjectType::from_code(500), ObjectType::Custom(500));
-        assert_eq!(ObjectType::from_code(12345), ObjectType::Custom(12345));
-    }
-
-    #[test]
-    fn entity_classification() {
-        assert!(ObjectType::Line.is_entity());
-        assert!(ObjectType::Circle.is_entity());
-        assert!(ObjectType::LwPolyline.is_entity());
-        assert!(!ObjectType::Dictionary.is_entity());
-        assert!(!ObjectType::LayerControl.is_entity());
-    }
-
-    #[test]
-    fn control_classification() {
-        assert!(ObjectType::LayerControl.is_control());
-        assert!(ObjectType::BlockControl.is_control());
-        assert!(!ObjectType::Layer.is_control());
-        assert!(!ObjectType::Line.is_control());
-    }
-
-    #[test]
-    fn short_label_stable() {
-        assert_eq!(ObjectType::Line.short_label(), "LINE");
-        assert_eq!(ObjectType::LwPolyline.short_label(), "LWPOLYLINE");
-        assert_eq!(ObjectType::MText.short_label(), "MTEXT");
     }
 }

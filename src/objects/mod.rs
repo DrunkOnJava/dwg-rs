@@ -12,27 +12,46 @@
 //!
 //! | Object                   | Module                    | Spec             |
 //! |--------------------------|---------------------------|------------------|
+//! | CELLSTYLEMAP             | [`acad_cell_style_map`]   | §20.4.102        |
 //! | ACDBDETAILVIEWSTYLE      | [`acad_detail_view_style`]| none — measured  |
 //! | ACAD_GROUP               | [`acad_group`]            | §19.6.7 (L6-11)  |
 //! | LAYOUT                   | [`acad_layout`]           | §20.4.84         |
-//! | ACAD_MATERIAL            | [`acad_material`]         | none — measured  |
+//! | ACAD_MATERIAL            | [`acad_material`]         | none — derived from AutoCAD output |
+//! | ACDB(ASSOC)PERSSUBENTMANAGER | [`pers_subent`]       | none — measured  |
 //! | MLEADERSTYLE             | [`acad_mleader_style`]    | none — measured  |
 //! | MLINESTYLE               | [`acad_mlinestyle`]       | §20.4.73         |
 //! | PLOTSETTINGS             | [`acad_plot_settings`]    | §20.4.84 (block) |
 //! | ACAD_PROPERTYSET_DATA    | [`acad_property_set_data`]| §19.6.11 (L7-07) |
 //! | ACAD_SCALE               | [`acad_scale`]            | §19.6.8 (L6-15)  |
+//! | TABLESTYLE               | [`acad_table_style`]      | §20.4.101        |
+//! | cell styles              | [`table_cell_style`]      | §20.4.101.3-4    |
+//! | TABLECONTENT             | [`table_content`]         | §20.4.97         |
+//! | TABLEGEOMETRY            | [`table_geometry`]        | §20.4.103        |
+//! | WIPEOUTVARIABLES, DBCOLOR, PDFDEFINITION, ... | [`small_classes`] | none — derived from AutoCAD output |
+//! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
+//! | DATATABLE               | [`data_table`]            | none — derived from AutoCAD output |
+//! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
+//! | ACAD_EVALUATION_GRAPH   | [`eval_graph`]            | none — derived from AutoCAD output |
+//! | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | [`text_context_data`] | none — derived from AutoCAD output |
+//! | ACSH_HISTORY_CLASS, ACSH_BOX_CLASS | [`sh_history`]  | none — derived from AutoCAD output |
+//! | RAPIDRTRENDERENVIRONMENT | [`render_environment`]  | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
 //! | class-map extension      | [`class_map_extension`]   | §5.7 (L7-03)     |
 //! | *_CONTROL                | [`control`]               | §19.5.1..§19.5.10|
 //! | custom-dict entries      | [`custom_dict_entry`]     | §19.5.19 (L7-06) |
 //! | ACDB_PLACEHOLDER         | [`placeholder`]           | §19.5.x          |
+//! | RASTERVARIABLES          | [`image_raster_variables`]      | §20.4.91         |
 //! | DICTIONARY               | [`dictionary`]            | §19.5.19         |
 //! | DICTIONARYVAR            | [`dictionary_var`]        | §19.6.x          |
+//! | IMAGEDEF_REACTOR         | [`image_def_reactor`]     | §20.4.82         |
 //! | proxy entity             | [`proxy_entity`]          | §19.4.91 (L7-04) |
+//! | VP_ENT_HDR               | [`control_vp_ent_hdr`]            | §20.4.70         |
 //! | proxy object             | [`proxy_object`]          | §19.4.91 (L7-05) |
 //! | XData                    | [`xdata`]                 | §3.5 (L7-01)     |
+//! | SPATIAL_FILTER           | [`clip_spatial_filter`]        | §20.4.94         |
 //! | XRECORD                  | [`xrecord`]               | §19.6.5 (L7-02)  |
+//! | SORTENTSTABLE            | [`block_sortents_table`]        | §20.4.93         |
 //!
 //! # Reachability and the R2007+ split stream
 //!
@@ -46,29 +65,22 @@
 //! from the object's string stream on R2007+ and each one checks that
 //! its data fields end exactly on the data-stream boundary.
 //!
-//! The remaining modules ([`acad_material`] and
-//! [`acad_property_set_data`]) decode a documented *prefix* of their
-//! record's fields, so they cannot satisfy that boundary check and are
-//! deliberately not dispatched — a partial decoder that cannot
+//! The remaining module ([`acad_property_set_data`]) decodes a
+//! documented *prefix* of its record's fields, so it cannot satisfy that
+//! boundary check and is deliberately not dispatched — a partial decoder that cannot
 //! self-validate would inflate the coverage ratio without proving
-//! anything. They remain callable directly.
+//! anything. It remains callable directly.
 //!
-//! Six of the table's "Spec" cells read *none — measured*: the ODA
-//! v5.4.1 object-prescription chapter §20.4 stops at XRECORD and
-//! carries no entry for VISUALSTYLE, MATERIAL, MLEADERSTYLE,
-//! ACDBDETAILVIEWSTYLE or ACDBSECTIONVIEWSTYLE. Each module documents
-//! what its own byte measurements establish, and
-//! [`acad_material`] restricts itself to the strings and the budget
-//! precisely because its data-field layout is not among them.
+//! Five of the table's "Spec" cells read *none — measured*: the ODA
+//! v5.4.1 object-prescription chapter §20.4 carries no entry for
+//! VISUALSTYLE, MATERIAL, MLEADERSTYLE, ACDBDETAILVIEWSTYLE or
+//! ACDBSECTIONVIEWSTYLE. Each module documents what its own byte
+//! measurements establish. MATERIAL's layout comes from AutoCAD's own
+//! DWG and DXF output under the method in `CLEANROOM.md` (2026-10-26).
 //!
-//! TABLESTYLE has no §20.4 prescription either and is **not** decoded:
-//! its R2010+ record is a 6,844-bit envelope around four repeated
-//! cell-style blocks of six border sub-records each, and a single
-//! record per corpus file is not enough evidence to pin the token
-//! sequence inside those blocks. `examples/probe_token_scan.rs`
-//! reproduces the block census; ARCHITECTURE.md records the measured
-//! budgets. The records stay in the Unhandled bucket rather than being
-//! decoded on a guess.
+//! TABLESTYLE is decoded from §20.4.101.1 on R14 to R2007 and from
+//! §20.4.101.2 on R2010 and later ([`acad_table_style`]), CELLSTYLEMAP from
+//! §20.4.102 ([`acad_cell_style_map`]).
 //!
 //! PLOTSETTINGS has no §20.4 prescription of its own either, but it
 //! does not need one: §20.4.84 LAYOUT opens with the whole
@@ -76,6 +88,7 @@
 //! share a single field list and one of them is measured on 31 real
 //! records.
 
+pub mod acad_cell_style_map;
 pub mod acad_detail_view_style;
 pub mod acad_group;
 pub mod acad_layout;
@@ -86,16 +99,34 @@ pub mod acad_plot_settings;
 pub mod acad_property_set_data;
 pub mod acad_scale;
 pub mod acad_section_view_style;
+pub mod acad_table_style;
 pub mod acad_visual_style;
+pub mod block_sortents_table;
 pub mod class_map_extension;
+pub mod clip_spatial_filter;
 pub mod color;
 pub mod control;
+pub mod control_vp_ent_hdr;
 pub mod custom_dict_entry;
+pub mod data_table;
 pub mod dictionary;
 pub mod dictionary_var;
+pub mod dim_assoc;
+pub mod dynamic_block;
+pub mod eval_graph;
+pub mod image_def_reactor;
+pub mod image_raster_variables;
 pub(crate) mod modern;
+pub mod pers_subent;
 pub mod placeholder;
 pub mod proxy_entity;
 pub mod proxy_object;
+pub mod render_environment;
+pub mod sh_history;
+pub mod small_classes;
+pub mod table_cell_style;
+pub mod table_content;
+pub mod table_geometry;
+pub mod text_context_data;
 pub mod xdata;
 pub mod xrecord;

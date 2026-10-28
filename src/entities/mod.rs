@@ -21,7 +21,9 @@
 //! | POLYGON_MESH   | [`polygon_mesh`]  | §19.4.30     |
 //! | POLYLINE_3D    | [`polyline`]      | §19.4.46     |
 //! | VERTEX_*       | [`vertex`]        | §19.4.55-59  |
+//! | ACAD_TABLE     | [`acad_table`]    | §20.4.96.2   |
 //! | SEQEND         | [`seqend`]        | §19.4.6      |
+//! | SHAPE          | [`shape`]         | §20.4.37     |
 //! | IMAGE          | [`image`]         | §19.4.35     |
 //! | IMAGEDEF       | [`imagedef`]      | §19.5.26     |
 //! | PROXY ENTITY   | [`proxy_entity_passthrough`] | §19.4.91 |
@@ -48,6 +50,7 @@
 use crate::bitcursor::BitCursor;
 use crate::error::Result;
 
+pub mod acad_table;
 pub mod arc;
 pub mod attdef;
 pub mod attrib;
@@ -93,6 +96,7 @@ pub mod ray;
 pub mod region;
 pub mod revolved_surface;
 pub mod seqend;
+pub mod shape;
 pub mod solid;
 pub mod spline;
 pub mod sun;

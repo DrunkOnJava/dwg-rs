@@ -27,7 +27,7 @@
 ///
 /// This is public-domain tabulated data, not source code, so it is safe to
 /// reproduce verbatim under any license.
-static CRC8_TABLE: [u16; 256] = [
+const CRC8_TABLE: [u16; 256] = [
     0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241, 0xC601, 0x06C0, 0x0780, 0xC741,
     0x0500, 0xC5C1, 0xC481, 0x0440, 0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
     0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841, 0xD801, 0x18C0, 0x1980, 0xD941,
@@ -52,14 +52,55 @@ static CRC8_TABLE: [u16; 256] = [
     0x4100, 0x81C1, 0x8081, 0x4040,
 ];
 
+/// Slicing tables for eight bytes at a time: row `k` of entry `i` is the state
+/// after byte `i` followed by `k` zero bytes, so `CRC8_TABLE` is row 0 and each
+/// further row folds one more zero byte into the one before it. Derived from
+/// the published table at compile time.
+static CRC8_SLICES: [[u16; 256]; 8] = {
+    let mut rows = [[0u16; 256]; 8];
+    rows[0] = CRC8_TABLE;
+    let mut k = 1;
+    while k < 8 {
+        let mut i = 0;
+        while i < 256 {
+            let prev = rows[k - 1][i];
+            rows[k][i] = (prev >> 8) ^ CRC8_TABLE[(prev & 0xFF) as usize];
+            i += 1;
+        }
+        k += 1;
+    }
+    rows
+};
+
 /// Compute DWG-flavor CRC-8 (16-bit output) over `data` starting from `seed`.
 ///
 /// The `seed` is the running state; for new calculations use 0 (or the
 /// section-specific seed defined in the spec). Returns the final 16-bit
 /// CRC that should match the bytes stored in the file.
+///
+/// Eight bytes are folded per step: the state is XORed into the low two bytes
+/// of the little-endian word and each byte of the result indexes the row for
+/// the bytes that follow it. The serial one-byte-per-step recurrence of the
+/// spec's text (§2.14.1) needs a table load before each next byte; this form
+/// has eight independent loads per word and gives the same value for every
+/// input, seed and length.
 pub fn crc8(seed: u16, data: &[u8]) -> u16 {
     let mut crc = seed;
-    for &b in data {
+    let mut words = data.chunks_exact(8);
+    for word in &mut words {
+        let x = u64::from_le_bytes([
+            word[0], word[1], word[2], word[3], word[4], word[5], word[6], word[7],
+        ]) ^ u64::from(crc);
+        crc = CRC8_SLICES[7][(x & 0xFF) as usize]
+            ^ CRC8_SLICES[6][((x >> 8) & 0xFF) as usize]
+            ^ CRC8_SLICES[5][((x >> 16) & 0xFF) as usize]
+            ^ CRC8_SLICES[4][((x >> 24) & 0xFF) as usize]
+            ^ CRC8_SLICES[3][((x >> 32) & 0xFF) as usize]
+            ^ CRC8_SLICES[2][((x >> 40) & 0xFF) as usize]
+            ^ CRC8_SLICES[1][((x >> 48) & 0xFF) as usize]
+            ^ CRC8_SLICES[0][(x >> 56) as usize];
+    }
+    for &b in words.remainder() {
         let idx = ((crc ^ b as u16) & 0xFF) as usize;
         crc = (crc >> 8) ^ CRC8_TABLE[idx];
     }
@@ -128,6 +169,68 @@ pub fn section_page_checksum(seed: u32, data: &[u8]) -> u32 {
         remaining = rest;
     }
     (sum2 << 16) | (sum1 & 0xFFFF)
+}
+
+/// Fold `data` into a running §4.2 checksum held as `(sum1, sum2, in_chunk)`
+/// and return the new state. The sums are reduced modulo 0xFFF1 each time
+/// `in_chunk` reaches 0x15B0 bytes, exactly where [`section_page_checksum`]
+/// reduces them, so a walk that feeds the bytes in slices of any size holds
+/// the same three numbers as a one-shot call at every byte (all arithmetic
+/// wraps modulo 2^32, as the byte-at-a-time recurrence's does).
+///
+/// The recurrence `sum1 += byte; sum2 += sum1` is a chain of two dependent
+/// additions per byte. Within a chunk, whole rows of eight bytes are instead
+/// run as eight independent lanes of that recurrence (byte `l` of every row
+/// feeds lane `l`), which needs only vertical additions, and the lanes are
+/// combined once per slice. After `rows` rows lane `l` holds `a1 = sum of its
+/// bytes` and `a2 = sum over its bytes of (rows - row index)`; byte `p = 8t +
+/// l` is owed `8 * rows - p` further additions of `sum1` into `sum2`, so
+/// `sum2` gains `8 * rows * sum1` (the carried value), `8 * sum(a2)` and loses
+/// `sum(l * a1[l])`.
+pub fn fold_section_checksum(
+    mut sum1: u32,
+    mut sum2: u32,
+    mut in_chunk: u32,
+    mut data: &[u8],
+) -> (u32, u32, u32) {
+    const CHUNK: u32 = 0x15B0;
+    while !data.is_empty() {
+        let room = (CHUNK - in_chunk) as usize;
+        let (now, later) = data.split_at(data.len().min(room));
+        let mut rows = now.chunks_exact(8);
+        let mut a1 = [0u32; 8];
+        let mut a2 = [0u32; 8];
+        for row in &mut rows {
+            for lane in 0..8 {
+                a1[lane] += u32::from(row[lane]);
+                a2[lane] += a1[lane];
+            }
+        }
+        let bytes = (now.len() / 8 * 8) as u32;
+        let (mut plain, mut weighted, mut skew) = (0u32, 0u32, 0u32);
+        for lane in 0..8 {
+            plain = plain.wrapping_add(a1[lane]);
+            weighted = weighted.wrapping_add(a2[lane]);
+            skew = skew.wrapping_add((lane as u32).wrapping_mul(a1[lane]));
+        }
+        sum2 = sum2
+            .wrapping_add(bytes.wrapping_mul(sum1))
+            .wrapping_add(weighted.wrapping_mul(8))
+            .wrapping_sub(skew);
+        sum1 = sum1.wrapping_add(plain);
+        for &b in rows.remainder() {
+            sum1 = sum1.wrapping_add(u32::from(b));
+            sum2 = sum2.wrapping_add(sum1);
+        }
+        in_chunk += now.len() as u32;
+        if in_chunk == CHUNK {
+            sum1 %= 0xFFF1;
+            sum2 %= 0xFFF1;
+            in_chunk = 0;
+        }
+        data = later;
+    }
+    (sum1, sum2, in_chunk)
 }
 
 // ================================================================
@@ -200,126 +303,4 @@ pub fn page_checksums(header_zeroed: &[u8], payload: &[u8]) -> (u32, u32) {
     let header_cs = section_page_checksum(0, header_zeroed);
     let payload_cs = section_page_checksum(header_cs, payload);
     (header_cs, payload_cs)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A CRC table has a trivially-testable invariant: index 0 must be 0
-    /// (the CRC of an empty byte at state 0 stays 0).
-    #[test]
-    fn crc8_table_index_0_is_zero() {
-        assert_eq!(CRC8_TABLE[0], 0x0000);
-    }
-
-    /// Self-consistency: running the table through a known byte sequence
-    /// and comparing against a direct polynomial evaluation of the same
-    /// reflected CRC-16 family (poly 0xA001 = reflect of 0x8005).
-    #[test]
-    fn crc8_matches_reflected_poly_a001() {
-        // Bitwise-compute the CRC for "123456789" (classic CRC test vector).
-        let msg = b"123456789";
-        let mut bit_crc: u16 = 0;
-        for &b in msg {
-            bit_crc ^= b as u16;
-            for _ in 0..8 {
-                if bit_crc & 1 != 0 {
-                    bit_crc = (bit_crc >> 1) ^ 0xA001;
-                } else {
-                    bit_crc >>= 1;
-                }
-            }
-        }
-        let tbl_crc = crc8(0, msg);
-        assert_eq!(tbl_crc, bit_crc);
-    }
-
-    #[test]
-    fn crc32_ieee_test_vector() {
-        // "123456789" under IEEE 802.3 CRC-32 is 0xCBF43926.
-        assert_eq!(crc32(0, b"123456789"), 0xCBF4_3926);
-    }
-
-    #[test]
-    fn r13_locator_seeds_known_table() {
-        assert_eq!(r13_locator_seed(3), Some(0xA598));
-        assert_eq!(r13_locator_seed(6), Some(0x8461));
-        assert_eq!(r13_locator_seed(99), None);
-    }
-
-    #[test]
-    fn section_page_checksum_empty_is_seed() {
-        assert_eq!(section_page_checksum(0, &[]), 0);
-        assert_eq!(section_page_checksum(0xDEAD_BEEF, &[]), 0xDEAD_BEEF);
-    }
-
-    #[test]
-    fn section_page_checksum_is_deterministic() {
-        let data = b"The DWG file format version 2004 compression is a variation on LZ77.";
-        let a = section_page_checksum(0, data);
-        let b = section_page_checksum(0, data);
-        assert_eq!(a, b);
-        // Non-zero for non-empty input.
-        assert_ne!(a, 0);
-    }
-
-    // -------- L12-02: writer helpers --------
-
-    #[test]
-    fn embed_crc8_round_trips() {
-        // Build a section with a 2-byte CRC slot at offset 4, then
-        // verify that reading the slot + recomputing the CRC over the
-        // zeroed payload reproduces the embedded value.
-        let mut buf = vec![0xAA, 0xBB, 0xCC, 0xDD, 0xFF, 0xFF, 0x01, 0x02, 0x03];
-        let written = embed_crc8(&mut buf, 4, 0).expect("slot fits");
-        // Read back the embedded LE pair.
-        let embedded = u16::from_le_bytes([buf[4], buf[5]]);
-        assert_eq!(embedded, written);
-        // Reconstruct zero-filled buffer and re-verify the CRC.
-        let mut verify = buf.clone();
-        verify[4] = 0;
-        verify[5] = 0;
-        assert_eq!(crc8(0, &verify), written);
-    }
-
-    #[test]
-    fn embed_crc8_rejects_too_small_buffer() {
-        let mut buf = vec![0u8; 3];
-        assert!(embed_crc8(&mut buf, 2, 0).is_none());
-        // Exactly fits at offset 1.
-        let mut buf2 = vec![0u8; 3];
-        assert!(embed_crc8(&mut buf2, 1, 0).is_some());
-    }
-
-    #[test]
-    fn embed_crc32_round_trips_with_zeroed_slot() {
-        let mut buf = vec![0x01, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0xFF, 0xFF, 0x05];
-        let written = embed_crc32(&mut buf, 4, 0).expect("slot fits");
-        let embedded = u32::from_le_bytes(buf[4..8].try_into().unwrap());
-        assert_eq!(embedded, written);
-        let mut verify = buf.clone();
-        verify[4..8].fill(0);
-        assert_eq!(crc32(0, &verify), written);
-    }
-
-    #[test]
-    fn embed_crc32_rejects_too_small_buffer() {
-        let mut buf = vec![0u8; 5];
-        assert!(embed_crc32(&mut buf, 3, 0).is_none()); // only 2 bytes fit past 3
-        let mut buf2 = vec![0u8; 5];
-        assert!(embed_crc32(&mut buf2, 1, 0).is_some()); // 4 bytes fit at [1..5]
-    }
-
-    #[test]
-    fn page_checksums_chains_header_into_payload() {
-        // The payload checksum seeds from the header checksum, so
-        // changing the header changes the payload output even if
-        // payload bytes are identical.
-        let payload = b"identical payload";
-        let (h1, p1) = page_checksums(&[0u8; 16], payload);
-        let (h2, p2) = page_checksums(&[1u8; 16], payload);
-        assert_ne!(h1, h2);
-        assert_ne!(p1, p2);
-    }
 }

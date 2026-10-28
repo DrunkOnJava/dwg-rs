@@ -1,0 +1,42 @@
+{
+  "source": "https://github.com/DomCR/ACadSharp",
+  "commit": "c30a97ce4697e649e562fbeb52057aa9f73f7744",
+  "note": "Every R2004, R2010, R2013 and R2018 DWG of ACadSharp's samples at this commit (MIT, AutoCAD 2025), fetched by hash at acceptance time and never committed. Their object sections are 32 KB to 1.6 MB, many 0x7400-byte pages each, so records and MC fields straddle page boundaries; the nextgis drawings' object sections are all at most 0x7400 bytes.",
+  "files": [
+    {
+      "name": "samples/sample_AC1018.dwg",
+      "bytes": 1097214,
+      "sha256": "7d26f908516ec5fb89cc8054af33aff233b68a7b63208bbc5b7f9f4d9bff9866"
+    },
+    {
+      "name": "samples/sample_AC1024.dwg",
+      "bytes": 1122389,
+      "sha256": "53ecc28e54ff0bbfb022989c47fd1cb16eb07a98825309b66cdf316d900fe4ce"
+    },
+    {
+      "name": "samples/sample_AC1027.dwg",
+      "bytes": 1091959,
+      "sha256": "4c63508dd794d5cdfb56c60aded47928999b02619ea8c2ef435a4b74e60d24d6"
+    },
+    {
+      "name": "samples/sample_AC1032.dwg",
+      "bytes": 1081979,
+      "sha256": "0e8faaca949c9429c92240082d9ea4d3524aca5baf7c7815ec439245c321b528"
+    },
+    {
+      "name": "samples/geolocation/geoloc.dwg",
+      "bytes": 46960,
+      "sha256": "2dbed5bb66ae0e730cec80b70c0ef27c87633647503bf850a331448f9585cf95"
+    },
+    {
+      "name": "samples/sample_base/empty.dwg",
+      "bytes": 30639,
+      "sha256": "ac65283f3e078a8828e0df594b15a0f54498d04b0c88c85476278c8d3bc1acfb"
+    },
+    {
+      "name": "samples/svg/export_sample.dwg",
+      "bytes": 68920,
+      "sha256": "d22bf65253f80309a22e140c354b2d03babb55e93613c30ac3935fc2bd4931db"
+    }
+  ]
+}
