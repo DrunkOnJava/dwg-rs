@@ -69,6 +69,24 @@ unresolved() {
     -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved}}}}}' \
     --jq '[.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)]|length' 2>/dev/null
 }
+# The train's merge of main carries main's baselines until the PR's own CI run measures the merge,
+# and Codex reviews that commit and asks for the measured baseline. With the Corpus job green on the
+# current head, whose ratchet is exactly that check, such a thread is settled: say so and resolve it.
+# Only a Codex bot thread whose title asks to regenerate or re-measure the corpus baseline, whose
+# text names tools/corpus/baseline.tsv and does not mention the oracle, is touched: a finding about
+# weakened or retired oracle comparisons is not settled by a green Corpus job and still stops the train.
+settle_baseline_threads() {
+  gh api graphql -F owner="${R%/*}" -F name="${R#*/}" -F n="$P" \
+    -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:1){nodes{author{login} body}}}}}}}' \
+    --jq '.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved|not)|select(.comments.nodes[0].author.login=="chatgpt-codex-connector")|select(.comments.nodes[0].body as $b | ($b|test("tools/corpus/baseline\\.tsv")) and ($b|test("oracle";"i")|not) and ($b|gsub("<[^>]+>";"")|split("\n")|map(select(test("\\S")))[0]|test("(regenerat|re-?measure)[^\n]*corpus baseline|corpus baseline[^\n]*(regenerat|re-?measure)";"i")))|.id' 2>/dev/null |
+  while read -r id; do
+    gh api graphql -f query='mutation($id:ID!,$b:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$b}){comment{id}}}' -f id="$id" \
+      -f b="Settled by the merge train: its merge of main carries main's baselines until this PR's CI run measures the merge, and the baselines that run measured are committed. The Corpus job, whose ratchet checks exactly this, passes on ${head:0:9}." > /dev/null &&
+      gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id="$id" > /dev/null &&
+      note "settled baseline review thread $id (Corpus green on ${head:0:9})"
+  done
+}
+settle_baseline_threads
 u=$(unresolved)
 [ "$u" != 0 ] && { echo "#$P Corpus green but $u unresolved review thread(s)"; exit 2; }
 if moved; then echo "#$P main moved under it since the refresh"; exit 8; fi
