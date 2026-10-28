@@ -147,6 +147,11 @@ def next_steps(rows, results, work, out):
         if not found:
             return
         if len(found) <= 3:
+            # generate.py writes a save script only for a master that existed when it ran, so a master
+            # built since then has none until the generator runs again.
+            missing = sorted(s for s in found.values() if not (work / 'scripts' / s).is_file())
+            if missing:
+                steps.append(f'{resume}   (writes {", ".join(missing)})')
             for item, script in sorted(found.items()):
                 steps.append(f'-SCRIPT {work / "scripts" / script}   ({item})')
         else:
