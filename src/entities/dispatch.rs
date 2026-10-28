@@ -145,7 +145,7 @@ pub enum DecodedEntity {
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
     ImageDef(crate::entities::imagedef::ImageDef),
     /// MATERIAL, a custom class with no spec section: derived from
-    /// AutoCAD's own output (ARCHITECTURE.md §7au).
+    /// AutoCAD's own output (ARCHITECTURE.md §7bb).
     Material(Box<crate::objects::acad_material::Material>),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
@@ -154,15 +154,15 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
-    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7av).
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bc).
     WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
-    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7av).
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bc).
     DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
-    /// ACDB_BLOCKREPRESENTATION_DATA (§7av).
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7bc).
     BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
-    /// PDFDEFINITION (§7av).
+    /// PDFDEFINITION (§7bc).
     PdfDefinition(crate::objects::small_classes::PdfDefinition),
-    /// DBCOLOR (§7av).
+    /// DBCOLOR (§7bc).
     DbColor(crate::objects::small_classes::DbColor),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {

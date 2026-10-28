@@ -127,6 +127,10 @@ name = "probe_dxf_classes"
 required-features = ["dxf-reader"]
 
 [[example]]
+name = "probe_dxf_objects"
+required-features = ["dxf-reader"]
+
+[[example]]
 name = "probe_dxf_header"
 required-features = ["dxf-reader"]
 
