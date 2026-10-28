@@ -313,8 +313,10 @@ impl DxfRecord {
     }
 
     /// Index of an XRECORD's first data group, the one after `100
-    /// AcDbXrecord`; `groups.len()` on every other record.
-    fn data_start(&self) -> usize {
+    /// AcDbXrecord` (§20.4.104); `groups.len()` on every other record. The
+    /// groups before it are structural (`102` brackets, owner, subclass
+    /// markers) and the groups from it on are an application's.
+    pub fn data_start(&self) -> usize {
         let len = self.groups.len();
         if self.kind != "XRECORD" {
             return len;

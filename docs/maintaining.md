@@ -129,3 +129,8 @@ At every release, and at least monthly:
     `main`), and README's capability matrix and "does not do" list name what
     has landed. This one is not monthly: refresh the README after any landing
     that moves the baseline or ships a capability.
+    `python3 tools/maintainer/jev_review.py prose` ranks the sentences of
+    README.md, STATUS.md and ROADMAP.md that a pull request merged since may
+    have made untrue, and `jev_review.py issues` the open issues a merged pull
+    request may already resolve. Both need `TYPESAFE_API_KEY`, cost about a
+    cent a run and only point: read the pull request before you edit or close.

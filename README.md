@@ -17,31 +17,49 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40503137263](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40503137263) on 2026-10-27<!-- corpus-run:end -->) with
-[`examples/coverage_report.rs`](./examples/coverage_report.rs), on 52 public
+job on `main` (<!-- corpus-run:begin -->[run 40707842079](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40707842079) on 2026-10-28<!-- corpus-run:end -->) with
+[`examples/coverage_report.rs`](./examples/coverage_report.rs), on the public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
 
 <!-- corpus-table:begin -->
-| Version | Files tested | Decoded | Skipped | Errored | Success rate |
-|---------|--------------|---------|---------|---------|--------------|
-| R14 (AC1014) | 8 | 3216 | 81 | 0 | **97.5 %** |
-| R2000 (AC1015) | 8 | 2452 | 81 | 0 | **96.8 %** |
-| R2004 (AC1018) | 8 | 2339 | 78 | 0 | **96.8 %** |
-| R2007 (AC1021) | 8 | 2161 | 76 | 0 | **96.6 %** |
-| R2010 (AC1024) | 8 | 2111 | 77 | 0 | **96.5 %** |
-| R2013 (AC1027) | 8 | 1710 | 77 | 0 | **95.7 %** |
-| R2018 (AC1032) | 4 | 1552 | 63 | 0 | **96.1 %** |
-| **Aggregate** | **52** | **15541** | **533** | **0** | **96.7 %** |
+| Version | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
+|---------|--------------|---------|---------|---------|--------------|----------------|
+| R14 (AC1014) | 12 | 4733 | 23 | 0 | **99.5 %** | 100.0 % |
+| R2000 (AC1015) | 9 | 2781 | 4 | 0 | **99.9 %** | 100.0 % |
+| R2004 (AC1018) | 12 | 106993 | 1 | 0 | **> 99.9 %** | 100.0 % |
+| R2007 (AC1021) | 8 | 2236 | 1 | 0 | **> 99.9 %** | 100.0 % |
+| R2010 (AC1024) | 8 | 2187 | 1 | 0 | **> 99.9 %** | 100.0 % |
+| R2013 (AC1027) | 8 | 1786 | 1 | 0 | **99.9 %** | 100.0 % |
+| R2018 (AC1032) | 4 | 1614 | 1 | 0 | **99.9 %** | 100.0 % |
+| **Aggregate** | **61** | **122330** | **32** | **0** | **> 99.9 %** | **100.0 %** |
 <!-- corpus-table:end -->
 
-Totals: <!-- corpus-summary:begin -->15,541 decoded / 533 skipped / **0 errored** / 96.7 % on 52 drawings. Per version: R14 97.5 %, R2000 96.8 %, R2004 96.8 %, R2007 96.6 %, R2010 96.5 %, R2013 95.7 %, R2018 96.1 %.<!-- corpus-summary:end -->
+A success rate counts records, and the sources differ in size by orders of
+magnitude (four R2004 drawings can hold more records than every other source
+together), so pinning a source of large drawings moves it without any decoder
+changing. The median drawing weighs every drawing the same, and each source's
+own row below stays put when another source is pinned, so these show whether
+a change came from decoding or from the corpus:
+
+<!-- corpus-sources:begin -->
+| Source | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
+|--------|--------------|---------|---------|---------|--------------|----------------|
+| nextgis | 42 | 8443 | 0 | 0 | **100.0 %** | 100.0 % |
+| acadsharp | 10 | 7618 | 13 | 0 | **99.8 %** | 99.9 % |
+| bookviewerapp3 | 4 | 1440 | 19 | 0 | **98.7 %** | 99.4 % |
+| oshw-jetson | 4 | 104577 | 0 | 0 | **100.0 %** | 100.0 % |
+| planar-algorithm | 1 | 252 | 0 | 0 | **100.0 %** | 100.0 % |
+| **All sources** | **61** | **122330** | **32** | **0** | **> 99.9 %** | **100.0 %** |
+<!-- corpus-sources:end -->
+
+Totals: <!-- corpus-summary:begin -->122,330 decoded / 32 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 98.7 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.5 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
 
 [`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
 drawing's decoded, skipped and errored counts, its class-census shortfalls
 and its reference closure. The job fails on any difference, in either
 direction, so a regression is red and an improvement is recorded in the pull
-request that makes it. The table above is rendered from that file by
+request that makes it. The tables above are rendered from that file by
 [`tools/maintainer/readme_status.py`](./tools/maintainer/readme_status.py),
 never typed by hand.
 
@@ -61,16 +79,16 @@ object-data size on R2000 to R2007, the size inside the common entity data
 on R13/R14), or it returns an error instead of plausible-looking geometry.
 An *errored* record is a field list that does not add up; there are none left
 on the pinned corpus. A *skipped* record is a type with no decoder on `main`
-yet. Every skipped type has a decoder in review:
-
-- MATERIAL, 212 records (decoder in review: #325);
-- the TABLE family: TABLESTYLE on R2010+ and CELLSTYLEMAP (#313), ACAD_TABLE
-  (#319), TABLECONTENT (#317) and TABLEGEOMETRY (#316), 94 records;
-- the dynamic-block evaluation objects (#328, #326, #339), 133 records;
-- DIMASSOC (#329), the ACSH solid-history classes (#330), SHAPE (#310), the
-  viewport entity header (#311), PDFUNDERLAY (#331), SUN (#332), DATATABLE
-  (#335), ACDB_TEXTOBJECTCONTEXTDATA_CLASS (#337), WIPEOUTVARIABLES, DBCOLOR
-  and PDFDEFINITION (#326).
+yet. Two of the skipped types have a decoder in review, SHAPE (#310) and the
+VIEWPORT entity header (#311). The rest are custom classes in the four
+drawings pinned from kurema/BookViewerApp3: the render settings
+(RAPIDRTRENDERSETTINGS, MENTALRAYRENDERSETTINGS and RENDERGLOBAL) and five
+associative-network classes (ACDBASSOCNETWORK, ACDBASSOCACTION,
+ACDBASSOCDEPENDENCY, ACDBASSOCVERTEXACTIONPARAM and ACDBASSOCARRAYACTIONBODY).
+Their few records do not settle a field list, and those drawings have no DXF
+export to derive or score them against yet (#152). The Corpus job's
+`corpus-measurement` artifact lists the skipped records of each drawing by
+type (`corpus-logs/`).
 
 Most of the classes in that list are not printed in the spec at all; their
 field lists are learned from AutoCAD's own DWG and DXF output under the
@@ -81,7 +99,7 @@ provisional until a controlled AutoCAD drawing confirms it (#348).
 add up, not that the values are right. The DXF value oracle
 ([`examples/dxf_oracle/`](./examples/dxf_oracle/main.rs)) pairs every decoded
 record with the same handle in AutoCAD's DXF export and scores each field. On
-`main` it scores <!-- oracle-summary:begin -->124,011 field comparisons on 55 types: 105,864 equal, 11,142 equal to the DXF default, 283 different and 6,722 present only in the DWG<!-- oracle-summary:end -->
+`main` it scores <!-- oracle-summary:begin -->173,178 field comparisons on 69 types: 153,355 equal, 11,898 equal to the DXF default, 288 different and 7,637 present only in the DWG<!-- oracle-summary:end -->
 ([`tools/oracle/baseline.tsv`](./tools/oracle/baseline.tsv) pins the result,
 and CI fails when it moves). Decoded types with no scorer yet are listed as
 unscored in the oracle summary the Corpus job uploads.
@@ -116,11 +134,11 @@ passed.
 | Handle map and class map | Shipped | |
 | Header variables | Shipped | Table-driven by release range (#126) |
 | Object-stream walker | Shipped | Every release from R14 to R2018; every handle-map entry resolves to a record |
-| Entity and object decoders | Alpha | 0 errored records on the pinned corpus; every skipped type has a decoder in review (above) |
+| Entity and object decoders | Alpha | 0 errored records on the pinned corpus; the skipped types are listed above, two with a decoder in review |
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
-| DXF writer | Alpha | HEADER, CLASSES, the symbol tables and ENTITIES (15 kinds) written from decoded records and paired with AutoCAD's exports; BLOCKS and OBJECTS in review (#371 to #373) |
+| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371), ENTITIES (15 kinds) and OBJECTS (the dictionary family, XRECORD, SCALE and placeholders, #372; LAYOUT, GROUP and MLINESTYLE, #373; VISUALSTYLE, #413) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382) |
 | DXF reader | Alpha | ASCII DXF keyed by handle, used by the value oracle |
 | DWG writer | Alpha | Assembles an R2004-family file this crate reads back; no CAD application has been checked against it |
 | SVG and PDF export | Alpha | SVG writer and a paged-SVG PDF path; output quality follows the decoded geometry |
@@ -153,8 +171,9 @@ MEASURED**; no claim of superiority to another reader is made.
 
 ## What works today
 
-The container layer is the most mature part of the crate. `cargo test --release --all-features`
-ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
+The container layer is the most mature part of the crate. It is measured on real
+drawings, not by a test count: the `Corpus (public DWG)` job opens every pinned
+drawing and fails on any change from the committed baselines.
 
 - Version identification from AC1014 (R14, 1997) to AC1032 (2018 and later)
 - R13 to R15 file header and the R2004-family XOR-encrypted header
@@ -165,13 +184,16 @@ ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
 - Metadata parsers: `SummaryInfo`, `AppInfo` (R18 ANSI and R21+ UTF-16
   auto-detected), `Preview` (BMP, WMF, PNG), `FileDepList`
 - Handle map, class map and header variables
-- R14 to R2004 text in the code page the file header names, for pages 1251
-  and 1252, through one shared decoder (#374)
+- R14 to R2004 text in the code page the file header names, through one
+  shared decoder (#374): the ten pages real drawings prove, 1250 to 1254,
+  1257 and the double-byte 932, 936, 949 and 950 (#384), in entity and
+  object text, XRECORD values and extended data (#380); `dwg-to-dxf` and the
+  DWG writer write the same page back (#382)
 - The object walk on every release from R14 to R2018, and the class census
   CI gate that holds it to what `AcDb:Classes` declares
 - Entity and object decoding, boundary-checked on every release, with the
   values scored against AutoCAD's DXF exports
-- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables and ENTITIES from the decoded records
+- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables, BLOCKS, ENTITIES and OBJECTS from the decoded records
 - An experimental R2004-family write path: bit writer, LZ77 encoder, section
   framer, Sec_Mask, the CRCs and checksums real files carry, and assembly via
   `DwgFile::to_bytes()`
@@ -185,12 +207,13 @@ every later disclosure.
 ### What dwg-rs does not do today
 
 - Read R13 (AC1012) files; the reader is in review (#323).
-- Read R14 to R2004 text in code pages other than 1251 (Cyrillic) and 1252
-  (Western European): text in any other page still decodes as lossy UTF-8.
-  XRECORD and XDATA strings are not decoded by page yet, and the writers
-  still emit UTF-8 (#375).
+- Read R14 to R2004 text in a code page no measured drawing names: a header
+  short outside the ten proven pages still decodes as lossy UTF-8 (#375).
 - Decode password-protected R2007 files: a section whose descriptor declares
   encryption is refused, not decoded.
+- Decode the render-settings and five associative-network classes listed
+  above; the pinned corpus holds a few such records and no DXF export of them
+  yet (#152).
 - Write R13, R14 or R2007 files; the writer covers the R2004 family only.
 - Byte-identical DWG round trips, or output checked by any CAD application.
 - Python bindings, a non-technical end-user application, an installer or a
@@ -324,7 +347,7 @@ mechanism.
 ## Verification
 
 ```text
-$ cargo test --release --all-features                             # 921 tests on 2026-10-27
+$ tools/ci/run_test_targets.sh --release --all-features          # the real-file, contract and hardening targets, then the doc tests
 $ cargo clippy --all-targets --all-features -- -D warnings       # clean
 $ cargo fmt --all -- --check                                      # clean
 $ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features   # clean
@@ -338,7 +361,7 @@ fetches the 52 pinned drawings, measures them, runs the probes and the value
 oracle, and fails on any change from the committed baselines. The older
 real-file suites (`samples`, `block_names`, `corpus_roundtrip`,
 `r2013_entity_values`) read a 19-file subset and skip silently when it is
-absent, so a green local `cargo test` says nothing about real drawings unless
+absent, so a green run of them says nothing about real drawings unless
 `python3 -I tools/corpus/fetch.py --legacy-samples ../../samples` has run.
 
 ## Safety
@@ -400,7 +423,7 @@ The project needs help, in rough order of impact:
 
 Before submitting a PR:
 
-- Run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings` and `cargo test --release --all-features`.
+- Run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings` and `tools/ci/run_test_targets.sh --release --all-features`. Unit tests are banned: do not add one ([`CONTRIBUTING.md`](./CONTRIBUTING.md)).
 - Cite the ODA spec section for any new decoder behavior, numbered as in v5.4.1 ([`docs/spec-coverage.md`](./docs/spec-coverage.md) lists them).
 - **Source-provenance declaration**: confirm in the PR body that your contribution does not incorporate executable code (not just comments, not just API shapes) from any source whose license is incompatible with Apache-2.0: no Autodesk SDK source, no ODA SDK / Teigha source, and no GPL-licensed DWG implementation source (LibreDWG). Reading algorithm-description comments in permissively licensed projects (MIT / Apache / BSD) to resolve a spec ambiguity is allowed and must be disclosed in the PR body so it can be recorded in [`CLEANROOM.md`](./CLEANROOM.md). The PR template has a checkbox for this.
 - Follow the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) code of conduct.
