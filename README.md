@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40607175805](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40607175805) on 2026-10-28<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40611348980](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40611348980) on 2026-10-28<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on the public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -25,14 +25,14 @@ drawings fetched by pinned sha256
 <!-- corpus-table:begin -->
 | Version | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |---------|--------------|---------|---------|---------|--------------|----------------|
-| R14 (AC1014) | 12 | 4666 | 90 | 0 | **98.1 %** | 100.0 % |
-| R2000 (AC1015) | 9 | 2744 | 41 | 0 | **98.5 %** | 100.0 % |
-| R2004 (AC1018) | 12 | 106956 | 38 | 0 | **> 99.9 %** | 100.0 % |
-| R2007 (AC1021) | 8 | 2201 | 36 | 0 | **98.4 %** | 100.0 % |
-| R2010 (AC1024) | 8 | 2151 | 37 | 0 | **98.3 %** | 100.0 % |
-| R2013 (AC1027) | 8 | 1750 | 37 | 0 | **97.9 %** | 100.0 % |
-| R2018 (AC1032) | 4 | 1576 | 39 | 0 | **97.6 %** | 99.6 % |
-| **Aggregate** | **61** | **122044** | **318** | **0** | **99.7 %** | **100.0 %** |
+| R14 (AC1014) | 12 | 4668 | 88 | 0 | **98.1 %** | 100.0 % |
+| R2000 (AC1015) | 9 | 2746 | 39 | 0 | **98.6 %** | 100.0 % |
+| R2004 (AC1018) | 12 | 106958 | 36 | 0 | **> 99.9 %** | 100.0 % |
+| R2007 (AC1021) | 8 | 2203 | 34 | 0 | **98.5 %** | 100.0 % |
+| R2010 (AC1024) | 8 | 2153 | 35 | 0 | **98.4 %** | 100.0 % |
+| R2013 (AC1027) | 8 | 1752 | 35 | 0 | **98.0 %** | 100.0 % |
+| R2018 (AC1032) | 4 | 1578 | 37 | 0 | **97.7 %** | 99.6 % |
+| **Aggregate** | **61** | **122058** | **304** | **0** | **99.8 %** | **100.0 %** |
 <!-- corpus-table:end -->
 
 A success rate counts records, and the sources differ in size by orders of
@@ -46,14 +46,14 @@ a change came from decoding or from the corpus:
 | Source | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |--------|--------------|---------|---------|---------|--------------|----------------|
 | nextgis | 42 | 8443 | 0 | 0 | **100.0 %** | 100.0 % |
-| acadsharp | 10 | 7362 | 269 | 0 | **96.5 %** | 96.2 % |
+| acadsharp | 10 | 7376 | 255 | 0 | **96.7 %** | 96.4 % |
 | bookviewerapp3 | 4 | 1410 | 49 | 0 | **96.6 %** | 98.5 % |
 | oshw-jetson | 4 | 104577 | 0 | 0 | **100.0 %** | 100.0 % |
 | planar-algorithm | 1 | 252 | 0 | 0 | **100.0 %** | 100.0 % |
-| **All sources** | **61** | **122044** | **318** | **0** | **99.7 %** | **100.0 %** |
+| **All sources** | **61** | **122058** | **304** | **0** | **99.8 %** | **100.0 %** |
 <!-- corpus-sources:end -->
 
-Totals: <!-- corpus-summary:begin -->122,044 decoded / 318 skipped / **0 errored** / 99.7 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 96.5 % (10), bookviewerapp3 96.6 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 98.1 %, R2000 98.5 %, R2004 > 99.9 %, R2007 98.4 %, R2010 98.3 %, R2013 97.9 %, R2018 97.6 %.<!-- corpus-summary:end -->
+Totals: <!-- corpus-summary:begin -->122,058 decoded / 304 skipped / **0 errored** / 99.8 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 96.7 % (10), bookviewerapp3 96.6 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 98.1 %, R2000 98.6 %, R2004 > 99.9 %, R2007 98.5 %, R2010 98.4 %, R2013 98.0 %, R2018 97.7 %.<!-- corpus-summary:end -->
 
 [`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
 drawing's decoded, skipped and errored counts, its class-census shortfalls
@@ -79,16 +79,11 @@ object-data size on R2000 to R2007, the size inside the common entity data
 on R13/R14), or it returns an error instead of plausible-looking geometry.
 An *errored* record is a field list that does not add up; there are none left
 on the pinned corpus. A *skipped* record is a type with no decoder on `main`
-yet. Every skipped type has a decoder in review:
-
-- MATERIAL, 212 records (decoder in review: #325);
-- the TABLE family: TABLESTYLE on R2010+ and CELLSTYLEMAP (#313), ACAD_TABLE
-  (#319), TABLECONTENT (#317) and TABLEGEOMETRY (#316), 94 records;
-- the dynamic-block evaluation objects (#328, #326, #339), 133 records;
-- DIMASSOC (#329), the ACSH solid-history classes (#330), SHAPE (#310), the
-  viewport entity header (#311), PDFUNDERLAY (#331), SUN (#332), DATATABLE
-  (#335), ACDB_TEXTOBJECTCONTEXTDATA_CLASS (#337), WIPEOUTVARIABLES, DBCOLOR
-  and PDFDEFINITION (#326).
+yet. Every skipped type has a decoder in review: the open pull requests
+labelled `type:feature` under the "every object prescription" epic (#138), which the
+merge train lands one at a time, each landing moving the tables above. The
+Corpus job's `corpus-measurement` artifact lists the skipped records of each
+drawing by type (`corpus-logs/`).
 
 Most of the classes in that list are not printed in the spec at all; their
 field lists are learned from AutoCAD's own DWG and DXF output under the
@@ -138,7 +133,7 @@ passed.
 | Symbol tables | Alpha | Every table record in the pinned corpus decodes, on every release; values scored by the DXF oracle |
 | Entity graph (owners, reactors, blocks, layers) | Partial | Resolver APIs exist; reference closure is measured per drawing in CI |
 | Streaming reader | Alpha | Byte-demand state machines up to the object records; see below |
-| DXF writer | Alpha | HEADER, CLASSES, the symbol tables and ENTITIES (15 kinds) written from decoded records and paired with AutoCAD's exports; BLOCKS and OBJECTS in review (#371 to #373) |
+| DXF writer | Alpha | HEADER, CLASSES, the symbol tables, BLOCKS (#371), ENTITIES (15 kinds) and OBJECTS (the dictionary family, XRECORD, SCALE and placeholders, #372; LAYOUT, GROUP and MLINESTYLE, #373; VISUALSTYLE, #413) written from decoded records and paired with AutoCAD's exports, in the drawing's code page (#382) |
 | DXF reader | Alpha | ASCII DXF keyed by handle, used by the value oracle |
 | DWG writer | Alpha | Assembles an R2004-family file this crate reads back; no CAD application has been checked against it |
 | SVG and PDF export | Alpha | SVG writer and a paged-SVG PDF path; output quality follows the decoded geometry |
@@ -183,13 +178,16 @@ ran 921 tests, all passing, on 2026-10-27 (run it for the current count).
 - Metadata parsers: `SummaryInfo`, `AppInfo` (R18 ANSI and R21+ UTF-16
   auto-detected), `Preview` (BMP, WMF, PNG), `FileDepList`
 - Handle map, class map and header variables
-- R14 to R2004 text in the code page the file header names, for pages 1251
-  and 1252, through one shared decoder (#374)
+- R14 to R2004 text in the code page the file header names, through one
+  shared decoder (#374): the ten pages real drawings prove, 1250 to 1254,
+  1257 and the double-byte 932, 936, 949 and 950 (#384), in entity and
+  object text, XRECORD values and extended data (#380); `dwg-to-dxf` and the
+  DWG writer write the same page back (#382)
 - The object walk on every release from R14 to R2018, and the class census
   CI gate that holds it to what `AcDb:Classes` declares
 - Entity and object decoding, boundary-checked on every release, with the
   values scored against AutoCAD's DXF exports
-- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables and ENTITIES from the decoded records
+- `dwg-to-dxf`: HEADER, CLASSES, the symbol tables, BLOCKS, ENTITIES and OBJECTS from the decoded records
 - An experimental R2004-family write path: bit writer, LZ77 encoder, section
   framer, Sec_Mask, the CRCs and checksums real files carry, and assembly via
   `DwgFile::to_bytes()`
@@ -203,10 +201,8 @@ every later disclosure.
 ### What dwg-rs does not do today
 
 - Read R13 (AC1012) files; the reader is in review (#323).
-- Read R14 to R2004 text in code pages other than 1251 (Cyrillic) and 1252
-  (Western European): text in any other page still decodes as lossy UTF-8.
-  XRECORD and XDATA strings are not decoded by page yet, and the writers
-  still emit UTF-8 (#375).
+- Read R14 to R2004 text in a code page no measured drawing names: a header
+  short outside the ten proven pages still decodes as lossy UTF-8 (#375).
 - Decode password-protected R2007 files: a section whose descriptor declares
   encryption is refused, not decoded.
 - Write R13, R14 or R2007 files; the writer covers the R2004 family only.

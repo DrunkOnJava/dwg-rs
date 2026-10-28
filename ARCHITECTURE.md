@@ -4355,6 +4355,45 @@ cargo run --release --example probe_cellstylemap -- ../dwg-corpus
 | R2010 | 8 / 8 | 2368 | none in the DWG | | 0 |
 | R2013 | 8 / 8 | 2368 | none in the DWG | | 0 |
 | R2018 | 4 / 4 | 592 | none in the DWG | | 0 |
+
+## 7bd. TABLEGEOMETRY (2026-10-26, #151)
+
+§20.4.103 prints the laid-out geometry of a table, an object AutoCAD 2008
+added beside TABLECONTENT and that "does not need to be present": `BL` row
+count, `BL` column count, `BL` their product, then per cell a `BL` flag, two
+`BD` (width and height with gap), a handle, a `BL` content count and per
+content two `3BD` distances, four `BD` and a last unknown. The handle is in the
+handle stream. The record had no decoder, so all 14 of the corpus's
+(two tables on each of R14 to R2018, the ACadSharp sample set) were skipped.
+
+The list closes as printed on all 14, on each release's data-stream
+boundary. The last value is typed `BD` in the spec and `BL` in the DXF (group
+95); a `BD` of 0 and a `BL` of 0 are the same two bits, `10`, and every record
+holds 0, so the width cannot choose between them. It is read as `BL`, and a
+non-zero value would break the boundary.
+
+Against AutoCAD's DXF export (R2000 to R2018) all values equal the groups
+that carry them, 3462 in all: the counts (90, 91, 92) and per cell the flag (93),
+the two sizes (40, 41), the content count (94) and per content the distances
+(10 to 31), the sizes (43 to 46) and the unknown (95). The first table's objects
+have the same handles in both files; the second table's TABLEGEOMETRY and
+TABLECONTENT were created while saving and have other handles in the DXF, so the probe pairs a DWG record that finds no DXF record of its handle
+with the next unpaired DXF record of the type, in file order. R14 has no twin.
+
+```sh
+cargo run --release --example probe_tablegeometry -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 2 | 2 | no twin | |
+| R2000 | 2 | 2 | 577 | 0 |
+| R2004 | 2 | 2 | 577 | 0 |
+| R2007 | 2 | 2 | 577 | 0 |
+| R2010 | 2 | 2 | 577 | 0 |
+| R2013 | 2 | 2 | 577 | 0 |
+| R2018 | 2 | 2 | 577 | 0 |
+
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
