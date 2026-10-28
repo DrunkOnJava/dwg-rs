@@ -17,7 +17,7 @@
 This is **0.1.0-alpha.1**. Do not use it in production. Do not benchmark it against the ODA SDK. Do not tell your CAD team dwg-rs solves their interop problem today.
 
 Entity and object decode coverage, measured in CI by the `Corpus (public DWG)`
-job on `main` (<!-- corpus-run:begin -->[run 40670057378](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40670057378) on 2026-10-28<!-- corpus-run:end -->) with
+job on `main` (<!-- corpus-run:begin -->[run 40671899935](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40671899935) on 2026-10-28<!-- corpus-run:end -->) with
 [`examples/coverage_report.rs`](./examples/coverage_report.rs), on the public
 drawings fetched by pinned sha256
 ([`tools/corpus/pins.tsv`](./tools/corpus/pins.tsv); none is committed):
@@ -25,14 +25,14 @@ drawings fetched by pinned sha256
 <!-- corpus-table:begin -->
 | Version | Files tested | Decoded | Skipped | Errored | Success rate | Median drawing |
 |---------|--------------|---------|---------|---------|--------------|----------------|
-| R14 (AC1014) | 12 | 4724 | 32 | 0 | **99.3 %** | 100.0 % |
+| R14 (AC1014) | 12 | 4725 | 31 | 0 | **99.3 %** | 100.0 % |
 | R2000 (AC1015) | 9 | 2781 | 4 | 0 | **99.9 %** | 100.0 % |
 | R2004 (AC1018) | 12 | 106993 | 1 | 0 | **> 99.9 %** | 100.0 % |
 | R2007 (AC1021) | 8 | 2236 | 1 | 0 | **> 99.9 %** | 100.0 % |
 | R2010 (AC1024) | 8 | 2187 | 1 | 0 | **> 99.9 %** | 100.0 % |
 | R2013 (AC1027) | 8 | 1786 | 1 | 0 | **99.9 %** | 100.0 % |
 | R2018 (AC1032) | 4 | 1614 | 1 | 0 | **99.9 %** | 100.0 % |
-| **Aggregate** | **61** | **122321** | **41** | **0** | **> 99.9 %** | **100.0 %** |
+| **Aggregate** | **61** | **122322** | **40** | **0** | **> 99.9 %** | **100.0 %** |
 <!-- corpus-table:end -->
 
 A success rate counts records, and the sources differ in size by orders of
@@ -47,13 +47,13 @@ a change came from decoding or from the corpus:
 |--------|--------------|---------|---------|---------|--------------|----------------|
 | nextgis | 42 | 8443 | 0 | 0 | **100.0 %** | 100.0 % |
 | acadsharp | 10 | 7618 | 13 | 0 | **99.8 %** | 99.9 % |
-| bookviewerapp3 | 4 | 1431 | 28 | 0 | **98.1 %** | 98.5 % |
+| bookviewerapp3 | 4 | 1432 | 27 | 0 | **98.1 %** | 98.5 % |
 | oshw-jetson | 4 | 104577 | 0 | 0 | **100.0 %** | 100.0 % |
 | planar-algorithm | 1 | 252 | 0 | 0 | **100.0 %** | 100.0 % |
-| **All sources** | **61** | **122321** | **41** | **0** | **> 99.9 %** | **100.0 %** |
+| **All sources** | **61** | **122322** | **40** | **0** | **> 99.9 %** | **100.0 %** |
 <!-- corpus-sources:end -->
 
-Totals: <!-- corpus-summary:begin -->122,321 decoded / 41 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 98.1 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.3 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
+Totals: <!-- corpus-summary:begin -->122,322 decoded / 40 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 98.1 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.3 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
 
 [`tools/corpus/baseline.tsv`](./tools/corpus/baseline.tsv) pins each
 drawing's decoded, skipped and errored counts, its class-census shortfalls
