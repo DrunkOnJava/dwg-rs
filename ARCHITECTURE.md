@@ -5043,6 +5043,63 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_sh_extrusion -- ../dwg-corpus
 ```
 
+## 7bq. ACSH_CYLINDER_CLASS and ACSH_REVOLVE_CLASS: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
+
+ODA spec v5.4.1 prints no layout for either solid-history record. The two classes occur
+only in `3d.dwg` of the pinned `kurema/BookViewerApp3` drawings (AC1014; two cylinders and
+one revolve), and the corpus holds no DXF export of that drawing, so the method of
+CLEANROOM.md (2026-10-26) cannot score a value. `src/objects/sh_history.rs` reads each
+class from a layout derived from the record's own bits and held to the record's
+data-stream boundary alone, by the entry CLEANROOM.md records for 2026-10-28. **Their
+state is `decoder`, not `closes`.** Both continue the family of §7bj and §7bp: the
+evaluation base and the history node as the box has them (`BL 92` included), then the
+class's own fields.
+
+| Class | Drawing | Records | Close | Values compared |
+|---|---|---:|---:|---:|
+| ACSH_CYLINDER_CLASS | `3d.dwg` (R14) | 2 | 2 | 0 (no DXF twin) |
+| ACSH_REVOLVE_CLASS | `3d.dwg` (R14) | 1 | 1 | 0 (no DXF twin) |
+
+```text
+ACSH_CYLINDER_CLASS  evaluation base, history node (BL 90, BL 91, BD x16, colour, BL 92)
+                                                                   as ACSH_BOX_CLASS
+                     BL 90 (33), BL 91 (73), BD x4
+ACSH_REVOLVE_CLASS   evaluation base, history node                 as ACSH_BOX_CLASS
+                     BL 90 (33), BL 91 (73), 3BD, 3BD, BD,
+                     six values in the 2-bit zero form, BL 92 (77),
+                     BL (1272, a bit count) and that many bits
+```
+
+- **The cylinder.** After the node, both records hold 284 bits: two `BL` of 10 bits and four
+  `BD` of 66 bits, nothing left over. The four values read 0.4, 0.15, 0.15, 0.15 in one
+  record (handle 0x310) and 0.1, 0.25, 0.25, 0.25 in the other (0x314): decimals a
+  misaligned read would not produce, with the first value unlike the other three, which are
+  equal in each record. That is the shape of a height and three radii, but nothing here
+  scores it.
+- **The revolve.** After the node and the two `BL`, the bits read as `BD` give (0, -0.525, 0),
+  (0, 1, 0) and 6.283185307179586 (2 pi), a point, a direction and a full turn by their
+  values; six 2-bit codes then follow, each the zero form that `BD`, `BL` and `BS` share. The
+  next `BL` is 77, the value group 92 holds in the extrusion's sweep base, and the one
+  after it is 1272, which is exactly the number of bits left in the record (442 to 1714). The
+  profile data is carried as 159 unaligned bytes and not read, as the extrusion's is.
+- **What the bytes settle, and what they do not.** The width of every field and the order
+  of the list are settled by the record closing, and in the revolve by the bit count equalling
+  the bits left. The roles of the values are read from the values and are unverified. So are
+  the types of the six zero slots (they are 12 bits that read as six zero codes, and the
+  decoder refuses any slot that does not), whether the cylinder's three equal values are
+  radii, and the axis and angle of the revolve; each class has a handful of records from one
+  drawing, so none is a measured range. A DXF export of the drawing, which AutoCAD's trial
+  tooling can make, would score them and let the state move to `closes`.
+- **Other releases.** The same list is attempted on every release, and a record it does not
+  close on is an error, not a guess. Only R14 has records in the corpus.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+for p in sh_cylinder sh_revolve; do
+  cargo run --release --example probe_$p -- ../dwg-corpus
+done
+```
+
 ## 7br. LIGHT: boundary closes, values unscored (no DXF twin) (2026-10-28, #152)
 
 ODA spec v5.4.1 prints no layout for the LIGHT entity. `src/entities/light.rs` reads it from
@@ -5091,7 +5148,6 @@ B cast_shadows (1), BL shadow_type (0), BS shadow_map_size (256), RC shadow_map_
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_light -- ../dwg-corpus
 ```
-
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

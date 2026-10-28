@@ -932,6 +932,33 @@ leading `BS` of the R2004+ colour; the handles (347 and the rest) are not decode
 vocabulary beyond the DXF group codes and subclass markers in the twins was used, and no
 third-party DWG or DXF implementation was consulted.
 
+## 2026-10-28 — ACSH_CYLINDER_CLASS and ACSH_REVOLVE_CLASS: bits of an AutoCAD-written drawing with no DXF twin
+
+The 2026-10-26 entry on classes the specification never prints accepts a value only
+when AutoCAD's DXF export of the same drawing carries it. These two classes occur only in
+`3d.dwg` of the pinned `kurema/BookViewerApp3` drawings (MIT, AC1014; the 2026-10-27 entry
+on code pages lists the pin), and no DXF export of that drawing is in the corpus. By the
+integrator's direction of 2026-10-28, a field list for such a class may be kept at state
+`decoder` when it closes every record of the class exactly on the record's data-stream
+boundary, and the ARCHITECTURE.md section and the spec-coverage row say "boundary closes,
+values unscored (no DXF twin)". Nothing in this entry or in the decoders asserts a value.
+
+- **What is read.** The data bits of the three records of `src/objects/sh_history.rs`'s two
+  classes (two ACSH_CYLINDER_CLASS, handles 0x310 and 0x314, and one ACSH_REVOLVE_CLASS,
+  handle 0x363), as data, from the file named above. The drawing's own bytes show that
+  AutoCAD wrote it: its RAPIDRTRENDERENVIRONMENT records name an AutoCAD 2019 install
+  path, and R14 carries no `AcDb:AppInfo` to say more.
+- **What decides the layout.** The evaluation base and the history node, which the box, the
+  history and the extrusion of 2026-10-26 already close on every release; then the class's
+  own fields, taken from the record's remaining bits. The cylinder's four `BD` leave no bit
+  over on either record. The revolve's bit count equals the number of bits left in the
+  record, which fixes the end of the list, and its `BD` values read as decimals and 2 pi.
+- **What stays unverified.** The role of every value and the type of the six revolve slots
+  that read as zero codes; the roles are read from the values, and no name is taken from
+  the DXF Reference.
+- **Never used.** Any third-party implementation of DWG or DXF: not LibreDWG, the ODA or
+  Teigha SDK, an Autodesk SDK, ACadSharp's or ezdxf's code, comments or data.
+
 ## 2026-10-28 — LIGHT: bits of an AutoCAD-written drawing with no DXF twin
 
 The 2026-10-26 entry on classes the specification never prints accepts a value only
@@ -960,4 +987,3 @@ entry or in the decoder asserts a value.
   names as recalled, contributing names and the first of the two orders only.
 - **Never used.** Any third-party implementation of DWG or DXF: not LibreDWG, the ODA or
   Teigha SDK, an Autodesk SDK, ACadSharp's or ezdxf's code, comments or data.
-

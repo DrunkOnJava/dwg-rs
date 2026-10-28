@@ -186,6 +186,10 @@ pub enum DecodedEntity {
     ShBox(Box<crate::objects::sh_history::ShBox>),
     /// ACSH_EXTRUSION_CLASS (§7bp).
     ShExtrusion(Box<crate::objects::sh_history::ShExtrusion>),
+    /// ACSH_CYLINDER_CLASS (§7bq).
+    ShCylinder(Box<crate::objects::sh_history::ShCylinder>),
+    /// ACSH_REVOLVE_CLASS (§7bq).
+    ShRevolve(Box<crate::objects::sh_history::ShRevolve>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -324,6 +328,8 @@ impl DecodedEntity {
             | Self::ShHistory(_)
             | Self::ShBox(_)
             | Self::ShExtrusion(_)
+            | Self::ShCylinder(_)
+            | Self::ShRevolve(_)
             | Self::Sun(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
@@ -976,6 +982,14 @@ fn dispatch_object_class(
         "ACSH_EXTRUSION_CLASS" => {
             crate::objects::sh_history::decode_extrusion(payload, body_start, inline_end, version)
                 .map(|e| DecodedEntity::ShExtrusion(Box::new(e)))
+        }
+        "ACSH_CYLINDER_CLASS" => {
+            crate::objects::sh_history::decode_cylinder(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShCylinder(Box::new(e)))
+        }
+        "ACSH_REVOLVE_CLASS" => {
+            crate::objects::sh_history::decode_revolve(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShRevolve(Box::new(e)))
         }
         "SUN" => crate::entities::sun::decode_object(payload, body_start, inline_end, version)
             .map(DecodedEntity::Sun),
