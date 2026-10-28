@@ -111,6 +111,12 @@ impl Twin {
         Twin { records, by_handle }
     }
 
+    /// Every record, in file order.
+    #[allow(dead_code)]
+    pub fn records(&self) -> &[Record] {
+        &self.records
+    }
+
     /// The record whose handle is `handle`.
     pub fn record(&self, handle: u64) -> Option<&Record> {
         self.by_handle.get(&handle).map(|&i| &self.records[i])
@@ -132,6 +138,11 @@ pub enum Pairing {
     /// AutoCAD created while saving, whose handles differ between the DWG and
     /// the DXF of the same drawing.
     HandleThenOrder,
+    /// The DXF record with the same handle. An object the export omits while
+    /// holding others of its kind (AutoCAD's R2000 and R2004 exports drop some
+    /// objects of a class and keep one) is checked by its boundary alone, and
+    /// the line says so, instead of failing for want of a partner.
+    HandleOrAbsent,
     /// The one record of the DXF type in the twin, for an object AutoCAD
     /// writes afresh on every save, so that the two files never share a
     /// handle. A twin with none or several has no partner for it.
@@ -383,7 +394,9 @@ pub fn run_with_twin(
                         None
                     } else {
                         d.twin.as_ref().map(|t| match pairing {
-                            Pairing::Handle => t.record(handle).filter(|r| r.kind == p.dxf_kind),
+                            Pairing::Handle | Pairing::HandleOrAbsent => {
+                                t.record(handle).filter(|r| r.kind == p.dxf_kind)
+                            }
                             Pairing::HandleThenOrder => t
                                 .record(handle)
                                 .filter(|r| r.kind == p.dxf_kind)
@@ -393,6 +406,33 @@ pub fn run_with_twin(
                                 (all.len() == 1).then(|| all[0])
                             }
                         })
+                    };
+                    // A release whose whole DXF export holds no record of this kind (AutoCAD's
+                    // R2000/R2004 exports omit some object classes entirely) has no twin for it:
+                    // the record is compared by its boundary only, as on R14. A missing record
+                    // where the export does hold others of the kind still fails.
+                    let rec = match rec {
+                        Some(None) if matches!(pairing, Pairing::HandleOrAbsent) => {
+                            println!(
+                                "{name} ({release}) {tag} 0x{handle:X} closes; this release's DXF \
+                                 export omits this {}, so it is checked by its boundary only",
+                                p.dxf_kind
+                            );
+                            None
+                        }
+                        Some(None)
+                            if d.twin
+                                .as_ref()
+                                .is_some_and(|t| t.records_of(p.dxf_kind).is_empty()) =>
+                        {
+                            println!(
+                                "{name} ({release}) {tag} 0x{handle:X} closes; this release's DXF \
+                                 export holds no {} at all, so it is checked by its boundary only",
+                                p.dxf_kind
+                            );
+                            None
+                        }
+                        other => other,
                     };
                     if matches!(rec, Some(None)) {
                         failed = true;

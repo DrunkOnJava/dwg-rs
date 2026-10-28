@@ -52,39 +52,3 @@ pub(crate) fn decode_object(
         num_reactors: split.num_reactors,
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::bitwriter::BitWriter;
-
-    #[test]
-    fn r2018_placeholder_is_exactly_the_common_object_data() {
-        let body = modern::tests::r2018_object_prefix(1);
-        let bits = crate::string_stream::tests::bits_of(&body);
-        let payload = modern::tests::build_payload_without_strings(&bits);
-        let p = decode_object(&payload, 8, None, Version::R2018).unwrap();
-        assert_eq!(p.num_reactors, 1);
-    }
-
-    #[test]
-    fn r2018_placeholder_rejects_a_record_with_a_body() {
-        let mut body = modern::tests::r2018_object_prefix(1);
-        body.write_bl(7); // a field a placeholder must not have
-        let bits = crate::string_stream::tests::bits_of(&body);
-        let payload = modern::tests::build_payload_without_strings(&bits);
-        assert!(decode_object(&payload, 8, None, Version::R2018).is_err());
-    }
-
-    #[test]
-    fn r2004_placeholder_closes_on_the_inline_object_size() {
-        let mut w = BitWriter::new();
-        w.write_bs_u(0);
-        w.write_bl(1);
-        w.write_b(true);
-        let end = w.position_bits();
-        let bytes = w.into_bytes();
-        let p = decode_object(&bytes, 0, Some(end), Version::R2004).unwrap();
-        assert_eq!(p.num_reactors, 1);
-    }
-}

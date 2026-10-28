@@ -9,18 +9,14 @@ the current capability matrix.
 
 ## Summary
 
-- **Tests:** `cargo test --release --all-features` ran 921 tests, all
-  passing, on 2026-10-27; clippy and fmt clean. (The 2026-08-30
-  snapshot had 774 lib tests.)
-- **WASM tests:** 40 passing in `wasm/` sub-crate.
-- **Integration tests:** DXF round-trip (7), glTF smoke (3), SVG
-  goldens (3), fuzz-corpus regression (6), write-path (5),
-  entity-regression (18), real-DWG value regression (8),
-  legacy-container (11: R14 / R2000 byte-built flat files, the R2007
-  string-stream boundary, and four corpus-gated pins).
+- **Tests:** unit tests are banned, and no test count is quoted: a pass
+  count is not evidence. CI's Test job runs the real-file, contract and
+  hardening targets of `tools/ci/test-targets.txt` and the documentation
+  examples (`tools/ci/run_test_targets.sh`), and the Corpus job runs the
+  corpus-reading targets on the 19 pinned drawings; clippy and fmt clean.
 - **Current real-file decode coverage, measured in CI** (the
-  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40503137263](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40503137263) on 2026-10-27<!-- corpus-run:end -->, on the public drawings
-  pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->15,541 decoded / 533 skipped / **0 errored** / 96.7 % of all records on 52 drawings; the median drawing decodes 97.8 %. Per source (drawings): nextgis 98.0 % (42), acadsharp 95.2 % (10). Per version: R14 97.5 %, R2000 96.8 %, R2004 96.8 %, R2007 96.6 %, R2010 96.5 %, R2013 95.7 %, R2018 96.1 %.<!-- corpus-summary:end -->
+  `Corpus (public DWG)` job, <!-- corpus-run:begin -->[run 40716086829](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40716086829) on 2026-10-28<!-- corpus-run:end -->, on the public drawings
+  pinned in `tools/corpus/pins.tsv`): <!-- corpus-summary:begin -->122,330 decoded / 32 skipped / **0 errored** / > 99.9 % of all records on 61 drawings; the median drawing decodes 100.0 %. Per source (drawings): nextgis 100.0 % (42), acadsharp 99.8 % (10), bookviewerapp3 98.7 % (4), oshw-jetson 100.0 % (4), planar-algorithm 100.0 % (1). Per version: R14 99.5 %, R2000 99.9 %, R2004 > 99.9 %, R2007 > 99.9 %, R2010 > 99.9 %, R2013 99.9 %, R2018 99.9 %.<!-- corpus-summary:end -->
   The 308 errors of the 2026-10-26 measurement were closed by #226,
   #227, #228 and #71; `sample_AC1032.dwg` comes from ACadSharp's MIT
   `samples/`, saved by AutoCAD 2025 (#96, CLEANROOM.md).
@@ -256,8 +252,8 @@ the current capability matrix.
 - 11 launch posts (blog, HN, r/rust, r/cad, LinkedIn, Reddit,
   Twitter, LibreCAD/FreeCAD/QCAD forums, ODA community).
 - 11 DEV docs (CONTRIBUTING, CLEANROOM, THREAT_MODEL, EXTENDING_DECODERS,
-  entity-decoder cargo-generate template, synthetic DWG generator,
-  GitHub Discussions, issue + PR templates).
+  entity-decoder cargo-generate template, GitHub Discussions,
+  issue + PR templates).
 
 ### Security (SEC-series)
 - `DecompressLimits` + LZ77 output cap (SEC-01, 02, 03, 04).
@@ -278,7 +274,9 @@ the current capability matrix.
 
 ## Pending — non-trivial work remaining
 
-These have genuine open scope requiring focused work, not stubs.
+These have genuine open scope requiring focused work, not stubs. Their counts
+are the 2026-08-30 snapshot of the 19-file subset; the corpus table at the top
+of this page is current, and README.md lists the types still skipped.
 
 - **Current real-file decode baseline:** the 2026-08-30
   `examples/coverage_report.rs ../../samples` run reports 2273 decoded,

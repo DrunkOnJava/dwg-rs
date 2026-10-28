@@ -29,16 +29,3 @@ pub struct SeqEnd;
 pub fn decode(_c: &mut BitCursor<'_>) -> Result<SeqEnd> {
     Ok(SeqEnd)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn seqend_consumes_nothing() {
-        let buf = [0xFFu8; 4];
-        let mut c = BitCursor::new(&buf);
-        let _ = decode(&mut c).unwrap();
-        assert_eq!(c.position_bits(), 0);
-    }
-}

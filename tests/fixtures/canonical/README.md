@@ -4,17 +4,26 @@ A minimal, self-generated corpus of DWG files that CI runs
 `coverage_report` against (task #94). Five files, one per DWG version
 the write path can assemble.
 
-| File                  | Version        | Container   | Entities | decoded / skip / err | ratio |
+| File                  | Version        | Container   | Records | decoded / skip / err | ratio |
 |-----------------------|----------------|-------------|----------|----------------------|-------|
-| `synthetic_2000.dwg`  | AC1015 (R2000) | flat §3.2.6 | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2004.dwg`  | AC1018 (R2004) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2010.dwg`  | AC1024 (R2010) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2013.dwg`  | AC1027 (R2013) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
-| `synthetic_2018.dwg`  | AC1032 (R2018) | page map §4 | 5        | 5 / 0 / 0            | 100 % |
-| **TOTAL**             |                |             | 25       | 25 / 0 / 0           | 100 % |
+| `synthetic_2000.dwg`  | AC1015 (R2000) | flat §3.2.6 | 11       | 11 / 0 / 0           | 100 % |
+| `synthetic_2004.dwg`  | AC1018 (R2004) | page map §4 | 11       | 11 / 0 / 0           | 100 % |
+| `synthetic_2010.dwg`  | AC1024 (R2010) | page map §4 | 11       | 11 / 0 / 0           | 100 % |
+| `synthetic_2013.dwg`  | AC1027 (R2013) | page map §4 | 11       | 11 / 0 / 0           | 100 % |
+| `synthetic_2018.dwg`  | AC1032 (R2018) | page map §4 | 11       | 11 / 0 / 0           | 100 % |
+| **TOTAL**             |                |             | 55       | 55 / 0 / 0           | 100 % |
 
-Each file carries the same five entities: a 2D LINE, a 3D LINE with
-non-default thickness and extrusion, a CIRCLE, an ARC, and a POINT.
+Each file carries the same eleven records: five entities (a 2D LINE, a 3D
+LINE with non-default thickness and extrusion, a CIRCLE, an ARC, and a
+POINT) and three block definitions, a BLOCK_HEADER table entry plus the
+BLOCK sentinel it names, six records in all (#78). The blocks are
+`FixtureBlock`, whose header and sentinel store the same name, and two
+anonymous blocks whose headers both store the stem `*D` and whose
+sentinels read `*D1` and `*D2`, so the name join of
+`dwg::graph::resolve_block_names` (#70) has work to do on every release the
+writer emits. Each header's handle stream holds the block control object
+(soft pointer, not in the file), the NULL anchor and its BLOCK; the
+references after the BLOCK (entities, ENDBLK, layout) are left out.
 
 The R2004-family files carry three sections — `AcDb:Header` (64 zero
 bytes, placeholder), `AcDb:Handles`, `AcDb:AcDbObjects` — assembled by
@@ -87,18 +96,20 @@ the acceptance statement in `src/file_writer.rs`. CI does not run any
 Autodesk product.
 
 Coverage is limited to the four entity types that currently have an
-`ElementEncoder` implementation (LINE, CIRCLE, ARC, POINT). Add
-fixtures as more encoders land — every new encoder is a chance to widen
-this gate.
+`ElementEncoder` implementation (LINE, CIRCLE, ARC, POINT) and the
+block records, which the generator writes by hand, inverting
+`tables::block_record` and `entities::block` (no `ElementEncoder` exists
+for them). Add fixtures as more encoders land — every new encoder is a
+chance to widen this gate.
 
 No R14 or R2007 fixture exists. R14 entity records need the §20.4.1
 R13/R14 preamble and the §20.4.21 `3BD` LINE body, which the
 `ElementEncoder` implementations do not write; R2007's §5.1-§5.4
 container is implemented read-only, and writing one would need a
 Reed-Solomon encoder and a §5.10 compressor this crate does not have.
-Both releases are covered on the read side by the real corpus and by
-`tests/integration_legacy_container.rs`, whose R14 fixtures are built
-byte-by-byte in the test itself.
+Both releases are covered on the read side by the real corpus; the byte-built
+R14 fixtures of `tests/integration_legacy_container.rs` are unit tests, which no
+job runs.
 
 ## What CI does with this
 
@@ -112,10 +123,19 @@ corpus)**:
   threshold stated in the workflow.
 
 The tight companion gate is [`tests/canonical_corpus.rs`](../../canonical_corpus.rs),
-which runs under `cargo test` and pins the exact per-file entity counts
+which CI's Test job runs (class `real` in `tools/ci/test-targets.txt`) and which pins the exact per-file record counts
 *and* decoded field values — so a bit-alignment regression that still
 "decodes" into garbage coordinates fails there even when the ratio
 would stay at 100 %.
+
+[`tests/block_names.rs`](../../block_names.rs) runs the block-name gate
+(#70) on these five files, in CI's Test job on every platform (`ci.yml`, job
+**Test**, step *Real-file, contract and hardening targets*, as `canonical_fixtures_block_names_agree_with_their_sentinels`):
+each BLOCK_HEADER's
+resolved name must equal the name its BLOCK sentinel carries, the resolved
+names must be unique, and the header's stored string must be that name
+minus a decimal suffix. Until #78 the gate ran only where the public
+corpus was present.
 
 A regression that breaks the entity walker, the common-entity preamble,
 LINE / CIRCLE / ARC / POINT decoding, the section map, or the handle

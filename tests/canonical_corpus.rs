@@ -31,6 +31,14 @@ const FIXTURES: &[(&str, Version)] = &[
 /// LINE (2D), LINE (3D), CIRCLE, ARC, POINT.
 const ENTITIES_PER_FIXTURE: usize = 5;
 
+/// Records of the three block definitions it writes after them: a
+/// BLOCK_HEADER and a BLOCK sentinel each (#78). `tests/block_names.rs`
+/// runs the name-join gate on them.
+const BLOCK_RECORDS_PER_FIXTURE: usize = 6;
+
+/// Every record in a fixture's object stream, and so its handle map.
+const RECORDS_PER_FIXTURE: usize = ENTITIES_PER_FIXTURE + BLOCK_RECORDS_PER_FIXTURE;
+
 fn corpus_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/canonical")
 }
@@ -56,8 +64,8 @@ fn canonical_corpus_is_not_empty() {
 }
 
 /// Each fixture opens, reports the version it was generated for, and
-/// yields exactly `ENTITIES_PER_FIXTURE` cleanly decoded entities with
-/// zero unhandled and zero errored records.
+/// yields exactly `RECORDS_PER_FIXTURE` cleanly decoded records (its five
+/// entities, then the block records) with zero unhandled and zero errored.
 #[test]
 fn every_fixture_decodes_all_entities() {
     for (name, version) in FIXTURES {
@@ -70,8 +78,8 @@ fn every_fixture_decodes_all_entities() {
             .unwrap_or_else(|| panic!("{name}: decoded_entities returned None (no handle map)"))
             .unwrap_or_else(|e| panic!("{name}: decoded_entities failed: {e}"));
 
-        assert_eq!(entities.len(), ENTITIES_PER_FIXTURE, "{name}: entity count");
-        assert_eq!(summary.decoded, ENTITIES_PER_FIXTURE, "{name}: decoded");
+        assert_eq!(entities.len(), RECORDS_PER_FIXTURE, "{name}: record count");
+        assert_eq!(summary.decoded, RECORDS_PER_FIXTURE, "{name}: decoded");
         assert_eq!(summary.unhandled, 0, "{name}: unhandled");
         assert_eq!(summary.errored, 0, "{name}: errored — {:?}", summary.errors);
         assert_eq!(summary.decoded_ratio(), 1.0, "{name}: decoded_ratio");
@@ -162,7 +170,7 @@ fn fixture_sections_are_readable() {
             .handle_map()
             .expect("AcDb:Handles present")
             .expect("handle map parses");
-        assert_eq!(map.len(), ENTITIES_PER_FIXTURE, "{name}: handle map size");
+        assert_eq!(map.len(), RECORDS_PER_FIXTURE, "{name}: handle map size");
     }
 }
 
