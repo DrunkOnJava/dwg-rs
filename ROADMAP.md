@@ -24,19 +24,24 @@ limitations (the maintainer's decision, 2026-10-21):
 - the browser viewer has no stubs, and the Python bindings reach the whole
   reader.
 
-## Where it stands (2026-10-21)
+## Where it stands (2026-10-27)
+
+Measured numbers are not repeated here: README.md renders them from the
+baselines CI holds equal to its measurement, and docs/spec-coverage.md is
+generated from its data file.
 
 | Area | State on `main` | Evidence |
 |---|---|---|
-| Containers | R14 to R2018 read, R2007 included (#110); R13 never seen | STATUS.md |
-| Object walk | Every corpus file tiles its object stream with zero bytes between records; reference closure closed on all 44 R2000-to-R2018 drawings, NOT MEASURED on R14 (#84); class-census shortfalls pinned per file (#230) | the Corpus CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)), `tools/corpus/baseline.tsv` |
-| Decode | 13,781 records decoded, 1,985 skipped, 308 errored (85.7%) on 52 public drawings, R14 to R2018; every entity record boundary-checked (#63) | the Corpus CI job ([run 40304926288](https://github.com/DrunkOnJava/dwg-rs/actions/runs/40304926288)), README.md |
-| Values | Checked for LINE, CIRCLE and ARC on R2013 only; nothing compared with AutoCAD's DXF | `tests/r2013_entity_values.rs` |
-| Spec coverage | Of the 104 object prescriptions in §20.4, 46 close on the public corpus in CI; 22 have no decoder, 30 are partial and 6 are unmeasured; seven data sections are unread; the header variables (§9) are read, close on all 52 and agree with AutoCAD's DXF export on every comparable variable (ARCHITECTURE.md §7s) | [`docs/spec-coverage.md`](docs/spec-coverage.md) |
-| Writer | R2004-family section round-trips; no file shown to open in AutoCAD | ARCHITECTURE.md §8 |
-| Exports, viewer, Python | DXF, SVG, glTF and PDF written and checked syntactically; the viewer has stubs; Python has type stubs only | STATUS.md |
-| CI | Synthetic fixtures only: no real DWG file is read in CI | `.github/workflows/ci.yml` |
-| Releases | Nothing published; a v0.1.0-alpha.1 draft from April | GitHub releases, crates.io |
+| Containers | R14 to R2018 read, R2007 included (#110); the R13 reader is in review (#323) | STATUS.md |
+| Object walk | Every pinned drawing's walk, reference closure and class census are measured per drawing in CI and pinned in the baseline; closure is NOT MEASURED on R14 (#84) | the Corpus CI job, `tools/corpus/baseline.tsv` |
+| Decode | Every entity and object record boundary-checked (#63); decoded, skipped and errored counts per release and per source | README.md's coverage tables |
+| Values | AutoCAD's DXF export is the value oracle (#99): every decoded field of a scored type is compared by handle, and CI fails when agreement falls | README.md's oracle summary, `tools/oracle/baseline.tsv` |
+| Spec coverage | Every §20.4 prescription and data section has a state, with its evidence | [`docs/spec-coverage.md`](docs/spec-coverage.md) |
+| Text | Pre-R2007 text in the ten code pages real drawings prove, read and written back (#374, #380, #382, #384) | ARCHITECTURE.md §7ap, §7as, §7at, §7au |
+| Writer | R2004-family section round-trips; no file shown to open in AutoCAD (the AutoCAD trial, #383) | ARCHITECTURE.md §8 |
+| Exports, viewer, Python | DXF HEADER, CLASSES, tables, BLOCKS, ENTITIES and OBJECTS (dictionaries, XRECORD, SCALE, LAYOUT, GROUP, MLINESTYLE, VISUALSTYLE) written and paired with AutoCAD's exports; SVG, glTF and PDF checked syntactically; the viewer has stubs; Python has type stubs only | README.md's capability matrix |
+| CI | Every pull request reads the pinned public corpus: decode counts, closure, class census and the DXF oracle are ratcheted (Corpus job) | `.github/workflows/ci.yml` |
+| Releases | Nothing published; the April v0.1.0-alpha.1 draft was deleted and its tag kept (#111) | GitHub releases, crates.io |
 
 ## Milestones
 
