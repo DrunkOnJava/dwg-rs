@@ -32,10 +32,24 @@
 //!
 //! These fixtures exercise **our writer against our reader**. They are
 //! NOT proof that AutoCAD, BricsCAD, or LibreCAD accept the bytes — see
-//! the acceptance statement in `src/file_writer.rs`. They also cover only
-//! the four entity types that have [`ElementEncoder`] implementations
-//! (LINE, CIRCLE, ARC, POINT); the corpus should grow as more encoders
-//! land.
+//! the acceptance statement in `src/file_writer.rs`. They cover the four
+//! entity types that have [`ElementEncoder`] implementations (LINE,
+//! CIRCLE, ARC, POINT) and three block definitions, each a `BLOCK_HEADER`
+//! table entry plus the `BLOCK` sentinel entity it names (#78). Those two
+//! kinds have no [`ElementEncoder`]; this example writes them directly,
+//! inverting `tables::block_record` and `entities::block` field for field
+//! (see [`block_header_body`] and [`block_body`]).
+//!
+//! # The block-name gate (#70, #78)
+//!
+//! A block's name is stored twice: on its `BLOCK_HEADER`, which holds only
+//! a stem for AutoCAD's generated names, and on its `BLOCK` sentinel, which
+//! holds the full name. [`BLOCKS`] pairs a plain name with two anonymous
+//! blocks whose headers both store `*D` and whose sentinels read `*D1` and
+//! `*D2`, so `dwg::graph::resolve_block_names` has a join to do on every
+//! band the writer emits. `tests/block_names.rs` runs that gate on these
+//! files under a plain `cargo test`; it used to run only where the public
+//! corpus was present.
 //!
 //! Two container families are emitted. The R2004 family goes through
 //! [`assemble_dwg_bytes`] (page map + section info + LZ77). R2000 goes
@@ -68,10 +82,28 @@ use std::process::ExitCode;
 
 /// Object type codes (spec §19.4 table). Only the four types with an
 /// [`ElementEncoder`] implementation are emitted.
+const TYPE_BLOCK: u16 = 0x04;
 const TYPE_ARC: u16 = 0x11;
 const TYPE_CIRCLE: u16 = 0x12;
 const TYPE_LINE: u16 = 0x13;
 const TYPE_POINT: u16 = 0x1B;
+const TYPE_BLOCK_HEADER: u16 = 0x31;
+
+/// The BLOCK_CONTROL handle every `BLOCK_HEADER` names as its owner. The
+/// fixtures carry no block control object, so the soft pointer dangles,
+/// which a soft pointer may.
+const BLOCK_CONTROL_HANDLE: u64 = 0x01;
+
+/// The block definitions the fixtures carry, as
+/// `(BLOCK_HEADER handle, name the header stores, BLOCK handle, name the
+/// BLOCK sentinel stores)`. Two anonymous blocks store the same stem `*D`
+/// and are told apart only by their sentinels, as eight records of
+/// `sample_AC1032.dwg` are.
+const BLOCKS: [(u64, &str, u64, &str); 3] = [
+    (0x30, "FixtureBlock", 0x31, "FixtureBlock"),
+    (0x32, "*D", 0x33, "*D1"),
+    (0x34, "*D", 0x35, "*D2"),
+];
 
 /// R2018 `AcDb:AcDbObjects` streams open with an undocumented RL that
 /// the walker skips (spec note: "starts with a RL value of 0x0dca").
@@ -137,9 +169,35 @@ fn write_common_entity_preamble(w: &mut BitWriter, version: Version) {
     w.write_rc(0);
 }
 
+/// What follows a record's data fields: the strings of its R2007+ string
+/// stream and the references of its handle stream. Before R2007 the
+/// strings are inline in the data fields and `strings` stays empty.
+struct Tail<'a> {
+    strings: &'a [&'a str],
+    handles: &'a [(u8, u64)],
+}
+
+/// No string stream, no handle stream: the entities' tail.
+const NO_TAIL: Tail<'static> = Tail {
+    strings: &[],
+    handles: &[],
+};
+
+/// Write one `TU` of an R2007+ string stream: a `BS` unit count and the
+/// UTF-16LE units, with no terminator (the 12-unit `*Paper_Space` of a real
+/// BLOCK_HEADER takes exactly 10 + 192 bits).
+fn write_string_stream_tv(w: &mut BitWriter, s: &str) {
+    let units: Vec<u16> = s.encode_utf16().collect();
+    w.write_bs_u(units.len() as u16);
+    for unit in units {
+        w.write_rc((unit & 0xFF) as u8);
+        w.write_rc((unit >> 8) as u8);
+    }
+}
+
 /// Build one `AcDb:AcDbObjects` record: `MS size` + payload + 2-byte CRC,
 /// where the payload is the object header (R2010+ handle-stream MC,
-/// object type, handle), the common entity preamble, and the entity body.
+/// object type, handle), what `body` writes, and the `tail`.
 ///
 /// Mirrors `dwg::object::ObjectWalker::read_one_at_pos` field-for-field.
 /// The CRC is little-endian, seeded 0xC0C1, over the `MS` bytes and the
@@ -152,18 +210,25 @@ fn write_common_entity_preamble(w: &mut BitWriter, version: Version) {
 ///
 /// * the record's `MS` **excludes its own leading `MC`** handle-stream-
 ///   size field, so the emitted `MS` is `payload.len() - mc_width`;
-/// * §19.1 ends the data area with a `B` *strings present* flag, and the
-///   handle stream starts on the next bit. These fixtures carry no
-///   handle references, so the byte padding after that flag stands in
-///   for the handle stream and the `MC` records its width — the same
-///   convention `string_stream::tests::build_payload` uses. Declaring a
-///   zero-bit handle stream instead put the data boundary past the end
-///   of the record, which suppressed every decoder's boundary check.
-fn build_object_record<E: ElementEncoder>(
+/// * §19.1 ends the data area with the string stream, if any, then a `B`
+///   *strings present* flag, and the handle stream starts on the next bit.
+///   The `MC` records the handle stream's width in bits, and the byte
+///   padding at the end of the record counts as part of that stream, so
+///   `payload bits - MC` lands on the trailer. A record with no handle
+///   references has only the padding, which is how the entities were
+///   written before the blocks. Declaring a zero-bit handle stream
+///   instead put the data boundary past the end of the record, which
+///   suppressed every decoder's boundary check.
+///
+/// Before R2010 the `RL` object-data size in bits (R2000-R2007, §19.1)
+/// marks where the handle stream starts, and the handle stream runs to the
+/// end of the record.
+fn build_record(
     type_code: u16,
     handle: u64,
     version: Version,
-    entity: &E,
+    body: &dyn Fn(&mut BitWriter),
+    tail: &Tail,
 ) -> Vec<u8> {
     // The R2000-R2007 `RL` object-data-size-in-bits can only be known
     // once the body is written, and it is a fixed-width field, so the
@@ -172,11 +237,6 @@ fn build_object_record<E: ElementEncoder>(
     // number of bits.
     let emit = |obj_size_bits: u32| -> BitWriter {
         let mut w = BitWriter::new();
-        // R2010+: MC handle-stream-size-in-bits. We emit no handle stream,
-        // so the value is 0 — a single 0x00 byte with no continuation bit.
-        if version.is_r2010_plus() {
-            w.write_rc(0x00);
-        }
         // Object type: R2010+ uses a 2-bit dispatch tag (00 = one raw byte
         // follows); earlier R2004-family releases use a plain BS.
         if version.is_r2010_plus() {
@@ -192,28 +252,50 @@ fn build_object_record<E: ElementEncoder>(
         }
         // Object handle: 4-bit code + 4-bit counter + counter bytes.
         w.write_handle(0, handle);
-        write_common_entity_preamble(&mut w, version);
-        entity
-            .encode(&mut w, version)
-            .expect("ElementEncoder impls for LINE/CIRCLE/ARC/POINT are infallible");
+        body(&mut w);
         w
     };
     let obj_size_bits = emit(0).position_bits() as u32;
     let mut w = emit(obj_size_bits);
-    let mc_width = if version.is_r2010_plus() {
-        // §19.1 "strings present" flag, clear: these fixtures write no
-        // string stream.
-        w.write_b(false);
-        1
-    } else {
-        0
-    };
-    let pad = (8 - w.position_bits() % 8) % 8;
-    let mut payload = w.into_bytes();
     if version.is_r2010_plus() {
-        // The handle stream is the byte padding that follows the flag.
-        payload[0] = pad as u8;
+        if tail.strings.is_empty() {
+            // §19.1 "strings present" flag, clear.
+            w.write_b(false);
+        } else {
+            let mut strings = BitWriter::new();
+            for s in tail.strings {
+                write_string_stream_tv(&mut strings, s);
+            }
+            let string_bits = strings.position_bits();
+            for s in tail.strings {
+                write_string_stream_tv(&mut w, s);
+            }
+            // The string-stream size, then the flag, set.
+            w.write_rs(string_bits as i16);
+            w.write_b(true);
+        }
     }
+    let handles_at = w.position_bits();
+    for (code, value) in tail.handles {
+        w.write_handle(*code, *value);
+    }
+    let handle_bits = w.position_bits() - handles_at;
+    let pad = (8 - w.position_bits() % 8) % 8;
+    for _ in 0..pad {
+        w.write_b(false);
+    }
+    let rest = w.into_bytes();
+    let (payload, mc_width) = if version.is_r2010_plus() {
+        let mut mc = BitWriter::new();
+        mc.write_mc((handle_bits + pad) as i64)
+            .expect("an MC of a handle stream's width encodes");
+        let mut bytes = mc.into_bytes();
+        let width = bytes.len();
+        bytes.extend_from_slice(&rest);
+        (bytes, width)
+    } else {
+        (rest, 0)
+    };
 
     let mut header = BitWriter::new();
     header.write_ms((payload.len() - mc_width) as u64);
@@ -223,6 +305,164 @@ fn build_object_record<E: ElementEncoder>(
     let crc = crc::crc8(0xC0C1, &record);
     record.extend_from_slice(&crc.to_le_bytes());
     record
+}
+
+/// Build the record of one entity that has an [`ElementEncoder`]: the
+/// common entity preamble and the entity body, no string or handle stream.
+fn build_object_record<E: ElementEncoder>(
+    type_code: u16,
+    handle: u64,
+    version: Version,
+    entity: &E,
+) -> Vec<u8> {
+    build_record(
+        type_code,
+        handle,
+        version,
+        &|w| {
+            write_common_entity_preamble(w, version);
+            entity
+                .encode(w, version)
+                .expect("ElementEncoder impls for LINE/CIRCLE/ARC/POINT are infallible");
+        },
+        &NO_TAIL,
+    )
+}
+
+/// Write one pre-R2007 `TV`: a `BS` byte count that includes the NUL AutoCAD
+/// terminates names with, the bytes, the NUL. An empty string is `BS` 0.
+fn write_tv_inline(w: &mut BitWriter, s: &str) {
+    if s.is_empty() {
+        w.write_bs_u(0);
+        return;
+    }
+    w.write_bs_u(s.len() as u16 + 1);
+    for b in s.bytes() {
+        w.write_rc(b);
+    }
+    w.write_rc(0);
+}
+
+/// Write the common non-entity object data (§20.1) of an object with no
+/// extended data, no reactors and no extension dictionary — the inverse of
+/// `dwg::common_entity::read_common_object_data_full` for R2000 and later.
+fn write_common_object_data(w: &mut BitWriter, version: Version) {
+    // Extended entity data: a zero-length record terminates the loop.
+    w.write_bs_u(0);
+    // num_reactors = 0.
+    w.write_bl(0);
+    // R2004+: no xdictionary handle.
+    if version.is_r2004_plus() {
+        w.write_b(true);
+    }
+    // R2013+: no DS binary data chain.
+    if matches!(version, Version::R2013 | Version::R2018) {
+        w.write_b(false);
+    }
+}
+
+/// The data fields of a `BLOCK_HEADER` (§20.4.52), the inverse of
+/// `tables::block_record::decode` (R2000, R2004) and
+/// `decode_modern_split_stream` (R2007+). The three `TV`s — name, xref path
+/// and description — are inline before R2007 and in the string stream from
+/// it, where [`block_header_tail`] writes them.
+fn block_header_body(w: &mut BitWriter, version: Version, name: &str, anonymous: bool) {
+    write_common_object_data(w, version);
+    if version.is_r2007_plus() {
+        // B 64-flag (set on every entry of the corpus), B Xdep.
+        w.write_b(true);
+        w.write_b(false);
+    } else {
+        write_tv_inline(w, name);
+        // B 64-flag, BS xrefindex+1, B Xdep.
+        w.write_b(true);
+        w.write_bs(0);
+        w.write_b(false);
+    }
+    w.write_b(anonymous);
+    w.write_b(false); // has attribute definitions
+    w.write_b(false); // is an xref
+    w.write_b(false); // xref overlay
+    w.write_b(false); // loaded xref
+    if version.is_r2004_plus() {
+        w.write_bl(0); // owned objects: the block holds none
+    }
+    for _ in 0..3 {
+        w.write_bd(0.0); // base point
+    }
+    if !version.is_r2007_plus() {
+        write_tv_inline(w, ""); // xref path
+    }
+    w.write_rc(0); // insert count run, terminated
+    if !version.is_r2007_plus() {
+        write_tv_inline(w, ""); // description
+    }
+    w.write_bl_u(0); // preview data: none
+    if version.is_r2007_plus() {
+        w.write_bs(0); // insert units
+        w.write_b(true); // explodable
+        w.write_rc(1); // block scaling
+    }
+}
+
+/// The handle stream of a `BLOCK_HEADER` (§20.4.52): the block control
+/// object (soft owner), a NULL hard pointer, then the `BLOCK` entity. The
+/// NULL is the anchor `tables::block_record::block_sentinel_handle` scans
+/// for. The record carries no reactors and no extension dictionary, and
+/// the references after the `BLOCK` (its entities, `ENDBLK`, layout) are
+/// left out: the fixtures hold neither.
+fn block_header_handles(block: u64) -> [(u8, u64); 3] {
+    [(4, BLOCK_CONTROL_HANDLE), (5, 0), (3, block)]
+}
+
+/// The data fields of a `BLOCK` sentinel (§20.4.6): the common entity
+/// preamble and, before R2007, the one inline `TV`; from R2007 the name is
+/// in the string stream and the data fields end after the preamble.
+fn block_body(w: &mut BitWriter, version: Version, name: &str) {
+    write_common_entity_preamble(w, version);
+    if !version.is_r2007_plus() {
+        write_tv_inline(w, name);
+    }
+}
+
+/// The string stream of a `BLOCK_HEADER` or `BLOCK` on R2007+, empty before.
+fn block_strings<'a>(version: Version, all: &'a [&'a str]) -> &'a [&'a str] {
+    if version.is_r2007_plus() { all } else { &[] }
+}
+
+/// The `BLOCK_HEADER` and `BLOCK` records of [`BLOCKS`].
+fn build_block_records(version: Version) -> Vec<(u64, Vec<u8>)> {
+    let mut out = Vec::with_capacity(BLOCKS.len() * 2);
+    for (header, stem, block, name) in BLOCKS {
+        let handles = block_header_handles(block);
+        out.push((
+            header,
+            build_record(
+                TYPE_BLOCK_HEADER,
+                header,
+                version,
+                &|w| block_header_body(w, version, stem, stem.starts_with('*')),
+                &Tail {
+                    strings: block_strings(version, &[stem, "", ""]),
+                    handles: &handles,
+                },
+            ),
+        ));
+        out.push((
+            block,
+            build_record(
+                TYPE_BLOCK,
+                block,
+                version,
+                &|w| block_body(w, version, name),
+                &Tail {
+                    strings: block_strings(version, &[name]),
+                    handles: &[],
+                },
+            ),
+        ));
+    }
+    out
 }
 
 /// The fixture's entity set — one of each encodable type, with values
@@ -301,7 +541,7 @@ fn fixture_entities() -> (Line, Line, Circle, Arc, Point) {
 /// The `(handle, record)` list both container assemblers share.
 fn build_object_records(version: Version) -> Vec<(u64, Vec<u8>)> {
     let (line_2d, line_3d, circle, arc, point) = fixture_entities();
-    vec![
+    let mut records = vec![
         (
             0x20,
             build_object_record(TYPE_LINE, 0x20, version, &line_2d),
@@ -316,7 +556,9 @@ fn build_object_records(version: Version) -> Vec<(u64, Vec<u8>)> {
         ),
         (0x23, build_object_record(TYPE_ARC, 0x23, version, &arc)),
         (0x24, build_object_record(TYPE_POINT, 0x24, version, &point)),
-    ]
+    ];
+    records.extend(build_block_records(version));
+    records
 }
 
 /// Build the R2004-family `AcDb:AcDbObjects` section: the `0x0dca`
