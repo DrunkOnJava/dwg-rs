@@ -193,15 +193,21 @@ jobs:
 
   # --------------------------------------------------------------------
   # Python bindings (PyO3) — intentionally disabled until `python_stubs.rs`
-  # graduates from a placeholder. When that lands, flip `if: false` to the
-  # real tag condition and wire maturin. Leaving the scaffold in place so
-  # the work item is visible in the workflow graph instead of a TODO file.
+  # graduates from a placeholder. When that lands, replace the `if:` below
+  # with the real tag condition and wire maturin. Leaving the scaffold in
+  # place so the work item is visible in the workflow graph instead of a
+  # TODO file. actionlint rejects a literal `if: false` (#269), so the job
+  # is held off by a condition no trigger of this workflow can satisfy:
+  # this workflow runs on tag pushes and workflow_dispatch only, and no
+  # event is named `disabled`.
   # Tracked alongside #420 / Phase 13 WASM/Python roadmap.
   # --------------------------------------------------------------------
   publish-pypi:
     name: Publish Python wheels to PyPI (DISABLED)
     needs: verify
-    if: false  # flip to a SemVer-style condition once PyO3 work ships
+    # Never true on purpose, and not a literal `false`: actionlint rejects a
+    # constant condition (#269). Do not simplify this back to `if: false`.
+    if: github.event_name == 'disabled'  # replace with a SemVer-style condition once PyO3 work ships
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

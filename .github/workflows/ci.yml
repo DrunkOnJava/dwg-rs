@@ -662,14 +662,17 @@ jobs:
           # any specific sensitive value. Broad by design — belt-and-
           # suspenders over local hygiene.
           PATTERNS=(
-            # Absolute home paths (macOS, Linux, Windows).
+            # Absolute home paths (macOS, Linux, Windows). The two patterns
+            # that end in a backslash are double-quoted (each `\\` of the
+            # regex is written `\\\\`) because shellcheck reads a single-
+            # quoted string ending in `\\'` as a botched `\'` (SC1003).
             '/Users/[a-z][a-z0-9._-]+/'
             '/home/[a-z][a-z0-9._-]+/'
-            'C:\\Users\\[a-z][a-z0-9._-]+\\'
+            "C:\\\\Users\\\\[a-z][a-z0-9._-]+\\\\"
             # Autodesk build-server paths baked into released DLLs.
             'F:\\Ship\\[0-9]{4}_'
             # Employee OneDrive authoring paths.
-            'OneDrive - Autodesk\\[^\\]*\\'
+            "OneDrive - Autodesk\\\\[^\\\\]*\\\\"
           )
           failed=0
           for p in "${PATTERNS[@]}"; do
