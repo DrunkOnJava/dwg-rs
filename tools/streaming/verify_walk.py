@@ -225,7 +225,7 @@ def main():
             result = subprocess.run([walk, str(path), *map(str, args)], capture_output=True, timeout=600)
             return result.returncode, result.stdout.decode(), result.stderr.decode()
 
-        corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 5)]
+        corpus = [('synthetic_2000.dwg', Path('tests/fixtures/canonical/synthetic_2000.dwg').read_bytes(), 11)]
         for manifest_name in ('walk-corpus.json', 'walk-acadsharp-corpus.json'):
             manifest = json.loads(Path('tools/streaming', manifest_name).read_text())
             for item in manifest['files']:

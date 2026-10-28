@@ -54,6 +54,8 @@ pub enum DecodedEntity {
     Circle(circle::Circle),
     Arc(arc::Arc),
     Ellipse(ellipse::Ellipse),
+    AcadTable(Box<crate::entities::acad_table::AcadTable>),
+    AcadTableLegacy(Box<crate::entities::acad_table::AcadTableLegacy>),
     Ray(ray::Ray),
     XLine(xline::XLine),
     Solid(solid::Solid),
@@ -143,7 +145,14 @@ pub enum DecodedEntity {
     DetailViewStyle(Box<crate::objects::acad_detail_view_style::AcadDetailViewStyle>),
     SectionViewStyle(Box<crate::objects::acad_section_view_style::AcadSectionViewStyle>),
     TableStyle(Box<crate::objects::acad_table_style::AcadTableStyle>),
+    TableStyleModern(Box<crate::objects::acad_table_style::AcadTableStyleModern>),
+    CellStyleMap(Box<crate::objects::acad_cell_style_map::AcadCellStyleMap>),
+    TableGeometry(Box<crate::objects::table_geometry::TableGeometry>),
+    TableContent(Box<crate::objects::table_content::TableContent>),
     ImageDef(crate::entities::imagedef::ImageDef),
+    /// MATERIAL, a custom class with no spec section: derived from
+    /// AutoCAD's own output (ARCHITECTURE.md §7bb).
+    Material(Box<crate::objects::acad_material::Material>),
     ImageDefReactor(crate::objects::image_def_reactor::ImageDefReactor),
     RasterVariables(crate::objects::image_raster_variables::RasterVariables),
     /// ACDBPERSSUBENTMANAGER, a custom class with no spec section: derived
@@ -151,6 +160,24 @@ pub enum DecodedEntity {
     PersSubentManager(crate::objects::pers_subent::PersSubentManager),
     /// ACDBASSOCPERSSUBENTMANAGER, derived the same way (§7aq).
     AssocPersSubentManager(crate::objects::pers_subent::AssocPersSubentManager),
+    /// WIPEOUTVARIABLES, derived from AutoCAD's own output (ARCHITECTURE.md §7bf).
+    WipeoutVariables(crate::objects::small_classes::WipeoutVariables),
+    /// ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION (§7bf).
+    DynamicBlockPurgePreventer(crate::objects::small_classes::DynamicBlockPurgePreventer),
+    /// ACDB_BLOCKREPRESENTATION_DATA (§7bf).
+    BlockRepresentationData(crate::objects::small_classes::BlockRepresentationData),
+    /// PDFDEFINITION (§7bf).
+    PdfDefinition(crate::objects::small_classes::PdfDefinition),
+    /// DBCOLOR (§7bf).
+    DbColor(crate::objects::small_classes::DbColor),
+    /// A dynamic-block evaluation object (§7bg).
+    DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
+    /// DIMASSOC (§7bi).
+    DimAssoc(crate::objects::dim_assoc::DimAssoc),
+    /// ACSH_HISTORY_CLASS (§7bj).
+    ShHistory(crate::objects::sh_history::ShHistory),
+    /// ACSH_BOX_CLASS (§7bj).
+    ShBox(Box<crate::objects::sh_history::ShBox>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -182,6 +209,9 @@ impl DecodedEntity {
             Self::Circle(_) => OBJECT_TYPE_CIRCLE,
             Self::Arc(_) => OBJECT_TYPE_ARC,
             Self::Ellipse(_) => OBJECT_TYPE_ELLIPSE,
+            // ACAD_TABLE is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::AcadTable(_) | Self::AcadTableLegacy(_) => 0,
             Self::Ray(_) => OBJECT_TYPE_RAY,
             Self::XLine(_) => OBJECT_TYPE_XLINE,
             Self::Solid(_) => OBJECT_TYPE_SOLID,
@@ -269,16 +299,30 @@ impl DecodedEntity {
             Self::DictionaryVar(_)
             | Self::Scale(_)
             | Self::ImageDef(_)
+            | Self::Material(_)
             | Self::ImageDefReactor(_)
             | Self::RasterVariables(_)
             | Self::PersSubentManager(_)
             | Self::AssocPersSubentManager(_)
+            | Self::WipeoutVariables(_)
+            | Self::DynamicBlockPurgePreventer(_)
+            | Self::BlockRepresentationData(_)
+            | Self::PdfDefinition(_)
+            | Self::DbColor(_)
+            | Self::DynamicBlock(_)
+            | Self::DimAssoc(_)
+            | Self::ShHistory(_)
+            | Self::ShBox(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
             | Self::MLeaderStyle(_)
             | Self::DetailViewStyle(_)
             | Self::SectionViewStyle(_)
-            | Self::TableStyle(_) => 0,
+            | Self::TableStyle(_)
+            | Self::TableStyleModern(_)
+            | Self::CellStyleMap(_)
+            | Self::TableGeometry(_)
+            | Self::TableContent(_) => 0,
             Self::Control { kind, .. } => control_type_code(*kind),
             Self::Unhandled { type_code, .. } | Self::Error { type_code, .. } => *type_code,
         }
@@ -494,6 +538,17 @@ fn decode_with_class_map_in_page(
         "HELIX" | "ACDBHELIX" => checked_inline(raw, body_start, version, "HELIX", |c, _, _, _| {
             helix::decode(c).map(DecodedEntity::Helix)
         }),
+        "ACAD_TABLE" | "ACDBTABLE" => {
+            checked_inline(raw, body_start, version, "ACAD_TABLE", |c, v, ce, s| {
+                if v.is_r2010_plus() {
+                    crate::entities::acad_table::decode(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTable(Box::new(t)))
+                } else {
+                    crate::entities::acad_table::decode_legacy(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTableLegacy(Box::new(t)))
+                }
+            })
+        }
         // WIPEOUT shares the IMAGE payload (§19.4.86).
         "WIPEOUT" | "ACDBWIPEOUT" => {
             checked_inline(raw, body_start, version, "WIPEOUT", |c, v, _, _| {
@@ -534,6 +589,11 @@ fn decode_with_class_map_in_page(
     };
     match result {
         Ok(entity) => entity,
+        // "this release's layout is not decoded" is not a decode failure.
+        Err(crate::error::Error::Unsupported { .. }) => DecodedEntity::Unhandled {
+            type_code,
+            kind: raw.kind,
+        },
         Err(e) => DecodedEntity::Error {
             type_code,
             kind: raw.kind,
@@ -778,10 +838,28 @@ fn dispatch_object_class(
             )
             .map(|style| DecodedEntity::SectionViewStyle(Box::new(style)))
         }
+        "TABLESTYLE" | "ACDBTABLESTYLE" if version.is_r2010_plus() => {
+            crate::objects::acad_table_style::decode_object_modern(
+                payload, body_start, inline_end, version,
+            )
+            .map(|style| DecodedEntity::TableStyleModern(Box::new(style)))
+        }
         "TABLESTYLE" | "ACDBTABLESTYLE" => crate::objects::acad_table_style::decode_object(
             payload, body_start, inline_end, version,
         )
         .map(|style| DecodedEntity::TableStyle(Box::new(style))),
+        "CELLSTYLEMAP" | "ACDBCELLSTYLEMAP" => crate::objects::acad_cell_style_map::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(|map| DecodedEntity::CellStyleMap(Box::new(map))),
+        "TABLECONTENT" | "ACDBTABLECONTENT" => {
+            crate::objects::table_content::decode_object(payload, body_start, inline_end, version)
+                .map(|content| DecodedEntity::TableContent(Box::new(content)))
+        }
+        "TABLEGEOMETRY" | "ACDBTABLEGEOMETRY" => {
+            crate::objects::table_geometry::decode_object(payload, body_start, inline_end, version)
+                .map(|geometry| DecodedEntity::TableGeometry(Box::new(geometry)))
+        }
         "DICTIONARYVAR" | "ACDBDICTIONARYVAR" => {
             crate::objects::dictionary_var::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::DictionaryVar)
@@ -797,10 +875,63 @@ fn dispatch_object_class(
             )
             .map(DecodedEntity::Dictionary)
         }
+        "MATERIAL" => {
+            crate::objects::acad_material::decode_object(payload, body_start, inline_end, version)
+                .map(|material| DecodedEntity::Material(Box::new(material)))
+        }
         // §20.4.78: a non-entity object with a class number.
         "GEODATA" | "ACDBGEODATA" => {
             geodata::decode_object(payload, body_start, inline_end, version)
                 .map(DecodedEntity::GeoData)
+        }
+        "WIPEOUTVARIABLES" => crate::objects::small_classes::decode_wipeout_variables(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::WipeoutVariables),
+        "ACDB_DYNAMICBLOCKPURGEPREVENTER_VERSION" => {
+            crate::objects::small_classes::decode_dynamic_block_purge_preventer(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::DynamicBlockPurgePreventer)
+        }
+        "ACDB_BLOCKREPRESENTATION_DATA" => {
+            crate::objects::small_classes::decode_block_representation_data(
+                payload, body_start, inline_end, version,
+            )
+            .map(DecodedEntity::BlockRepresentationData)
+        }
+        "PDFDEFINITION" => crate::objects::small_classes::decode_pdf_definition(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::PdfDefinition),
+        "DBCOLOR" => {
+            crate::objects::small_classes::decode_db_color(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DbColor)
+        }
+        "BLOCKGRIPLOCATIONCOMPONENT"
+        | "BLOCKLINEARGRIP"
+        | "BLOCKVISIBILITYGRIP"
+        | "BLOCKLINEARPARAMETER"
+        | "BLOCKVISIBILITYPARAMETER"
+        | "BLOCKSCALEACTION" => crate::objects::dynamic_block::decode_object(
+            dxf_class_name,
+            payload,
+            body_start,
+            inline_end,
+            version,
+        )
+        .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
+        "DIMASSOC" => {
+            crate::objects::dim_assoc::decode_object(payload, body_start, inline_end, version)
+                .map(DecodedEntity::DimAssoc)
+        }
+        "ACSH_HISTORY_CLASS" => {
+            crate::objects::sh_history::decode_history(payload, body_start, inline_end, version)
+                .map(DecodedEntity::ShHistory)
+        }
+        "ACSH_BOX_CLASS" => {
+            crate::objects::sh_history::decode_box(payload, body_start, inline_end, version)
+                .map(|b| DecodedEntity::ShBox(Box::new(b)))
         }
         "IMAGEDEF" | "ACDBRASTERIMAGEDEF" => {
             crate::entities::imagedef::decode_object(payload, body_start, inline_end, version)
