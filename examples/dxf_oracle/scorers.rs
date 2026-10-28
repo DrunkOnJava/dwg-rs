@@ -758,6 +758,7 @@ pub fn section_of(label: &str) -> &'static str {
         "MULTILEADER" => "§20.4.48",
         "LINE" => "§20.4.21",
         "POINT" => "§20.4.31",
+        "VIEWPORT" => "§20.4.38",
         "ELLIPSE" => "§20.4.39",
         "HATCH" => "§20.4.75",
         "DICTIONARY" => "§20.4.44",
@@ -1046,6 +1047,7 @@ pub fn score(
             }
         }
         D::Dictionary(d) => score_dictionary(&mut c, d, dwg),
+        D::Viewport(v) => score_viewport(&mut c, v),
         // §20.4.74: 280 schema, 1 value.
         D::DictionaryVar(v) => {
             c.subclass("DictionaryVariables");
@@ -3139,6 +3141,108 @@ fn score_mleaderstyle(c: &mut Ctx<'_>, m: &dwg::objects::acad_mleader_style::Aca
         }
     }
     c.int("extended_flag", 298, i64::from(m.extended_flag), Some(0));
+}
+
+// §20.4.38 against the DXF Reference's AcDbViewport groups, named in the
+// decoder's field list: 10, 40, 41, then the R2000+ view block. Angles are
+// degrees in the DXF (51, 50) and radians in the DWG. The ambient light
+// colour is a CMC whose ACI index is group 63 (421 is the RGB the export
+// derives from it). The count of frozen layers is the handle stream's;
+// the export lists the layers as 331 handles.
+fn score_viewport(c: &mut Ctx<'_>, v: &dwg::entities::viewport::Viewport) {
+    if !c.subclass("AcDbViewport") {
+        c.dwg_only("(the export has no AcDbViewport subclass)", ());
+        return;
+    }
+    c.point3("center", 10, v.center, None);
+    c.real("width", 40, v.width, None);
+    c.real("height", 41, v.height, None);
+    let Some(w) = &v.view else {
+        return;
+    };
+    c.point3("view_target", 17, w.view_target, None);
+    c.point3("view_direction", 16, w.view_direction, None);
+    c.angle("view_twist_angle", 51, w.view_twist_angle, None);
+    c.real("view_height", 45, w.view_height, None);
+    c.real("lens_length", 42, w.lens_length, None);
+    c.real("front_clip_z", 43, w.front_clip_z, None);
+    c.real("back_clip_z", 44, w.back_clip_z, None);
+    c.angle("snap_angle", 50, w.snap_angle, None);
+    c.point2("view_center", 12, w.view_center);
+    c.point2("snap_base", 13, w.snap_base);
+    c.point2("snap_spacing", 14, w.snap_spacing);
+    c.point2("grid_spacing", 15, w.grid_spacing);
+    c.int("circle_zoom", 72, i64::from(w.circle_zoom), None);
+    if let Some(g) = w.grid_major {
+        c.int("grid_major", 61, i64::from(g), None);
+    }
+    c.dwg_only("frozen_layer_count", w.frozen_layer_count);
+    c.int("status_flags", 90, i64::from(w.status_flags), None);
+    c.text("style_sheet", 1, &w.style_sheet, None);
+    c.int("render_mode", 281, i64::from(w.render_mode), None);
+    c.int("ucs_at_origin", 74, i64::from(w.ucs_at_origin), None);
+    c.int("ucs_per_viewport", 71, i64::from(w.ucs_per_viewport), None);
+    c.point3("ucs_origin", 110, w.ucs_origin, None);
+    c.point3("ucs_x_axis", 111, w.ucs_x_axis, None);
+    c.point3("ucs_y_axis", 112, w.ucs_y_axis, None);
+    c.real("ucs_elevation", 146, w.ucs_elevation, None);
+    c.int(
+        "ucs_ortho_view_type",
+        79,
+        i64::from(w.ucs_ortho_view_type),
+        None,
+    );
+    if let Some(s) = w.shade_plot_mode {
+        c.int("shade_plot_mode", 170, i64::from(s), None);
+    }
+    if let Some(l) = &w.lighting {
+        c.int(
+            "use_default_lights",
+            292,
+            i64::from(l.use_default_lights),
+            None,
+        );
+        c.int(
+            "default_lighting_type",
+            282,
+            i64::from(l.default_lighting_type),
+            None,
+        );
+        c.real("brightness", 141, l.brightness, None);
+        c.real("contrast", 142, l.contrast, None);
+        let col = &l.ambient_light_color;
+        match col.rgb >> 24 {
+            0xC3 => {
+                c.int(
+                    "ambient_light_color (ACI)",
+                    63,
+                    i64::from(col.rgb & 0xFF),
+                    None,
+                );
+                if let Some(v) = c.take(421) {
+                    c.not_decoded(
+                        "421 (the RGB the export derives from the ACI)",
+                        v.to_string(),
+                    );
+                }
+            }
+            0xC2 => {
+                if let Some(v) = c.take(63) {
+                    c.not_decoded(
+                        "63 (the ACI the export derives from the RGB)",
+                        v.to_string(),
+                    );
+                }
+                c.int(
+                    "ambient_light_color (RGB, CMC word 0xC2 payload)",
+                    421,
+                    i64::from(col.rgb & 0x00FF_FFFF),
+                    None,
+                );
+            }
+            _ => c.dwg_only("ambient_light_color (neither ACI nor RGB)", col.rgb),
+        }
+    }
 }
 
 // §20.4.60 VIEW: 40, 41, 10/20, 12/22/32 target, 11/21/31 direction, 50
