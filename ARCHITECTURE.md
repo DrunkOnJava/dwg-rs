@@ -5193,6 +5193,43 @@ BL version (2), B enabled, TV image (an HDR path), BD rotation (0.0), B display_
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_render_environment -- ../dwg-corpus
 ```
+
+## 7bt. SHAPE (2026-10-26, #140)
+
+The dispatcher's note on SHAPE said the one record in the corpus "has a
+160-bit budget and nothing to spend it on". §20.4.37 spends it: `3BD`
+insertion point, five `BD` (scale, rotation, width factor, oblique angle,
+thickness), `BS` shape number and `3BD` extrusion, with no release-dependent
+branch, then the SHAPEFILE handle in the handle stream. Read as printed the
+list closes on all 7 SHAPE records of the corpus, one per ACadSharp
+`sample_AC10xx` save, R14 to R2018, on each release's own data-stream
+boundary.
+
+Against AutoCAD's DXF export (R2000 to R2018, matched by the handle in group
+5) the insertion point and the scale equal groups 10, 20, 30 and 40 on all 6
+records, 24 values, none differing. AutoCAD omits a group at its default, so the
+rotation, width factor, oblique angle, thickness and extrusion are absent
+from all 6 and count as omitted, not as compared: 42 values that no twin
+confirms, held to the boundary alone. The shape number has no DXF group;
+the DXF writes the shape's name, which would need the shape file of the
+text style (§20.4.56) to resolve. R14 has no twin.
+
+```sh
+cargo run --release --example probe_shape -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Omitted by the DXF | Differ |
+|---|---|---|---|---|---|
+| R14 | 1 | 1 | no twin | | |
+| R2000 | 1 | 1 | 4 | 7 | 0 |
+| R2004 | 1 | 1 | 4 | 7 | 0 |
+| R2007 | 1 | 1 | 4 | 7 | 0 |
+| R2010 | 1 | 1 | 4 | 7 | 0 |
+| R2013 | 1 | 1 | 4 | 7 | 0 |
+| R2018 | 1 | 1 | 4 | 7 | 0 |
+
+The spec's own example (§20.4.37.1) is an R14 record; it now runs through
+the decoder, and `spec_examples` records its outcome.
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section
