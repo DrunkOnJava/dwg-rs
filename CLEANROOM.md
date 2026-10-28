@@ -863,3 +863,72 @@ a table name or column name other than the empty one the corpus holds, are not s
 by value: the former are refused as unsupported, the latter are read as `TV`. No
 vocabulary beyond the DXF group codes and subclass marker in the twin was used, and
 no third-party DWG or DXF implementation was consulted.
+
+
+## 2026-10-26 — ACDB_TEXTOBJECTCONTEXTDATA_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/text_context_data.rs` was derived from the data bits
+of the seven records of the pinned corpus: two each in ACadSharp's `sample_base`
+saves of R2010, R2013 and R2018 (AutoCAD 2025), and one in `export_sample.dwg`
+(R2018, no DXF twin), against AutoCAD's DXF export of the same handles for the six
+`sample_base` records. The R2004 and R2007 saves declare the class and hold no
+object. Accepted: all seven close on the data-stream boundary, and 48 values (the
+two groups 70, and 290, 50, 10, 20, 11 and 21) equal the decoded fields with 0
+differences (`examples/probe_text_context_data.rs`). Unverified by value: the unit
+of the rotation (group 50 is 0.0 in both twins; the record without a twin stores
+0.5235987755982988, 30 degrees as radians), the order of groups 11 and 21 (both
+0.0), and every release before R2010, which is refused as unsupported. The handle of
+the annotation scale (group 340) is not decoded. No vocabulary beyond the DXF group
+codes and subclass markers in the twins was used, and no third-party DWG or DXF
+implementation was consulted.
+
+## 2026-10-26 — ACAD_EVALUATION_GRAPH: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints.
+The field list in `src/objects/eval_graph.rs` was derived from the data bits of the 21
+ACAD_EVALUATION_GRAPH records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013 and R2018; three per release: one graph of 12 nodes
+and 10 edges and two of one node) against AutoCAD's DXF export of the same handles
+(R2000 to R2018; the R2000 and R2004 exports keep the large graph and omit the two
+small ones). Accepted: all 21 close on the data-stream boundary on every release, and
+1,342 values (groups 96, 97, and per node 91, 93, 95 and four 92, per edge 92, 93, 94,
+two 91 and five 92) equal the decoded fields with 0 differences, and the decoded node
+and edge counts (two `BL` that no DXF group shows) equal the number of nodes and edges
+the DXF holds, by the group count after group 97 (`examples/probe_eval_graph.rs`). Four
+of the 21 records, the two small graphs on R2000 and R2004, have no DXF object and are
+held to their boundary, as are the three on R14, which has no twin. Unverified by value: what the four link
+values of a node and the five of an edge mean (each is tied to its DXF group by
+position and value only), the two counts' meaning beyond equalling the DXF's, and any
+graph larger than the one 12-node, 10-edge graph the corpus holds. The node handles
+(group 360) are not decoded. No vocabulary beyond the DXF group codes and the subclass
+marker in the twins was used, and no third-party DWG or DXF implementation was
+consulted.
+
+## 2026-10-26 — ACSH_EXTRUSION_CLASS: derived from AutoCAD's own output
+
+By the method of the 2026-10-26 entry on classes the specification never prints. The
+field list in `src/objects/sh_history.rs` was derived from the data bits of the seven
+ACSH_EXTRUSION_CLASS records of ACadSharp's `sample_base` saves (AutoCAD 2025: R14,
+R2000, R2004, R2007, R2010, R2013 and R2018; one per release, handle 0xD6D) and
+AutoCAD's DXF export of the same handle (R2007 to R2018: the R2000 and R2004 exports
+hold no such object). Accepted: all seven close on the data-stream boundary, from R2007
+on a fully consumed string stream, and 328 values (the evaluation base, the 16-value
+transform of groups 40 to 55 with groups 50 to 55 in degrees, groups 62 and 92 of the
+node, the sweep base's 90, 91, 10, 20, 30, 92, the bit count 90, the 84 bytes of the
+profile data of groups 310, 93, 42 to 45, 48, 49, 290, 70, 71, 292 to 296, 11, 21, 31,
+and the two 16-value matrices of groups 46 and 47) equal the decoded fields with 0
+differences (`examples/probe_sh_extrusion.rs`), with one measured convention: the DXF
+writes one byte more of group 310 than the bit count 672 holds (85, where 672 bits are
+84). The DXF lists the sweep base's groups in a different order from the data stream
+(the data holds the six scalars and the flags before the two matrices and the profile
+data, and group 93 last), so the probe pairs them by group code and ordinal. Unverified
+by value: the roles of the equal zeros among groups 42 to 45 and 49, of groups 293, 294
+and 296 and of groups 11, 21 and 31 (each reads 0 in the one object the corpus holds,
+seven times), the meaning of group 92 = 77, how a profile bit count that is not a
+multiple of 8 is stored (such a count is refused as unsupported), the profile data's own
+structure (it is carried as bytes), the `BL -1` that opens the evaluation base and the
+leading `BS` of the R2004+ colour; the handles (347 and the rest) are not decoded. No
+vocabulary beyond the DXF group codes and subclass markers in the twins was used, and no
+third-party DWG or DXF implementation was consulted.
+

@@ -174,12 +174,18 @@ pub enum DecodedEntity {
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
     /// DIMASSOC (§7bi).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
+    /// ACAD_EVALUATION_GRAPH (§7bo).
+    EvalGraph(Box<crate::objects::eval_graph::EvalGraph>),
     /// DATATABLE (§7bm).
     DataTable(Box<crate::objects::data_table::DataTable>),
+    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bn).
+    TextObjectContextData(crate::objects::text_context_data::TextObjectContextData),
     /// ACSH_HISTORY_CLASS (§7bj).
     ShHistory(crate::objects::sh_history::ShHistory),
     /// ACSH_BOX_CLASS (§7bj).
     ShBox(Box<crate::objects::sh_history::ShBox>),
+    /// ACSH_EXTRUSION_CLASS (§7bp).
+    ShExtrusion(Box<crate::objects::sh_history::ShExtrusion>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
         kind: ObjectType,
@@ -313,8 +319,11 @@ impl DecodedEntity {
             | Self::DynamicBlock(_)
             | Self::DimAssoc(_)
             | Self::DataTable(_)
+            | Self::EvalGraph(_)
+            | Self::TextObjectContextData(_)
             | Self::ShHistory(_)
             | Self::ShBox(_)
+            | Self::ShExtrusion(_)
             | Self::Sun(_)
             | Self::VisualStyle(_)
             | Self::PlotSettings(_)
@@ -938,6 +947,14 @@ fn dispatch_object_class(
             version,
         )
         .map(|object| DecodedEntity::DynamicBlock(Box::new(object))),
+        "ACDB_TEXTOBJECTCONTEXTDATA_CLASS" => crate::objects::text_context_data::decode_object(
+            payload, body_start, inline_end, version,
+        )
+        .map(DecodedEntity::TextObjectContextData),
+        "ACAD_EVALUATION_GRAPH" => {
+            crate::objects::eval_graph::decode_object(payload, body_start, inline_end, version)
+                .map(|g| DecodedEntity::EvalGraph(Box::new(g)))
+        }
         "DATATABLE" => {
             crate::objects::data_table::decode_object(payload, body_start, inline_end, version)
                 .map(|t| DecodedEntity::DataTable(Box::new(t)))
@@ -949,6 +966,10 @@ fn dispatch_object_class(
         "ACSH_HISTORY_CLASS" => {
             crate::objects::sh_history::decode_history(payload, body_start, inline_end, version)
                 .map(DecodedEntity::ShHistory)
+        }
+        "ACSH_EXTRUSION_CLASS" => {
+            crate::objects::sh_history::decode_extrusion(payload, body_start, inline_end, version)
+                .map(|e| DecodedEntity::ShExtrusion(Box::new(e)))
         }
         "SUN" => crate::entities::sun::decode_object(payload, body_start, inline_end, version)
             .map(DecodedEntity::Sun),

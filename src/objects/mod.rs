@@ -31,6 +31,8 @@
 //! | BLOCK*PARAMETER, BLOCK*GRIP, BLOCKSCALEACTION | [`dynamic_block`] | none — derived from AutoCAD output |
 //! | DATATABLE               | [`data_table`]            | none — derived from AutoCAD output |
 //! | DIMASSOC                | [`dim_assoc`]             | none — derived from AutoCAD output |
+//! | ACAD_EVALUATION_GRAPH   | [`eval_graph`]            | none — derived from AutoCAD output |
+//! | ACDB_TEXTOBJECTCONTEXTDATA_CLASS | [`text_context_data`] | none — derived from AutoCAD output |
 //! | ACSH_HISTORY_CLASS, ACSH_BOX_CLASS | [`sh_history`]  | none — derived from AutoCAD output |
 //! | ACDBSECTIONVIEWSTYLE     | [`acad_section_view_style`]| none — measured |
 //! | ACAD_VISUALSTYLE         | [`acad_visual_style`]     | none — measured, every release |
@@ -108,6 +110,7 @@ pub mod dictionary;
 pub mod dictionary_var;
 pub mod dim_assoc;
 pub mod dynamic_block;
+pub mod eval_graph;
 pub mod image_def_reactor;
 pub mod image_raster_variables;
 pub(crate) mod modern;
@@ -120,5 +123,6 @@ pub mod small_classes;
 pub mod table_cell_style;
 pub mod table_content;
 pub mod table_geometry;
+pub mod text_context_data;
 pub mod xdata;
 pub mod xrecord;

@@ -4760,8 +4760,8 @@ Unverified by value: the `BL -1` that opens the evaluation base, the leading `BS
 of the R2004+ colour, and every value beyond the one box and one history pair the
 corpus holds (saved on seven releases). The handles (groups 360 and 347) are in the
 handle stream and are not decoded. ACSH_EXTRUSION_CLASS (one record per release)
-follows the same base and node but adds a sweep base with a 672-byte binary blob and
-two more 16-value matrices, and is not decoded.
+follows the same base and node and adds a sweep base with 672 bits of profile data and
+two more 16-value matrices; §7bp decodes it.
 
 ```sh
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
@@ -4892,6 +4892,155 @@ per column: BS 92 type, TV 2 name, then rows cells of the type
 ```sh
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_data_table -- ../dwg-corpus
+```
+
+## 7bn. ACDB_TEXTOBJECTCONTEXTDATA_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the annotation-scale state AutoCAD keeps for a
+text object. `src/objects/text_context_data.rs` reads it from the layout below,
+derived by the CLEANROOM.md method of 2026-10-26: the data bits of the seven records
+in the corpus (two in each `sample_base` save of R2010, R2013 and R2018, and one in
+`export_sample.dwg`) against the object of the same handle in the DXF export. All
+seven close, and 48 values equal the DXF with 0 differences. The R2004 and R2007
+saves declare the class and hold no object (the corpus census counts "2>0" for each).
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R2010 | 2 | 2 | 16 | 0 |
+| R2013 | 2 | 2 | 16 | 0 |
+| R2018 | 3 | 3 | 16 (the third has no twin) | 0 |
+| Total | 7 | 7 | 48 | 0 |
+
+```text
+BS 70 (4), B 290 (1), BS 70 (0), BD 50, RD 10, RD 20, RD 11, RD 21
+```
+
+- **Two subclasses, one record.** The DXF object carries `AcDbObjectContextData`
+  (group 70, 290), `AcDbAnnotScaleObjectContextData` (the scale handle, group 340)
+  and the text's own groups (70, 50, 10, 20, 11, 21). The data stream holds the first
+  and third in that order; the handle of the second is in the handle stream.
+- **Where the 64-bit values show.** Group 10 and group 20 are two raw 8-byte doubles
+  (147.8194471194604 and 10.32574050131268 in one record, 147.589772910276 and
+  39.8189544778985 in the other); the bits after the rotation are exactly 256 in the
+  R2010 band, which is four `RD`, and the record closes with a delta of 0. Groups 11
+  and 21 are 0.0 in every record, so their order is unverified.
+- **The rotation.** A `BD`. Both DXF twins show 0.0, and the one record without a twin
+  stores 0.5235987755982988, which is 30 degrees as radians; the DXF writes some other
+  angles in degrees (ARCHITECTURE.md §7bj), so the unit of group 50 is unverified.
+- **Release.** The layout is shown on R2010, R2013 and R2018, where the common object
+  data differs by one `B` (R2013 adds it) and the field list does not. A release before
+  R2010 is refused as unsupported.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_text_context_data -- ../dwg-corpus
+```
+
+## 7bo. ACAD_EVALUATION_GRAPH, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the dependency graph AutoCAD keeps for the
+evaluation of a dynamic block. `src/objects/eval_graph.rs` reads it from the layout
+below, derived by the CLEANROOM.md method of 2026-10-26: the data bits of the 21 records
+in `sample_base` (three per release, R14 to R2018) against the object of the same
+handle in the DXF export. All 21 close, and 1,342 values equal the DXF with 0 differences.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 3 | 3 | 0 (no twin) | 0 |
+| R2000 | 3 | 3 | 209 (the export keeps one graph) | 0 |
+| R2004 | 3 | 3 | 209 (the export keeps one graph) | 0 |
+| R2007 | 3 | 3 | 231 | 0 |
+| R2010 | 3 | 3 | 231 | 0 |
+| R2013 | 3 | 3 | 231 | 0 |
+| R2018 | 3 | 3 | 231 | 0 |
+| Total | 21 | 21 | 1,342 | 0 |
+
+```text
+BL 96, BL 97, BL node count,
+  per node: BL 91, BL 93, BL 95, BL 92 x4            (handle, group 360, in the handle stream)
+BL edge count,
+  per edge: BL 92, BL 93, BL 94, BL 91 x2, BL 92 x5
+```
+
+- **Every field is a signed `BL`.** Group 92 holds -1 as often as an index, and -1 is the
+  four-byte form `00` plus 32 one-bits, so a signed `BL` is the width the DXF values
+  need. The records close on the boundary with no field of another type.
+- **The two counts.** The DXF shows no group for the number of nodes or the number of
+  edges, so the probe checks both by structure: the groups after group 97 must number 8 per
+  node and 10 per edge, and each must open with the group codes the layout names (node:
+  91, 93, 95, 360; edge: 92, 93, 94, 91, 91). The 12-node, 10-edge graph and the two
+  1-node graphs (0 edges) all agree, on the six releases that have a twin.
+- **The large graph.** The nodes' own indices (group 91) run 0 to 11 and the edges' (group
+  92) 0 to 9; node ids (group 95) are 1 to 7, 10 and 23 to 26. Groups 96 and 97 read 26
+  and 26 for it, 1 and 1 for the small graphs. What the four link values of a node and the
+  five of an edge name is not read from the corpus: each equals its DXF group by position
+  and value, and the corpus holds no second large graph to vary them against.
+- **R2000 and R2004 exports.** AutoCAD's DXF export of those two releases keeps the large
+  graph and drops the two small ones, so their four records are held to their boundary
+  alone (the probe's `Pairing::HandleOrAbsent`, added to the shared `twin.rs` for this
+  case: a record the export omits while holding others of its kind is boundary-only, and the
+  line says so).
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_eval_graph -- ../dwg-corpus
+```
+
+## 7bp. ACSH_EXTRUSION_CLASS, derived from AutoCAD's own output (2026-10-26, #152)
+
+ODA spec v5.4.1 prints no layout for the solid-history record AutoCAD writes for an
+extrusion. `src/objects/sh_history.rs` reads it from the layout below, derived by the
+CLEANROOM.md method of 2026-10-26: the data bits of the seven records in `sample_base`
+(one per release, R14 to R2018) against the object of the same handle in the DXF
+export. All seven close, from R2007 on a string stream the list consumes entirely, and
+328 values equal the DXF with 0 differences. It completes the family of ARCHITECTURE.md
+§7bj: the same evaluation base and history node as the box, then a sweep base.
+
+| Release | Records | Close | Values compared | Differ |
+|---|---:|---:|---:|---:|
+| R14 | 1 | 1 | 0 (no twin) | 0 |
+| R2000 | 1 | 1 | 0 (the export holds none) | 0 |
+| R2004 | 1 | 1 | 0 (the export holds none) | 0 |
+| R2007 | 1 | 1 | 82 | 0 |
+| R2010 | 1 | 1 | 82 | 0 |
+| R2013 | 1 | 1 | 82 | 0 |
+| R2018 | 1 | 1 | 82 | 0 |
+| Total | 7 | 7 | 328 | 0 |
+
+```text
+evaluation base, history node (BL 90, BL 91, BD x16, colour, BL 92)      as ACSH_BOX_CLASS
+sweep base:  BL 90 (33), BL 91 (329), 3BD (10, 20, 30),
+             BD x6 (42, 43, 44, 45, 48, 49), B 290, BS 70, BS 71, B x5 (292 to 296),
+             BD x3 (11, 21, 31), BD x16 (46), BD x16 (47),
+             BL 92 (77), BL 90 (672, a bit count) and that many bits (group 310), BL 93 (0)
+```
+
+- **The data stream is not in the DXF's order.** The DXF lists the sweep base as 90,
+  91, 10, 20, 30, 92, 90, 310, 93, then the scalars, the matrices and the flags. The data
+  holds the scalars and the flags before the matrices, and the 92, the bit count and the
+  profile data after them, with 93 last. The two orders were told apart by locating the
+  matrix values (31.749488451440747 and -220.12521867977878 are distinct) and the profile
+  bytes inside the record's bits; the probe pairs every value by group code and ordinal,
+  not by position.
+- **The profile data.** Group 90 is 672 and the group 310 bytes are 84 of the 85 the DXF
+  writes (a measured convention: one byte more than the bit count holds, 0xCC in the one
+  object). In the data stream they are 672 bits at no particular byte alignment, read here
+  as 84 unaligned bytes. The same 672 bits are in all seven records. What they encode (the
+  profile the solid was extruded from) is not read; a count that is not a multiple of 8 is
+  refused as unsupported, because the corpus does not show how it would be stored.
+- **What the values show.** Of the two matrices, group 47 is the identity and group 46 is
+  the identity but for 31.74948845144075 and -220.1252186797788 at its fourth and eighth
+  values. The six scalars read 0, 0, 0, 0, 1.0 and 0, and the flags 1, 0, 0, 1, 0, with
+  groups 70 and 71 reading 0 and 2.
+- **Unverified by value.** The roles of the equal zeros among groups 42 to 45 and 49, of the
+  zero flags (293, 294, 296) and of groups 11, 21 and 31 (each is 0 in the one object the
+  corpus holds), and the meaning of group 92 = 77. Seven records are one object saved on
+  seven releases, so a second extrusion of another profile, height and taper would
+  settle them.
+
+```sh
+python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
+cargo run --release --example probe_sh_extrusion -- ../dwg-corpus
 ```
 
 ## 8. Write pipeline (current scope)
