@@ -4591,6 +4591,88 @@ python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_dynamic_blocks -- ../dwg-corpus
 ```
 
+
+## 7bh. ACAD_TABLE (2026-10-26, #151)
+
+§20.4.96 prints a table entity in two layouts. §20.4.96.1 ("until R21") is the
+INSERT fields, a flag, the horizontal direction, the column and row counts,
+the widths and heights, then per cell its type, edge flags, merge and autofit
+flags, merged width and height, rotation, the text or the block data, a flag
+and a word of property overrides, and, from R2007, a value (§20.4.99); the
+table's own overrides and three words of border overrides close it.
+§20.4.96.2 (R2010 and later) is the INSERT fields, four unknowns, the whole
+table content of §20.4.97 without its object header, a horizontal direction
+and the break data. `ACAD_TABLE` is a custom class, so both are routed by
+class name, and no record of the corpus had a decoder: all 14 (two tables on
+each of R14 to R2018, the ACadSharp sample set) were skipped.
+
+Both layouts close on the data-stream boundary of all 14, once these readings
+the spec does not print or gets wrong are taken from the bits:
+
+- **Every colour is the 44-bit `TC` form on every release**, as in TABLESTYLE.
+  Read as the one-`BS` `CMC` of R14 and R2000, the first cell with a colour
+  override (`sample_AC1015.dwg` handle `0x528`, cell 13, override flags
+  `0x6666F`) leaves the boundary and the next cell's type reads as 4800.
+- **From R2007 a text cell stores no `TV` of its own.** The spec lists the
+  cell text for every cell of type 1. On R2007 a `TV` costs no data-stream bits,
+  so reading one cannot break the boundary, but it shifts every later string of
+  the string stream by one place: a cell's format string came out as its value
+  string and the value string as the next cell's. AutoCAD's DXF export, which
+  writes the cell's format string (group 300) and value string (302) in the
+  `CELL_VALUE` block, settles it: without the `TV` all 41 R2007 cells equal it.
+- **The cell alignment override is a `BS`, not the spec's `RS`.** Read as `RS`
+  the field is 20801 and every later bit is off; read as `BS` it is 5, the
+  DXF's group 170.
+- **The override flag word has a bit the spec does not name, `0x40000`.** It
+  is set on most cells and carries no data. AutoCAD's DXF export writes the
+  whole word as group 91, so the flags compare equal.
+- **R2010 and later open with the INSERT fields the spec's table leaves out**:
+  `3BD` insertion point, the `BB` data flags and the scale, `BD` rotation,
+  `3BD` extrusion, `B` has attribs and, from R2004, the owned object count.
+  The corpus's R2018 table shows them: insertion point `(774.87, 48.54, 0)`,
+  data flags `11`, rotation 0, extrusion `(0, 0, 1)`, then the `RC` unknown.
+
+Against AutoCAD's DXF export (R2000 to R2018) all 2429 values equal the
+groups that carry them, 0 differ. R2000 to R2007 are walked cell by cell: the
+table flags and override flags (group 90, 93 to 96), counts, widths (142) and
+heights (141), and per cell the type (171), edge flags (172), merge and autofit
+flags (173, 174), merged width and height (175, 176), rotation (145), text (1,
+before R2007), override flags (91), virtual edges (178), each override that
+both sides hold (170, 283, 63 to 69, 140, 275 to 289) and, on R2007, the value
+(93, 90, the data, 94, 300, 302). The DXF writes an R2010 or later table in the
+older structure too, so from R2010 the insertion point, horizontal direction,
+counts, widths, heights, the value of each cell's first content and a block
+cell's scale (144) are compared the same way. The handles, the table style and
+the block handle (groups 340, 342, 343) sit in the handle stream and are not
+decoded. R14 has no twin.
+
+```sh
+cargo run --release --example probe_acad_table -- ../dwg-corpus
+```
+
+| Release | Records | Close | Values compared | Differ |
+|---|---|---|---|---|
+| R14 | 2 | 2 | no twin | |
+| R2000 | 2 | 2 | 467 | 0 |
+| R2004 | 2 | 2 | 467 | 0 |
+| R2007 | 2 | 2 | 691 | 0 |
+| R2010 | 2 | 2 | 268 | 0 |
+| R2013 | 2 | 2 | 268 | 0 |
+| R2018 | 2 | 2 | 268 | 0 |
+
+The content an R2010 or later entity embeds is a separate encoding from the
+`TABLECONTENT` and `TABLEGEOMETRY` objects the same file still holds for the
+table. The probe walks it against the DXF's two objects as well and reports
+the result without counting it. The first table's content agrees with its
+objects in 2179 values and differs in 2: one cell holds a content the object
+does not. The second table's agrees in 745 and differs in 18, from cell 9,
+the second of two block cells, whose object holds three contents and a block
+scale of 0.00596 where the entity holds one and a scale of 1, which is what the
+entity's own legacy groups (144) say. The cell geometry of the first table (every cell's
+sizes and distances) equals the `TABLEGEOMETRY` object value for value. The
+objects are therefore not an oracle for the entity's content where they differ,
+and the entity's own groups are.
+
 ## 7bi. DIMASSOC, derived from AutoCAD's own output (2026-10-26)
 
 ODA spec v5.4.1 prints no layout for DIMASSOC, the record that ties a dimension
@@ -4635,7 +4717,6 @@ parameter.
 python3 -I tools/corpus/fetch.py --dest ../dwg-corpus
 cargo run --release --example probe_dim_assoc -- ../dwg-corpus
 ```
-
 ## 8. Write pipeline (current scope)
 
 The inverse pipeline is partially shipped. Stage-1 (per-section

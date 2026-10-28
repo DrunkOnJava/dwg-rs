@@ -305,7 +305,7 @@ pub struct TableContent {
     pub merged_ranges: Vec<TableMergedRange>,
 }
 
-type Strings<'a, 'b> = &'a mut Option<StringReader<'b>>;
+pub(crate) type Strings<'a, 'b> = &'a mut Option<StringReader<'b>>;
 
 fn count(c: &mut BitCursor<'_>, what: &str) -> Result<usize> {
     let n = c.read_bl_u()?;
@@ -345,7 +345,12 @@ fn bytes(c: &mut BitCursor<'_>) -> Result<Vec<u8>> {
     (0..n).map(|_| c.read_rc()).collect()
 }
 
-fn read_value(c: &mut BitCursor<'_>, strings: Strings, version: Version) -> Result<TableValue> {
+/// Read one value (§20.4.99).
+pub(crate) fn read_value(
+    c: &mut BitCursor<'_>,
+    strings: Strings,
+    version: Version,
+) -> Result<TableValue> {
     let modern_value = version.is_r2007_plus();
     let flags = if modern_value {
         Some(c.read_bl_u()?)
@@ -559,7 +564,14 @@ fn read_row(c: &mut BitCursor<'_>, strings: Strings, version: Version) -> Result
     })
 }
 
-fn read_body(c: &mut BitCursor<'_>, strings: Strings, version: Version) -> Result<TableContent> {
+/// Read the table content of §20.4.97 without the common object data: the
+/// body of a TABLECONTENT object, and the part of an R2010 or later table
+/// entity (§20.4.96.2) that holds its cells.
+pub(crate) fn read_content_body(
+    c: &mut BitCursor<'_>,
+    strings: Strings,
+    version: Version,
+) -> Result<TableContent> {
     let name = modern::read_tv(c, strings, version)?;
     let description = modern::read_tv(c, strings, version)?;
     let n = count(c, "columns")?;
@@ -605,7 +617,7 @@ pub(crate) fn decode_object(
     version: Version,
 ) -> Result<TableContent> {
     let mut split = modern::open(payload, body_start, inline_data_end, version)?;
-    let out = read_body(&mut split.data, &mut split.strings, version)?;
+    let out = read_content_body(&mut split.data, &mut split.strings, version)?;
     split.finish("TABLECONTENT")?;
     Ok(out)
 }
