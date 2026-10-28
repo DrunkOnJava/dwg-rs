@@ -55,9 +55,10 @@ use dwg::code_page::{CodePage, Observed, observe};
 use dwg::dxf::DxfVersion;
 use dwg::entities::{DecodedEntity, decode_from_raw, decode_from_raw_with_class_map};
 use dwg::extended_data::{self, GroupItem, GroupValue};
+use dwg::file_writer::{WriterScaffold, assemble_dwg_bytes_with_page};
 use dwg::object::RawObject;
 use dwg::{DwgFile, ObjectType};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use twin::{Group, Record, Twin};
@@ -194,7 +195,41 @@ struct Tally {
     compared: usize,
     new_equal: usize,
     old_equal: usize,
+    /// The non-ASCII text the drawing being read decoded to.
+    texts: BTreeSet<String>,
+    /// How many of the drawing's strings hold a `\U+` and a `\M+` escape, and the first of each.
+    escapes: [usize; 2],
+    examples: [Option<String>; 2],
+    /// By header short: strings decoded, those `CodePage::encode` returns the bytes read
+    /// for, those that hold U+FFFD (an invalid sequence, never encoded back), and those
+    /// whose bytes differ.
+    round: BTreeMap<u16, [usize; 4]>,
 }
+
+const ESCAPES: [&str; 2] = ["\\U+", "\\M+"];
+
+/// Texts whose spelling is known, by header short: the name AutoCAD gives a drawing's
+/// first layout in the language of a localized installation (38, 39, 40), and Greek
+/// words of the municipal drawings (32). A drawing that holds the bytes of one is an
+/// oracle for its page without a DXF twin. The ones the pinned corpus holds are
+/// checked (`checked`: a drawing of that short that decodes to none of them fails);
+/// the others are only reported.
+const KNOWN_TEXTS: [(u16, &[&str], bool); 4] = [
+    (38, &["\u{30EC}\u{30A4}\u{30A2}\u{30A6}\u{30C8}1"], true),
+    (39, &["\u{5E03}\u{5C40}1"], true),
+    (40, &["\u{BC30}\u{CE58}1"], false),
+    (
+        32,
+        &[
+            "\u{394}\u{397}\u{39C}\u{39F}\u{3A3}",
+            "\u{3A3}\u{3A7}\u{395}\u{394}\u{399}\u{39F}",
+            "\u{39A}\u{3A4}\u{399}\u{3A1}\u{399}",
+            "\u{39A}\u{3A5}\u{39A}\u{39B}\u{39F}\u{3A6}\u{39F}\u{3A1}\u{399}",
+            "\u{3A0}\u{39B}\u{391}\u{3A4}\u{395}\u{399}\u{391}",
+        ],
+        false,
+    ),
+];
 
 /// One decode's strings: tally them, and list and look up each that leaves ASCII.
 fn census(
@@ -208,6 +243,16 @@ fn census(
 ) {
     for o in seen {
         tally.strings += 1;
+        for (i, escape) in ESCAPES.iter().enumerate() {
+            if o.bytes
+                .windows(escape.len())
+                .any(|w| w == escape.as_bytes())
+            {
+                tally.escapes[i] += 1;
+                tally.examples[i]
+                    .get_or_insert_with(|| String::from_utf8_lossy(&o.bytes).into_owned());
+            }
+        }
         if o.bytes.is_ascii() {
             continue;
         }
@@ -223,6 +268,22 @@ fn census(
             continue;
         };
         tally.changed += usize::from(new != old);
+        tally.texts.insert(new.to_string());
+        let slot = tally.round.entry(o.page.header_value()).or_default();
+        slot[0] += 1;
+        if new.contains('\u{FFFD}') {
+            slot[2] += 1;
+        } else if o.page.encode(new) == o.bytes {
+            slot[1] += 1;
+        } else {
+            slot[3] += 1;
+            *failed = true;
+            println!(
+                "  {release} {name} {what}: bytes {} decode to {new:?} and encode to {}",
+                hex(&o.bytes),
+                hex(&o.page.encode(new))
+            );
+        }
         let verdict = match rec.map(candidates) {
             Some(c) => {
                 tally.compared += 1;
@@ -632,12 +693,13 @@ fn ext_targets(file: &DwgFile) -> Vec<Target> {
     };
     let classes = file.class_map().and_then(Result::ok);
     let tried = std::cell::RefCell::new(std::collections::HashSet::<Vec<u8>>::new());
+    let hay = stream(file);
     let pick = |items: &[GroupItem]| -> Option<(Vec<u8>, usize)> {
         texts(items).into_iter().find_map(|(_, t)| {
             if t.len() < 6 || !t.is_ascii() || !tried.borrow_mut().insert(t.as_bytes().to_vec()) {
                 return None;
             }
-            let hits = bit_find(file.raw_bytes(), t.as_bytes());
+            let hits = bit_find(&hay, t.as_bytes());
             (hits.len() == 1).then(|| (t.as_bytes().to_vec(), hits[0]))
         })
     };
@@ -765,6 +827,14 @@ fn decode_record(
     .1
 }
 
+/// The bytes the object records' bit offsets index: the object stream, which is the
+/// whole file up to R2000.
+fn stream(file: &DwgFile) -> Vec<u8> {
+    file.object_stream()
+        .and_then(Result::ok)
+        .unwrap_or_default()
+}
+
 fn decode_record_entity(
     raw: &RawObject,
     version: dwg::Version,
@@ -779,9 +849,10 @@ fn decode_record_entity(
 }
 
 /// For each kind of record the drawing holds, its first string that is `min`
-/// bytes or longer, ASCII, and sits once in the file.
+/// bytes or longer, ASCII, and sits once in the object stream.
 fn targets(file: &DwgFile, min: usize) -> Vec<Target> {
     let version = file.version();
+    let hay = stream(file);
     let Some(Ok(objects)) = file.all_objects() else {
         return Vec::new();
     };
@@ -794,7 +865,7 @@ fn targets(file: &DwgFile, min: usize) -> Vec<Target> {
         }
         for o in decode_record(raw, version, classes.as_ref()) {
             if o.bytes.len() >= min && o.bytes.is_ascii() {
-                if let [at] = bit_find(file.raw_bytes(), &o.bytes)[..] {
+                if let [at] = bit_find(&hay, &o.bytes)[..] {
                     out.push(Target {
                         via: Via::Record,
                         handle: raw.handle.value,
@@ -814,16 +885,39 @@ fn targets(file: &DwgFile, min: usize) -> Vec<Target> {
 /// A copy of `file` with the first characters of `target` overwritten and the
 /// header short set to `short`.
 fn patched(file: &DwgFile, target: &Target, short: u16) -> Option<DwgFile> {
-    let mut bytes = file.raw_bytes().to_vec();
+    let mut bytes = stream(file);
     for (k, v) in PATCH.iter().enumerate() {
         put_bits(&mut bytes, target.at + 8 * k, *v);
     }
-    match target.via {
-        Via::Record => bytes[0x13..0x15].copy_from_slice(&short.to_le_bytes()),
-        // The string's own page byte is the eight bits before its characters.
-        Via::XRecord | Via::Eed => put_bits(&mut bytes, target.at - 8, u8::try_from(short).ok()?),
+    let header_page = match target.via {
+        Via::Record => short,
+        // The string's own page byte is the eight bits before its characters; the
+        // header's page stays the drawing's own.
+        Via::XRecord | Via::Eed => {
+            put_bits(&mut bytes, target.at - 8, u8::try_from(short).ok()?);
+            file.code_page().header_value()
+        }
+    };
+    if !file.version().is_r2004_family() {
+        bytes[0x13..0x15].copy_from_slice(&header_page.to_le_bytes());
+        return DwgFile::from_bytes(bytes).ok();
     }
-    DwgFile::from_bytes(bytes).ok()
+    // The R2004 family: the DWG writer assembles the file, writing `header_page` as the
+    // header's code page, so the patched string reads in it only if the writer wrote it.
+    let mut scaffold = WriterScaffold::new(file.version());
+    for section in file.sections() {
+        let data = if section.name == "AcDb:AcDbObjects" {
+            bytes.clone()
+        } else {
+            file.read_section(&section.name)?.ok()?
+        };
+        scaffold.add_section(section.name.clone(), data);
+    }
+    let built = scaffold.build_sections().ok()?;
+    let out =
+        assemble_dwg_bytes_with_page(&built, file.version(), CodePage::from_header(header_page))
+            .ok()?;
+    DwgFile::from_bytes(out).ok()
 }
 
 /// What the table says `PATCH` plus `rest` reads as under header short `short`.
@@ -831,7 +925,8 @@ fn expected(short: u16, rest: &str) -> Option<String> {
     match CodePage::from_header(short) {
         CodePage::Ansi1252 => Some(format!("{AS_1252}{rest}")),
         CodePage::Ansi1251 => Some(format!("{AS_1251}{rest}")),
-        CodePage::Unknown(_) => None,
+        // The charts above are those of 1251 and 1252, the pages the patched copies run under.
+        _ => None,
     }
 }
 
@@ -900,26 +995,31 @@ fn read_back(file: &DwgFile, target: &Target, short: u16) -> (bool, String) {
     )
 }
 
-/// The escapes `dwg-to-dxf` writes for the patched characters, and whether its
-/// TABLES hold them.
-fn dxf_has_it(file: &DwgFile, target: &Target) -> (bool, String) {
-    let own = file.code_page().header_value();
-    let rest = String::from_utf8_lossy(&target.text[PATCH.len()..]).into_owned();
-    let want: String = expected(own, &rest)
-        .unwrap_or_default()
-        .chars()
-        .map(|c| {
-            if c.is_ascii() {
-                c.to_string()
-            } else {
-                format!("\\U+{:04X}", u32::from(c))
-            }
-        })
-        .collect();
-    let found = patched(file, target, own)
-        .and_then(|copy| dwg::dxf_convert::convert_dwg_to_dxf(&copy, DxfVersion::R2000).ok())
-        .is_some_and(|text| text.contains(&want));
-    (found, want)
+/// What `dwg-to-dxf` writes (R2000 target, bytes) for the patched string read under
+/// header short `short`, and whether its TABLES hold it: a named page writes the
+/// bytes of the characters it reads (here the patched bytes themselves, for both
+/// pages), a page the table lacks the escapes of what it read.
+fn dxf_has_it(file: &DwgFile, target: &Target, short: u16) -> (bool, String) {
+    let rest = &target.text[PATCH.len()..];
+    let want: Vec<u8> = match CodePage::from_header(short) {
+        CodePage::Unknown(_) => {
+            String::from_utf8_lossy(&PATCH.iter().chain(rest).copied().collect::<Vec<u8>>())
+                .chars()
+                .flat_map(|c| {
+                    if c.is_ascii() {
+                        c.to_string().into_bytes()
+                    } else {
+                        format!("\\U+{:04X}", u32::from(c)).into_bytes()
+                    }
+                })
+                .collect()
+        }
+        _ => PATCH.iter().chain(rest).copied().collect(),
+    };
+    let found = patched(file, target, short)
+        .and_then(|copy| dwg::dxf_convert::convert_dwg_to_dxf_bytes(&copy, DxfVersion::R2000).ok())
+        .is_some_and(|out| out.windows(want.len()).any(|w| w == want.as_slice()));
+    (found, hex(&want))
 }
 
 #[derive(Default)]
@@ -929,6 +1029,223 @@ struct KindTally {
     reads: usize,
     dxf_ok: usize,
     dxf: usize,
+}
+
+/// `encode` is `decode`'s inverse on every byte of each named page, and writes the
+/// escape AutoCAD's own saves hold (`\U+2205` for the diameter sign, in MTEXT and in
+/// an XRECORD of the R2000 and R2004 saves) for a character a page cannot hold.
+fn encode_section(failed: &mut bool) {
+    println!("\nthe writers' encoding (CodePage::encode):");
+    for page in [CodePage::Ansi1251, CodePage::Ansi1252] {
+        let round = (0x80..=0xFFu8)
+            .filter(|b| page.encode(&page.decode(&[*b])) == [*b])
+            .count();
+        *failed |= round != 128;
+        println!(
+            "  {}: {round} of 128 bytes above 0x7F decode and encode back to themselves",
+            page.dxf_name().unwrap_or("?")
+        );
+    }
+    let cases: [(CodePage, &str, &[u8]); 5] = [
+        (CodePage::Ansi1252, "\u{2205}45,6", b"\\U+220545,6"),
+        (CodePage::Ansi1252, "\u{0439}", b"\\U+0439"),
+        (CodePage::Ansi1251, "\u{00E9}", b"\\U+00E9"),
+        (CodePage::Unknown(5), "\u{00E9}", b"\\U+00E9"),
+        (CodePage::Ansi1252, "94\\U+00B0", b"94\\U+00B0"),
+    ];
+    for (page, text, want) in cases {
+        let got = page.encode(text);
+        *failed |= got != want;
+        println!(
+            "  page {} {text:?} -> {:?} {}",
+            page.header_value(),
+            String::from_utf8_lossy(&got),
+            if got == want { "ok" } else { "FAIL" }
+        );
+    }
+}
+
+/// An R2004-family drawing re-assembled by the DWG writer keeps the header's code
+/// page, and with it the text of its strings.
+fn rewrite_section(paths: &[PathBuf], failed: &mut bool) {
+    println!("\nDwgFile::to_bytes, R2004 family:");
+    let (mut total, mut page_kept, mut text_kept, mut pre_r2007, mut refused) = (0, 0, 0, 0, 0);
+    for path in paths {
+        let Ok(file) = DwgFile::open(path) else {
+            continue;
+        };
+        if !file.version().is_r2004_family() {
+            continue;
+        }
+        let Ok(bytes) = file.to_bytes() else {
+            refused += 1;
+            continue;
+        };
+        let Ok(again) = DwgFile::from_bytes(bytes) else {
+            println!("  {}: the rewritten file does not open", path.display());
+            *failed = true;
+            continue;
+        };
+        total += 1;
+        page_kept += usize::from(again.code_page() == file.code_page());
+        if !file.version().is_r2007_plus() {
+            pre_r2007 += 1;
+            let strings = |f: &DwgFile| {
+                f.decoded_entities()
+                    .and_then(Result::ok)
+                    .map(|(entities, _)| format!("{entities:?}"))
+            };
+            text_kept += usize::from(strings(&file) == strings(&again));
+        }
+    }
+    println!(
+        "  {page_kept} of {total} rewritten drawings keep their header's code page; {text_kept} of {pre_r2007} pre-R2007 ones decode to the same entities ({refused} R2004-family drawings are refused by the experimental writer for their section map, as before)"
+    );
+    *failed |= page_kept != total || text_kept != pre_r2007 || total == 0;
+}
+
+/// The text a drawing's MTEXT and TEXT records hold, by handle.
+fn texts_by_handle(file: &DwgFile) -> std::collections::BTreeMap<u64, String> {
+    let mut out = std::collections::BTreeMap::new();
+    let Some(Ok(objects)) = file.all_objects() else {
+        return out;
+    };
+    let classes = file.class_map().and_then(Result::ok);
+    for raw in &objects {
+        match decode_record_entity(raw, file.version(), classes.as_ref()) {
+            DecodedEntity::MText(m) => {
+                out.insert(raw.handle.value, m.text);
+            }
+            DecodedEntity::Text(t) => {
+                out.insert(raw.handle.value, t.text);
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// AutoCAD saved `sample_AC1015.dwg` (R2000) and the R2007 and later samples from
+/// one drawing, with the same entity handles. Where a text holds the diameter
+/// sign U+2205 as the character, the R2000 save holds the escape `\U+2205`: so
+/// `CodePage::encode` of the R2007 text, under the R2000 file's own page, must give
+/// the bytes of the R2000 text of the same handle.
+fn paired_texts_section(paths: &[PathBuf], failed: &mut bool) {
+    println!(
+        "\nR2007 and later texts encoded in the R2000 save's page, against the R2000 save's bytes:"
+    );
+    let find = |n: &str| paths.iter().find(|p| p.file_name().is_some_and(|f| f == n));
+    let Some(old) = find("sample_AC1015.dwg").and_then(|p| DwgFile::open(p).ok()) else {
+        println!("  NOT MEASURED: no sample_AC1015.dwg in the corpus");
+        *failed = true;
+        return;
+    };
+    let theirs = texts_by_handle(&old);
+    let page = old.code_page();
+    for name in [
+        "sample_AC1021.dwg",
+        "sample_AC1024.dwg",
+        "sample_AC1027.dwg",
+        "sample_AC1032.dwg",
+    ] {
+        let Some(new) = find(name).and_then(|p| DwgFile::open(p).ok()) else {
+            continue;
+        };
+        let ours = texts_by_handle(&new);
+        let (mut compared, mut equal, mut escaped, mut rewritten) = (0, 0, 0, 0);
+        for (handle, text) in &ours {
+            let Some(old_text) = theirs.get(handle) else {
+                continue;
+            };
+            // AutoCAD rewrites MTEXT's own formatting between the releases (a line
+            // break is `\P` in R2000, a stacked fraction is written another way):
+            // that is not a character set matter.
+            if text.contains('\n') || text.contains('{') {
+                rewritten += 1;
+                continue;
+            }
+            compared += 1;
+            let bytes = page.encode(text);
+            if bytes == old_text.as_bytes() {
+                equal += 1;
+                escaped += usize::from(!text.is_ascii());
+            } else {
+                *failed = true;
+                println!(
+                    "  {name} #{handle:X}: {text:?} encodes to {:?}, the R2000 save holds {old_text:?}",
+                    String::from_utf8_lossy(&bytes)
+                );
+            }
+        }
+        println!(
+            "  {name}: {equal} of {compared} texts equal the R2000 save's bytes ({escaped} of them hold a character the page lacks, written as \\U+XXXX; {rewritten} more are MTEXT that AutoCAD formatted differently in the two releases)"
+        );
+        *failed |= compared == 0 || escaped == 0;
+    }
+}
+
+/// A pre-R2007 DXF holds a character above ASCII as the `String` writer spells it,
+/// `\U+XXXX`, and as the page writer does, as the bytes of the drawing's page when the
+/// page holds it. So the bytes the page writer returns must read back under the page
+/// to the text the `String` writer returns once every character above ASCII is spelled
+/// as that escape again, for every drawing and every pre-R2007 target that writes
+/// one; a page the crate does not name holds no character, so there the two are the
+/// same bytes. The pinned drawings that write such a character (the layout name in the
+/// `ACAD_LAYOUT` dictionary of the GBK drawings) must exist, or the check measures only
+/// ASCII.
+fn bytes_api_section(paths: &[PathBuf], failed: &mut bool) {
+    println!("\nconvert_dwg_to_dxf_bytes against convert_dwg_to_dxf:");
+    let (mut total, mut same, mut paged, mut chars) = (0, 0, 0, 0);
+    for path in paths {
+        let Ok(file) = DwgFile::open(path) else {
+            continue;
+        };
+        let page = file.code_page();
+        for target in [DxfVersion::R2000, DxfVersion::R2004] {
+            let text = dwg::dxf_convert::convert_dwg_to_dxf(&file, target);
+            let bytes = dwg::dxf_convert::convert_dwg_to_dxf_bytes(&file, target);
+            let (Ok(text), Ok(bytes)) = (text, bytes) else {
+                continue;
+            };
+            total += 1;
+            let decoded = page.try_decode(&bytes);
+            let spelled = decoded.as_ref().map(|d| CodePage::default().encode(d));
+            if spelled.as_deref() == Some(text.as_bytes()) {
+                same += 1;
+                if text.as_bytes() != bytes.as_slice() {
+                    paged += 1;
+                    chars += decoded
+                        .iter()
+                        .flat_map(|d| d.chars())
+                        .filter(|c| !c.is_ascii())
+                        .count();
+                }
+            } else if total - same <= 3 {
+                let other = spelled.unwrap_or_else(|| bytes.clone());
+                let at = text
+                    .bytes()
+                    .zip(other.iter().copied())
+                    .position(|(a, b)| a != b)
+                    .unwrap_or(text.len().min(other.len()));
+                println!(
+                    "  {} {target:?}: {} bytes against {} read back under {page:?}, first difference at {at}: {:?} against {:?}",
+                    path.display(),
+                    text.len(),
+                    other.len(),
+                    String::from_utf8_lossy(
+                        &text.as_bytes()[at.saturating_sub(30)..(at + 30).min(text.len())]
+                    ),
+                    String::from_utf8_lossy(
+                        &other[at.saturating_sub(30)..(at + 30).min(other.len())]
+                    ),
+                );
+            }
+        }
+    }
+    println!(
+        "  {same} of {total} conversions (R2000 and R2004 targets) read back as the String writer's text; {paged} write {chars} characters above ASCII as the bytes of their page"
+    );
+    *failed |= same != total || total == 0 || paged == 0;
 }
 
 fn main() -> ExitCode {
@@ -947,6 +1264,9 @@ fn main() -> ExitCode {
     let mut pairs: BTreeMap<(u16, String), usize> = BTreeMap::new();
     let mut unpaired: BTreeMap<(String, u16), usize> = BTreeMap::new();
     let mut by_release: BTreeMap<String, Tally> = BTreeMap::new();
+    let mut known: BTreeMap<u16, Vec<(String, bool, bool)>> = BTreeMap::new();
+    let mut escaped: BTreeMap<(u16, usize), (usize, usize)> = BTreeMap::new();
+    let mut in_export: BTreeMap<u16, (usize, usize, usize)> = BTreeMap::new();
     let mut ext: BTreeMap<String, ExtTally> = BTreeMap::new();
     let mut utf16 = 0usize;
     let mut drawings = 0usize;
@@ -966,11 +1286,6 @@ fn main() -> ExitCode {
             }
         };
         let version = file.version();
-        if version.is_r2007_plus() {
-            utf16 += 1;
-            continue;
-        }
-        drawings += 1;
         let release = version.to_string();
         let page = file.code_page();
         let twin = twin_of(path, page);
@@ -995,8 +1310,16 @@ fn main() -> ExitCode {
                     .or_default() += 1
             }
         }
+        if version.is_r2007_plus() {
+            utf16 += 1;
+            continue;
+        }
+        drawings += 1;
 
         let tally = by_release.entry(release.clone()).or_default();
+        tally.texts.clear();
+        tally.escapes = [0; 2];
+        tally.examples = [None, None];
         let objects = match file.all_objects() {
             Some(Ok(o)) => o,
             _ => Vec::new(),
@@ -1065,6 +1388,57 @@ fn main() -> ExitCode {
             &seen,
             &mut failed,
         );
+        if let Some(t) = twin.as_ref().filter(|_| !tally.texts.is_empty()) {
+            let theirs: BTreeSet<String> = t
+                .records()
+                .iter()
+                .flat_map(|r| r.groups.iter())
+                .map(|g| norm(g.value.trim_end_matches('\r')))
+                .filter(|s| !s.is_ascii())
+                .collect();
+            let found = tally
+                .texts
+                .iter()
+                .filter(|s| theirs.contains(&norm(s)))
+                .count();
+            let total = in_export.entry(page.header_value()).or_default();
+            total.0 += 1;
+            total.1 += found;
+            total.2 += tally.texts.len();
+            println!(
+                "  {release} {name}: {found} of {} distinct non-ASCII strings occur in its export",
+                tally.texts.len()
+            );
+        }
+        for (i, escape) in ESCAPES.iter().enumerate() {
+            if tally.escapes[i] > 0 {
+                let total = escaped.entry((page.header_value(), i)).or_default();
+                total.0 += 1;
+                total.1 += tally.escapes[i];
+                let example = tally.examples[i].as_deref().unwrap_or("");
+                println!(
+                    "  {release} {name}: {} strings hold {escape}, the first {:?}",
+                    tally.escapes[i],
+                    example.chars().take(60).collect::<String>()
+                );
+            }
+        }
+        if let Some((_, expected, checked)) = KNOWN_TEXTS
+            .iter()
+            .find(|(short, _, _)| *short == page.header_value())
+        {
+            let present = expected
+                .iter()
+                .any(|e| tally.texts.iter().any(|t| t.contains(e)));
+            known
+                .entry(page.header_value())
+                .or_default()
+                .push((name.clone(), present, *checked));
+            if *checked && !present {
+                println!("  {release} {name}: none of {expected:?} is among its decoded strings");
+                failed = true;
+            }
+        }
         ext_census(
             ext.entry(release.clone()).or_default(),
             &name,
@@ -1075,7 +1449,7 @@ fn main() -> ExitCode {
             &mut failed,
         );
 
-        if !version.is_r2004_plus() {
+        if !version.is_r2007_plus() && matches!(page.header_value(), 29 | 30) {
             patchable.push((name, file));
         }
     }
@@ -1089,6 +1463,51 @@ fn main() -> ExitCode {
     }
     for ((release, short), n) in &unpaired {
         println!("  {short:>3}  (no export names it) {n:>3} {release} drawings");
+    }
+    println!("\nthe known texts (a localized layout name, Greek words), decoded, by header short:");
+    for (short, rows) in &known {
+        let present = rows.iter().filter(|(_, p, _)| *p).count();
+        let name = KNOWN_TEXTS
+            .iter()
+            .find(|(s, _, _)| s == short)
+            .map_or(&[][..], |(_, n, _)| *n);
+        println!(
+            "  short {short} ({}): {present} of {} drawings decode to one of {name:?}",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row"),
+            rows.len()
+        );
+    }
+    println!("\ndistinct non-ASCII strings that occur in the export (by header short):");
+    for (short, (drawings, found, total)) in &in_export {
+        println!(
+            "  short {short:>3} ({}): {found} of {total} in {drawings} drawings",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row")
+        );
+    }
+    println!("\nescapes in the strings (by header short): drawings and strings holding each");
+    for ((short, i), (drawings, strings)) in &escaped {
+        println!(
+            "  short {short:>3} {}: {strings} strings in {drawings} drawings",
+            ESCAPES[*i]
+        );
+    }
+    let mut round: BTreeMap<u16, [usize; 4]> = BTreeMap::new();
+    for t in by_release.values() {
+        for (short, r) in &t.round {
+            let total = round.entry(*short).or_default();
+            for (a, b) in total.iter_mut().zip(r) {
+                *a += b;
+            }
+        }
+    }
+    println!(
+        "\nthe round trip, decode then encode (by header short): strings, back to their bytes, invalid sequences, differing"
+    );
+    for (short, [strings, same, invalid, differ]) in &round {
+        println!(
+            "  short {short:>3} ({}): {strings} strings, {same}, {invalid}, {differ}",
+            CodePage::from_header(*short).dxf_name().unwrap_or("no row")
+        );
     }
     println!("\nstrings decoded, by release:");
     println!(
@@ -1213,19 +1632,21 @@ fn main() -> ExitCode {
                 }
             }
             if t.table_entry && base.contains(&*String::from_utf8_lossy(&t.text)) {
-                let (ok, want) = dxf_has_it(file, &t);
-                tally.dxf += 1;
-                tally.dxf_ok += usize::from(ok);
-                failed |= !ok;
-                if detail || !ok {
-                    println!(
-                        "      {}dwg-to-dxf TABLES holds \"{want}\"",
-                        if ok {
-                            String::new()
-                        } else {
-                            format!("FAIL {name} #{:X} {}: ", t.handle, t.kind)
-                        },
-                    );
+                for short in [own, 29, 30, 31] {
+                    let (ok, want) = dxf_has_it(file, &t, short);
+                    tally.dxf += 1;
+                    tally.dxf_ok += usize::from(ok);
+                    failed |= !ok;
+                    if (detail && short != own) || !ok {
+                        println!(
+                            "      {}dwg-to-dxf bytes under page {short} hold {want}",
+                            if ok {
+                                String::new()
+                            } else {
+                                format!("FAIL {name} #{:X} {}: ", t.handle, t.kind)
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -1245,6 +1666,11 @@ fn main() -> ExitCode {
             t.targets, t.reads_ok, t.reads
         );
     }
+
+    encode_section(&mut failed);
+    rewrite_section(&paths, &mut failed);
+    paired_texts_section(&paths, &mut failed);
+    bytes_api_section(&paths, &mut failed);
 
     for kind in ["XRECORD values", "extended data"] {
         if by_kind.get(kind).is_none_or(|t| t.targets == 0) {
