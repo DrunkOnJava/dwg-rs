@@ -3669,7 +3669,7 @@ end; characters above the BMP, two escapes each as before and never measured; an
 strings encoder for the entities, which the DWG writer does not write at all (its only
 authored strings are the class table's).
 
-## 7au. VIEWPORT ENTITY HEADER (2026-10-26, #146)
+## 7bu. VIEWPORT ENTITY HEADER (2026-10-26, #146)
 
 §20.4.70 prints the header the older releases keep for each viewport entity
 (type `0x47`): the name and flags a symbol-table entry opens with, as
