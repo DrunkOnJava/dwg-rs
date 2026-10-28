@@ -94,7 +94,7 @@ provisional until a controlled AutoCAD drawing confirms it (#348).
 add up, not that the values are right. The DXF value oracle
 ([`examples/dxf_oracle/`](./examples/dxf_oracle/main.rs)) pairs every decoded
 record with the same handle in AutoCAD's DXF export and scores each field. On
-`main` it scores <!-- oracle-summary:begin -->135,154 field comparisons on 63 types: 115,543 equal, 11,844 equal to the DXF default, 286 different and 7,481 present only in the DWG<!-- oracle-summary:end -->
+`main` it scores <!-- oracle-summary:begin -->158,534 field comparisons on 64 types: 138,903 equal, 11,844 equal to the DXF default, 286 different and 7,501 present only in the DWG<!-- oracle-summary:end -->
 ([`tools/oracle/baseline.tsv`](./tools/oracle/baseline.tsv) pins the result,
 and CI fails when it moves). Decoded types with no scorer yet are listed as
 unscored in the oracle summary the Corpus job uploads.
