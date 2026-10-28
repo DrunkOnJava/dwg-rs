@@ -54,6 +54,8 @@ pub enum DecodedEntity {
     Circle(circle::Circle),
     Arc(arc::Arc),
     Ellipse(ellipse::Ellipse),
+    AcadTable(Box<crate::entities::acad_table::AcadTable>),
+    AcadTableLegacy(Box<crate::entities::acad_table::AcadTableLegacy>),
     Ray(ray::Ray),
     XLine(xline::XLine),
     Solid(solid::Solid),
@@ -170,15 +172,15 @@ pub enum DecodedEntity {
     DbColor(crate::objects::small_classes::DbColor),
     /// A dynamic-block evaluation object (§7bg).
     DynamicBlock(Box<crate::objects::dynamic_block::DynamicBlockObject>),
-    /// DIMASSOC (§7bh).
+    /// DIMASSOC (§7bi).
     DimAssoc(crate::objects::dim_assoc::DimAssoc),
-    /// DATATABLE (§7bl).
+    /// DATATABLE (§7bm).
     DataTable(Box<crate::objects::data_table::DataTable>),
-    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bm).
+    /// ACDB_TEXTOBJECTCONTEXTDATA_CLASS (§7bn).
     TextObjectContextData(crate::objects::text_context_data::TextObjectContextData),
-    /// ACSH_HISTORY_CLASS (§7bi).
+    /// ACSH_HISTORY_CLASS (§7bj).
     ShHistory(crate::objects::sh_history::ShHistory),
-    /// ACSH_BOX_CLASS (§7bi).
+    /// ACSH_BOX_CLASS (§7bj).
     ShBox(Box<crate::objects::sh_history::ShBox>),
     /// One of the ten `*_CONTROL` table owners; `kind` says which.
     Control {
@@ -211,6 +213,9 @@ impl DecodedEntity {
             Self::Circle(_) => OBJECT_TYPE_CIRCLE,
             Self::Arc(_) => OBJECT_TYPE_ARC,
             Self::Ellipse(_) => OBJECT_TYPE_ELLIPSE,
+            // ACAD_TABLE is a custom class — its code varies per file via
+            // AcDb:Classes.
+            Self::AcadTable(_) | Self::AcadTableLegacy(_) => 0,
             Self::Ray(_) => OBJECT_TYPE_RAY,
             Self::XLine(_) => OBJECT_TYPE_XLINE,
             Self::Solid(_) => OBJECT_TYPE_SOLID,
@@ -540,6 +545,17 @@ fn decode_with_class_map_in_page(
         "HELIX" | "ACDBHELIX" => checked_inline(raw, body_start, version, "HELIX", |c, _, _, _| {
             helix::decode(c).map(DecodedEntity::Helix)
         }),
+        "ACAD_TABLE" | "ACDBTABLE" => {
+            checked_inline(raw, body_start, version, "ACAD_TABLE", |c, v, ce, s| {
+                if v.is_r2010_plus() {
+                    crate::entities::acad_table::decode(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTable(Box::new(t)))
+                } else {
+                    crate::entities::acad_table::decode_legacy(c, v, ce, s)
+                        .map(|t| DecodedEntity::AcadTableLegacy(Box::new(t)))
+                }
+            })
+        }
         // WIPEOUT shares the IMAGE payload (§19.4.86).
         "WIPEOUT" | "ACDBWIPEOUT" => {
             checked_inline(raw, body_start, version, "WIPEOUT", |c, v, _, _| {
@@ -593,6 +609,11 @@ fn decode_with_class_map_in_page(
     };
     match result {
         Ok(entity) => entity,
+        // "this release's layout is not decoded" is not a decode failure.
+        Err(crate::error::Error::Unsupported { .. }) => DecodedEntity::Unhandled {
+            type_code,
+            kind: raw.kind,
+        },
         Err(e) => DecodedEntity::Error {
             type_code,
             kind: raw.kind,
