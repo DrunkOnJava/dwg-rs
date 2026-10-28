@@ -30,10 +30,11 @@ wait_at_end() {
 # carry the older PR's work into main under its own title; refreshed while the older PR is held, it
 # merges main over the older PR's commits and can no longer merge against them once that PR lands.
 # It waits while an older open PR (a lower number, whatever branch it targets) shares a commit with it
-# that is neither on main nor in a PR that has already landed by squash: two PRs built on the same
-# landed PR share only that PR's commits and do not wait for each other. Every PR head is fetched to
-# refs/train/pr/<n> in the main clone. Prints the PR to wait for, or nothing; any failed lookup
-# returns 2, and the caller then defers the PR rather than letting it through unchecked.
+# that is neither on main nor in a PR that has already landed on main by squash (one merged into
+# another branch has not): two PRs built on the same landed PR share only that PR's commits and do
+# not wait for each other. Every PR head is fetched to refs/train/pr/<n> in the main clone. Prints
+# the PR to wait for, or nothing; any failed lookup returns 2, and the caller then defers the PR
+# rather than letting it through unchecked.
 g() { git -C "$TRAIN_CLONE" "$@"; }
 older_open() {
   local head open merged="" n h c pr
@@ -45,7 +46,7 @@ older_open() {
     for c in $(g merge-base --all "$h" "$head"); do
       g merge-base --is-ancestor "$c" origin/main && continue
       if [ -z "$merged" ]; then
-        merged=$(gh api --paginate "repos/$TRAIN_REPO/pulls?state=closed&per_page=100" --jq '.[]|select(.merged_at)|.number' 2> /dev/null) || return 2
+        merged=$(gh api --paginate "repos/$TRAIN_REPO/pulls?state=closed&per_page=100" --jq '.[]|select(.merged_at and .base.ref == "main")|.number' 2> /dev/null) || return 2
       fi
       for pr in $(g for-each-ref --contains "$c" --format='%(refname:lstrip=3)' refs/train/pr/); do
         grep -qx "$pr" <<< "$merged" && continue 2
