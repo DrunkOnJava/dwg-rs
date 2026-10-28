@@ -4508,7 +4508,7 @@ for p in wipeout_variables purge_preventer block_representation pdf_definition d
 done
 ```
 
-## 7bg. ACAD_TABLE (2026-10-26, #151)
+## 7bh. ACAD_TABLE (2026-10-26, #151)
 
 §20.4.96 prints a table entity in two layouts. §20.4.96.1 ("until R21") is the
 INSERT fields, a flag, the horizontal direction, the column and row counts,
