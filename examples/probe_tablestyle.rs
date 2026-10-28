@@ -20,6 +20,14 @@
 //!   and from R2007 the data type (90), data unit type (91) and format
 //!   string (1).
 //!
+//! From R2010 the record is §20.4.101.2's: a description and cell styles
+//! (§20.4.101.4). The DXF writes those not in the TABLESTYLE but in the
+//! drawing's one CELLSTYLEMAP, so the cell styles of the title, header and
+//! data rows are compared with that object, group by group in the order the
+//! spec prints the fields (`support/cellstyles.rs`); the table's own cell
+//! style (id 4) has no DXF counterpart. The description is compared with
+//! group 3 of the TABLESTYLE.
+//!
 //! The text style (group 7) is a handle in the record's handle stream, which
 //! the decoder does not read, so it is not compared. A group the DXF leaves
 //! out is counted as omitted, not compared against an assumed default. R14
@@ -36,6 +44,8 @@
 //! Exit status is non-zero when a record in a decoded release errors, a value
 //! differs, a twin lacks the record, or no value was compared at all.
 
+#[path = "support/cellstyles.rs"]
+mod cellstyles;
 #[path = "support/twin.rs"]
 mod twin;
 
@@ -43,7 +53,7 @@ use dwg::entities::DecodedEntity;
 use dwg::objects::acad_table_style::TableStyleRow;
 use dwg::objects::color::ObjectColor;
 use std::process::ExitCode;
-use twin::{Group, Probe, Record, Tally};
+use twin::{Group, Pairing, Probe, Record, Tally, Twin};
 
 fn first<'a>(groups: &'a [&Group], code: u16) -> Option<&'a Group> {
     groups.iter().copied().find(|g| g.code == code)
@@ -127,10 +137,11 @@ fn compare_row(t: &mut Tally, label: &str, ours: &TableStyleRow, dxf: &[&Group])
     }
 }
 
-fn compare(decoded: &DecodedEntity, rec: Option<&Record>, t: &mut Tally) -> bool {
-    let DecodedEntity::TableStyle(ours) = decoded else {
-        return false;
-    };
+fn compare_until21(
+    ours: &dwg::objects::acad_table_style::AcadTableStyle,
+    rec: Option<&Record>,
+    t: &mut Tally,
+) -> bool {
     let Some(rec) = rec else {
         return true;
     };
@@ -199,16 +210,89 @@ fn compare(decoded: &DecodedEntity, rec: Option<&Record>, t: &mut Tally) -> bool
     true
 }
 
+fn compare_modern(
+    ours: &dwg::objects::acad_table_style::AcadTableStyleModern,
+    rec: Option<&Record>,
+    twin: Option<&Twin>,
+    t: &mut Tally,
+) -> bool {
+    let (Some(rec), Some(twin)) = (rec, twin) else {
+        return true;
+    };
+    let start = rec
+        .groups
+        .iter()
+        .position(|g| g.code == 100 && g.value.trim() == "AcDbTableStyle")
+        .map_or(0, |i| i + 1);
+    t.text(
+        "description",
+        &ours.description,
+        rec.groups[start..]
+            .iter()
+            .find(|g| g.code == 3)
+            .map(|g| g.value.as_str()),
+    );
+    let maps = twin.records_of("CELLSTYLEMAP");
+    let [map] = maps.as_slice() else {
+        t.compared += 1;
+        t.differ += 1;
+        println!("    the DXF holds {} CELLSTYLEMAPs, not 1", maps.len());
+        return true;
+    };
+    let from = map
+        .groups
+        .iter()
+        .position(|g| g.code == 100 && g.value.trim() == "AcDbCellStyleMap")
+        .map_or(0, |i| i + 1);
+    let mut s = cellstyles::Seq::new(&map.groups[from..]);
+    s.int(t, "cell style count", ours.cell_styles.len() as i64, 90);
+    for entry in &ours.cell_styles {
+        if entry.leading_id != entry.style.id {
+            t.compared += 1;
+            t.differ += 1;
+            println!(
+                "    leading id {} differs from id {}",
+                entry.leading_id, entry.style.id
+            );
+        }
+        cellstyles::named_cell_style(&mut s, t, &entry.style);
+    }
+    if s.leftover() > 0 {
+        t.compared += 1;
+        t.differ += 1;
+        println!(
+            "    the DXF holds {} groups after the decoded cell styles",
+            s.leftover()
+        );
+    }
+    t.omitted += 1;
+    true
+}
+
+fn compare(
+    decoded: &DecodedEntity,
+    rec: Option<&Record>,
+    twin: Option<&Twin>,
+    t: &mut Tally,
+) -> bool {
+    match decoded {
+        DecodedEntity::TableStyle(ours) => compare_until21(ours, rec, t),
+        DecodedEntity::TableStyleModern(ours) => compare_modern(ours, rec, twin, t),
+        _ => false,
+    }
+}
+
 fn main() -> ExitCode {
-    twin::run(
+    twin::run_with_twin(
         &Probe {
             tag: "TABLESTYLE",
             class: Some("TABLESTYLE"),
             kind: None,
             dxf_kind: "TABLESTYLE",
-            decodes_on: |v| !v.is_r2010_plus(),
-            note: "; the text style handles (group 7) are not decoded",
+            decodes_on: |_| true,
+            note: "; the text style handles (group 7) and the table's own cell style (id 4) have no DXF value",
         },
+        Pairing::Handle,
         compare,
     )
 }
