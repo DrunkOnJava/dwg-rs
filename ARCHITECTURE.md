@@ -176,9 +176,11 @@ bit granularity. Key methods:
 | `read_ms`       | Two-byte modular stream                          | `u64` (unsigned)         |
 | `read_handle`   | 4-bit code + 4-bit counter + payload             | `Handle { code, value }` |
 
-The `BitWriter` methods mirror each `read_*` method exactly. Property
-tests in `tests/proptest_roundtrip.rs` lock the invariant that
-every primitive round-trips bit-exactly.
+The `BitWriter` methods mirror each `read_*` method exactly. Every
+primitive round-trips bit-exactly; CI exercises that end to end, because
+the committed canonical fixtures are written with `BitWriter` and read back
+by the reader, and `tests/proptest_roundtrip.rs` (class `unit`, not run)
+states it as a property.
 
 ## 5. LZ77 decompression (spec §4.7)
 
@@ -5141,9 +5143,13 @@ input to a full `DwgFile::to_bytes()` once Stages 2-5 are completed.
 
 ## 10. Test strategy
 
-Evidence comes from real executables run on real files. New work is
-shown on the corpus, not with new unit tests; the suites already in
-the tree stay and must keep passing.
+Evidence comes from real executables run on real files. Unit tests
+are banned: none are added, and none run in CI. `tools/ci/test-targets.txt`
+classes every file under `tests/` as `real`, `cli`, `contract`,
+`hardening` or `unit`; the Test job runs all but `unit`
+(`tools/ci/run_test_targets.sh`), and fails on a file the manifest
+does not class. The inline `#[cfg(test)]` suites in `src/` are being
+deleted area by area, and git history is the archive.
 
 1. **Self-validating decoders.** Every entity and object decoder must
    end exactly on its record's data-stream boundary (§7i), so a wrong
@@ -5161,15 +5167,21 @@ the tree stay and must keep passing.
    generator, the coverage report must stay above its floor, and the
    class-census and reference-closure probes must pass. CI does not
    read the real corpus yet (#95).
-4. **Property, golden and fuzz checks.** `tests/proptest_roundtrip.rs`
-   round-trips the bit-level primitives, `tests/integration_svg_goldens.rs`
-   pins SVG output, and `fuzz/` runs nightly against every byte-level
-   attack surface.
+4. **Fuzz and contract checks.** `tests/integration_fuzz_corpus_regression.rs`
+   replays every fuzz seed through its entry point (class `hardening`),
+   `tests/code_table_agreement.rs` checks the object-type tables against
+   the specification's Table 4 (class `contract`),
+   `tools/ci/dispatch_arms.py` keeps the fixed-code dispatcher's label list
+   and body arms in step, and `fuzz/` runs nightly against every byte-level
+   attack surface. `tests/proptest_roundtrip.rs` and
+   `tests/integration_svg_goldens.rs` are classed `unit`: kept as source,
+   not run.
 5. **Streaming E2E.** `tools/streaming/verify.py` drives the built
    `stream_header` example in separate processes under generated chunk
    schedules (docs/streaming/README.md).
 
-`cargo test --release --all-features` must pass before a PR merges.
+`tools/ci/run_test_targets.sh --release --all-features` must pass before
+a PR merges.
 
 ## 11. Legal posture
 
