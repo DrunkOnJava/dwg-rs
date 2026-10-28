@@ -56,7 +56,7 @@ USD_PER_INPUT_TOKEN = 0.042 / 1_000_000
 STATUS = re.compile(
     r"#\d{2,4}\b|\bin review\b|\bnot yet\b|\bno longer\b|\b(?:does|do|is|are|has|have) not\b|\bnot\b"
     r"|\bnone\b|\bnever\b|\bonly\b|\btoday\b|\bpending\b|\bplanned\b|\bmissing\b|\bunscored\b"
-    r"|\bskipped\b|\berrored\b|\bstubs?\b|\bdraft\b|\bv\d+\.\d|\b\d[\d,.]*\s?%",
+    r"|\bskipped\b|\berrored\b|\bstubs?\b|\bdraft\b|\bv\d+\.\d",
     re.I,
 )
 STOP = set(
@@ -92,6 +92,19 @@ def summary(body, limit=900):
     body = body or ""
     m = re.search(r"^##\s+Summary\s*$(.*?)(?=^##\s|\Z)", body, re.M | re.S)
     text = plain(m.group(1) if m else body)
+    return text[:limit] + ("…" if len(text) > limit else "")
+
+
+ACCEPT = re.compile(r"^#{2,6}\s+(?:Acceptance|Done when|Definition of done)\b.*?(?=^#{1,6}\s|\Z)", re.M | re.S | re.I)
+
+
+def issue_text(body, limit=1500):
+    """An issue's body, whole when it fits; otherwise its acceptance sections first, so the cut never drops them."""
+    body = body or ""
+    whole = plain(body)
+    if len(whole) <= limit:
+        return whole
+    text = plain("\n".join([m.group(0) for m in ACCEPT.finditer(body)] + [ACCEPT.sub("", body)]))
     return text[:limit] + ("…" if len(text) > limit else "")
 
 
@@ -294,7 +307,7 @@ def prose(args, key):
             since = (datetime.fromisoformat(last) - timedelta(days=2)).date().isoformat()
         prs = gh("pr", "list", "-R", REPO, "--state", "merged", "--search", f"merged:>={since}", "--limit", "300", "--json", "number,title,body,mergedAt")
         idf = prepare(prs)
-        cands = [u for u in statements(path) if STATUS.search(u["text"])]
+        cands = [u for u in statements(path) if STATUS.search(u["text"]) and not MEASURED.search(u["text"])]
         numbers += [(doc, u) for u in units(path) if MEASURED.search(u["text"])]
         for u in cands:
             short = shortlist(u["text"], prs, args.k, idf)
@@ -341,7 +354,8 @@ def issues(args, key):
     idf = prepare(prs)
     jobs, meta = [], []
     for issue in open_issues:
-        text = issue["title"] + " " + summary(issue.get("body"), 1500)
+        body = issue_text(issue.get("body"))
+        text = issue["title"] + " " + body
         later = [pr for pr in prs if pr["mergedAt"] >= issue["createdAt"]]
         refs = {issue["number"]}
         named = [pr for pr in later if refs & pr["refs"]]
@@ -349,7 +363,7 @@ def issues(args, key):
         short = named + rest
         if not short:
             continue
-        state = {"issue": {"number": issue["number"], "title": issue["title"], "body": summary(issue.get("body"), 1500)}}
+        state = {"issue": {"number": issue["number"], "title": issue["title"], "body": body}}
         qs = {
             f"pr_{pr['number']}": (
                 pr,
