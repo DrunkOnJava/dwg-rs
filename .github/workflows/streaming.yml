@@ -67,7 +67,7 @@ jobs:
         run: python3 tools/streaming/verify_r2007_objects.py target/debug/examples/stream_r2007_objects target/debug/examples/streaming_schedules
       - name: End-to-end R2007 object stream checkpoint restore (native to wasm32 and back)
         run: python3 tools/streaming/verify_wasm_r2007_objects.py target/debug/examples/stream_r2007_objects
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: streaming-evidence
